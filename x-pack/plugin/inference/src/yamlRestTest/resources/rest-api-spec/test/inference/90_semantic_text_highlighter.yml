@@ -380,7 +380,7 @@ setup:
   - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
 
 ---
-"Highlighting with match_all query and multiple field types":
+"Highlighting with match_all and multi chunks with empty input":
   - requires:
       cluster_features: "semantic_text.match_all_highlighter"
       reason: semantic text field supports match_all query with semantic highlighter, effective from 8.19 and 9.1.0.
@@ -436,7 +436,7 @@ setup:
             properties:
               semantic_text_field:
                 type: semantic_text
-                inference_id: sparse-inference-id
+                inference_id: dense-inference-id
               text_field:
                 type: text
 

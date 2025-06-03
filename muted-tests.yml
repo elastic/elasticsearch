@@ -486,9 +486,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test124CanRestartContainerWithStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128121
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
-  method: testSymlinkUpdateTriggerReload
-  issue: https://github.com/elastic/elasticsearch/issues/128619
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test085EnvironmentVariablesAreRespectedUnderDockerExec
   issue: https://github.com/elastic/elasticsearch/issues/128115
@@ -543,6 +540,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
   method: testSimpleOffHeapSizeFSDir
   issue: https://github.com/elastic/elasticsearch/issues/128800
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIOUsed
+  issue: https://github.com/elastic/elasticsearch/issues/128829
 
 # Examples:
 #

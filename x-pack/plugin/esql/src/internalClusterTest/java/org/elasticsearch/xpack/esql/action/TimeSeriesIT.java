@@ -13,6 +13,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -745,15 +746,20 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     totalTimeSeries++;
                     assertThat(p.operators(), hasSize(2));
                     assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
+                } else if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)) {
+                    assertThat(p.operators(), hasSize(3));
+                    assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
+                    assertThat(p.operators().get(1).operator(), containsString("TimeSeriesAggregationOperator"));
+                    assertThat(p.operators().get(2).operator(), equalTo("ExchangeSinkOperator"));
                 } else {
                     assertThat(p.operators(), hasSize(4));
                     assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                    assertThat(p.operators().get(1).operator(), containsString("EvalOperator[evaluator=DateTruncDatetimeEvaluator"));
-                    assertThat(p.operators().get(2).operator(), containsString("TimeSeriesAggregationOperator"));
+                    assertThat(p.operators().get(1).operator(), containsString("TimeSeriesExtractFieldOperator"));
+                    assertThat(p.operators().get(2).operator(), containsString("EvalOperator"));
                     assertThat(p.operators().get(3).operator(), equalTo("ExchangeSinkOperator"));
                 }
             }
-            assertThat(totalTimeSeries, equalTo(dataProfiles.size() / 2));
+            assertThat(totalTimeSeries, equalTo(dataProfiles.size() / 3));
         }
     }
 }

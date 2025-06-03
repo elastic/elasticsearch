@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -33,24 +32,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
-import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
 
-    private final boolean emitDocIds;
     private final int maxPageSize;
     private final BlockFactory blockFactory;
     private final LuceneSliceQueue sliceQueue;
@@ -61,24 +52,13 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     private LongVector.Builder timestampsBuilder;
     private TsidBuilder tsHashesBuilder;
     private SegmentsIterator iterator;
-    private final List<ValuesSourceReaderOperator.FieldInfo> fieldsToExtracts;
-    private ShardLevelFieldsReader fieldsReader;
     private DocIdCollector docCollector;
     private long tsidsLoaded;
 
-    TimeSeriesSourceOperator(
-        BlockFactory blockFactory,
-        boolean emitDocIds,
-        List<ValuesSourceReaderOperator.FieldInfo> fieldsToExtract,
-        LuceneSliceQueue sliceQueue,
-        int maxPageSize,
-        int limit
-    ) {
+    TimeSeriesSourceOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
-        this.fieldsToExtracts = fieldsToExtract;
-        this.emitDocIds = emitDocIds;
         this.remainingDocs = limit;
         this.timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
         this.tsHashesBuilder = new TsidBuilder(blockFactory, Math.min(limit, maxPageSize));
@@ -107,7 +87,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         }
 
         Page page = null;
-        Block[] blocks = new Block[(emitDocIds ? 3 : 2) + fieldsToExtracts.size()];
+        Block[] blocks = new Block[3];
         long startInNanos = System.nanoTime();
         try {
             if (iterator == null) {
@@ -119,36 +99,24 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 if (slice.tags().isEmpty() == false) {
                     throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
-                Releasables.close(fieldsReader);
-                fieldsReader = new ShardLevelFieldsReader(blockFactory, slice.shardContext(), fieldsToExtracts);
                 iterator = new SegmentsIterator(slice);
-                if (emitDocIds) {
-                    docCollector = new DocIdCollector(blockFactory, slice.shardContext());
-                }
+                docCollector = new DocIdCollector(blockFactory, slice.shardContext());
             }
-            if (docCollector != null) {
-                docCollector.prepareForCollecting(Math.min(remainingDocs, maxPageSize));
-            }
-            fieldsReader.prepareForReading(Math.min(remainingDocs, maxPageSize));
             iterator.readDocsForNextPage();
             if (currentPagePos > 0) {
-                int blockIndex = 0;
-                if (docCollector != null) {
-                    blocks[blockIndex++] = docCollector.build().asBlock();
-                }
+                blocks[0] = docCollector.build().asBlock();
                 OrdinalBytesRefVector tsidVector = tsHashesBuilder.build();
-                blocks[blockIndex++] = tsidVector.asBlock();
+                blocks[1] = tsidVector.asBlock();
                 tsHashesBuilder = new TsidBuilder(blockFactory, Math.min(remainingDocs, maxPageSize));
-                blocks[blockIndex++] = timestampsBuilder.build().asBlock();
+                blocks[2] = timestampsBuilder.build().asBlock();
                 timestampsBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                System.arraycopy(fieldsReader.buildBlocks(tsidVector.getOrdinalsVector()), 0, blocks, blockIndex, fieldsToExtracts.size());
                 page = new Page(currentPagePos, blocks);
                 currentPagePos = 0;
             }
             if (iterator.completed()) {
                 processedShards.add(iterator.luceneSlice.shardContext().shardIdentifier());
                 processedSlices++;
-                Releasables.close(docCollector, fieldsReader);
+                Releasables.close(docCollector);
                 iterator = null;
             }
         } catch (IOException e) {
@@ -164,7 +132,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(timestampsBuilder, tsHashesBuilder, docCollector, fieldsReader);
+        Releasables.closeExpectNoException(timestampsBuilder, tsHashesBuilder, docCollector);
     }
 
     class SegmentsIterator {
@@ -201,6 +169,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
         // TODO: add optimize for one leaf?
         void readDocsForNextPage() throws IOException {
+            docCollector.prepareForCollecting(Math.min(remainingDocs, maxPageSize));
             Thread executingThread = Thread.currentThread();
             for (LeafIterator leaf : mainQueue) {
                 leaf.reinitializeIfNeeded(executingThread);
@@ -221,18 +190,13 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         }
 
         private boolean readValuesForOneTsid(PriorityQueue<LeafIterator> sub) throws IOException {
-            boolean first = true;
             do {
                 LeafIterator top = sub.top();
                 currentPagePos++;
                 remainingDocs--;
-                if (docCollector != null) {
-                    docCollector.collect(top.segmentOrd, top.docID);
-                }
+                docCollector.collect(top.segmentOrd, top.docID);
                 tsHashesBuilder.appendOrdinal();
                 timestampsBuilder.appendLong(top.timestamp);
-                fieldsReader.readValues(top.segmentOrd, top.docID, first == false);
-                first = false;
                 if (top.nextDoc()) {
                     sub.updateTop();
                 } else if (top.docID == DocIdSetIterator.NO_MORE_DOCS) {
@@ -331,175 +295,6 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         }
     }
 
-    static class BlockLoaderFactory extends ValuesSourceReaderOperator.DelegatingBlockLoaderFactory {
-        BlockLoaderFactory(BlockFactory factory) {
-            super(factory);
-        }
-
-        @Override
-        public BlockLoader.Block constantNulls() {
-            throw new UnsupportedOperationException("must not be used by column readers");
-        }
-
-        @Override
-        public BlockLoader.Block constantBytes(BytesRef value) {
-            throw new UnsupportedOperationException("must not be used by column readers");
-        }
-
-        @Override
-        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
-            throw new UnsupportedOperationException("must not be used by column readers");
-        }
-    }
-
-    static final class ShardLevelFieldsReader implements Releasable {
-        private final BlockLoaderFactory blockFactory;
-        private final SegmentLevelFieldsReader[] segments;
-        private final BlockLoader[] loaders;
-        private final boolean[] dimensions;
-        private final Block.Builder[] builders;
-        private final StoredFieldsSpec storedFieldsSpec;
-        private final SourceLoader sourceLoader;
-
-        ShardLevelFieldsReader(BlockFactory blockFactory, ShardContext shardContext, List<ValuesSourceReaderOperator.FieldInfo> fields) {
-            this.blockFactory = new BlockLoaderFactory(blockFactory);
-            final IndexReader indexReader = shardContext.searcher().getIndexReader();
-            this.segments = new SegmentLevelFieldsReader[indexReader.leaves().size()];
-            this.loaders = new BlockLoader[fields.size()];
-            this.builders = new Block.Builder[loaders.length];
-            StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-            for (int i = 0; i < fields.size(); i++) {
-                BlockLoader loader = fields.get(i).blockLoader().apply(shardContext.index());
-                storedFieldsSpec = storedFieldsSpec.merge(loader.rowStrideStoredFieldSpec());
-                loaders[i] = loader;
-            }
-            for (int i = 0; i < indexReader.leaves().size(); i++) {
-                LeafReaderContext leafReaderContext = indexReader.leaves().get(i);
-                segments[i] = new SegmentLevelFieldsReader(leafReaderContext, loaders);
-            }
-            if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = shardContext.newSourceLoader();
-                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
-            } else {
-                sourceLoader = null;
-            }
-            this.storedFieldsSpec = storedFieldsSpec;
-            this.dimensions = new boolean[fields.size()];
-            for (int i = 0; i < fields.size(); i++) {
-                dimensions[i] = shardContext.fieldType(fields.get(i).name()).isDimension();
-            }
-        }
-
-        /**
-         * For dimension fields, skips reading them when {@code nonDimensionFieldsOnly} is true,
-         * since they only need to be read once per tsid.
-         */
-        void readValues(int segment, int docID, boolean nonDimensionFieldsOnly) throws IOException {
-            segments[segment].read(docID, builders, nonDimensionFieldsOnly, dimensions);
-        }
-
-        void prepareForReading(int estimatedSize) throws IOException {
-            if (this.builders.length > 0 && this.builders[0] == null) {
-                for (int f = 0; f < builders.length; f++) {
-                    builders[f] = (Block.Builder) loaders[f].builder(blockFactory, estimatedSize);
-                }
-            }
-            for (SegmentLevelFieldsReader segment : segments) {
-                if (segment != null) {
-                    segment.reinitializeIfNeeded(sourceLoader, storedFieldsSpec);
-                }
-            }
-        }
-
-        Block[] buildBlocks(IntVector tsidOrdinals) {
-            final Block[] blocks = new Block[loaders.length];
-            try {
-                for (int i = 0; i < builders.length; i++) {
-                    if (dimensions[i]) {
-                        blocks[i] = buildBlockForDimensionField(builders[i], tsidOrdinals);
-                    } else {
-                        blocks[i] = builders[i].build();
-                    }
-                }
-                Arrays.fill(builders, null);
-            } finally {
-                if (blocks.length > 0 && blocks[blocks.length - 1] == null) {
-                    Releasables.close(blocks);
-                }
-            }
-            return blocks;
-        }
-
-        private Block buildBlockForDimensionField(Block.Builder builder, IntVector tsidOrdinals) {
-            try (var values = builder.build()) {
-                if (values.asVector() instanceof BytesRefVector bytes) {
-                    tsidOrdinals.incRef();
-                    values.incRef();
-                    return new OrdinalBytesRefVector(tsidOrdinals, bytes).asBlock();
-                } else if (values.areAllValuesNull()) {
-                    return blockFactory.factory.newConstantNullBlock(tsidOrdinals.getPositionCount());
-                } else {
-                    final int positionCount = tsidOrdinals.getPositionCount();
-                    try (var newBuilder = values.elementType().newBlockBuilder(positionCount, blockFactory.factory)) {
-                        for (int p = 0; p < positionCount; p++) {
-                            int pos = tsidOrdinals.getInt(p);
-                            newBuilder.copyFrom(values, pos, pos + 1);
-                        }
-                        return newBuilder.build();
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(builders);
-        }
-    }
-
-    static final class SegmentLevelFieldsReader {
-        private final BlockLoader.RowStrideReader[] rowStride;
-        private final BlockLoader[] loaders;
-        private final LeafReaderContext leafContext;
-        private BlockLoaderStoredFieldsFromLeafLoader storedFields;
-        private Thread loadedThread = null;
-
-        SegmentLevelFieldsReader(LeafReaderContext leafContext, BlockLoader[] loaders) {
-            this.leafContext = leafContext;
-            this.loaders = loaders;
-            this.rowStride = new BlockLoader.RowStrideReader[loaders.length];
-        }
-
-        private void reinitializeIfNeeded(SourceLoader sourceLoader, StoredFieldsSpec storedFieldsSpec) throws IOException {
-            final Thread currentThread = Thread.currentThread();
-            if (loadedThread != currentThread) {
-                loadedThread = currentThread;
-                for (int f = 0; f < loaders.length; f++) {
-                    rowStride[f] = loaders[f].rowStrideReader(leafContext);
-                }
-                storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                    StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(leafContext, null),
-                    sourceLoader != null ? sourceLoader.leaf(leafContext.reader(), null) : null
-                );
-            }
-        }
-
-        void read(int docId, Block.Builder[] builder, boolean nonDimensionFieldsOnly, boolean[] dimensions) throws IOException {
-            storedFields.advanceTo(docId);
-            if (nonDimensionFieldsOnly) {
-                for (int i = 0; i < rowStride.length; i++) {
-                    if (dimensions[i] == false) {
-                        rowStride[i].read(docId, storedFields, builder[i]);
-                    }
-                }
-            } else {
-                for (int i = 0; i < rowStride.length; i++) {
-                    rowStride[i].read(docId, storedFields, builder[i]);
-                }
-            }
-        }
-    }
-
     /**
      * Collect tsids then build a {@link OrdinalBytesRefVector}
      */
@@ -559,25 +354,21 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         private final ShardContext shardContext;
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
-        private final int[] docPerSegments;
 
         DocIdCollector(BlockFactory blockFactory, ShardContext shardContext) {
             this.blockFactory = blockFactory;
             this.shardContext = shardContext;
-            docPerSegments = new int[shardContext.searcher().getIndexReader().leaves().size()];
         }
 
         void prepareForCollecting(int estimatedSize) {
             assert docsBuilder == null;
             docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-            Arrays.fill(docPerSegments, 0);
         }
 
         void collect(int segment, int docId) {
             docsBuilder.appendInt(docId);
             segmentsBuilder.appendInt(segment);
-            docPerSegments[segment]++;
         }
 
         DocVector build() {
@@ -591,48 +382,11 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 segments = segmentsBuilder.build();
                 segmentsBuilder = null;
                 shards = blockFactory.newConstantIntVector(shardContext.index(), docs.getPositionCount());
-                docVector = buildDocVector(shards, segments, docs, docPerSegments);
+                docVector = new DocVector(shards, segments, docs, segments.isConstant());
                 return docVector;
             } finally {
                 if (docVector == null) {
                     Releasables.close(docs, segments, shards);
-                }
-            }
-        }
-
-        private DocVector buildDocVector(IntVector shards, IntVector segments, IntVector docs, int[] docPerSegments) {
-            if (segments.isConstant()) {
-                // DocIds are sorted in each segment. Hence, if docIds come from a single segment, we can mark this DocVector
-                // as singleSegmentNonDecreasing to enable optimizations in the ValuesSourceReaderOperator.
-                return new DocVector(shards, segments, docs, true);
-            }
-            boolean success = false;
-            int positionCount = shards.getPositionCount();
-            long estimatedSize = DocVector.sizeOfSegmentDocMap(positionCount);
-            blockFactory.adjustBreaker(estimatedSize);
-            // Use docPerSegments to build a forward/backward docMap in O(N)
-            // instead of O(N*log(N)) in DocVector#buildShardSegmentDocMapIfMissing.
-            try {
-                final int[] forwards = new int[positionCount];
-                final int[] starts = new int[docPerSegments.length];
-                for (int i = 1; i < starts.length; i++) {
-                    starts[i] = starts[i - 1] + docPerSegments[i - 1];
-                }
-                for (int i = 0; i < segments.getPositionCount(); i++) {
-                    final int segment = segments.getInt(i);
-                    assert forwards[starts[segment]] == 0 : "must not set";
-                    forwards[starts[segment]++] = i;
-                }
-                final int[] backwards = new int[forwards.length];
-                for (int p = 0; p < forwards.length; p++) {
-                    backwards[forwards[p]] = p;
-                }
-                final DocVector docVector = new DocVector(shards, segments, docs, forwards, backwards);
-                success = true;
-                return docVector;
-            } finally {
-                if (success == false) {
-                    blockFactory.adjustBreaker(-estimatedSize);
                 }
             }
         }
@@ -650,7 +404,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
     @Override
     public Operator.Status status() {
-        final long valuesLoaded = rowsEmitted * (1 + fieldsToExtracts.size()); // @timestamp and other fields
+        final long valuesLoaded = rowsEmitted; // @timestamp field
         return new Status(this, tsidsLoaded, valuesLoaded);
     }
 

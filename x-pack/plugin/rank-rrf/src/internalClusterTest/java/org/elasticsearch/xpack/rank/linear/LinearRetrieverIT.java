@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -834,5 +835,165 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
+    }
+
+    public void testLinearRetrieverWithMinScoreValidation() {
+        TestRetrieverBuilder retriever1 = new TestRetrieverBuilder(Map.of("doc_1", 0.8f));
+        float[] weights = new float[] { 1.0f };
+        ScoreNormalizer[] normalizers = LinearRetrieverBuilder.getDefaultNormalizers(1);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new LinearRetrieverBuilder(
+                List.of(new CompoundRetrieverBuilder.RetrieverSource(retriever1, null)),
+                10,
+                weights,
+                normalizers,
+                -0.1f
+            )
+        );
+        assertThat(e.getMessage(), equalTo("[min_score] must be greater than or equal to 0, was: -0.1"));
+    }
+
+    public void testLinearRetrieverWithMinScoreScenarios() {
+        final int rankWindowSize = 10;
+
+        // Define scores for TestRetrieverBuilder (documents exist from setupIndex)
+        TestRetrieverBuilder retrieverA = new TestRetrieverBuilder(
+            Map.of("doc_1", 10.0f, "doc_2", 8.0f, "doc_3", 6.0f, "doc_4", 4.0f)
+        );
+        TestRetrieverBuilder retrieverB = new TestRetrieverBuilder(
+            Map.of("doc_1", 1.0f, "doc_2", 3.0f, "doc_3", 5.0f, "doc_4", 2.0f)
+        );
+
+        // Combined scores (weights {1.0f, 1.0f}, no normalization initially):
+        // doc_1: 10.0 + 1.0 = 11.0
+        // doc_2:  8.0 + 3.0 = 11.0
+        // doc_3:  6.0 + 5.0 = 11.0
+        // doc_4:  4.0 + 2.0 =  6.0
+
+        float[] weights = new float[] { 1.0f, 1.0f };
+        ScoreNormalizer[] identityNormalizers = LinearRetrieverBuilder.getDefaultNormalizers(2);
+
+        // Scenario 1: minScore is null (not specified) - all docs returned
+        LinearRetrieverBuilder builderNullMinScore = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+            ),
+            rankWindowSize,
+            weights,
+            identityNormalizers,
+            null // Explicitly null
+        );
+        SearchSourceBuilder sourceNullMinScore = new SearchSourceBuilder().retriever(builderNullMinScore).size(rankWindowSize);
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceNullMinScore), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(4L));
+            List<String> ids = Arrays.stream(resp.getHits().getHits()).map(h -> h.getId()).sorted().toList();
+            assertThat(ids, equalTo(List.of("doc_1", "doc_2", "doc_3", "doc_4")));
+        });
+
+        // Scenario 2: minScore = 0.0f - all docs returned (as all scores are > 0)
+        LinearRetrieverBuilder builderZeroMinScore = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+            ),
+            rankWindowSize,
+            weights,
+            identityNormalizers,
+            0.0f
+        );
+        SearchSourceBuilder sourceZeroMinScore = new SearchSourceBuilder().retriever(builderZeroMinScore).size(rankWindowSize);
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceZeroMinScore), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(4L));
+        });
+
+        // Scenario 3: Basic filtering - minScore = 10.0f
+        // Expect: doc_1 (11.0), doc_2 (11.0), doc_3 (11.0). doc_4 (6.0) is filtered out.
+        LinearRetrieverBuilder builderFilterBasic = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+            ),
+            rankWindowSize,
+            weights,
+            identityNormalizers,
+            10.0f
+        );
+        SearchSourceBuilder sourceFilterBasic = new SearchSourceBuilder().retriever(builderFilterBasic).size(rankWindowSize);
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceFilterBasic), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(3L));
+            List<String> ids = Arrays.stream(resp.getHits().getHits()).map(h -> h.getId()).sorted().toList();
+            assertThat(ids, equalTo(List.of("doc_1", "doc_2", "doc_3")));
+        });
+
+        // Scenario 4: Inclusive filtering - minScore = 6.0f
+        // Expect: doc_1 (11.0), doc_2 (11.0), doc_3 (11.0), doc_4 (6.0). doc_4 is included.
+        LinearRetrieverBuilder builderFilterInclusive = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+            ),
+            rankWindowSize,
+            weights,
+            identityNormalizers,
+            6.0f
+        );
+        SearchSourceBuilder sourceFilterInclusive = new SearchSourceBuilder().retriever(builderFilterInclusive).size(rankWindowSize);
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceFilterInclusive), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(4L));
+            for (var hit : resp.getHits().getHits()) {
+                if (hit.getId().equals("doc_4")) assertThat((double)hit.getScore(), closeTo(6.0, 1e-5));
+                else assertThat((double)hit.getScore(), closeTo(11.0, 1e-5));
+            }
+        });
+
+        // Scenario 5: Filter all documents - minScore = 12.0f
+        LinearRetrieverBuilder builderFilterAll = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+            ),
+            rankWindowSize,
+            weights,
+            identityNormalizers,
+            12.0f
+        );
+        SearchSourceBuilder sourceFilterAll = new SearchSourceBuilder().retriever(builderFilterAll).size(rankWindowSize);
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceFilterAll), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(0L));
+        });
+
+        // Scenario 6: Interaction with MinMax Normalization
+        // Retriever A scores: doc_1 (10), doc_2 (8), doc_3 (6), doc_4 (4) -> Normalized: (10-4)/(10-4)=1, (8-4)/(10-4)=0.666, (6-4)/(10-4)=0.333, (4-4)/(10-4)=0
+        // Retriever B scores: doc_1 (1),  doc_2 (3), doc_3 (5), doc_4 (2) -> Normalized: (1-1)/(5-1)=0,  (3-1)/(5-1)=0.5,   (5-1)/(5-1)=1,   (2-1)/(5-1)=0.25
+        // Combined normalized scores (weights {1.0, 1.0}):
+        // doc_1: 1.0 + 0.0  = 1.0
+        // doc_2: 0.666 + 0.5 = 1.166
+        // doc_3: 0.333 + 1.0 = 1.333
+        // doc_4: 0.0 + 0.25 = 0.25
+        ScoreNormalizer[] minMaxNormalizers = new ScoreNormalizer[] { MinMaxScoreNormalizer.INSTANCE, MinMaxScoreNormalizer.INSTANCE };
+        LinearRetrieverBuilder builderWithNorm = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+            ),
+            rankWindowSize,
+            weights,
+            minMaxNormalizers,
+            1.1f // minScore after normalization
+        );
+        SearchSourceBuilder sourceWithNorm = new SearchSourceBuilder().retriever(builderWithNorm).size(rankWindowSize);
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceWithNorm), resp -> {
+            // Expect doc_2 (1.166), doc_3 (1.333). doc_1 (1.0) and doc_4 (0.25) are filtered out.
+            assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+            List<String> ids = Arrays.stream(resp.getHits().getHits()).map(h -> h.getId()).sorted().toList();
+            assertThat(ids, equalTo(List.of("doc_2", "doc_3")));
+            for (var hit : resp.getHits().getHits()) {
+                if (hit.getId().equals("doc_2")) assertThat((double)hit.getScore(), closeTo(1.166, 0.001));
+                if (hit.getId().equals("doc_3")) assertThat((double)hit.getScore(), closeTo(1.333, 0.001));
+            }
+        });
     }
 }

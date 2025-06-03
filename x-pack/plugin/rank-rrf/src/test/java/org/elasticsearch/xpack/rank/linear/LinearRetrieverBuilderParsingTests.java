@@ -54,7 +54,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
             weights[i] = randomFloat();
             normalizers[i] = randomScoreNormalizer();
         }
-        return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+        return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers, null);
     }
 
     @Override

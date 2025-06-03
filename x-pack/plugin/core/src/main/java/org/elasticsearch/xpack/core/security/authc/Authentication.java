@@ -267,6 +267,16 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
+        if (isCloudApiKey() && olderVersion.before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + "] can't handle cloud API key authentication and attempted to rewrite for ["
+                    + olderVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
+
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
 
         final Authentication newAuthentication;
@@ -628,6 +638,16 @@ public final class Authentication implements ToXContentObject {
                 "versions of Elasticsearch before ["
                     + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        if (effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY
+            && out.getTransportVersion().before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + "] can't handle cloud API key authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );

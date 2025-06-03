@@ -1,5 +1,5 @@
 pr: 128736
-summary: Readd `index.lifecycle.skip` setting
+summary: Add `index.lifecycle.skip` index-scoped setting to instruct ILM to skip processing specific indices
 area: ILM+SLM
 type: enhancement
 issues: []

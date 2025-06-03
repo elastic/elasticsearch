@@ -1,6 +1,6 @@
 pr: 128854
 summary: Mark token pruning for sparse vector as GA
-area: ml
+area: Machine Learning
 type: feature
 issues: []
 highlight:

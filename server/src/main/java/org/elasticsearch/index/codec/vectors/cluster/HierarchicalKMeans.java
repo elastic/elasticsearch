@@ -83,7 +83,7 @@ public class HierarchicalKMeans {
         int[] assignments = new int[vectors.size()];
 
         KMeans kmeans = new KMeans(m, maxIterations);
-        float[][] centroids = KMeans.pickInitialCentroids(vectors, m, k);
+        float[][] centroids = KMeans.pickInitialCentroids(vectors, k);
         KMeansResult kMeansResult = new KMeansResult(centroids);
         kmeans.cluster(vectors, kMeansResult);
 

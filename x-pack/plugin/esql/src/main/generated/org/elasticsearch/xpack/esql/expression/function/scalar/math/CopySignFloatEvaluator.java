@@ -8,6 +8,8 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
@@ -43,12 +45,12 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block eval(Page page) {
     try (FloatBlock magnitudeBlock = (FloatBlock) magnitude.eval(page)) {
-      try (FloatBlock signBlock = (FloatBlock) sign.eval(page)) {
+      try (DoubleBlock signBlock = (DoubleBlock) sign.eval(page)) {
         FloatVector magnitudeVector = magnitudeBlock.asVector();
         if (magnitudeVector == null) {
           return eval(page.getPositionCount(), magnitudeBlock, signBlock);
         }
-        FloatVector signVector = signBlock.asVector();
+        DoubleVector signVector = signBlock.asVector();
         if (signVector == null) {
           return eval(page.getPositionCount(), magnitudeBlock, signBlock);
         }
@@ -57,7 +59,7 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
     }
   }
 
-  public FloatBlock eval(int positionCount, FloatBlock magnitudeBlock, FloatBlock signBlock) {
+  public FloatBlock eval(int positionCount, FloatBlock magnitudeBlock, DoubleBlock signBlock) {
     try(FloatBlock.Builder result = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (magnitudeBlock.isNull(p)) {
@@ -82,16 +84,16 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendFloat(CopySign.processFloat(magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p)), signBlock.getFloat(signBlock.getFirstValueIndex(p))));
+        result.appendFloat(CopySign.processFloat(magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
   }
 
-  public FloatVector eval(int positionCount, FloatVector magnitudeVector, FloatVector signVector) {
+  public FloatVector eval(int positionCount, FloatVector magnitudeVector, DoubleVector signVector) {
     try(FloatVector.FixedBuilder result = driverContext.blockFactory().newFloatVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendFloat(p, CopySign.processFloat(magnitudeVector.getFloat(p), signVector.getFloat(p)));
+        result.appendFloat(p, CopySign.processFloat(magnitudeVector.getFloat(p), signVector.getDouble(p)));
       }
       return result.build();
     }

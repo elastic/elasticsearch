@@ -129,7 +129,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                         logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
                         state = ClusterState.builder(state)
                             .putProjectMetadata(
-                                IndexLifecycleTransition.moveProjectToStep(
+                                IndexLifecycleTransition.moveIndexToStep(
                                     index,
                                     state.metadata().getProject(),
                                     nextStepKey,
@@ -176,7 +176,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                         } else {
                             state = ClusterState.builder(state)
                                 .putProjectMetadata(
-                                    IndexLifecycleTransition.moveProjectToStep(
+                                    IndexLifecycleTransition.moveIndexToStep(
                                         index,
                                         state.metadata().getProject(),
                                         nextStepKey,

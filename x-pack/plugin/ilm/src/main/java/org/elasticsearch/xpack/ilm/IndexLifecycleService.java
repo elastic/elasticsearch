@@ -161,13 +161,13 @@ public class IndexLifecycleService
      * thrown.
      * @throws IllegalArgumentException if the step movement cannot be validated
      */
-    public ProjectMetadata moveProjectToStep(ProjectMetadata project, Index index, StepKey currentStepKey, StepKey newStepKey) {
+    public ProjectMetadata moveIndexToStep(ProjectMetadata project, Index index, StepKey currentStepKey, StepKey newStepKey) {
         // We manually validate here, because any API must correctly specify the current step key
         // when moving to an arbitrary step key (to avoid race conditions between the
         // check-and-set). moveProjectToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
         IndexLifecycleTransition.validateTransition(project.index(index), currentStepKey, newStepKey, policyRegistry);
-        return IndexLifecycleTransition.moveProjectToStep(index, project, newStepKey, nowSupplier, policyRegistry, true);
+        return IndexLifecycleTransition.moveIndexToStep(index, project, newStepKey, nowSupplier, policyRegistry, true);
     }
 
     public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {

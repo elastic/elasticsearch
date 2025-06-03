@@ -147,7 +147,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
                     }
 
                     concreteTargetKey.set(concreteTargetStepKey);
-                    final var updatedProject = indexLifecycleService.moveProjectToStep(
+                    final var updatedProject = indexLifecycleService.moveIndexToStep(
                         currentState.metadata().getProject(),
                         indexMetadata.getIndex(),
                         request.getCurrentStepKey(),

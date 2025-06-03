@@ -59,9 +59,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
             return ClusterState.builder(currentState)
-                .putProjectMetadata(
-                    IndexLifecycleTransition.moveProjectToStep(index, project, nextStepKey, nowSupplier, stepRegistry, false)
-                )
+                .putProjectMetadata(IndexLifecycleTransition.moveIndexToStep(index, project, nextStepKey, nowSupplier, stepRegistry, false))
                 .build();
         } else {
             // either the policy has changed or the step is now

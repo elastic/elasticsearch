@@ -115,7 +115,7 @@ public final class IndexLifecycleTransition {
      * @param forcePhaseDefinitionRefresh Whether to force the phase JSON to be reread or not
      * @return The updated cluster state where the index moved to <code>newStepKey</code>
      */
-    static ProjectMetadata moveProjectToStep(
+    static ProjectMetadata moveIndexToStep(
         Index index,
         ProjectMetadata project,
         Step.StepKey newStepKey,

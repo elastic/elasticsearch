@@ -367,6 +367,49 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return (1f - lambda) * xe * xe / norm2 + lambda * e;
     }
 
+    @Override
+    public float soarResidual(float[] v1, float[] centroid, float[] originalResidual) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        float proj = 0;
+        int i = 0;
+        if (v1.length > 2 * FLOAT_SPECIES.length()) {
+            FloatVector projVec1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector projVec2 = FloatVector.zero(FLOAT_SPECIES);
+            int unrolledLimit = FLOAT_SPECIES.loopBound(v1.length) - FLOAT_SPECIES.length();
+            for (; i < unrolledLimit; i += 2 * FLOAT_SPECIES.length()) {
+                // one
+                FloatVector v1Vec0 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+                FloatVector centroidVec0 = FloatVector.fromArray(FLOAT_SPECIES, centroid, i);
+                FloatVector originalResidualVec0 = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i);
+                FloatVector djkVec0 = v1Vec0.sub(centroidVec0);
+                projVec1 = fma(djkVec0, originalResidualVec0, projVec1);
+
+                // two
+                FloatVector v1Vec1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i + FLOAT_SPECIES.length());
+                FloatVector centroidVec1 = FloatVector.fromArray(FLOAT_SPECIES, centroid, i + FLOAT_SPECIES.length());
+                FloatVector originalResidualVec1 = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i + FLOAT_SPECIES.length());
+                FloatVector djkVec1 = v1Vec1.sub(centroidVec1);
+                projVec2 = fma(djkVec1, originalResidualVec1, projVec2);
+            }
+            // vector tail
+            for (; i < FLOAT_SPECIES.loopBound(v1.length); i += FLOAT_SPECIES.length()) {
+                FloatVector v1Vec = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+                FloatVector centroidVec = FloatVector.fromArray(FLOAT_SPECIES, centroid, i);
+                FloatVector originalResidualVec = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i);
+                FloatVector djkVec = v1Vec.sub(centroidVec);
+                projVec1 = fma(djkVec, originalResidualVec, projVec1);
+            }
+            proj += projVec1.add(projVec2).reduceLanes(ADD);
+        }
+        // tail
+        for (; i < v1.length; i++) {
+            float djk = v1[i] - centroid[i];
+            proj = fma(djk, originalResidual[i], proj);
+        }
+        return proj;
+    }
+
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
     private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
 

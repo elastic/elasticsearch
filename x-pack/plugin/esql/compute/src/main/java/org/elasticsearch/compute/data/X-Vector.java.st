@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -17,6 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores $type$ values.

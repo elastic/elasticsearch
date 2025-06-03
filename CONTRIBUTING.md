@@ -401,7 +401,8 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> [!NOTE]
+> If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 

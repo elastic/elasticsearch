@@ -7,19 +7,21 @@
 
 package org.elasticsearch.compute.lucene;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -63,8 +65,116 @@ import static org.hamcrest.Matchers.matchesRegex;
 
 public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
+
+    @ParametersFactory(argumentFormatting = "%s %s")
+    public static Iterable<Object[]> parameters() {
+        List<Object[]> parameters = new ArrayList<>();
+        for (TestCase c : TestCase.values()) {
+            for (boolean scoring : new boolean[] { false, true }) {
+                parameters.add(new Object[] { c, scoring });
+            }
+        }
+        return parameters;
+    }
+
+    public enum TestCase {
+        MATCH_ALL {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of()));
+            }
+
+            @Override
+            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+                int maxPages = Math.min(numDocs, limit);
+                int minPages = (int) Math.ceil((double) maxPages / maxPageSize);
+                assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return numDocs;
+            }
+        },
+        MATCH_0_AND_1 {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(
+                    new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowExactQuery("s", 0), List.of(123)),
+                    new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowExactQuery("s", 1), List.of(456))
+                );
+            }
+
+            @Override
+            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+                assertThat(results, hasSize(Math.min(numDocs, 2)));
+                if (results.isEmpty() == false) {
+                    Page page = results.get(0);
+                    IntBlock extra = page.getBlock(page.getBlockCount() - 2);
+                    assertThat(extra.asVector().isConstant(), equalTo(true));
+                    assertThat(extra.getInt(0), equalTo(123));
+                    if (results.size() > 1) {
+                        page = results.get(1);
+                        extra = page.getBlock(page.getBlockCount() - 2);
+                        assertThat(extra.asVector().isConstant(), equalTo(true));
+                        assertThat(extra.getInt(0), equalTo(456));
+                    }
+                }
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return Math.min(numDocs, 2);
+            }
+        },
+        LTE_100_GT_100 {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(
+                    new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowRangeQuery("s", 0, 100), List.of(123)),
+                    new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowRangeQuery("s", 101, Long.MAX_VALUE), List.of(456))
+                );
+            }
+
+            @Override
+            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+                MATCH_ALL.checkPages(numDocs, limit, maxPageSize, results);
+                for (Page page : results) {
+                    IntBlock extra = page.getBlock(page.getBlockCount() - 2);
+                    LongBlock data = page.getBlock(page.getBlockCount() - 1);
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        assertThat(extra.getInt(p), equalTo(data.getLong(p) <= 100 ? 123 : 456));
+                    }
+                }
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return numDocs;
+            }
+        };
+
+        abstract List<LuceneSliceQueue.QueryAndTags> queryAndExtra();
+
+        abstract void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results);
+
+        abstract int numResults(int numDocs);
+    }
+
+    private final TestCase testCase;
+    /**
+     * Do we enable scoring? We don't check the score in this test, but
+     * it's nice to make sure everything else works with scoring enabled.
+     */
+    private final boolean scoring;
+
     private Directory directory = newDirectory();
     private IndexReader reader;
+
+    public LuceneSourceOperatorTests(TestCase testCase, boolean scoring) {
+        this.testCase = testCase;
+        this.scoring = scoring;
+    }
 
     @After
     public void closeIndex() throws IOException {
@@ -72,7 +182,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneSourceOperator.Factory simple() {
+    protected LuceneSourceOperator.Factory simple(SimpleOptions options) {
         return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100, scoring);
     }
 
@@ -94,12 +204,19 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
                 }
             }
             reader = writer.getReader();
+
+            IndexSearcher searcher = new IndexSearcher(reader);
+            int count = 0;
+            for (LuceneSliceQueue.QueryAndTags q : testCase.queryAndExtra()) {
+                count += searcher.count(q.query());
+            }
+            assertThat(count, equalTo(testCase.numResults(numDocs)));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
         ShardContext ctx = new MockShardContext(reader, 0);
-        Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
         return new LuceneSourceOperator.Factory(
@@ -152,15 +269,17 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testEarlyTermination() {
-        int size = between(1_000, 20_000);
-        int limit = between(0, Integer.MAX_VALUE);
-        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), size, limit, scoring);
+        int numDocs = between(1_000, 20_000);
+        int limit = between(0, numDocs * 2);
+        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), numDocs, limit, scoring);
         int taskConcurrency = factory.taskConcurrency();
         final AtomicInteger receivedRows = new AtomicInteger();
+        List<SourceOperator> sources = new ArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext driverContext = driverContext();
             SourceOperator sourceOperator = factory.get(driverContext);
+            sources.add(sourceOperator);
             SinkOperator sinkOperator = new PageConsumerOperator(p -> {
                 receivedRows.addAndGet(p.getPositionCount());
                 p.releaseBlocks();
@@ -183,7 +302,17 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             drivers.add(driver);
         }
         OperatorTestCase.runDriver(drivers);
-        assertThat(receivedRows.get(), equalTo(Math.min(limit, size)));
+        for (SourceOperator source : sources) {
+            logger.info("source status {}", source.status());
+        }
+        logger.info(
+            "{} received={} limit={} numResults={}",
+            factory.dataPartitioning,
+            receivedRows.get(),
+            limit,
+            testCase.numResults(numDocs)
+        );
+        assertThat(receivedRows.get(), equalTo(Math.min(limit, testCase.numResults(numDocs))));
     }
 
     public void testEmpty() {
@@ -228,8 +357,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
     }
 
-    private void testSimple(DriverContext ctx, DataPartitioning partitioning, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(partitioning, size, limit, scoring);
+    private void testSimple(DriverContext ctx, DataPartitioning partitioning, int numDocs, int limit) {
+        LuceneSourceOperator.Factory factory = simple(partitioning, numDocs, limit, scoring);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
@@ -246,26 +375,26 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         for (Page page : results) {
             LongBlock sBlock = page.getBlock(initialBlockIndex(page));
             for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) size)));
+                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) numDocs)));
             }
         }
-        int maxPages = Math.min(size, limit);
-        int minPages = (int) Math.ceil(maxPages / factory.maxPageSize());
-        assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
-    }
 
-    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
-    private final boolean scoring = randomBoolean();
+        testCase.checkPages(numDocs, limit, factory.maxPageSize(), results);
+        int count = results.stream().mapToInt(Page::getPositionCount).sum();
+        logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
+        assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
+    }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled
     private int initialBlockIndex(Page page) {
         assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+        int offset = 1;
         if (scoring) {
             assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
-            return 2;
-        } else {
-            return 1;
+            offset++;
         }
+        offset += testCase.queryAndExtra().get(0).tags().size();
+        return offset;
     }
 
     /**
@@ -323,6 +452,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public String shardIdentifier() {
             return "test";
+        }
+
+        @Override
+        public MappedFieldType fieldType(String name) {
+            throw new UnsupportedOperationException();
         }
     }
 }

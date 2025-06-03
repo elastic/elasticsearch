@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
+
 module org.elasticsearch.security {
     requires java.naming;
     requires java.security.jgss;
@@ -74,6 +76,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.rest.action.apikey to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.support to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authz.store to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.authc.service;
 
     provides org.elasticsearch.index.SlowLogFieldProvider with org.elasticsearch.xpack.security.slowlog.SecuritySlowLogFieldProvider;
 
@@ -88,9 +91,7 @@ module org.elasticsearch.security {
             org.elasticsearch.xpack.security.authc.file.tool.UsersToolProvider,
             org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHashToolProvider;
 
-    provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
-        with
-            org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
+    provides ReservedStateHandlerProvider with org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.security.SecurityFeatures;
 }

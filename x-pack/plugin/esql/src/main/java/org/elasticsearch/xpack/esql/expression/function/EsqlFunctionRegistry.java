@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -22,18 +23,24 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
@@ -97,6 +104,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Scalb;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
@@ -128,6 +137,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIn
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -294,6 +312,7 @@ public class EsqlFunctionRegistry {
                 def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
                 def(Min.class, uni(Min::new), "min"),
                 def(Percentile.class, bi(Percentile::new), "percentile"),
+                def(Sample.class, bi(Sample::new), "sample"),
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
                 def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
@@ -321,6 +340,8 @@ public class EsqlFunctionRegistry {
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
+                def(RoundTo.class, RoundTo::new, "round_to"),
+                def(Scalb.class, Scalb::new, "scalb"),
                 def(Signum.class, Signum::new, "signum"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
@@ -376,7 +397,16 @@ public class EsqlFunctionRegistry {
                 def(StYMax.class, StYMax::new, "st_ymax"),
                 def(StYMin.class, StYMin::new, "st_ymin"),
                 def(StX.class, StX::new, "st_x"),
-                def(StY.class, StY::new, "st_y") },
+                def(StY.class, StY::new, "st_y"),
+                def(StGeohash.class, StGeohash::new, "st_geohash"),
+                def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
+                def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
+                def(StGeotile.class, StGeotile::new, "st_geotile"),
+                def(StGeotileToLong.class, StGeotileToLong::new, "st_geotile_to_long"),
+                def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
+                def(StGeohex.class, StGeohex::new, "st_geohex"),
+                def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
+                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
@@ -444,8 +474,13 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
+                def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
+                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
+                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
+                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
+                def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
                 def(Term.class, bi(Term::new), "term") } };
     }
 
@@ -902,9 +937,13 @@ public class EsqlFunctionRegistry {
         FunctionBuilder builder = (source, children, cfg) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
-                throw new QlIllegalArgumentException("expects one or two arguments");
+                throw new QlIllegalArgumentException(
+                    Strings.format("function %s expects one or two arguments but it received %d", Arrays.toString(names), children.size())
+                );
             } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
-                throw new QlIllegalArgumentException("expects exactly two arguments");
+                throw new QlIllegalArgumentException(
+                    Strings.format("function %s expects exactly two arguments, it received %d", Arrays.toString(names), children.size())
+                );
             }
 
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);

@@ -9,51 +9,108 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
-import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class TextFieldWithParentBlockLoaderTests extends BlockLoaderTestCase {
-    public TextFieldWithParentBlockLoaderTests(Params params) {
-        // keyword because we need a keyword parent field
-        super(FieldType.KEYWORD.toString(), List.of(new DataSourceHandler() {
+import static org.elasticsearch.index.mapper.BlockLoaderTestCase.buildSpecification;
+import static org.elasticsearch.index.mapper.BlockLoaderTestCase.hasDocValues;
+
+public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
+    private final BlockLoaderTestCase.Params params;
+    private final BlockLoaderTestRunner runner;
+
+    @ParametersFactory(argumentFormatting = "preference=%s")
+    public static List<Object[]> args() {
+        return BlockLoaderTestCase.args();
+    }
+
+    public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
+        this.params = params;
+        this.runner = new BlockLoaderTestRunner(params);
+    }
+
+    // This is similar to BlockLoaderTestCase#testBlockLoaderOfMultiField but has customizations required to properly test the case
+    // of text multi field in a keyword field.
+    public void testBlockLoaderOfParentField() throws IOException {
+        var template = new Template(Map.of("parent", new Template.Leaf("parent", FieldType.KEYWORD.toString())));
+        var specification = buildSpecification(List.of(new DataSourceHandler() {
             @Override
             public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-                assert request.fieldType().equals(FieldType.KEYWORD.toString());
+                // This is a bit tricky meta-logic.
+                // We want to customize mapping but to do this we need the mapping for the same field type
+                // so we use name to untangle this.
+                if (request.fieldName().equals("parent") == false) {
+                    return null;
+                }
 
-                // We need to force multi field generation
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                    var defaultSupplier = DefaultMappingParametersHandler.keywordMapping(
-                        request,
-                        DefaultMappingParametersHandler.commonMappingParameters()
-                    );
-                    var mapping = defaultSupplier.get();
-                    // we don't need this here
-                    mapping.remove("copy_to");
+                    var dataSource = request.dataSource();
 
-                    var textMultiFieldMappingSupplier = DefaultMappingParametersHandler.textMapping(request, new HashMap<>());
-                    var textMultiFieldMapping = textMultiFieldMappingSupplier.get();
+                    var keywordParentMapping = dataSource.get(
+                        new DataSourceRequest.LeafMappingParametersGenerator(
+                            dataSource,
+                            "_field",
+                            FieldType.KEYWORD.toString(),
+                            request.eligibleCopyToFields(),
+                            request.dynamicMapping()
+                        )
+                    ).mappingGenerator().get();
+
+                    var textMultiFieldMapping = dataSource.get(
+                        new DataSourceRequest.LeafMappingParametersGenerator(
+                            dataSource,
+                            "_field",
+                            FieldType.TEXT.toString(),
+                            request.eligibleCopyToFields(),
+                            request.dynamicMapping()
+                        )
+                    ).mappingGenerator().get();
+
+                    // we don't need this here
+                    keywordParentMapping.remove("copy_to");
+
                     textMultiFieldMapping.put("type", "text");
                     textMultiFieldMapping.remove("fields");
 
-                    mapping.put("fields", Map.of("txt", textMultiFieldMapping));
+                    keywordParentMapping.put("fields", Map.of("mf", textMultiFieldMapping));
 
-                    return mapping;
+                    return keywordParentMapping;
                 });
             }
-        }), params);
+        }));
+        var mapping = new MappingGenerator(specification).generate(template);
+        var fieldMapping = mapping.lookup().get("parent");
+
+        var document = new DocumentGenerator(specification).generate(template, mapping);
+        var fieldValue = document.get("parent");
+
+        Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+        var mapperService = params.syntheticSource()
+            ? createSytheticSourceMapperService(mappingXContent)
+            : createMapperService(mappingXContent);
+
+        runner.runTest(mapperService, document, expected, "parent.mf");
     }
 
-    @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+    private Object expected(Map<String, Object> fieldMapping, Object value, BlockLoaderTestCase.TestContext testContext) {
         assert fieldMapping.containsKey("fields");
 
         Object normalizer = fieldMapping.get("normalizer");
@@ -66,12 +123,7 @@ public class TextFieldWithParentBlockLoaderTests extends BlockLoaderTestCase {
         }
 
         // we are using block loader of the text field itself
-        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("txt");
+        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("mf");
         return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext);
-    }
-
-    @Override
-    protected String blockLoaderFieldName(String originalName) {
-        return originalName + ".txt";
     }
 }

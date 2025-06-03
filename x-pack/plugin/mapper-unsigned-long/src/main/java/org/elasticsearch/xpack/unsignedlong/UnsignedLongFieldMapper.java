@@ -13,7 +13,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -364,7 +364,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
                 if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    query = new XIndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                 }
             }
             return query;
@@ -379,7 +379,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {

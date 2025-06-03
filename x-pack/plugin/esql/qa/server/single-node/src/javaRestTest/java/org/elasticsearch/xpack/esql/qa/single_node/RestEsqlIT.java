@@ -690,6 +690,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.NULL);
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
+        shouldBeSupported.remove(DataType.DENSE_VECTOR);
         if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
@@ -707,13 +708,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         "default_metric": "max"
                     """;
             }
-            createIndex("index-" + type.esType(), null, """
+            createIndex("index-" + type.esType(), null, String.format(Locale.ROOT, """
                  "properties": {
                    "my_field": {
                      "type": "%s" %s
                    }
                  }
-                """.formatted(type.esType(), additionalProperties));
+                """, type.esType(), additionalProperties));
             Request doc = new Request("PUT", "index-" + type.esType() + "/_doc/1");
             doc.setJsonEntity("{\"my_field\": " + typesAndValues.get(type) + "}");
             client().performRequest(doc);
@@ -724,11 +725,11 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
-                String query = """
+                String query = String.format(Locale.ROOT, """
                     {
                         "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
                     }
-                    """.formatted(listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
@@ -749,11 +750,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     )
                 );
 
-                String castedQuery = """
-                    {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                    }
-                    """.formatted(
+                String castedQuery = String.format(
+                    Locale.ROOT,
+                    """
+                        {
+                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+                        }
+                        """,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()

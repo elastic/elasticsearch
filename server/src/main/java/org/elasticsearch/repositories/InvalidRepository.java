@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -35,10 +36,12 @@ import java.util.function.BooleanSupplier;
  */
 public class InvalidRepository extends AbstractLifecycleComponent implements Repository {
 
+    private final ProjectId projectId;
     private final RepositoryMetadata repositoryMetadata;
     private final RepositoryException creationException;
 
-    public InvalidRepository(RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
+    public InvalidRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
+        this.projectId = projectId;
         this.repositoryMetadata = repositoryMetadata;
         this.creationException = creationException;
     }
@@ -49,6 +52,11 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
             "repository type [" + repositoryMetadata.type() + "] failed to create on current node",
             creationException
         );
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
     }
 
     @Override

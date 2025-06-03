@@ -246,8 +246,13 @@ public abstract class QueryList {
      * Returns a list of term queries for the given field and the input block of
      * {@code date_nanos} field values.
      */
-    public static QueryList dateNanosTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, LongBlock block) {
-        return new DateNanosQueryList(field, searchExecutionContext, block, null);
+    public static QueryList dateNanosTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        LongBlock block
+    ) {
+        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, block, null);
     }
 
     /**
@@ -313,10 +318,11 @@ public abstract class QueryList {
         private DateNanosQueryList(
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
+            AliasFilter aliasFilter,
             LongBlock block,
             OnlySingleValueParams onlySingleValueParams
         ) {
-            super(field, searchExecutionContext, block, onlySingleValueParams);
+            super(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams);
             if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
                 // TODO: do this validation earlier
                 throw new IllegalArgumentException(
@@ -345,6 +351,7 @@ public abstract class QueryList {
             return new DateNanosQueryList(
                 field,
                 searchExecutionContext,
+                aliasFilter,
                 (LongBlock) block,
                 new OnlySingleValueParams(warnings, multiValueWarningMessage)
             );

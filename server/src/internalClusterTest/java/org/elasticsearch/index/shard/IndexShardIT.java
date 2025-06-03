@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.HeapUsage;
+import org.elasticsearch.cluster.HeapUsageSupplier;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,6 +63,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
@@ -81,6 +84,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -89,6 +93,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
@@ -110,12 +115,13 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, BogusHeapUsagePlugin.class);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -251,6 +257,20 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Optional<Long> dataSetSize = clusterInfoService.getClusterInfo().getShardDataSetSize(shardRouting.shardId());
         assertTrue(dataSetSize.isPresent());
         assertThat(dataSetSize.get(), greaterThan(0L));
+    }
+
+    public void testHeapUsageEstimateIsPresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        Map<String, HeapUsage> heapUsages = clusterInfoService.getClusterInfo().getNodesHeapUsage();
+        assertNotNull(heapUsages);
+        assertEquals(state.nodes().size(), heapUsages.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(heapUsages.containsKey(node.getId()));
+            HeapUsage heapUsage = heapUsages.get(node.getId());
+            assertThat(heapUsage.freeBytes(), lessThanOrEqualTo(heapUsage.totalBytes()));
+        }
     }
 
     public void testIndexCanChangeCustomDataPath() throws Exception {
@@ -793,6 +813,45 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndicesService indicesService : indicesServices) {
             assertBusy(() -> assertFalse(indicesService.iterator().hasNext()), 1, TimeUnit.MINUTES);
             assertBusy(() -> assertFalse(indicesService.hasUncompletedPendingDeletes()), 1, TimeUnit.MINUTES);
+        }
+    }
+
+    private static class BogusHeapUsageSupplier implements HeapUsageSupplier {
+
+        private final ClusterService clusterService;
+
+        private BogusHeapUsageSupplier(ClusterService clusterService) {
+            this.clusterService = clusterService;
+        }
+
+        @Override
+        public void getClusterHeapUsage(ActionListener<Map<String, HeapUsage>> listener) {
+            ActionListener.completeWith(
+                listener,
+                () -> clusterService.state().nodes().stream().collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> {
+                    final long maxHeap = randomNonNegativeLong();
+                    final long freeHeap = (long) (randomFloat() * maxHeap);
+                    return new HeapUsage(node.getId(), node.getName(), maxHeap, freeHeap);
+                }))
+            );
+        }
+    }
+
+    public static class BogusHeapUsagePlugin extends Plugin implements ClusterPlugin {
+
+        private BogusHeapUsageSupplier bogusHeapUsageSupplier;
+
+        public BogusHeapUsagePlugin() {}
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            bogusHeapUsageSupplier = new BogusHeapUsageSupplier(services.clusterService());
+            return Collections.singletonList(bogusHeapUsageSupplier);
+        }
+
+        @Override
+        public HeapUsageSupplier getHeapUsageSupplier() {
+            return bogusHeapUsageSupplier;
         }
     }
 }

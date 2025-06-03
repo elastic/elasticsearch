@@ -16,7 +16,7 @@ set -euo pipefail
 # So if we have one (or more) BC, we will always prefer to use that. Otherwise we will use the latest snapshot.
 MANIFEST_URL="$(curl -s https://artifacts.elastic.co/releases/TfEVhiaBGqR64ie0g0r0uUwNAbEQMu1Z/future-releases/stack.json |
 jq ".releases[] |
-select(.branch == \"$BUILDKITE_BRANCH\") |
+select(.branch == \"main\") |
 select(.active_release == true) |
 ((.snapshots | to_entries | sort_by(.value.completed_at)) +
 (.build_candidates | to_entries | sort_by(.value.completed_at))) |
@@ -36,21 +36,22 @@ fi
 
 CURRENT_VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
-BC_VERSION=$(echo "$MANIFEST" | jq .version)
-BC_COMMIT_HASH=$(echo "$MANIFEST" | jq .projects.elasticsearch.commit_hash)
+BC_VERSION=$(echo "$MANIFEST" | jq -r .version)
+BC_BUILD_ID=$(echo "$MANIFEST" | jq -r .build_id)
+BC_COMMIT_HASH=$(echo "$MANIFEST" | jq -r .projects.elasticsearch.commit_hash)
 
-if [ "$CURRENT_VERSION" != "$BC_VERSION" ]; then
+if [ "$CURRENT_VERSION-SNAPSHOT" != "$BC_VERSION" ]; then
     echo "Version [$BC_VERSION] of BC (or snapshot) does not match current version [$CURRENT_VERSION] of branch [$BUILDKITE_BRANCH]."
     echo "Skipping BC upgrade tests."
     exit 0
 fi
 
-echo "Running BC upgrade tests on version [$BC_VERSION] using BC (or snapshot) build of commit [$BC_COMMIT_HASH]."
+echo "Running BC upgrade tests on $BUILDKITE_BRANCH [$BC_VERSION] using BC (or snapshot) build of commit [$BC_COMMIT_HASH] with build id [$BC_BUILD_ID]."
 
 cat <<EOF | buildkite-agent pipeline upload
 steps:
-    - label: $BUILDKITE_BRANCH / bc-bwc
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
+    - label: bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTest -Dtests.jvm.argline="-Des.serverless_transport=true"
       timeout_in_minutes: 300
       agents:
         provider: gcp
@@ -60,7 +61,7 @@ steps:
         preemptible: true
       retry:
         automatic:
-          - exit_status: \"-1\"
+          - exit_status: "-1"
             limit: 3
             signal_reason: none
           - signal_reason: agent_stop

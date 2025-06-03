@@ -365,6 +365,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
             }
         }
+        if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+            if (value instanceof String s) {
+                value = s.replaceAll("\\\\n", "\n");
+            }
+        }
         return value.toString();
     }
 

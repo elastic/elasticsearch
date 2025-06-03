@@ -14,6 +14,18 @@ Who is Victor Hugo? | WHO IS VICTOR HUGO?
 ;
 
 
+completion using a ROW source operator and prompt is a multi-valued field
+required_capability: completion
+
+ROW prompt=["Answer the following question:", "Who is Victor Hugo?"]
+| COMPLETION prompt WITH test_completion AS completion_output
+;
+
+prompt:keyword                                        | completion_output:keyword
+[Answer the following question:, Who is Victor Hugo?] | ANSWER THE FOLLOWING QUESTION:\nWHO IS VICTOR HUGO?
+;
+
+
 completion after a search
 required_capability: completion
 required_capability: match_operator_colon

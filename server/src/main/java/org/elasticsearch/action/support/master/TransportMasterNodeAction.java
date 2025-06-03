@@ -307,10 +307,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
             // We track whether we already notified the listener or started executing the action, to avoid invoking the listener twice.
             // Because of that second part, we can not use ActionListener#notifyOnce.
-            final var notifiedListener = new AtomicBoolean(false);
+            final var waitComplete = new AtomicBoolean(false);
             if (task instanceof CancellableTask cancellableTask) {
                 cancellableTask.addListener(() -> {
-                    if (notifiedListener.compareAndSet(false, true) == false) {
+                    if (waitComplete.compareAndSet(false, true) == false) {
                         return;
                     }
                     listener.onFailure(new TaskCancelledException("Task was cancelled"));
@@ -320,7 +320,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    if (notifiedListener.compareAndSet(false, true) == false) {
+                    if (waitComplete.compareAndSet(false, true) == false) {
                         return;
                     }
                     logger.trace("retrying with cluster state version [{}]", state.version());
@@ -329,7 +329,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
                 @Override
                 public void onClusterServiceClose() {
-                    if (notifiedListener.compareAndSet(false, true) == false) {
+                    if (waitComplete.compareAndSet(false, true) == false) {
                         return;
                     }
                     listener.onFailure(new NodeClosedException(clusterService.localNode()));
@@ -337,7 +337,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    if (notifiedListener.compareAndSet(false, true) == false) {
+                    if (waitComplete.compareAndSet(false, true) == false) {
                         return;
                     }
                     logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), failure);

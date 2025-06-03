@@ -1364,7 +1364,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "multi_match(\"Meditation\", title, body)", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
         }
     }
 
@@ -2148,7 +2148,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2]])", "first");
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
             checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         }
     }
@@ -2157,29 +2157,6 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
-        );
-    }
-
-    public void testFullTextFunctionsConstantQuery() throws Exception {
-        testFullTextFunctionsConstantQuery("match(title, category)", "second");
-        testFullTextFunctionsConstantQuery("qstr(title)", "");
-        testFullTextFunctionsConstantQuery("kql(title)", "");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
-            testFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionsConstantQuery("term(title, tags)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
-        }
-    }
-
-    private void testFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | where " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
         );
     }
 
@@ -2193,6 +2170,9 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
         }
     }
 

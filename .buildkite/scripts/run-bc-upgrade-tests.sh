@@ -51,7 +51,7 @@ echo "Running BC upgrade tests on $BUILDKITE_BRANCH [$BC_VERSION] using BC (or s
 cat <<EOF | buildkite-agent pipeline upload
 steps:
     - label: bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTest -Dtests.jvm.argline=\"-Des.serverless_transport=true\"
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTest -Dtests.jvm.argline="-Des.serverless_transport=true"
       timeout_in_minutes: 300
       agents:
         provider: gcp

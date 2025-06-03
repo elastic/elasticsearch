@@ -42,11 +42,13 @@ class KMeans {
         int centroidsSize = Math.min(vectors.size(), centroidCount);
         float[][] centroids = new float[centroidsSize][vectors.dimension()];
         for (int i = 0; i < vectors.size(); i++) {
-            float[] vector = vectors.vectorValue(i);
+            float[] vector;
             if (i < centroidCount) {
+                vector = vectors.vectorValue(i);
                 System.arraycopy(vector, 0, centroids[i], 0, vector.length);
             } else if (random.nextDouble() < centroidCount * (1.0 / i)) {
                 int c = random.nextInt(centroidCount);
+                vector = vectors.vectorValue(i);
                 System.arraycopy(vector, 0, centroids[c], 0, vector.length);
             }
         }

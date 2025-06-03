@@ -23,7 +23,6 @@ public class TestPathLookup implements PathLookup {
         return Stream.empty();
     }
 
-    @Override
     public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
         return Stream.empty();
     }

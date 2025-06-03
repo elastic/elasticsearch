@@ -32,7 +32,5 @@ public interface PathLookup {
 
     Stream<Path> getBaseDirPaths(BaseDir baseDir);
 
-    Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath);
-
     Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName);
 }

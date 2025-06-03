@@ -386,12 +386,7 @@ public abstract class StreamInput extends InputStream {
         return new BigInteger(readString());
     }
 
-    @Nullable
-    public Text readOptionalText() throws IOException {
-        int length = readInt();
-        if (length == -1) {
-            return null;
-        }
+    private Text readText(int length) throws IOException {
         byte[] bytes = new byte[length];
         if (length > 0) {
             readBytes(bytes, 0, length);
@@ -400,15 +395,19 @@ public abstract class StreamInput extends InputStream {
         return new Text(encoded);
     }
 
+    @Nullable
+    public Text readOptionalText() throws IOException {
+        int length = readInt();
+        if (length == -1) {
+            return null;
+        }
+        return readText(length);
+    }
+
     public Text readText() throws IOException {
         // use Text so we can cache the string if it's ever converted to it
         int length = readInt();
-        byte[] bytes = new byte[length];
-        if (length > 0) {
-            readBytes(bytes, 0, length);
-        }
-        var encoded = new XContentString.EncodedBytes(bytes);
-        return new Text(encoded);
+        return readText(length);
     }
 
     @Nullable

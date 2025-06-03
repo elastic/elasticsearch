@@ -115,6 +115,52 @@ public class AuthenticationSerializationTests extends ESTestCase {
         }
     }
 
+    public void testWriteToAndReadFromWithCloudApiKeyAuthentication() throws Exception {
+        final Authentication authentication = Authentication.newCloudApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphanumericOfLength(5), "superuser"), Map.of()),
+            randomAlphanumericOfLength(10)
+        );
+
+        assertThat(authentication.isCloudApiKey(), is(true));
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isCloudApiKey(), is(true));
+
+        assertThat(readFrom, not(sameInstance(authentication)));
+        assertThat(readFrom, equalTo(authentication));
+    }
+
+    public void testWriteToWithCloudApiKeyThrowsOnUnsupportedVersion() {
+        final Authentication authentication = Authentication.newCloudApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphanumericOfLength(5), "superuser"), Map.of()),
+            randomAlphanumericOfLength(10)
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)
+            );
+            out.setTransportVersion(version);
+
+            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before ["
+                        + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                        + "] can't handle cloud API key authentication and attempted to send to ["
+                        + out.getTransportVersion().toReleaseVersion()
+                        + "]"
+                )
+            );
+        }
+
+    }
+
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 

@@ -2192,7 +2192,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("multi_match(\"Smith\", first_name, last_name)");
         }
-        if( EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         }
     }

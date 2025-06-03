@@ -9,8 +9,13 @@ export BEATS_DIR=$(pwd)/distribution/docker/build/artifacts/beats
 mkdir -p ${BEATS_DIR}
 curl --fail -o "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
 curl --fail -o "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
-curl --fail -o "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+curl --fail -o "${BEATS_DIR}/metricbeat-fips-${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-fips-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+curl --fail -o "${BEATS_DIR}/metricbeat-fips-${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-fips-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
+
+curl --fail -o "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
 curl --fail -o "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
+curl --fail -o "${BEATS_DIR}/filebeat-fips-${ES_VERSION}-linux-x86_64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-fips-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+curl --fail -o "${BEATS_DIR}/filebeat-fips-${ES_VERSION}-linux-arm64.tar.gz" https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-fips-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz
 
 # Fetch ML artifacts
 export ML_IVY_REPO=$(mktemp -d)

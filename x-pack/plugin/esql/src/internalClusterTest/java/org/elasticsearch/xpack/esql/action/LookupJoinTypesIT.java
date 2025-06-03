@@ -171,6 +171,19 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
         }
 
+        // Tests for mixed-date/time types
+        var dateTypes = List.of(DATETIME, DATE_NANOS);
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("mixed-temporal", TestConfigs::new);
+            for (DataType mainType : dateTypes) {
+                for (DataType lookupType : dateTypes) {
+                    if (mainType != lookupType) {
+                        configs.addFails(mainType, lookupType);
+                    }
+                }
+            }
+        }
+
         // Tests for all unsupported types
         DataType[] unsupported = Join.UNSUPPORTED_TYPES;
         {
@@ -283,6 +296,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     public void testLookupJoinMixedNumerical() {
         testLookupJoinTypes("mixed-numerical");
+    }
+
+    public void testLookupJoinMixedTemporal() {
+        testLookupJoinTypes("mixed-temporal");
     }
 
     public void testLookupJoinSame() {

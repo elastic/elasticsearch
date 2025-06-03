@@ -49,7 +49,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -128,7 +127,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
-    public void testIndexWithAlias() {
+    public void testIndexWithFilteredAlias() {
         String indexName = "index_1";
         String alias = "alias_1";
         assertAcked(
@@ -137,12 +136,10 @@ public class PointInTimeIT extends ESIntegTestCase {
                 .addAlias(new Alias(alias).filter("{\"term\":{\"tag\":\"a\"}}"))
         );
 
-        Random random = new Random();
         int numDocs = randomIntBetween(50, 150);
-
         int countTagA = 0;
         for (int i = 0; i < numDocs; i++) {
-            boolean isA = random.nextBoolean();
+            boolean isA = randomBoolean();
             if (isA) countTagA++;
             prepareIndex(indexName).setId(Integer.toString(i)).setSource("tag", isA ? "a" : "b").get();
         }

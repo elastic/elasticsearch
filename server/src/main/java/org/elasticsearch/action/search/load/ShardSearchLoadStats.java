@@ -19,15 +19,13 @@ import java.util.Objects;
 
 /**
  * ShardSearchLoadStats class represents the statistics of a shard in an index.
- * It contains information such as the index name, shard ID, allocation ID, and EWMA rate.
+ * It contains information such as the index name, shard ID, and search load.
  */
 public class ShardSearchLoadStats implements Writeable {
 
     private final String indexName;
 
     private final Integer shardId;
-
-    private final String allocationId;
 
     private final Double searchLoad;
 
@@ -41,7 +39,6 @@ public class ShardSearchLoadStats implements Writeable {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         this.indexName = in.readString();
         this.shardId = in.readVInt();
-        this.allocationId = in.readString();
         this.searchLoad = in.readDouble();
     }
 
@@ -50,13 +47,11 @@ public class ShardSearchLoadStats implements Writeable {
      *
      * @param indexName   the name of the index
      * @param shardId     the ID of the shard
-     * @param allocationId the allocation ID of the shard
      * @param searchLoad the search load of the shard
      */
-    public ShardSearchLoadStats(String indexName, Integer shardId, String allocationId, Double searchLoad) {
+    public ShardSearchLoadStats(String indexName, Integer shardId, Double searchLoad) {
         this.indexName = indexName;
         this.shardId = shardId;
-        this.allocationId = allocationId;
         this.searchLoad = searchLoad;
     }
 
@@ -67,13 +62,12 @@ public class ShardSearchLoadStats implements Writeable {
         ShardSearchLoadStats that = (ShardSearchLoadStats) o;
         return Objects.equals(indexName, that.indexName)
             && Objects.equals(shardId, that.shardId)
-            && Objects.equals(allocationId, that.allocationId)
             && Objects.equals(searchLoad, that.searchLoad);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, shardId, allocationId, searchLoad);
+        return Objects.hash(indexName, shardId, searchLoad);
     }
 
     /**
@@ -95,15 +89,6 @@ public class ShardSearchLoadStats implements Writeable {
     }
 
     /**
-     * Returns the allocation ID of the shard.
-     *
-     * @return the allocation ID
-     */
-    public String getAllocationId() {
-        return this.allocationId;
-    }
-
-    /**
      * Returns the search load of the shard.
      *
      * @return the search load as a Double
@@ -116,7 +101,6 @@ public class ShardSearchLoadStats implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
         out.writeVInt(shardId);
-        out.writeString(allocationId);
         out.writeDouble(searchLoad);
     }
 }

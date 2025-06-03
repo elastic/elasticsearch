@@ -171,7 +171,6 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
             return new ShardSearchLoadStats(
                 shardId.getIndex().getName(),
                 shardId.getId(),
-                shardRouting.allocationId().getId(),
                 indexShard.getSearchLoadRate()
             );
         });

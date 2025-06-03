@@ -16,9 +16,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Response to a shard stats request.
@@ -39,7 +44,7 @@ public class ShardSearchLoadStatsResponse extends ChunkedBroadcastResponse {
     }
 
     /**
-     * Constructor to create a ShardStatsResponse object with the given parameters.
+     * Constructor to create a ShardSearchLoadStatsResponse object with the given parameters.
      *
      * @param shards          the array of shard stats
      * @param totalShards     the total number of shards
@@ -55,17 +60,18 @@ public class ShardSearchLoadStatsResponse extends ChunkedBroadcastResponse {
         List<DefaultShardOperationFailedException> shardFailures
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-        this.shards = shards;
-        Objects.requireNonNull(shards);
+        this.shards = aggregateSearchLoadByShard(Objects.requireNonNull(shards));
     }
 
+
+
     /**
-     * Returns the array of shard stats.
+     * Returns a copy of the array of shard stats.
      *
      * @return the array of shard stats
      */
     public ShardSearchLoadStats[] getShards() {
-        return shards;
+        return Arrays.copyOf(shards, shards.length);
     }
 
     @Override
@@ -76,6 +82,26 @@ public class ShardSearchLoadStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        return null;
+        return Collections.emptyIterator();
     }
+
+    private ShardSearchLoadStats[] aggregateSearchLoadByShard(ShardSearchLoadStats[] shards) {
+        Map<ShardKey, Double> aggregated = new HashMap<>();
+
+        for (var stat : shards) {
+            var key = new ShardKey(stat.getIndexName(), stat.getShardId());
+            var load = Optional.ofNullable(stat.getSearchLoad()).orElse(0.0);
+            aggregated.merge(key, load, Double::sum);
+        }
+
+        return aggregated.entrySet().stream()
+                .map(e -> new ShardSearchLoadStats(
+                        e.getKey().indexName(),
+                        e.getKey().shardId(),
+                        e.getValue()
+                ))
+                .toArray(ShardSearchLoadStats[]::new);
+    }
+
+    private record ShardKey(String indexName, int shardId) {}
 }

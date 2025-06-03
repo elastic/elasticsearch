@@ -55,8 +55,6 @@ setup:
             vector: [-0.5, 100, -13, 14.8, -156]
           - paragraph_id: 2
             vector: [0, 100, 0, 14.8, -156]
-          - paragraph_id: 3
-            vector: [0, 1, 0, 1.8, -15]
 
   - do:
       index:

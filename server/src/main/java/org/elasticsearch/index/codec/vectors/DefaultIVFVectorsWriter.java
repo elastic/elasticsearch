@@ -213,25 +213,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         byte[] quantizedScratch = new byte[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
-        // TODO: this sorting operation tanks recall for some reason, works fine for small numbers of vectors like in single segment
-        // need to investigate this further
-        float[] distances = new float[centroids.length];
-        for (int i = 0; i < centroids.length; i++) {
-            distances[i] = VectorUtil.squareDistance(centroids[i], globalCentroid);
-        }
-        // sort the centroids by distance to globalCentroid, nearest (smallest distance), to furthest (largest)
-        for (int i = 0; i < centroids.length; i++) {
-            for (int j = i + 1; j < centroids.length; j++) {
-                if (distances[i] > distances[j]) {
-                    float[] tmp = centroids[i];
-                    centroids[i] = centroids[j];
-                    centroids[j] = tmp;
-                    float tmpDistance = distances[i];
-                    distances[i] = distances[j];
-                    distances[j] = tmpDistance;
-                }
-            }
-        }
+        // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned; do sorting prior to this w assignments?
         for (float[] centroid : centroids) {
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
             OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(

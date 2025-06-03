@@ -281,4 +281,6 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
 
         exchange.close();
     }
+
+    public record TestUser(String username, String displayName, String email, List<String> groups, List<String> roles) {}
 }

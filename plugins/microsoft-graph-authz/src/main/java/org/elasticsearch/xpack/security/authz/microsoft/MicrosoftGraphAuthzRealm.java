@@ -14,13 +14,11 @@ import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
 import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
-import com.microsoft.graph.models.odataerrors.ODataError;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -48,6 +46,7 @@ import java.util.Map;
 public class MicrosoftGraphAuthzRealm extends Realm {
 
     private static final Logger logger = LogManager.getLogger(MicrosoftGraphAuthzRealm.class);
+    private static final int PAGE_SIZE = 999;
 
     private static final boolean DISABLE_INSTANCE_DISCOVERY = System.getProperty(
         "tests.azure.credentials.disable_instance_discovery",
@@ -67,19 +66,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final ThreadPool threadPool;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, ThreadPool threadPool) {
-        super(config);
-
-        this.config = config;
-        this.roleMapper = roleMapper;
-        var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
-
-        require(MicrosoftGraphAuthzRealmSettings.CLIENT_ID);
-        require(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
-        require(MicrosoftGraphAuthzRealmSettings.TENANT_ID);
-
-        this.client = buildClient(clientSecret);
-        this.licenseState = XPackPlugin.getSharedLicenseState();
-        this.threadPool = threadPool;
+        this(roleMapper, config, buildClient(config), XPackPlugin.getSharedLicenseState(), threadPool);
     }
 
     // for testing
@@ -91,6 +78,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         ThreadPool threadPool
     ) {
         super(config);
+        validate(config);
+
         this.config = config;
         this.roleMapper = roleMapper;
         this.client = client;
@@ -98,9 +87,15 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         this.threadPool = threadPool;
     }
 
-    private <T> void require(Setting.AffixSetting<T> setting) {
+    private static void validate(RealmConfig config) {
+        require(config, MicrosoftGraphAuthzRealmSettings.CLIENT_ID);
+        require(config, MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
+        require(config, MicrosoftGraphAuthzRealmSettings.TENANT_ID);
+    }
+
+    private static <T extends CharSequence> void require(RealmConfig config, Setting.AffixSetting<T> setting) {
         final var value = config.getSetting(setting);
-        if (value.toString().isEmpty()) {
+        if (value.isEmpty()) {
             throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting) + "] is required");
         }
     }
@@ -146,14 +141,16 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                     logger.trace("Authorized user from Microsoft Graph {}", user);
                     l.onResponse(user);
                 }));
-            } catch (ReflectiveOperationException | ODataError e) {
-                logger.error("failed to authenticate with realm", e);
+            } catch (Exception e) {
+                logger.error(Strings.format("Failed to authorize [{}] with MS Graph realm", principal), e);
                 listener.onFailure(e);
             }
         });
     }
 
-    private GraphServiceClient buildClient(SecureString clientSecret) {
+    private static GraphServiceClient buildClient(RealmConfig config) {
+        final var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
+
         final var credentialProviderBuilder = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
         )
@@ -189,7 +186,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
         var groupMembership = client.users().byUserId(userId).transitiveMemberOf().graphGroup().get(requestConfig -> {
             requestConfig.queryParameters.select = new String[] { "id" };
-            requestConfig.queryParameters.top = 999;
+            requestConfig.queryParameters.top = PAGE_SIZE;
         });
 
         var pageIterator = new PageIterator.Builder<Group, GroupCollectionResponse>().client(client)
@@ -197,7 +194,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             .collectionPageFactory(GroupCollectionResponse::createFromDiscriminatorValue)
             .requestConfigurator(requestInfo -> {
                 requestInfo.addQueryParameter("%24select", new String[] { "id" });
-                requestInfo.addQueryParameter("%24top", "999");
+                requestInfo.addQueryParameter("%24top", String.valueOf(PAGE_SIZE));
                 return requestInfo;
             })
             .processPageItemCallback(group -> {

@@ -20,25 +20,35 @@ import com.microsoft.graph.users.item.transitivememberof.TransitiveMemberOfReque
 import com.microsoft.graph.users.item.transitivememberof.graphgroup.GraphGroupRequestBuilder;
 import com.microsoft.kiota.RequestAdapter;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
+import org.junit.Before;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -69,6 +79,37 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         realmName
     );
 
+    private final String clientId = randomAlphaOfLengthBetween(4, 10);
+    private final String clientSecret = randomAlphaOfLengthBetween(4, 10);
+    private final String tenantId = randomAlphaOfLengthBetween(4, 10);
+
+    private static final AuthenticationToken fakeToken = new AuthenticationToken() {
+        @Override
+        public String principal() {
+            fail("Should never be called");
+            return null;
+        }
+
+        @Override
+        public Object credentials() {
+            fail("Should never be called");
+            return null;
+        }
+
+        @Override
+        public void clearCredentials() {
+            fail("Should never be called");
+        }
+    };
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+
+        final var logger = LogManager.getLogger(MicrosoftGraphAuthzRealm.class);
+        Loggers.setLevel(logger, Level.TRACE);
+    }
+
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -78,128 +119,117 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
     public void testLookupUser() {
         final var roleMapper = mockRoleMapper(Set.of(groupId), Set.of(roleName));
 
-        final var realmSettings = Settings.builder()
-            .put(globalSettings)
-            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-            .build();
+        final var realmSettings = realmSettings().build();
 
         final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
         final var client = mock(GraphServiceClient.class);
-        final var requestAdapter = mock(RequestAdapter.class);
-        when(client.getRequestAdapter()).thenReturn(requestAdapter);
+        when(client.getRequestAdapter()).thenReturn(mock(RequestAdapter.class));
 
-        final var userRequestBuilder = mock(UsersRequestBuilder.class);
-        final var userItemRequestBuilder = mock(UserItemRequestBuilder.class);
-        final var msUser = new com.microsoft.graph.models.User();
-        msUser.setDisplayName(name);
-        msUser.setMail(email);
+        final var userRequestBuilder = mockGetUser(client);
+        when(userRequestBuilder.get(any())).thenReturn(user(name, email));
 
-        when(client.users()).thenReturn(userRequestBuilder);
-        when(userRequestBuilder.byUserId(eq(username))).thenReturn(userItemRequestBuilder);
-        when(userItemRequestBuilder.get(any())).thenReturn(msUser);
+        final var graphGroupRequestBuilder = mockGetGroupMembership(userRequestBuilder);
+        when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership(groupId));
 
-        final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
-        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
-        final var group = new Group();
-        group.setId(groupId);
-        final var groupMembership = new GroupCollectionResponse();
-        groupMembership.setValue(List.of(group));
-
-        when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
-        when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership);
-
-        final var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);
+        final var licenseState = mockLicense(true);
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
         final var future = new PlainActionFuture<User>();
         realm.lookupUser(username, future);
-        final var user = future.actionGet();
-        assertThat(user.principal(), equalTo(username));
-        assertThat(user.fullName(), equalTo(name));
-        assertThat(user.email(), equalTo(email));
-        assertThat(user.roles(), arrayContaining(roleName));
+
+        try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(
+                "Fetch user properties",
+                MicrosoftGraphAuthzRealm.class.getName(),
+                Level.TRACE,
+                Strings.format("Fetched user with name [%s] and email [%s] from Microsoft Graph", name, email)
+            ));
+
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(
+                "Fetch group membership",
+                MicrosoftGraphAuthzRealm.class.getName(),
+                Level.TRACE,
+                Strings.format("Fetched [1] groups from Microsoft Graph: [%s]", groupId)
+            ));
+
+            final var user = future.actionGet();
+            assertThat(user.principal(), equalTo(username));
+            assertThat(user.fullName(), equalTo(name));
+            assertThat(user.email(), equalTo(email));
+            assertThat(user.roles(), arrayContaining(roleName));
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testHandleGetUserPropertiesError() {
         final var roleMapper = mockRoleMapper(Set.of(groupId), Set.of(roleName));
 
-        final var realmSettings = Settings.builder()
-            .put(globalSettings)
-            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-            .build();
+        final var realmSettings = realmSettings().build();
 
         final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
         final var client = mock(GraphServiceClient.class);
         final var requestAdapter = mock(RequestAdapter.class);
         when(client.getRequestAdapter()).thenReturn(requestAdapter);
 
-        final var userRequestBuilder = mock(UsersRequestBuilder.class);
-        final var userItemRequestBuilder = mock(UserItemRequestBuilder.class);
-        final var graphError = new ODataError();
-        final var error = new MainError();
-        error.setCode("badRequest");
-        error.setMessage("bad stuff happened");
-        graphError.setError(error);
+        final var userItemRequestBuilder = mockGetUser(client);
+        when(userItemRequestBuilder.get(any())).thenThrow(graphError("bad stuff happened"));
 
-        when(client.users()).thenReturn(userRequestBuilder);
-        when(userRequestBuilder.byUserId(eq(username))).thenReturn(userItemRequestBuilder);
-        when(userItemRequestBuilder.get(any())).thenThrow(graphError);
-
-        final var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);
+        final var licenseState = mockLicense(true);
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
         final var future = new PlainActionFuture<User>();
-        realm.lookupUser(username, future);
-        final var thrown = assertThrows(ODataError.class, future::actionGet);
-        assertThat(thrown.getMessage(), equalTo("bad stuff happened"));
+
+        try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(
+                "Log exception",
+                MicrosoftGraphAuthzRealm.class.getName(),
+                Level.ERROR,
+                Strings.format("Failed to authorize [{}] with MS Graph realm", username)
+            ));
+
+            realm.lookupUser(username, future);
+            final var thrown = assertThrows(ODataError.class, future::actionGet);
+            assertThat(thrown.getMessage(), equalTo("bad stuff happened"));
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testHandleGetGroupMembershipError() {
         final var roleMapper = mockRoleMapper(Set.of(groupId), Set.of(roleName));
 
-        final var realmSettings = Settings.builder()
-            .put(globalSettings)
-            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-            .build();
+        final var realmSettings = realmSettings().build();
 
         final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
         final var client = mock(GraphServiceClient.class);
-        final var requestAdapter = mock(RequestAdapter.class);
-        when(client.getRequestAdapter()).thenReturn(requestAdapter);
+        when(client.getRequestAdapter()).thenReturn(mock(RequestAdapter.class));
 
-        final var userRequestBuilder = mock(UsersRequestBuilder.class);
-        final var userItemRequestBuilder = mock(UserItemRequestBuilder.class);
-        final var msUser = new com.microsoft.graph.models.User();
-        msUser.setDisplayName(name);
-        msUser.setMail(email);
+        final var userRequestBuilder = mockGetUser(client);
+        when(userRequestBuilder.get(any())).thenReturn(user(name, email));
 
-        when(client.users()).thenReturn(userRequestBuilder);
-        when(userRequestBuilder.byUserId(eq(username))).thenReturn(userItemRequestBuilder);
-        when(userItemRequestBuilder.get(any())).thenReturn(msUser);
+        final var graphGroupRequestBuilder = mockGetGroupMembership(userRequestBuilder);
+        when(graphGroupRequestBuilder.get(any())).thenThrow(graphError("bad stuff happened"));
 
-        final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
-        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
-        final var graphError = new ODataError();
-        final var error = new MainError();
-        error.setCode("badRequest");
-        error.setMessage("bad stuff happened");
-        graphError.setError(error);
-
-        when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
-        when(graphGroupRequestBuilder.get(any())).thenThrow(graphError);
-
-        final var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);
+        final var licenseState = mockLicense(true);
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
         final var future = new PlainActionFuture<User>();
-        realm.lookupUser(username, future);
-        final var thrown = assertThrows(ODataError.class, future::actionGet);
-        assertThat(thrown.getMessage(), equalTo("bad stuff happened"));
+
+        try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(
+                "Log exception",
+                MicrosoftGraphAuthzRealm.class.getName(),
+                Level.ERROR,
+                Strings.format("Failed to authorize [{}] with MS Graph realm", username)
+            ));
+
+            realm.lookupUser(username, future);
+            final var thrown = assertThrows(ODataError.class, future::actionGet);
+            assertThat(thrown.getMessage(), equalTo("bad stuff happened"));
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testGroupMembershipPagination() {
@@ -208,52 +238,29 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
 
         final var roleMapper = mockRoleMapper(Set.of(groupId, groupId2, groupId3), Set.of(roleName));
 
-        final var realmSettings = Settings.builder()
-            .put(globalSettings)
-            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-            .build();
+        final var realmSettings = realmSettings().build();
 
         final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
         final var client = mock(GraphServiceClient.class);
         final var requestAdapter = mock(RequestAdapter.class);
         when(client.getRequestAdapter()).thenReturn(requestAdapter);
 
-        final var userRequestBuilder = mock(UsersRequestBuilder.class);
-        final var userItemRequestBuilder = mock(UserItemRequestBuilder.class);
-        final var msUser = new com.microsoft.graph.models.User();
-        msUser.setDisplayName(name);
-        msUser.setMail(email);
+        final var userItemRequestBuilder = mockGetUser(client);
+        when(userItemRequestBuilder.get(any())).thenReturn(user(name, email));
 
-        when(client.users()).thenReturn(userRequestBuilder);
-        when(userRequestBuilder.byUserId(eq(username))).thenReturn(userItemRequestBuilder);
-        when(userItemRequestBuilder.get(any())).thenReturn(msUser);
-
-        final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
-        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
-        final var group1 = new Group();
-        group1.setId(groupId);
-        final var groupMembership1 = new GroupCollectionResponse();
-        groupMembership1.setValue(List.of(group1));
+        final var groupMembership1 = groupMembership(groupId);
         groupMembership1.setOdataNextLink("http://localhost:12345/page2");
 
-        final var group2 = new Group();
-        group2.setId(groupId2);
-        final var groupMembership2 = new GroupCollectionResponse();
-        groupMembership2.setValue(List.of(group2));
+        final var groupMembership2 = groupMembership(groupId2);
         groupMembership2.setOdataNextLink("http://localhost:12345/page3");
 
-        final var group3 = new Group();
-        group3.setId(groupId3);
-        final var groupMembership3 = new GroupCollectionResponse();
-        groupMembership3.setValue(List.of(group3));
+        final var groupMembership3 = groupMembership(groupId3);
 
-        when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
-        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
+        final var graphGroupRequestBuilder = mockGetGroupMembership(userItemRequestBuilder);
         when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership1);
         when(requestAdapter.send(any(), any(), any())).thenReturn(groupMembership2, groupMembership3);
 
-        final var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(true);
+        final var licenseState = mockLicense(true);
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
         final var future = new PlainActionFuture<User>();
@@ -267,22 +274,149 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
 
     public void testLicenseCheck() {
         final var roleMapper = mock(UserRoleMapper.class);
-        final var realmSettings = Settings.builder()
-            .put(globalSettings)
-            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
-            .build();
+        final var realmSettings = realmSettings().build();
 
         final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
         final var client = mock(GraphServiceClient.class);
 
-        final var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(false);
+        final var licenseState = mockLicense(false);
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
         final var future = new PlainActionFuture<User>();
         realm.lookupUser(username, future);
         final var thrown = assertThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(thrown.getMessage(), equalTo("current license is non-compliant for [microsoft_graph]"));
+    }
+
+    public void testClientIdSettingRequired() {
+        final var roleMapper = mock(UserRoleMapper.class);
+        final var realmSettings = realmSettings().put(
+            getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_ID),
+            randomBoolean() ? "" : null
+        ).build();
+
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+        final var client = mock(GraphServiceClient.class);
+
+        final var licenseState = mockLicense(true);
+
+        final var thrown = assertThrows(
+            SettingsException.class,
+            () -> new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool)
+        );
+        assertThat(
+            thrown.getMessage(),
+            equalTo(
+                Strings.format(
+                    "The configuration setting [%s] is required",
+                    getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
+                )
+            )
+        );
+    }
+
+    public void testClientSecretSettingRequired() {
+        final var roleMapper = mock(UserRoleMapper.class);
+        final var secureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            secureSettings.setString(getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET), "");
+        }
+        final var realmSettings = Settings.builder()
+            .put(globalSettings)
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+            .put(getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_ID), clientId)
+            .put(getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.TENANT_ID), tenantId)
+            .setSecureSettings(secureSettings)
+            .build();
+
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+        final var client = mock(GraphServiceClient.class);
+
+        final var licenseState = mockLicense(true);
+
+        final var thrown = assertThrows(
+            SettingsException.class,
+            () -> new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool)
+        );
+        assertThat(
+            thrown.getMessage(),
+            equalTo(
+                Strings.format(
+                    "The configuration setting [%s] is required",
+                    getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET)
+                )
+            )
+        );
+    }
+
+    public void testTenantIdSettingRequired() {
+        final var roleMapper = mock(UserRoleMapper.class);
+        final var realmSettings = realmSettings().put(
+            getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.TENANT_ID),
+            randomBoolean() ? "" : null
+        ).build();
+
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+        final var client = mock(GraphServiceClient.class);
+
+        final var licenseState = mockLicense(true);
+
+        final var thrown = assertThrows(
+            SettingsException.class,
+            () -> new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool)
+        );
+        assertThat(
+            thrown.getMessage(),
+            equalTo(
+                Strings.format(
+                    "The configuration setting [%s] is required",
+                    getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.TENANT_ID)
+                )
+            )
+        );
+    }
+
+    public void testSupportsAlwaysReturnsFalse() {
+        final var roleMapper = mock(UserRoleMapper.class);
+        final var realmSettings = realmSettings().build();
+
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+        final var client = mock(GraphServiceClient.class);
+
+        final var licenseState = mockLicense(true);
+
+        final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
+
+        assertThat(realm.supports(fakeToken), equalTo(false));
+    }
+
+    public void testTokenAlwaysReturnsNull() {
+        final var roleMapper = mock(UserRoleMapper.class);
+        final var realmSettings = realmSettings().build();
+
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+        final var client = mock(GraphServiceClient.class);
+
+        final var licenseState = mockLicense(true);
+
+        final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
+        assertThat(realm.token(threadContext), equalTo(null));
+    }
+
+    public void testAuthenticateAlwaysReturnsNotHandled() {
+        final var roleMapper = mock(UserRoleMapper.class);
+        final var realmSettings = realmSettings().build();
+
+        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+        final var client = mock(GraphServiceClient.class);
+
+        final var licenseState = mockLicense(true);
+
+        final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
+        final var future = new PlainActionFuture<AuthenticationResult<User>>();
+        realm.authenticate(fakeToken, future);
+        final var result = future.actionGet();
+        assertThat(result, equalTo(AuthenticationResult.notHandled()));
     }
 
     private UserRoleMapper mockRoleMapper(Set<String> expectedGroups, Set<String> rolesToReturn) {
@@ -297,5 +431,72 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         }).when(roleMapper).resolveRoles(any(), any());
 
         return roleMapper;
+    }
+
+    private Settings.Builder realmSettings() {
+        final var secureSettings = new MockSecureSettings();
+        secureSettings.setString(getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET), clientSecret);
+
+        return Settings.builder()
+            .put(globalSettings)
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+            .put(getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.CLIENT_ID), clientId)
+            .put(getFullSettingKey(realmName, MicrosoftGraphAuthzRealmSettings.TENANT_ID), tenantId)
+            .setSecureSettings(secureSettings);
+    }
+
+    private XPackLicenseState mockLicense(boolean msGraphAllowed) {
+        final var licenseState = MockLicenseState.createMock();
+        when(licenseState.isAllowed(eq(MICROSOFT_GRAPH_FEATURE))).thenReturn(msGraphAllowed);
+        return licenseState;
+    }
+
+    private UserItemRequestBuilder mockGetUser(GraphServiceClient client) {
+        final var userRequestBuilder = mock(UsersRequestBuilder.class);
+        final var userItemRequestBuilder = mock(UserItemRequestBuilder.class);
+
+        when(client.users()).thenReturn(userRequestBuilder);
+        when(userRequestBuilder.byUserId(eq(username))).thenReturn(userItemRequestBuilder);
+
+        return userItemRequestBuilder;
+    }
+
+    private GraphGroupRequestBuilder mockGetGroupMembership(UserItemRequestBuilder userItemRequestBuilder) {
+        final var memberOfRequestBuilder = mock(TransitiveMemberOfRequestBuilder.class);
+        final var graphGroupRequestBuilder = mock(GraphGroupRequestBuilder.class);
+
+        when(userItemRequestBuilder.transitiveMemberOf()).thenReturn(memberOfRequestBuilder);
+        when(memberOfRequestBuilder.graphGroup()).thenReturn(graphGroupRequestBuilder);
+
+        return graphGroupRequestBuilder;
+    }
+
+    private com.microsoft.graph.models.User user(String name, String email) {
+        final var msUser = new com.microsoft.graph.models.User();
+        msUser.setDisplayName(name);
+        msUser.setMail(email);
+
+        return msUser;
+    }
+
+    private GroupCollectionResponse groupMembership(String... groupIds) {
+        final var groupMembership = new GroupCollectionResponse();
+        groupMembership.setValue(Arrays.stream(groupIds).map(id -> {
+            var group = new Group();
+            group.setId(id);
+            return group;
+        }).toList());
+        return groupMembership;
+    }
+
+    private ODataError graphError(String message) {
+        final var error = new MainError();
+        error.setCode("badRequest");
+        error.setMessage(message);
+
+        final var graphError = new ODataError();
+        graphError.setError(error);
+
+        return graphError;
     }
 }

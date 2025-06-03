@@ -56,16 +56,16 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     private static final String USERNAME = "Thor";
     private static final String EXPECTED_GROUP = "test_group";
 
-    private static final List<TestUser> TEST_USERS = List.of(
-        new TestUser(
+    private static final List<MicrosoftGraphHttpFixture.TestUser> TEST_USERS = List.of(
+        new MicrosoftGraphHttpFixture.TestUser(
             USERNAME,
             "Thor Odinson",
             "thor@oldap.test.elasticsearch.com",
             List.of("unmapped-group-1", "unmapped-group-2", "unmapped-group-3", EXPECTED_GROUP),
             List.of("microsoft_graph_user")
         ),
-        new TestUser("User2", "User 2", "user2@example.com", List.of(EXPECTED_GROUP), List.of("microsoft_graph_user")),
-        new TestUser("User3", "User 3", "user3@example.com", List.of(), List.of())
+        new MicrosoftGraphHttpFixture.TestUser("User2", "User 2", "user2@example.com", List.of(EXPECTED_GROUP), List.of("microsoft_graph_user")),
+        new MicrosoftGraphHttpFixture.TestUser("User3", "User 3", "user3@example.com", List.of(), List.of())
     );
 
     private static final MicrosoftGraphHttpFixture graphFixture = new MicrosoftGraphHttpFixture(
@@ -184,7 +184,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
     public void testAuthenticationSuccessful() throws Exception {
         final var listener = new PlainActionFuture<Map<String, Object>>();
-        samlAuthWithMicrosoftGraphAuthz(USERNAME, getSamlAssertionJsonBodyString(USERNAME), listener);
+        samlAuthWithMicrosoftGraphAuthz(getSamlAssertionJsonBodyString(USERNAME), listener);
         final var resp = listener.get();
         List<String> roles = new XContentTestUtils.JsonMapView(resp).get("authentication.roles");
         assertThat(resp.get("username"), equalTo(USERNAME));
@@ -193,20 +193,27 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     }
 
     public void testConcurrentAuthentication() throws Exception {
-        final var resultsListener = new PlainActionFuture<Collection<Map<String, Object>>>();
-        final var groupedListener = new GroupedActionListener<>(TEST_USERS.size(), resultsListener);
-        for (var user : TEST_USERS) {
-            samlAuthWithMicrosoftGraphAuthz(user.username(), getSamlAssertionJsonBodyString(user.username()), groupedListener);
-        }
-        final var responses = resultsListener.get();
+        final var concurrentLogins = 3;
 
-        assertThat(responses.size(), equalTo(TEST_USERS.size()));
+        final var resultsListener = new PlainActionFuture<Collection<Map<String, Object>>>();
+        final var groupedListener = new GroupedActionListener<>(TEST_USERS.size() * concurrentLogins, resultsListener);
+        for (int i = 0; i < concurrentLogins; i++) {
+            for (var user : TEST_USERS) {
+                samlAuthWithMicrosoftGraphAuthz(getSamlAssertionJsonBodyString(user.username()), groupedListener);
+            }
+        }
+        final var allResponses = resultsListener.get();
+
+        assertThat(allResponses.size(), equalTo(TEST_USERS.size() * concurrentLogins));
         for (var user : TEST_USERS) {
-            var response = responses.stream().filter(r -> r.get("username").equals(user.username())).findFirst();
-            assertTrue(response.isPresent());
-            final List<String> roles = new XContentTestUtils.JsonMapView(response.get()).get("authentication.roles");
-            assertThat(roles, equalTo(user.roles()));
-            assertThat(ObjectPath.evaluate(response.get(), "authentication.authentication_realm.name"), equalTo("saml1"));
+            var userResponses = allResponses.stream().filter(r -> r.get("username").equals(user.username())).toList();
+            assertThat(userResponses.size(), equalTo(concurrentLogins));
+
+            for (var response : userResponses) {
+                final List<String> roles = new XContentTestUtils.JsonMapView(response).get("authentication.roles");
+                assertThat(roles, equalTo(user.roles()));
+                assertThat(ObjectPath.evaluate(response, "authentication.authentication_realm.name"), equalTo("saml1"));
+            }
         }
     }
 
@@ -224,7 +231,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         return Strings.toString(JsonXContent.contentBuilder().map(body));
     }
 
-    private void samlAuthWithMicrosoftGraphAuthz(String username, String samlAssertion, ActionListener<Map<String, Object>> listener) {
+    private void samlAuthWithMicrosoftGraphAuthz(String samlAssertion, ActionListener<Map<String, Object>> listener) {
         var req = new Request("POST", "_security/saml/authenticate");
         req.setJsonEntity(samlAssertion);
         client().performRequestAsync(req, ActionTestUtils.wrapAsRestResponseListener(listener.map(ESRestTestCase::entityAsMap)));

@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -40,6 +39,11 @@ import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Handles chat completion requests and responses for OpenAI models in SageMaker.
+ * This class implements the SageMakerStreamSchemaPayload interface to provide
+ * the necessary methods for handling OpenAI chat completions.
+ */
 public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
 
     private static final XContent jsonXContent = JsonXContent.jsonXContent;
@@ -50,7 +54,7 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
     private static final String USER_FIELD = "user";
     private static final String USER_ROLE = "user";
     private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
-    private static final ResponseHandler ERROR_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+    private static final OpenAiUnifiedChatCompletionResponseHandler ERROR_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         "sagemaker openai chat completion",
         ((request, result) -> {
             assert false : "do not call this";
@@ -88,12 +92,12 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
         var serverSentEvents = serverSentEvents(response);
         var results = serverSentEvents.flatMap(event -> {
             if ("error".equals(event.type())) {
-                throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), event.data(), null);
+                throw ERROR_HANDLER.buildMidStreamChatCompletionError(model.getInferenceEntityId(), event.data(), null);
             } else {
                 try {
                     return OpenAiUnifiedStreamingProcessor.parse(parserConfig, event);
                 } catch (Exception e) {
-                    throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), event.data(), e);
+                    throw ERROR_HANDLER.buildMidStreamChatCompletionError(model.getInferenceEntityId(), event.data(), e);
                 }
             }
         })

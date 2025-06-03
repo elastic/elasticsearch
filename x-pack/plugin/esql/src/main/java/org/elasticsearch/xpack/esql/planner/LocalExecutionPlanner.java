@@ -757,6 +757,7 @@ public class LocalExecutionPlanner {
                 matchConfig.channel(),
                 ctx -> lookupFromIndexService,
                 matchConfig.type(),
+                localSourceExec.indexPattern(),
                 indexName,
                 matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),

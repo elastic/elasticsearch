@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -43,8 +44,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -330,11 +333,22 @@ public final class IndicesPermission {
                 combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
                 IndexComponentSelector.FAILURES
             );
-        for (String forIndexPattern : checkForIndexPatterns) {
-            Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
-            if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
-            }
+        Map<String, Automaton> checkIndexPatterns = checkForIndexPatterns.stream()
+            .collect(Collectors.toMap(Function.identity(), pattern -> {
+                try {
+                    Automaton automaton = Automatons.patterns(pattern);
+                    if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(pattern)) {
+                        automaton = Automatons.minusAndMinimize(automaton, restrictedIndices.getAutomaton());
+                    }
+                    return automaton;
+                } catch (TooComplexToDeterminizeException e) {
+                    final String text = pattern.length() > 260 ? Strings.cleanTruncate(pattern, 256) + "..." : pattern;
+                    throw new IllegalArgumentException("the provided index pattern [" + text + "] is too complex to be evaluated", e);
+                }
+            }));
+        for (var entry : checkIndexPatterns.entrySet()) {
+            final String forIndexPattern = entry.getKey();
+            final Automaton checkIndexAutomaton = entry.getValue();
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedPrivilegesAutomatonForDataSelector = getIndexPrivilegesAutomaton(
                     indexGroupAutomatonsForDataSelector,

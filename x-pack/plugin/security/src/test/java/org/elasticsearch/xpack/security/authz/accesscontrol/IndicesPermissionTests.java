@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
@@ -55,6 +56,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.R
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1088,6 +1090,31 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(predicate.test(concreteIndexD, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(concreteIndexE, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(concreteIndexF, IndexComponentSelector.FAILURES), is(true));
+    }
+
+    public void testCheckResourcePrivilegesWithTooComplexAutomaton() {
+        IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            false,
+            "my-index"
+        ).build();
+
+        StringBuilder pattern = new StringBuilder("/");
+        for (int i = 0; i < 2048; i++) {
+            if (i > 0) {
+                pattern.append("|");
+            }
+            pattern.append(randomAlphaOfLength(64));
+        }
+        pattern.append("/");
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> permission.checkResourcePrivileges(Set.of(pattern.toString()), false, Set.of("read"), null)
+        );
+        assertThat(ex.getMessage(), containsString("index pattern [/"));
+        assertThat(ex.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
     private static IndexAbstraction concreteIndexAbstraction(String name) {

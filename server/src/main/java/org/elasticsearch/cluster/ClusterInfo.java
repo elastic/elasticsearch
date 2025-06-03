@@ -221,6 +221,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * Returns a node id to estimated heap usage mapping for all nodes that we have such data for.
      * Note that these estimates should be considered minimums. They may be used to determine whether
      * there IS NOT capacity to do something, but not to determine that there IS capacity to do something.
+     * Also note that the map may not be complete, it may contain none, or a subset of the nodes in
+     * the cluster at any time. It may also contain entries for nodes that have since left the cluster.
      */
     public Map<String, HeapUsage> getNodesHeapUsage() {
         return nodesHeapUsage;

@@ -2093,17 +2093,6 @@ public class VerifierTests extends ESTestCase {
         };
     }
 
-    public void testMultiMatchFunctionArgNotConstant() throws Exception {
-        assertEquals(
-            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where match(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
-        );
-    }
-
     // Should pass eventually once we lift some restrictions on full text search functions.
     public void testFullTextFunctionCurrentlyUnsupportedBehaviour() throws Exception {
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(first_name, \"Anna\")");
@@ -2155,6 +2144,7 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionsConstantQuery("kql(first_name)", "");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             testFullTextFunctionsConstantQuery("multi_match(first_name, first_name)", "first");
+            testFullTextFunctionsConstantQuery("multi_match(concat(first_name, \"world\"), first_name)", "first");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionsConstantQuery("term(first_name, last_name)", "second");

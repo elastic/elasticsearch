@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,8 +23,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,16 +49,20 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
+        IndicesService indicesService,
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
+            indicesService,
             lookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory,
             false,
@@ -67,6 +75,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         return new TransportRequest(
             request.sessionId,
             shardId,
+            request.indexPattern,
             request.inputDataType,
             request.inputPage,
             null,
@@ -80,10 +89,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected QueryList queryList(
         TransportRequest request,
         SearchExecutionContext context,
+        AliasFilter aliasFilter,
         Block inputBlock,
         @Nullable DataType inputDataType
     ) {
-        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues();
+        return termQueryList(context.getFieldType(request.matchField), context, aliasFilter, inputBlock, inputDataType).onlySingleValues();
     }
 
     @Override
@@ -102,13 +112,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Request(
             String sessionId,
             String index,
+            String indexPattern,
             DataType inputDataType,
             String matchField,
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, indexPattern, inputDataType, inputPage, extractFields, source);
             this.matchField = matchField;
         }
     }
@@ -119,6 +130,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         TransportRequest(
             String sessionId,
             ShardId shardId,
+            String indexPattern,
             DataType inputDataType,
             Page inputPage,
             Page toRelease,
@@ -126,7 +138,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             String matchField,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, indexPattern, inputDataType, inputPage, toRelease, extractFields, source);
             this.matchField = matchField;
         }
 
@@ -134,6 +146,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
+
+            String indexPattern;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+                indexPattern = in.readString();
+            } else {
+                indexPattern = shardId.getIndexName();
+            }
+
             DataType inputDataType = DataType.fromTypeName(in.readString());
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
@@ -149,6 +169,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
+                indexPattern,
                 inputDataType,
                 inputPage,
                 inputPage,
@@ -165,6 +186,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+                out.writeString(indexPattern);
+            } else if (indexPattern.equals(shardId.getIndexName()) == false) {
+                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
+            }
+
             out.writeString(inputDataType.typeName());
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);

@@ -1217,27 +1217,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFieldBasedFullTextFunctions() throws Exception {
-        testFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
-        testFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
 
-        testFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
-        testFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
+        checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
 
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
-            testFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
+            checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
-            testFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
+            checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
         }
     }
 
-    public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation)
-        throws Exception {
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         assertThat(
             error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -1250,7 +1249,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     // These should pass eventually once we lift some restrictions on match function
-    public void testFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
+    private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
         assertThat(
             error("from test | eval text = substring(title, 1) | where " + functionInvocation, fullTextAnalyzer),
             containsString(
@@ -1269,15 +1268,12 @@ public class VerifierTests extends ESTestCase {
         assertThat(keywordError, containsString("which is not a field from an index mapping"));
     }
 
-    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Meditation\")");
+    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Meditation\")");
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
     }
 
-    public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
-        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
-    }
-
-    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
+    private void checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) {
         // Source commands
         assertThat(
             error("show info | where " + functionInvocation),
@@ -1368,7 +1364,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [1, 2, 3])", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "multi_match(\"Meditation\", title, body)", "function");
         }
     }
 
@@ -2129,9 +2125,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionsCurrentlyUnsupportedBehaviour("knn(vector, [0, 1, 2])");
-        }
     }
 
     private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
@@ -2142,25 +2135,25 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsNullArgs() throws Exception {
-        testFullTextFunctionNullArgs("match(null, \"query\")", "first");
-        testFullTextFunctionNullArgs("match(title, null)", "second");
-        testFullTextFunctionNullArgs("qstr(null)", "");
-        testFullTextFunctionNullArgs("kql(null)", "");
+        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
+        checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionNullArgs("qstr(null)", "");
+        checkFullTextFunctionNullArgs("kql(null)", "");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            testFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
+            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionNullArgs("term(null, \"query\")", "first");
-            testFullTextFunctionNullArgs("term(title, null)", "second");
+            checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
+            checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
-            testFullTextFunctionNullArgs("knn(vector, null)", "second");
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2]])", "first");
+            checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         }
     }
 
-    private void testFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+    private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
@@ -2184,6 +2177,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void testFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation, fullTextAnalyzer),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
+        );
+    }
+
+    public void testFullTextFunctionsConstantQuery() throws Exception {
+        checkFullTextFunctionsConstantQuery("match(title, category)", "second");
+        checkFullTextFunctionsConstantQuery("qstr(title)", "");
+        checkFullTextFunctionsConstantQuery("kql(title)", "");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
+            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
+        }
+    }
+
+    private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")

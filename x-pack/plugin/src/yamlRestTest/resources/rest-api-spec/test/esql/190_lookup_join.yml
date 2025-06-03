@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [join_lookup_v12, join_lookup_skip_mv_warnings]
+          capabilities: [join_lookup_v12, enable_lookup_join_on_aliases]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -187,8 +187,6 @@ non-lookup index:
 
 ---
 alias-repeated-alias:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -203,8 +201,6 @@ alias-repeated-alias:
 
 ---
 alias-repeated-index:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -219,8 +215,6 @@ alias-repeated-index:
 
 ---
 alias-pattern-multiple:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -228,12 +222,10 @@ alias-pattern-multiple:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [2] indices" }
+  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [4] indices" }
 
 ---
 alias-pattern-single:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:

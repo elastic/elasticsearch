@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 
 public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -277,7 +278,7 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
 
     @Override
     public Expression surrogate(SearchStats searchStats) {
-        if (field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false) {
+        if (field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
             // Extract min/max from SearchStats
             DataType fieldType = fa.dataType();
             String fieldName = fa.fieldName();
@@ -285,13 +286,13 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
             var max = searchStats.max(fieldName);
             // If min/max is available create rounding with them
             if (min != null && max != null && interval().foldable()) {
+                // System.out.println("field: "+ fieldName + ", min string: " + dateWithTypeToString((Long) min, fieldType));
+                // System.out.println("field: "+ fieldName + ", max string: " + dateWithTypeToString((Long) max, fieldType));
                 Object foldedInterval = interval().fold(FoldContext.small() /* TODO remove me */);
                 Rounding.Prepared rounding = createRounding(foldedInterval, DEFAULT_TZ, (Long) min, (Long) max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
                 // TODO do we support date_nanos? It seems like prepare(long minUtcMillis, long maxUtcMillis) takes millis only
                 // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
-                // System.out.println("min string: " + dateWithTypeToString((Long) min, fieldType));
-                // System.out.println("max string: " + dateWithTypeToString((Long) max, fieldType));
                 // System.out.println("field name = " + fieldName + ", min = " + min + ", max = " + max + ", roundingPoints = " +
                 // Arrays.toString(roundingPoints));
                 if (roundingPoints == null) {

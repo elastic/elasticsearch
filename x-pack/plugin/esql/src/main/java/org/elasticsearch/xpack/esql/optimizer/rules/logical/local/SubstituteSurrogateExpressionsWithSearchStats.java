@@ -8,29 +8,31 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public class SubstituteSurrogateExpressionsWithSearchStats extends OptimizerRules.ParameterizedOptimizerRule<
+public class SubstituteSurrogateExpressionsWithSearchStats extends ParameterizedRule<
+    LogicalPlan,
     LogicalPlan,
     LocalLogicalOptimizerContext> {
-    public SubstituteSurrogateExpressionsWithSearchStats() {
-        super(OptimizerRules.TransformDirection.UP);
-    }
 
     @Override
-    protected LogicalPlan rule(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        return plan.transformExpressionsUp(DateTrunc.class, e -> rule(e, context.searchStats()));
+    public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
+        return plan.transformUp(
+            Eval.class,
+            eval -> eval.transformExpressionsOnly(Function.class, f -> substituteDateTruncBucketWithRoundTo(f, context.searchStats()))
+        );
     }
 
     /**
      * Perform the actual substitution.
      */
-    public static Expression rule(Expression e, SearchStats searchStats) {
+    private static Expression substituteDateTruncBucketWithRoundTo(Expression e, SearchStats searchStats) {
         if (e instanceof SurrogateExpression s && searchStats != null) {
             Expression surrogate = s.surrogate(searchStats);
             if (surrogate != null) {

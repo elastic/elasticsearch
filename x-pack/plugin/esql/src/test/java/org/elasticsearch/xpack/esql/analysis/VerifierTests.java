@@ -1216,24 +1216,23 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFieldBasedFullTextFunctions() throws Exception {
-        testFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
-        testFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
 
-        testFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
-        testFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
+        checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
 
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
-            testFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
+            checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
-            testFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
+            checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
     }
 
-    public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation)
-        throws Exception {
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         assertThat(
             error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -1246,7 +1245,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     // These should pass eventually once we lift some restrictions on match function
-    public void testFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
+    private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
         assertThat(
             error("from test | eval text = substring(title, 1) | where " + functionInvocation, fullTextAnalyzer),
             containsString(
@@ -1265,15 +1264,12 @@ public class VerifierTests extends ESTestCase {
         assertThat(keywordError, containsString("which is not a field from an index mapping"));
     }
 
-    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Meditation\")");
+    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Meditation\")");
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
     }
 
-    public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
-        testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
-    }
-
-    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) throws Exception {
+    private void checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) {
         // Source commands
         assertThat(
             error("show info | where " + functionInvocation),

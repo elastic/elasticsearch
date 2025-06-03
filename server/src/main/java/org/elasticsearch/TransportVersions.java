@@ -279,7 +279,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY = def(9_086_0_00);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = def(9_087_0_00);
     public static final TransportVersion JOIN_ON_ALIASES = def(9_088_0_00);
-    public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_089_0_00);
+    public static final TransportVersion ILM_ADD_SKIP_SETTING = def(9_089_0_00);
+    public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_090_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

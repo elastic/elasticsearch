@@ -455,7 +455,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
-            // TODO: fix this.
             super.postAnalysisPlanVerification().accept(plan, failures);
             plan.forEachExpression(Match.class, match -> {
                 for (Expression field : fields) {
@@ -513,7 +512,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, matchQueryOptions());
     }
 
-    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
+    private static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
             // If we have multiple field types, we allow the query to be done, but getting the underlying field name
@@ -522,7 +521,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return fieldName;
     }
 
-    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
+    private static FieldAttribute fieldAsFieldAttribute(Expression field) {
         Expression fieldExpression = field;
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {

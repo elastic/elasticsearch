@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-AGENT_WORKSPACE="$(cd .. && pwd)/agent-workspace"
+AGENT_WORKSPACE="$(mktemp -d)"
 mkdir -p "$AGENT_WORKSPACE"
 
 cp -R .buildkite/scripts/run-agents/hooks "$AGENT_WORKSPACE/"

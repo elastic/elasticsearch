@@ -1,5 +1,5 @@
 pr: 128702
-summary: Semantic_text `match_all` with Highlighter
-area: Relevance
+summary: Highlighting support added to semantic_text with `match_all`
+area: Search
 type: bug
 issues: []

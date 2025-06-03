@@ -12,30 +12,20 @@ cd "$AGENT_WORKSPACE"
 cp "$BUILDKITE_CONFIG_PATH" .
 CONFIG_FILE="$(basename "$BUILDKITE_CONFIG_PATH")"
 
-# cat <<EOF >> "$CONFIG_FILE"
-# build-path=$AGENT_WORKSPACE/builds
-# hooks-path=$AGENT_WORKSPACE/hooks
-# plugins-path=$AGENT_WORKSPACE/plugins
-# disconnect-after-idle-timeout=600
-# disconnect-after-job=false
-# cancel-grace-period=300
-# tags="queue=elasticsearch-quick-agent"
-# acquire-job=""
-# tags-from-gcp="false"
-# EOF
+cat <<EOF > "$CONFIG_FILE"
+build-path=$AGENT_WORKSPACE/builds
+hooks-path=$AGENT_WORKSPACE/hooks
+plugins-path=$AGENT_WORKSPACE/plugins
+disconnect-after-idle-timeout=600
+disconnect-after-job=false
+cancel-grace-period=300
+tags="queue=elasticsearch-quick-agent"
+acquire-job=""
+tags-from-gcp="false"
+EOF
 
-# AGENT_TOKEN="$BUILDKITE_AGENT_TOKEN"
+AGENT_TOKEN="$BUILDKITE_AGENT_TOKEN"
 
 unset ${!BUILDKITE_*}
 
-buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE" \
-  --build-path "$AGENT_WORKSPACE/builds" \
-  --hooks-path "$AGENT_WORKSPACE/hooks" \
-  --plugins-path "$AGENT_WORKSPACE/plugins" \
-  --disconnect-after-idle-timeout 600 \
-  --disconnect-after-job false \
-  --cancel-grace-period 300 \
-  --tags "queue=elasticsearch-quick-agent" \
-  --acquire-job "" \
-  --tags-from-gcp "false"
-
+HOME="$AGENT_WORKSPACE" buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE" --token "$AGENT_TOKEN"

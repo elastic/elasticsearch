@@ -1,0 +1,10 @@
+#!/bin/bash
+
+git sparse-checkout init --cone
+git sparse-checkout set .buildkite
+
+if [[ -n "${ES_PARTIAL_CHECKOUT_PATHS:-}" ]]; then
+  git sparse-checkout add "$ES_PARTIAL_CHECKOUT_PATHS"
+fi
+
+git checkout HEAD

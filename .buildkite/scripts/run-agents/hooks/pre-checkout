@@ -1,0 +1,15 @@
+#!/bin/bash
+
+DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
+
+ES_ORIGINAL_GIT_BINARY=$(which git)
+export ES_ORIGINAL_GIT_BINARY
+
+mkdir -p "$HOME/git-wrapper"
+cp "$DIR/../git" "$HOME/git-wrapper/"
+chmod +x "$HOME/git-wrapper/git"
+
+export PATH="$HOME/git-wrapper:$PATH"
+
+export BUILDKITE_GIT_CLONE_FLAGS="-v --filter=blob:none --no-checkout --depth=1 --sparse"
+export BUILDKITE_GIT_FETCH_FLAGS="-v --update-shallow"

@@ -231,7 +231,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompositeCommand() {
         assertEquals(
             new Filter(EMPTY, new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE),
-
             statement("row a = 1 | where true")
         );
     }

@@ -112,6 +112,20 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
                             target = timestamps.advance(target);
                         }
                         if (target <= upTo) {
+                            if (target > primaryFieldUpTo) {
+                                if (target > primaryFieldSkipper.maxDocID(0)) {
+                                    primaryFieldSkipper.advance(target);
+                                }
+                                for (int level = 0; level < primaryFieldSkipper.numLevels(); level++) {
+                                    if (primaryFieldSkipper.minValue(level) == primaryFieldSkipper.maxValue(level)) {
+                                        primaryFieldUpTo = primaryFieldSkipper.maxDocID(level);
+                                        match = Match.MAYBE_ONE_PRIMARY_SORT;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+
                             return doc = target;
                         }
                         break;
@@ -175,6 +189,16 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
                 final long value = approximation.timestamps.longValue();
                 yield value >= minTimestamp && value <= maxTimestamp;
             }
+            case MAYBE_ONE_PRIMARY_SORT -> {
+                final long value = approximation.timestamps.longValue();
+                if (value < minTimestamp) {
+                    approximation.match = Match.NO;
+                    approximation.upTo = approximation.primaryFieldUpTo;
+                    yield false;
+                } else {
+                    yield value <= maxTimestamp;
+                }
+            }
             case NO_AND_SKIP, NO -> throw new IllegalStateException("Unpositioned approximation");
         };
     }
@@ -199,6 +223,8 @@ final class TimestampTwoPhaseIterator extends TwoPhaseIterator {
         NO_AND_SKIP,
         /** Document values need to be checked to verify matches */
         MAYBE,
+        /** Same as {@link #MAYBE}, but only if there is one primary sort value in current skip entry  */
+        MAYBE_ONE_PRIMARY_SORT,
         /** All docs in the range match */
         YES;
     }

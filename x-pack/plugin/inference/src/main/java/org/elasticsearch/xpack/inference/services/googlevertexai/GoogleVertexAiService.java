@@ -95,7 +95,7 @@ public class GoogleVertexAiService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
     }
 
     public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {

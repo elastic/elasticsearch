@@ -17,7 +17,7 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiCompletionModelTests extends ESTestCase {
 

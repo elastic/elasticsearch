@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 
 import java.net.URI;
@@ -37,6 +39,25 @@ public class GoogleVertexAiCompletionModel extends GoogleVertexAiChatCompletionM
             throw new RuntimeException(e);
         }
 
+    }
+
+    public void updateUri(boolean isStream) throws URISyntaxException {
+        var location = getServiceSettings().location();
+        var projectId = getServiceSettings().projectId();
+        var model = getServiceSettings().modelId();
+
+        // Google VertexAI generates streaming response using another API. We call this
+        // method before making the request to be sure we are calling the right API
+        if (isStream) {
+            this.uri = GoogleVertexAiChatCompletionModel.buildUri(location, projectId, model);
+        } else {
+            this.uri = GoogleVertexAiCompletionModel.buildUri(location, projectId, model);
+        }
+    }
+
+    @Override
+    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 
     public static URI buildUri(String location, String projectId, String model) throws URISyntaxException {

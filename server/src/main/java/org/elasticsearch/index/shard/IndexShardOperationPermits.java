@@ -92,6 +92,7 @@ final class IndexShardOperationPermits implements Closeable {
         // go ahead and release the indexing permit it holds.
         indexShard.suspendThrottling();
         waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
+        // TODO: Does this do anything ? Looks like the relocated shard does not have throttling enabled
         indexShard.resumeThrottling();
     }
 

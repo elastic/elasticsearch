@@ -76,7 +76,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -173,8 +172,8 @@ public class RelocationIT extends ESIntegTestCase {
         // index throttling for a shard on this node, it will pause indexing for that shard until throttling
         // is deactivated.
         final String node_1 = internalCluster().startNode(
-            Settings.builder()
-                .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true));
+            Settings.builder().put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true)
+        );
 
         logger.info("--> creating test index ...");
         prepareCreate("test", indexSettings(1, 0)).get();
@@ -204,8 +203,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         // Activate index throttling on "test" index primary shard
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node_1);
-        IndexService indexService = indicesService.indexService(resolveIndex("test"));
-        IndexShard shard = indexService.getShard(0);
+        IndexShard shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
         shard.activateThrottling();
         // Verify that indexing is paused for the throttled shard
         assertBusy(() -> { assertThat(shard.isIndexingPaused(), equalTo(true)); });
@@ -230,16 +228,18 @@ public class RelocationIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
+        // Relocated shard is not throttled
+        assertThat(shard.isIndexingPaused(), equalTo(false));
         logger.info("--> verifying count after relocation ...");
         indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch("test").setSize(0), 21);
-        logger.info("--> Test finished ...");
     }
 
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
         int numberOfNodes = numberOfReplicas == 0 ? 2 : 3;
+        boolean throttleIndexing = randomBoolean();
 
         logger.info(
             "testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})",
@@ -248,9 +248,12 @@ public class RelocationIT extends ESIntegTestCase {
             numberOfNodes
         );
 
+        // Start node with PAUSE_INDEXING_ON_THROTTLE setting set to true. This means that if we activate
+        // index throttling for a shard on this node, it will pause indexing for that shard until throttling
+        // is deactivated.
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
-        nodes[0] = internalCluster().startNode();
+        nodes[0] = internalCluster().startNode(Settings.builder().put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true));
 
         logger.info("--> creating test index ...");
         prepareCreate("test", indexSettings(1, numberOfReplicas)).get();
@@ -274,6 +277,14 @@ public class RelocationIT extends ESIntegTestCase {
             waitForDocs(numDocs, indexer);
             logger.info("--> {} docs indexed", numDocs);
 
+            if (throttleIndexing) {
+                // Activate index throttling on "test" index primary shard
+                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodes[0]);
+                IndexShard shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
+                shard.activateThrottling();
+                // Verify that indexing is paused for the throttled shard
+                assertBusy(() -> { assertThat(shard.isIndexingPaused(), equalTo(true)); });
+            }
             logger.info("--> starting relocations...");
             int nodeShiftBased = numberOfReplicas; // if we have replicas shift those
             for (int i = 0; i < numberOfRelocations; i++) {

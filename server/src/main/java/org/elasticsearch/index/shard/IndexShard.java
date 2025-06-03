@@ -2768,6 +2768,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         return (indexingPaused);
     }
+
     public boolean suspendThrottling() {
         Engine engine = getEngineOrNull();
         final boolean indexingPaused;

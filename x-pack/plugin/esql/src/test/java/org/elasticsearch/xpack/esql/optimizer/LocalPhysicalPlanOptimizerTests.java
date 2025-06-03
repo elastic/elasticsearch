@@ -235,7 +235,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 enrichResolution,
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(List.of(), new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
 

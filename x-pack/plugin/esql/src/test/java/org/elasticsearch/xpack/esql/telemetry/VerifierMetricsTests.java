@@ -206,7 +206,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testTwoQueriesExecuted() {
         Metrics metrics = new Metrics(new EsqlFunctionRegistry());
-        Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
+        Verifier verifier = new Verifier(List.of(), metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
                | where languages > 2
@@ -253,7 +253,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testMultipleFunctions() {
         Metrics metrics = new Metrics(new EsqlFunctionRegistry());
-        Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
+        Verifier verifier = new Verifier(List.of(), metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
                | where languages > 2
@@ -552,7 +552,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Metrics metrics = null;
         if (v == null) {
             metrics = new Metrics(new EsqlFunctionRegistry());
-            verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
+            verifier = new Verifier(List.of(), metrics, new XPackLicenseState(() -> 0L));
         }
         analyzer(verifier).analyze(parser.createStatement(esql));
 

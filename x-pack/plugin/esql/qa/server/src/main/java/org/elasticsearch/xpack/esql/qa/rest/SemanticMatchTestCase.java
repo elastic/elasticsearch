@@ -60,8 +60,6 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         request.setJsonEntity("{\"text_field\": \"inference test\"}");
         assertEquals(201, adminClient().performRequest(request).getStatusLine().getStatusCode());
 
-        ensureGreen("test-semantic4");
-
         String query = """
             from test-semantic4
             """;

@@ -296,6 +296,14 @@ setup:
       reason: semantic text field supports match_all query with semantic highlighter, effective from 8.19 and 9.1.0.
 
   - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - do:
       search:
         index: test-sparse-index
         body:
@@ -312,6 +320,14 @@ setup:
   - length: { hits.hits.0.highlight.body: 2 }
   - match:  { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
   - match:  { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
 
   - do:
       search:
@@ -368,15 +384,15 @@ setup:
             match_all: {}
           highlight:
             fields:
-              body:
+              semantic_text_field:
                 type: "semantic"
                 number_of_fragments: 2
 
   - match:  { hits.total.value: 1 }
   - match:  { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0.highlight.body: 2 }
-  - match:  { hits.hits.0.highlight.body.0: "some test data" }
-  - match:  { hits.hits.0.highlight.body.1: "now with chunks" }
+  - length: { hits.hits.0.highlight.semantic_text_field: 2 }
+  - match:  { hits.hits.0.highlight.semantic_text_field.0: "some test data" }
+  - match:  { hits.hits.0.highlight.semantic_text_field.1: "now with chunks" }
 
   - do:
       indices.create:
@@ -409,13 +425,13 @@ setup:
             match_all: {}
           highlight:
             fields:
-              body:
+              semantic_text_field:
                 type: "semantic"
                 number_of_fragments: 2
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0.highlight.body: 2 }
-  - match: { hits.hits.0.highlight.body.0: "some test data" }
-  - match: { hits.hits.0.highlight.body.1: "now with chunks" }
+  - length: { hits.hits.0.highlight.semantic_text_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_text_field.0: "some test data" }
+  - match: { hits.hits.0.highlight.semantic_text_field.1: "now with chunks" }
 

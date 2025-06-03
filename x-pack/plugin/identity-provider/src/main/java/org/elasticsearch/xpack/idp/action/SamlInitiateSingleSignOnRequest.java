@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
@@ -30,7 +31,9 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         spEntityId = in.readString();
         assertionConsumerService = in.readString();
         samlAuthenticationState = in.readOptionalWriteable(SamlAuthenticationState::new);
-        attributes = in.readOptionalWriteable(SamlInitiateSingleSignOnAttributes::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES)) {
+            attributes = in.readOptionalWriteable(SamlInitiateSingleSignOnAttributes::new);
+        }
     }
 
     public SamlInitiateSingleSignOnRequest() {}
@@ -96,7 +99,9 @@ public class SamlInitiateSingleSignOnRequest extends LegacyActionRequest {
         out.writeString(spEntityId);
         out.writeString(assertionConsumerService);
         out.writeOptionalWriteable(samlAuthenticationState);
-        out.writeOptionalWriteable(attributes);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES)) {
+            out.writeOptionalWriteable(attributes);
+        }
     }
 
     @Override

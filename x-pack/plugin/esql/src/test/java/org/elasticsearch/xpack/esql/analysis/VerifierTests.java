@@ -1217,13 +1217,22 @@ public class VerifierTests extends ESTestCase {
 
     public void testFieldBasedFullTextFunctions() throws Exception {
         testFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
-        testFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
-        testFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
-
         testFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(first_name, \"Anna\")");
+
+        testFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
         testFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "first_name : \"Anna\"");
-        testFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Anna\", first_name)");
-        testFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
+            testFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Anna\", first_name)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
+            testFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(first_name, \"Anna\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            testFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+        }
     }
 
     public void testFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation)
@@ -1380,10 +1389,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsDisjunctions() {
         checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
-        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)");
         checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
         checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)");
+        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(last_name, \"Smith\")");
         }
@@ -1440,11 +1451,11 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         }
     }
 
@@ -2103,12 +2114,15 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(first_name, \"Anna\")");
         }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("knn(vector, [0, 1, 2])");
+        }
     }
 
     private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
         assertThat(
             error("from test | stats max_salary = max(salary) by emp_no | where " + functionInvocation),
-            containsString("Unknown column [first_name]")
+            containsString("Unknown column")
         );
     }
 
@@ -2172,14 +2186,18 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(last_name, \"Smith\")");
-        checkFullTextFunctionsInStats("multi_match(\"Smith\", first_name, last_name)");
         checkFullTextFunctionsInStats("last_name : \"Smith\"");
         checkFullTextFunctionsInStats("qstr(\"last_name: Smith\")");
         checkFullTextFunctionsInStats("kql(\"last_name: Smith\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsInStats("multi_match(\"Smith\", first_name, last_name)");
+        }
+        if( EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
+        }
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
-
         query("from test | stats c = max(salary) where " + functionInvocation);
         query("from test | stats c = max(salary) where " + functionInvocation + " or length(first_name) > 10");
         query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)");

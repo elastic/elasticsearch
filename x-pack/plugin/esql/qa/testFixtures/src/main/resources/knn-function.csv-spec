@@ -235,15 +235,15 @@ from colors metadata _score
 | keep color, round_score 
 ;
 
-color:text              | round_score: double  
-olive                   | 1.0            
-olive drab              | 0.0014         
-dark olive green        | 4.0E-4         
-dark golden rod         | 3.0E-4         
-sienna                  | 3.0E-4         
-medium aqua marine      | 0.0            
-medium spring green     | 0.0            
-light golden rod yellow | 0.0            
+color:text              | round_score:double
+olive                   | 1.0
+olive drab              | 0.0014
+dark olive green        | 4.0E-4
+dark golden rod         | 3.0E-4
+sienna                  | 3.0E-4
+light golden rod yellow | 0.0
+medium aqua marine      | 0.0
+medium spring green     | 0.0
 ;
 
 testKnnWithNonPushableDisjunctionsOnComplexExpressions

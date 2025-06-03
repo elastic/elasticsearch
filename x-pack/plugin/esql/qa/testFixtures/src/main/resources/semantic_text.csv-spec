@@ -89,7 +89,7 @@ _id:keyword | my_field:text
 ;
 
 simpleStats
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS COUNT(*)
@@ -100,7 +100,7 @@ COUNT(*):long
 ;
 
 statsWithGrouping
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS COUNT(*) BY st_version

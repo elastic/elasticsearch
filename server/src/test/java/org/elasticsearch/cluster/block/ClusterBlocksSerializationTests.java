@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -57,6 +58,9 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
         if (randomBoolean()) {
             builder.addIndexBlock(randomUniqueProjectId(), randomIdentifier(), randomIndexBlock());
         }
+        if (randomBoolean()) {
+            builder.addProjectGlobalBlock(randomUniqueProjectId(), randomProjectGlobalBlock());
+        }
         return new ClusterBlocksTestWrapper(builder.build());
     }
 
@@ -64,7 +68,7 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
     protected ClusterBlocksTestWrapper mutateInstance(ClusterBlocksTestWrapper instance) throws IOException {
         final ClusterBlocks clusterBlocks = instance.clusterBlocks();
         final var builder = ClusterBlocks.builder(clusterBlocks);
-        return switch (between(0, 2)) {
+        return switch (between(0, 3)) {
             case 0 -> {
                 final Set<ClusterBlock> globalBlocks = clusterBlocks.global();
                 if (globalBlocks.isEmpty()) {
@@ -104,6 +108,9 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
             case 2 -> {
                 builder.addIndexBlock(randomUniqueProjectId(), randomIdentifier(), randomIndexBlock());
                 yield new ClusterBlocksTestWrapper(builder.build());
+            }
+            case 3 -> {
+                builder.addProjectGlobalBlock()
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         };
@@ -251,6 +258,10 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
         );
     }
 
+    private ClusterBlock randomProjectGlobalBlock() {
+        return randomFrom(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+    }
+
     static class ClusterBlocksTestWrapper implements Writeable {
 
         private final ClusterBlocks clusterBlocks;
@@ -294,6 +305,12 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
             return clusterBlocks.projectBlocksMap.keySet()
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(Function.identity(), clusterBlocks::indices));
+        }
+
+        private Map<ProjectId, Set<ClusterBlock>> projectBlocksAllProjects() {
+            return clusterBlocks.projectBlocksMap.keySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Function.identity(), clusterBlocks::projectGlobal));
         }
     }
 }

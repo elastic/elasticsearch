@@ -205,6 +205,8 @@ public class ClusterStateTests extends ESTestCase {
                3LftaL7hgfXAsF60Gm6jcD:
                   another-index:
                      5,index read-only (api), blocks WRITE,METADATA_WRITE
+               WHyuJ0uqBYOPgHX9kYUXlZ:
+                  15,project is under deletion, blocks READ,WRITE,METADATA_READ,METADATA_WRITE
                tb5W0bx765nDVIwqJPw92G:
                   common-index:
                      9,index metadata (api), blocks METADATA_READ,METADATA_WRITE
@@ -898,6 +900,7 @@ public class ClusterStateTests extends ESTestCase {
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
                     .addIndexBlock(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"), "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
                     .addIndexBlock(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"), "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+                    .addProjectGlobalBlock(ProjectId.fromId("WHyuJ0uqBYOPgHX9kYUXlZ"), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
             )
             .build();
     }

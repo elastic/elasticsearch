@@ -85,7 +85,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).indices();
     }
 
-    private Set<ClusterBlock> projectGlobal(ProjectId projectId) {
+    protected Set<ClusterBlock> projectGlobal(ProjectId projectId) {
         return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals();
     }
 
@@ -368,7 +368,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     @Override
-    public String toString() { // todo
+    public String toString() {
         if (global.isEmpty() && noIndexBlockAllProjects()) {
             return "";
         }
@@ -383,6 +383,9 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         for (var projectId : projectBlocksMap.keySet().stream().sorted(Comparator.comparing(ProjectId::id)).toList()) {
             final Map<String, Set<ClusterBlock>> indices = indices(projectId);
             sb.append("   ").append(projectId).append(":\n");
+            for (ClusterBlock block: projectGlobal(projectId)) {
+                sb.append("      ").append(block).append("\n");
+            }
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
                 sb.append("      ").append(entry.getKey()).append(":\n");
                 for (ClusterBlock block : entry.getValue()) {
@@ -568,7 +571,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         static ProjectBlocks readFrom(StreamInput in) throws IOException {
             Set<ClusterBlock> projectGlobal = new HashSet<>();
             if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
-                // TODO: read the project globals
+                projectGlobal = ClusterBlocks.readBlockSet(in);
             }
             return new ProjectBlocks(in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet), projectGlobal);
         }
@@ -577,7 +580,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indices, (o, s) -> writeBlockSet(s, o));
             if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
-                // todo: write the project globals
+                writeBlockSet(projectGlobal, out);
             }
         }
     }

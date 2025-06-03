@@ -39,6 +39,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
     SnapshotStats() {}
 
     SnapshotStats(StreamInput in) throws IOException {
+        // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
         if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) && in.readBoolean() == false) {
             startTime = 0L;
             time = 0L;
@@ -158,6 +159,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+            // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
             if (isMissingStats()) {
                 out.writeBoolean(false);
                 return;
@@ -325,6 +327,11 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     parser.skipChildren();
                 }
             }
+        }
+        // For missing stats incrementalFileCount will be -1, and we expect processedFileCount and processedSize to be omitted (still zero).
+        if (incrementalFileCount == -1) {
+            assert processedFileCount == 0 && processedSize == 0L && incrementalSize == -1L && totalFileCount == -1 && totalSize == -1L;
+            return SnapshotStats.forMissingStats();
         }
         return new SnapshotStats(
             startTime,

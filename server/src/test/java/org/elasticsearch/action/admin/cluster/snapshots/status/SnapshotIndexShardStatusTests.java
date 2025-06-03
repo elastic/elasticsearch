@@ -123,4 +123,8 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         return PARSER.parse(parser, indexId, parser.currentName());
     }
+
+    public void testForDoneButMissingStatsXContentSerialization() throws IOException {
+        testFromXContent(() -> SnapshotIndexShardStatus.forDoneButMissingStats(createTestInstance().getShardId(), randomAlphaOfLength(16)));
+    }
 }

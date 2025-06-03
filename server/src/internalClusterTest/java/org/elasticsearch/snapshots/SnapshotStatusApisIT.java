@@ -254,10 +254,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         internalCluster().restartNode(dataNodeTwo);
 
         final var snapshotStatusAfterRestart = getSnapshotStatus(repoName, snapshotOne);
-        final var snapshotShardStateAfterNodeRestart = stateFirstShard(snapshotStatusAfterRestart, indexTwo);
-        assertThat(snapshotShardStateAfterNodeRestart.getStage(), is(SnapshotIndexShardStage.DONE));
-        assertNotNull("expected a non-null description string for missing stats", snapshotShardStateAfterNodeRestart.getDescription());
-        final var missingStats = snapshotShardStateAfterNodeRestart.getStats();
+
+        final var snapshotShardStateIndexTwo = stateFirstShard(snapshotStatusAfterRestart, indexTwo);
+        assertThat(snapshotShardStateIndexTwo.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertNotNull("expected a non-null description string for missing stats", snapshotShardStateIndexTwo.getDescription());
+        final var missingStats = snapshotShardStateIndexTwo.getStats();
         assertThat(missingStats.getTotalFileCount(), equalTo(-1));
         assertThat(missingStats.getTotalSize(), equalTo(-1L));
 

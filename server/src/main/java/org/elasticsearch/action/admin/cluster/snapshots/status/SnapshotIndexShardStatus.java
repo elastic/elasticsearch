@@ -101,12 +101,13 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     }
 
     /**
-     * Creates an instance for scenarios where the snapshot stats are unavailable, with a non-null description of why the stats are missing.
+     * Creates an instance for scenarios where the snapshot is {@link SnapshotIndexShardStage#DONE} but the stats are unavailable, with a
+     * non-null description of why the stats are missing.
      */
-    public static SnapshotIndexShardStatus forMissingStats(ShardId shardId, SnapshotIndexShardStage stage, String description) {
+    public static SnapshotIndexShardStatus forDoneButMissingStats(ShardId shardId, String description) {
         return new SnapshotIndexShardStatus(
             shardId,
-            stage,
+            SnapshotIndexShardStage.DONE,
             SnapshotStats.forMissingStats(),
             null,
             null,

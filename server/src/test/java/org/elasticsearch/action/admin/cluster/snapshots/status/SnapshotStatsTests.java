@@ -67,7 +67,7 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
         assertEquals(-1L, missingStats.getIncrementalSize());
         assertEquals(-1L, missingStats.getProcessedSize());
 
-        // Verify round trip serialization.
+        // Verify round trip Transport serialization.
         for (var transportVersion : List.of(
             TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS,
@@ -95,5 +95,8 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
                 }
             }
         }
+
+        // Verify round trip XContent serialization.
+        testFromXContent(SnapshotStats::forMissingStats);
     }
 }

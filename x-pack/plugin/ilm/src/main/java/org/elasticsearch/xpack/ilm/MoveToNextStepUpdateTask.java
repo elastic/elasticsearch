@@ -49,7 +49,8 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
 
     @Override
     public ClusterState doExecute(ClusterState currentState) {
-        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
+        final var project = currentState.metadata().getProject();
+        IndexMetadata idxMeta = project.index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
@@ -57,7 +58,11 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
-            return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, nextStepKey, nowSupplier, stepRegistry, false);
+            return ClusterState.builder(currentState)
+                .putProjectMetadata(
+                    IndexLifecycleTransition.moveProjectToStep(index, project, nextStepKey, nowSupplier, stepRegistry, false)
+                )
+                .build();
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

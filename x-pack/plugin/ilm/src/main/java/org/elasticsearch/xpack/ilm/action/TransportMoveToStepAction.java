@@ -147,12 +147,13 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
                     }
 
                     concreteTargetKey.set(concreteTargetStepKey);
-                    return indexLifecycleService.moveClusterStateToStep(
-                        currentState,
+                    final var updatedProject = indexLifecycleService.moveProjectToStep(
+                        currentState.metadata().getProject(),
                         indexMetadata.getIndex(),
                         request.getCurrentStepKey(),
                         concreteTargetKey.get()
                     );
+                    return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
                 }
 
                 @Override

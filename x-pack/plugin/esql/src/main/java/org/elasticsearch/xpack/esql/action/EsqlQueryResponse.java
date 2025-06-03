@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -122,7 +123,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long documentsFound = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            profile = in.readOptionalWriteable(Profile::new);
+            profile = in.readOptionalWriteable(Profile::readFrom);
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
@@ -286,13 +287,19 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (profile == null) {
             return Collections.emptyIterator();
         }
-        return Iterators.concat(ChunkedToXContentHelper.startObject("profile"), ChunkedToXContentHelper.chunk((b, p) -> {
-            if (executionInfo != null) {
-                b.field("query", executionInfo.overallTimeSpan());
-                b.field("planning", executionInfo.planningTimeSpan());
-            }
-            return b;
-        }), ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params), ChunkedToXContentHelper.endObject());
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject("profile"), //
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (executionInfo != null) {
+                    b.field("query", executionInfo.overallTimeSpan());
+                    b.field("planning", executionInfo.planningTimeSpan());
+                }
+                return b;
+            }),
+            ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
+            ChunkedToXContentHelper.array("plans", profile.plans.iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public boolean[] nullColumns() {
@@ -396,41 +403,23 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public static class Profile implements Writeable {
-        private final List<DriverProfile> drivers;
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
 
-        public Profile(List<DriverProfile> drivers) {
-            this.drivers = drivers;
-        }
-
-        public Profile(StreamInput in) throws IOException {
-            this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+        public static Profile readFrom(StreamInput in) throws IOException {
+            return new Profile(
+                in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+                out.writeCollection(plans);
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Profile profile = (Profile) o;
-            return Objects.equals(drivers, profile.drivers);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(drivers);
-        }
-
-        List<DriverProfile> drivers() {
-            return drivers;
         }
     }
 }

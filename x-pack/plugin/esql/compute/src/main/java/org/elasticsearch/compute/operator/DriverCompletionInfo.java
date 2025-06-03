@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,23 +25,34 @@ import java.util.concurrent.atomic.AtomicLong;
  *                     <strong>roughly</strong> the number of documents times the number of
  *                     fields per document. Except {@code null} values don't count.
  *                     And multivalued fields count as many times as there are values.
- * @param collectedProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
+ * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
  *                          the request.
  */
-public record DriverCompletionInfo(long documentsFound, long valuesLoaded, List<DriverProfile> collectedProfiles) implements Writeable {
+public record DriverCompletionInfo(
+    long documentsFound,
+    long valuesLoaded,
+    List<DriverProfile> driverProfiles,
+    List<PlanProfile> planProfiles
+) implements Writeable {
 
     /**
      * Completion info we use when we didn't properly complete any drivers.
      * Usually this is returned with an error, but it's also used when receiving
      * responses from very old nodes.
      */
-    public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, List.of());
+    public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, List.of(), List.of());
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers including their profile output.
      */
-    public static DriverCompletionInfo includingProfiles(List<Driver> drivers) {
+    public static DriverCompletionInfo includingProfiles(
+        List<Driver> drivers,
+        String description,
+        String clusterName,
+        String nodeName,
+        String planTree
+    ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
@@ -52,7 +64,12 @@ public record DriverCompletionInfo(long documentsFound, long valuesLoaded, List<
             }
             collectedProfiles.add(p);
         }
-        return new DriverCompletionInfo(documentsFound, valuesLoaded, collectedProfiles);
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            collectedProfiles,
+            List.of(new PlanProfile(description, clusterName, nodeName, planTree))
+        );
     }
 
     /**
@@ -69,33 +86,43 @@ public record DriverCompletionInfo(long documentsFound, long valuesLoaded, List<
                 valuesLoaded += o.valuesLoaded();
             }
         }
-        return new DriverCompletionInfo(documentsFound, valuesLoaded, List.of());
+        return new DriverCompletionInfo(documentsFound, valuesLoaded, List.of(), List.of());
     }
 
-    public DriverCompletionInfo(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readCollectionAsImmutableList(DriverProfile::readFrom));
+    public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
+        return new DriverCompletionInfo(
+            in.readVLong(),
+            in.readVLong(),
+            in.readCollectionAsImmutableList(DriverProfile::readFrom),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+                ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                : List.of()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
-        out.writeCollection(collectedProfiles, (o, v) -> v.writeTo(o));
+        out.writeCollection(driverProfiles);
+        out.writeCollection(planProfiles);
     }
 
     public static class Accumulator {
         private long documentsFound;
         private long valuesLoaded;
-        private final List<DriverProfile> collectedProfiles = new ArrayList<>();
+        private final List<DriverProfile> driverProfiles = new ArrayList<>();
+        private final List<PlanProfile> planProfiles = new ArrayList<>();
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound += info.documentsFound;
             this.valuesLoaded += info.valuesLoaded;
-            this.collectedProfiles.addAll(info.collectedProfiles);
+            this.driverProfiles.addAll(info.driverProfiles);
+            this.planProfiles.addAll(info.planProfiles);
         }
 
         public DriverCompletionInfo finish() {
-            return new DriverCompletionInfo(documentsFound, valuesLoaded, collectedProfiles);
+            return new DriverCompletionInfo(documentsFound, valuesLoaded, driverProfiles, planProfiles);
         }
     }
 
@@ -103,15 +130,17 @@ public record DriverCompletionInfo(long documentsFound, long valuesLoaded, List<
         private final AtomicLong documentsFound = new AtomicLong();
         private final AtomicLong valuesLoaded = new AtomicLong();
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
+        private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound.addAndGet(info.documentsFound);
             this.valuesLoaded.addAndGet(info.valuesLoaded);
-            this.collectedProfiles.addAll(info.collectedProfiles);
+            this.collectedProfiles.addAll(info.driverProfiles);
+            this.planProfiles.addAll(info.planProfiles);
         }
 
         public DriverCompletionInfo finish() {
-            return new DriverCompletionInfo(documentsFound.get(), valuesLoaded.get(), collectedProfiles);
+            return new DriverCompletionInfo(documentsFound.get(), valuesLoaded.get(), collectedProfiles, planProfiles);
         }
     }
 }

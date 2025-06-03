@@ -41,6 +41,7 @@ public class StX extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
+        preview = true,
         description = "Extracts the `x` coordinate from the supplied point.\n"
             + "If the points is of type `geo_point` this is equivalent to extracting the `longitude` value.",
         examples = @Example(file = "spatial", tag = "st_x_y")

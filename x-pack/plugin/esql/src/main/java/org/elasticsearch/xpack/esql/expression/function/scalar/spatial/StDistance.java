@@ -224,6 +224,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
     @FunctionInfo(
         returnType = "double",
+        preview = true,
         description = """
             Computes the distance between two points.
             For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.

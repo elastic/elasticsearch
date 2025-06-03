@@ -139,6 +139,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
@@ -154,12 +155,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
-            @Example(file = "match-function", tag = "match-with-named-function-params") },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
-            ) }
+            @Example(file = "match-function", tag = "match-with-named-function-params") }
     )
     public Match(
         Source source,
@@ -260,7 +256,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as "
                         + "when using a stop filter. Defaults to none."
                 ) },
-            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
+            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>.{applies_to}`stack: ga 9.1`"
                 + " See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options

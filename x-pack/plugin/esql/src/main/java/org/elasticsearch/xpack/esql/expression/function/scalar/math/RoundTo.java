@@ -57,7 +57,7 @@ public class RoundTo extends EsqlScalarFunction {
         description = """
             Rounds down to one of a list of fixed points.""",
         examples = @Example(file = "math", tag = "round_to"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "8.19.0/9.1.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) }
     )
     public RoundTo(
         Source source,

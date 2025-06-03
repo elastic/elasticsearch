@@ -20,4 +20,4 @@ disconnect-after-job=false
 cancel-grace-period=300
 EOF
 
-buildkite-agent start --queue elasticsearch-quick-agent --spawn-per-cpu 1
+buildkite-agent start --queue elasticsearch-quick-agent --spawn-per-cpu 1 --config "$CONFIG_FILE"

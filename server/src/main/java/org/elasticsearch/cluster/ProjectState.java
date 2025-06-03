@@ -24,12 +24,16 @@ public final class ProjectState {
 
     private final ClusterState cluster;
     private final ProjectId project;
+    private final ProjectMetadata projectMetadata;
+    private final RoutingTable routingTable;
 
     ProjectState(ClusterState clusterState, ProjectId projectId) {
         assert clusterState.metadata().hasProject(projectId)
             : "project-id [" + projectId + "] not found in " + clusterState.metadata().projects().keySet();
         this.cluster = clusterState;
         this.project = projectId;
+        this.projectMetadata = clusterState.metadata().getProject(projectId);
+        this.routingTable = clusterState.routingTable(projectId);
     }
 
     public ProjectId projectId() {
@@ -37,11 +41,11 @@ public final class ProjectState {
     }
 
     public ProjectMetadata metadata() {
-        return cluster().metadata().getProject(projectId());
+        return projectMetadata;
     }
 
     public RoutingTable routingTable() {
-        return cluster().routingTable(projectId());
+        return routingTable;
     }
 
     public ClusterState cluster() {

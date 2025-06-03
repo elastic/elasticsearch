@@ -24,8 +24,8 @@ acquire-job=""
 tags-from-gcp="false"
 EOF
 
-AGENT_TOKEN="$BUILDKITE_AGENT_TOKEN"
+grep 'token=' "$BUILDKITE_CONFIG_PATH" >> "$CONFIG_FILE"
 
 unset ${!BUILDKITE_*}
 
-HOME="$AGENT_WORKSPACE" buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE" --token "$AGENT_TOKEN"
+HOME="$AGENT_WORKSPACE" buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE"

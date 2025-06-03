@@ -830,7 +830,7 @@ public class AzureBlobStore implements BlobStore {
      *
      * @param stream            the input stream that needs to be converted
      * @param length            the expected length in bytes of the input stream
-     * @param byteBufferSize    the size of the ByteBuffer to be created
+     * @param byteBufferSize    the size of the ByteBuffers to be created
      **/
     private static Flux<ByteBuffer> toFlux(InputStream stream, long length, final int byteBufferSize) {
         assert stream.markSupported() : "input stream must support mark and reset";
@@ -862,9 +862,10 @@ public class AzureBlobStore implements BlobStore {
             //
             // So this flux instantiates 128 ByteBuffer objects of DEFAULT_UPLOAD_BUFFERS_SIZE bytes in heap every time the NettyOutbound in
             // the Azure's Netty event loop requests byte buffers to write to the network channel. That represents 128 * 64kb = 8 mb per
-            // flux. The creation of the ByteBuffer objects are forked to the repository_azure thread pool, which has a maximum of 15
-            // threads (most of the time, can be less than that for nodes with less than 750mb). It means that max. 15 * 8 = 120mb bytes are
-            // allocated on heap at a time here (omitting the ones already created and pending garbage collection).
+            // flux which is aligned with BlobAsyncClient.BLOB_DEFAULT_HTBB_UPLOAD_BLOCK_SIZE. The creation of the ByteBuffer objects are
+            // forked to the repository_azure thread pool, which has a maximum of 15 threads (most of the time, can be less than that for
+            // nodes with less than 750mb heap). It means that max. 15 * 8 = 120mb bytes are allocated on heap at a time here (omitting the
+            // ones already created and pending garbage collection).
             return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * byteBufferSize).concatMap(pos -> Mono.fromCallable(() -> {
                 long count = pos + byteBufferSize > length ? length - pos : byteBufferSize;
                 int numOfBytesRead = 0;
@@ -885,7 +886,7 @@ public class AzureBlobStore implements BlobStore {
                     );
                 }
                 return ByteBuffer.wrap(buffer);
-            }), 0 /* no prefetching needed for concatMap as the MonoSendMany subscriber requests 128 elements */).doOnComplete(() -> {
+            })).doOnComplete(() -> {
                 if (bytesRead.get() > length) {
                     throw new IllegalStateException(
                         format("Input stream [%s] emitted %d bytes, more than the expected %d bytes.", stream, bytesRead, length)

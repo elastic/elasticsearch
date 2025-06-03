@@ -37,7 +37,7 @@ class KMeans {
      * @return randomly selected centroids that are the min of centroidCount and sampleSize
      * @throws IOException is thrown if vectors is inaccessible
      */
-    static float[][] pickInitialCentroids(FloatVectorValues vectors, int m, int centroidCount) throws IOException {
+    static float[][] pickInitialCentroids(FloatVectorValues vectors, int centroidCount) throws IOException {
         Random random = new Random(42L);
         int centroidsSize = Math.min(vectors.size(), centroidCount);
         float[][] centroids = new float[centroidsSize][vectors.dimension()];

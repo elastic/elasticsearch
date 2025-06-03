@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -23,7 +22,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -43,11 +41,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        if (fieldName == null && getQueryName().equals(MatchAllQueryBuilder.NAME)) {
-            return queryBuilder;
-            // return handleMatchAllQuery(queryBuilder, resolvedIndices);
-        }
-
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
         if (indexInformation.getInferenceIndices().isEmpty()) {
             // No inference fields were identified, so return the original query.
@@ -62,30 +55,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // so rewrite the entire query to work on a semantic_text field.
             return buildInferenceQuery(queryBuilder, indexInformation);
         }
-    }
-
-    private QueryBuilder handleMatchAllQuery(QueryBuilder queryBuilder, ResolvedIndices resolvedIndices) {
-        if (getInferenceFieldsFromResolveIndices(resolvedIndices).isEmpty()) {
-            // No inference fields were identified, so return the original query.
-            return queryBuilder;
-        }
-
-        List<String> fieldList = new ArrayList<>(getFieldsFromResolveIndices(resolvedIndices));
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        for (String field : fieldList) {
-            InferenceIndexInformationForField indexInformation = resolveIndicesForField(field, resolvedIndices);
-            if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-                // Combined case where the field name requested by this query contains both
-                // semantic_text and non-inference fields, so we have to combine queries per index
-                // containing each field type.
-                boolQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
-            } else {
-                // The only fields we've identified are inference fields (e.g. semantic_text),
-                // so rewrite this semantic_text field into a semantic query
-                boolQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation));
-            }
-        }
-        return boolQueryBuilder.should().isEmpty() ? queryBuilder : boolQueryBuilder;
     }
 
     /**
@@ -120,36 +89,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation
     );
-
-    private List<String> getFieldsFromResolveIndices(ResolvedIndices resolvedIndices) {
-        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-        List<String> fields = new ArrayList<>();
-        for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            if (indexMetadata.mapping() == null || indexMetadata.mapping().sourceAsMap() == null) {
-                // No mapping, so no fields.
-                continue;
-            }
-            Collection<Object> mappingSource = indexMetadata.mapping().getSourceAsMap().values();
-            @SuppressWarnings("unchecked")
-            Set<String> fieldNames = mappingSource.stream()
-                .filter(obj -> obj instanceof Map<?, ?>)
-                .map(obj -> (Map<String, Object>) obj)
-                .flatMap(map -> map.keySet().stream())
-                .collect(Collectors.toSet());
-            fields.addAll(fieldNames);
-        }
-        return fields;
-    }
-
-    private List<InferenceFieldMetadata> getInferenceFieldsFromResolveIndices(ResolvedIndices resolvedIndices) {
-        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-        List<InferenceFieldMetadata> inferenceIndicesMetadata = new ArrayList<>();
-        for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            inferenceIndicesMetadata.addAll(indexMetadata.getInferenceFields().values());
-        }
-
-        return inferenceIndicesMetadata;
-    }
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();

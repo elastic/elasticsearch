@@ -93,7 +93,6 @@ import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
-import org.elasticsearch.xpack.inference.queries.SemanticMatchAllQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
@@ -548,7 +547,6 @@ public class InferencePlugin extends Plugin
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
             new SemanticMatchQueryRewriteInterceptor(),
-            new SemanticMatchAllQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }

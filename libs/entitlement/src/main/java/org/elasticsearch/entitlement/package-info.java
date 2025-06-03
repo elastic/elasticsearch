@@ -189,7 +189,7 @@
  * <h2>Checks</h2>
  * <p>
  * The injected prologue calls a {@code check$} method on {@link org.elasticsearch.entitlement.bridge.EntitlementChecker}; its
- * implementation (normally on {@link org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker}, unless it is a
+ * implementation (normally on {@link org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker}, unless it is a
  * version-specific method) calls the appropriate methods on {@link org.elasticsearch.entitlement.runtime.policy.PolicyManager},
  * forwarding the caller class and a specific set of arguments. These methods all start with check, roughly matching an entitlement type
  * (e.g. {@link org.elasticsearch.entitlement.runtime.policy.PolicyChecker#checkInboundNetworkAccess},

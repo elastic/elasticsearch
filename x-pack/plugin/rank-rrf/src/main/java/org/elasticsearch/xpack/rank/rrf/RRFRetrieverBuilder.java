@@ -117,6 +117,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         // Otherwise some of the validation is skipped when creating the retriever programmatically.
     }
 
+    public int rankConstant() {
+        return rankConstant;
+    }
+
     @Override
     public String getName() {
         return NAME;

@@ -7,14 +7,26 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.action.MockResolvedIndices;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -23,6 +35,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.convertToRetrieverSource;
 
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
@@ -66,6 +81,37 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         }
     }
 
+    public void testSimplifiedParamsRewrite() {
+        final String indexName = "test-index";
+        final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo",
+            10,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+        );
+        assertSimplifiedParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 1.0f, "field_2", 1.0f),
+            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
+            "foo"
+        );
+
+        // TODO: Test with wildcard resolution
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new SearchModule(Settings.EMPTY, List.of()).getNamedXContents();
@@ -85,5 +131,70 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             )
         );
         return new NamedXContentRegistry(entries);
+    }
+
+    private static ResolvedIndices createMockResolvedIndices(String indexName, List<String> inferenceFields) {
+        Index index = new Index(indexName, randomAlphaOfLength(10));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+
+        for (String inferenceField : inferenceFields) {
+            indexMetadataBuilder.putInferenceField(
+                new InferenceFieldMetadata(inferenceField, randomAlphaOfLengthBetween(3, 5), new String[] { inferenceField }, null)
+            );
+        }
+
+        return new MockResolvedIndices(
+            Map.of(),
+            new OriginalIndices(new String[] { indexName }, IndicesOptions.DEFAULT),
+            Map.of(index, indexMetadataBuilder.build())
+        );
+    }
+
+    private static void assertSimplifiedParamsRewrite(
+        RRFRetrieverBuilder retriever,
+        QueryRewriteContext ctx,
+        Map<String, Float> expectedNonInferenceFields,
+        Map<String, Float> expectedInferenceFields,
+        String expectedQuery
+    ) {
+        List<CompoundRetrieverBuilder.RetrieverSource> expectedInnerRetrievers = List.of(
+            convertToRetrieverSource(
+                new StandardRetrieverBuilder(
+                    new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+                        .fields(expectedNonInferenceFields)
+                )
+            ),
+            convertToRetrieverSource(
+                new RRFRetrieverBuilder(
+                    expectedInferenceFields.entrySet()
+                        .stream()
+                        .map(e -> {
+                            if (e.getValue() != 1.0f) {
+                                throw new IllegalArgumentException("Cannot apply per-field weights in RRF");
+                            }
+                            return convertToRetrieverSource(new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery)));
+                        })
+                        .toList(),
+                    retriever.rankWindowSize(),
+                    retriever.rankConstant()
+                )
+            )
+        );
+        RRFRetrieverBuilder expectedRewritten = new RRFRetrieverBuilder(
+            expectedInnerRetrievers,
+            retriever.rankWindowSize(),
+            retriever.rankConstant()
+        );
+
+        RRFRetrieverBuilder rewritten = retriever.doRewrite(ctx);
+        assertNotSame(retriever, rewritten);
+        assertEquals(expectedRewritten, rewritten);
     }
 }

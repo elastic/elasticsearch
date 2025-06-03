@@ -157,10 +157,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
@@ -502,7 +502,8 @@ public class Stateless extends Plugin
         this.projectResolver.set(services.projectResolver());
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
-        AllocationService allocationService = services.allocationService();
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy = services.allocationService().getShardRoutingRoleStrategy();
+        RerouteService rerouteService = services.rerouteService();
         ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
         Environment environment = services.environment();
         // use the settings that include additional settings.
@@ -745,7 +746,7 @@ public class Stateless extends Plugin
         // Resharding
         var metadataReshardIndexService = setAndGet(
             this.metadataReshardIndexService,
-            createMetadataReshardIndexService(settings, clusterService, indicesService, allocationService, threadPool)
+            createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, threadPool)
         );
         components.add(metadataReshardIndexService);
         return components;
@@ -804,13 +805,12 @@ public class Stateless extends Plugin
     }
 
     protected MetadataReshardIndexService createMetadataReshardIndexService(
-        Settings settings,
         ClusterService clusterService,
-        IndicesService indicesService,
-        AllocationService allocationService,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        RerouteService rerouteService,
         ThreadPool threadPool
     ) {
-        return new MetadataReshardIndexService(settings, clusterService, indicesService, allocationService, threadPool);
+        return new MetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, threadPool);
     }
 
     @Override

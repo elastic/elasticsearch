@@ -41,23 +41,20 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.core.Strings.format;
@@ -66,9 +63,7 @@ public class MetadataReshardIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataReshardIndexService.class);
 
-    private final Settings settings;
     private final ClusterService clusterService;
-    private final IndicesService indicesService;
     private final ThreadPool threadPool;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
@@ -77,18 +72,19 @@ public class MetadataReshardIndexService {
     private final MasterServiceTaskQueue<FinishReshardTask> finishReshardQueue;
 
     public MetadataReshardIndexService(
-        final Settings settings,
         final ClusterService clusterService,
-        final IndicesService indicesService,
-        final AllocationService allocationService,
+        final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        final RerouteService rerouteService,
         final ThreadPool threadPool
     ) {
-        this.settings = settings;
         this.clusterService = clusterService;
-        this.indicesService = indicesService;
         this.threadPool = threadPool;
 
-        this.reshardQueue = clusterService.createTaskQueue("reshard-index", Priority.NORMAL, new ReshardIndexExecutor(allocationService));
+        this.reshardQueue = clusterService.createTaskQueue(
+            "reshard-index",
+            Priority.NORMAL,
+            new ReshardIndexExecutor(shardRoutingRoleStrategy, rerouteService)
+        );
         this.transitionToHandOffStateQueue = clusterService.createTaskQueue(
             "transition-reshard-target-state-to-handoff",
             // This is high priority because indexing is blocked while this updated is applied
@@ -243,12 +239,9 @@ public class MetadataReshardIndexService {
         final ReshardIndexClusterStateUpdateRequest request,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        // TODO perform async reroute after handling the entire batch instead of after every request
-        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-
         reshardQueue.submitTask(
             "reshard-index [" + request.index().getName() + "]",
-            new ReshardTask(request, delegate.clusterStateUpdate(), delegate.reroute(), ackTimeout),
+            new ReshardTask(request, listener, ackTimeout),
             masterNodeTimeout
         );
     }
@@ -378,27 +371,26 @@ public class MetadataReshardIndexService {
 
     private static class ReshardTask extends AckedBatchedClusterStateUpdateTask {
         private final ReshardIndexClusterStateUpdateRequest request;
-        private final ActionListener<Void> rerouteListener;
 
         ReshardTask(
             ReshardIndexClusterStateUpdateRequest request,
             ActionListener<AcknowledgedResponse> stateUpdateListener,
-            ActionListener<Void> rerouteListener,
             TimeValue ackTimeout
         ) {
             super(ackTimeout, stateUpdateListener);
             this.request = request;
-            this.rerouteListener = rerouteListener;
         }
     }
 
     // TODO investigate if this executor can be non-acked. There should be no need to wait for all nodes to ack the
     // cluster state update performed here.
     private static class ReshardIndexExecutor extends SimpleBatchedAckListenerTaskExecutor<ReshardTask> {
-        private final AllocationService allocationService;
+        private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+        private final RerouteService rerouteService;
 
-        private ReshardIndexExecutor(AllocationService allocationService) {
-            this.allocationService = allocationService;
+        private ReshardIndexExecutor(ShardRoutingRoleStrategy shardRoutingRoleStrategy, RerouteService rerouteService) {
+            this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
+            this.rerouteService = rerouteService;
         }
 
         @Override
@@ -422,12 +414,7 @@ public class MetadataReshardIndexService {
             validateNumTargetShards(targetNumShards, sourceMetadata);
 
             // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
-            final var routingTableBuilder = reshardUpdateNumberOfShards(
-                projectState,
-                allocationService.getShardRoutingRoleStrategy(),
-                targetNumShards,
-                index
-            );
+            final var routingTableBuilder = reshardUpdateNumberOfShards(projectState, shardRoutingRoleStrategy, targetNumShards, index);
 
             ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
             // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)
@@ -436,10 +423,19 @@ public class MetadataReshardIndexService {
                 .putRoutingTable(projectId, routingTableBuilder.build())
                 .build();
             logger.info("resharding index [{}]", index);
-            allocationService.reroute(updated, "index [" + index.getName() + "] resharded", task.rerouteListener);
 
             return new Tuple<>(updated, task);
         }
+
+        @Override
+        public void clusterStatePublished() {
+            rerouteService.reroute("reroute after starting a resharding operation", Priority.NORMAL, rerouteListener);
+        }
+
+        private static final ActionListener<Void> rerouteListener = ActionListener.wrap(
+            r -> logger.debug("reroute after resharding completed"),
+            e -> logger.warn("reroute after resharding failed", e)
+        );
     }
 
     private record TransitionTargetStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)

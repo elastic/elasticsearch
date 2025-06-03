@@ -531,6 +531,15 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
+- class: org.elasticsearch.xpack.rank.rrf.LinearRankClientYamlTestSuiteIT
+  method: test {yaml=linear/10_linear_retriever/should normalize initial scores with l2_norm}
+  issue: https://github.com/elastic/elasticsearch/issues/128774
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128799
+- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128800
 
 # Examples:
 #

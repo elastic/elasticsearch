@@ -19,6 +19,7 @@ import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -27,14 +28,12 @@ import org.elasticsearch.plugins.PluginDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 public class TestEntitlementBootstrap {
 
@@ -96,29 +95,6 @@ public class TestEntitlementBootstrap {
             pathLookup,
             isActive
         );
-    }
-
-    private record TestPathLookup() implements PathLookup {
-        @Override
-        public Path pidFile() {
-            return null;
-        }
-
-        @Override
-        public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
-            return Stream.empty();
-        }
-
-        @Override
-        public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
-            return Stream.empty();
-        }
-
-        @Override
-        public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
-            return Stream.empty();
-        }
-
     }
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {

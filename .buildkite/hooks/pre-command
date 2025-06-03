@@ -108,10 +108,12 @@ fi
 
 # Authenticate to the Docker Hub public read-only registry
 if which docker > /dev/null 2>&1; then
-  DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
-  DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  if ! grep 'docker.io' "$HOME/.docker/config.json"; then
+    DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+    DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
 
-  echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
+    echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
+  fi
 fi
 
 if [[ -n "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" && "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then

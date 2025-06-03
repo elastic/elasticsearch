@@ -59,13 +59,13 @@ public interface LucenePushdownPredicates {
      */
     default boolean isPushableFieldAttribute(Expression exp) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndHasDocValues(fa)) {
-            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasExactSubfield(fa);
+            return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
-        return exp instanceof FieldAttribute fa && (fa.dataType() == DataType.TEXT || fa.dataType() == DataType.SEMANTIC_TEXT);
+        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT;
     }
 
     static boolean isPushableMetadataAttribute(Expression exp) {

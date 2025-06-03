@@ -301,13 +301,6 @@ public enum DataType {
      * mapping and should be hidden from users.
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
-    /**
-     * String fields that are split into chunks, where each chunk has attached embeddings
-     * used for semantic search. Generally ESQL only sees {@code semantic_text} fields when
-     * loaded from the index and ESQL will load these fields as strings without their attached
-     * chunks or embeddings.
-     */
-    SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize()),
 
     AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
 
@@ -323,7 +316,6 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
         Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
         Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
     );
@@ -489,7 +481,7 @@ public enum DataType {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT || t == SEMANTIC_TEXT;
+        return t == KEYWORD || t == TEXT;
     }
 
     public static boolean isPrimitiveAndSupported(DataType t) {

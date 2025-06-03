@@ -585,10 +585,6 @@ public class EsqlCapabilities {
          */
         FUNCTION_STATS,
         /**
-         * Support for semantic_text field mapping
-         */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
-        /**
          * Fix for an optimization that caused wrong results
          * https://github.com/elastic/elasticsearch/issues/115281
          */

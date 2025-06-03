@@ -201,7 +201,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                case TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
+                case TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );
@@ -952,7 +952,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {

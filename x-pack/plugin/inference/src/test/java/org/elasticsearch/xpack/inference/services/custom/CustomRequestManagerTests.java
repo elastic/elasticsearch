@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
@@ -64,8 +63,7 @@ public class CustomRequestManagerTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(

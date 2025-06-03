@@ -63,8 +63,6 @@ public class ShardSearchLoadStatsResponse extends ChunkedBroadcastResponse {
         this.shards = aggregateSearchLoadByShard(Objects.requireNonNull(shards));
     }
 
-
-
     /**
      * Returns a copy of the array of shard stats.
      *
@@ -94,13 +92,10 @@ public class ShardSearchLoadStatsResponse extends ChunkedBroadcastResponse {
             aggregated.merge(key, load, Double::sum);
         }
 
-        return aggregated.entrySet().stream()
-                .map(e -> new ShardSearchLoadStats(
-                        e.getKey().indexName(),
-                        e.getKey().shardId(),
-                        e.getValue()
-                ))
-                .toArray(ShardSearchLoadStats[]::new);
+        return aggregated.entrySet()
+            .stream()
+            .map(e -> new ShardSearchLoadStats(e.getKey().indexName(), e.getKey().shardId(), e.getValue()))
+            .toArray(ShardSearchLoadStats[]::new);
     }
 
     private record ShardKey(String indexName, int shardId) {}

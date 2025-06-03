@@ -168,11 +168,7 @@ public class TransportShardSearchLoadStatsAction extends TransportBroadcastByNod
             ShardId shardId = shardRouting.shardId();
             IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
 
-            return new ShardSearchLoadStats(
-                shardId.getIndex().getName(),
-                shardId.getId(),
-                indexShard.getSearchLoadRate()
-            );
+            return new ShardSearchLoadStats(shardId.getIndex().getName(), shardId.getId(), indexShard.getSearchLoadRate());
         });
     }
 

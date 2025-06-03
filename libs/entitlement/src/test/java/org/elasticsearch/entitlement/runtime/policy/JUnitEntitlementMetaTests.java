@@ -12,22 +12,14 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Tests that unit tests are covered by entitlement checks.
+ * Ensures that unit tests are subject to entitlement checks.
  */
-public class JUnitMetaTests extends ESTestCase {
+public class JUnitEntitlementMetaTests extends ESTestCase {
 
     public void testForbiddenActionThrows() {
         assertThrows(NotEntitledException.class, ()-> Path.of(".").toRealPath());
-    }
-
-    @WithoutEntitlements
-    public void testForbiddenActionAllowed() throws IOException {
-        // ("real paths" are also absolute paths)
-        System.out.println(Path.of(".").toRealPath());
-        assertTrue(Path.of(".").toRealPath().toString().startsWith("/"));
     }
 }

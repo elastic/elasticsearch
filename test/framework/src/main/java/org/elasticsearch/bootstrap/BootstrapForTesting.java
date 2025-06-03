@@ -74,7 +74,11 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
 
         // Fire up entitlements
-        TestEntitlementBootstrap.bootstrap();
+        try {
+            TestEntitlementBootstrap.bootstrap();
+        } catch (IOException e) {
+            throw new IllegalStateException(e.getClass().getSimpleName() + " while initializing entitlements for tests", e);
+        }
     }
 
     // does nothing, just easy way to make sure the class is loaded.

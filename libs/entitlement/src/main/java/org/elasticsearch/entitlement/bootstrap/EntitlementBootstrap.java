@@ -17,6 +17,7 @@ import com.sun.tools.attach.VirtualMachine;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -75,25 +76,33 @@ public class EntitlementBootstrap {
         if (EntitlementInitialization.initializeArgs != null) {
             throw new IllegalStateException("initialization data is already set");
         }
+        PathLookupImpl pathLookup = new PathLookupImpl(
+            getUserHome(),
+            configDir,
+            dataDirs,
+            sharedRepoDirs,
+            libDir,
+            modulesDir,
+            pluginsDir,
+            logsDir,
+            tempDir,
+            pidFile,
+            settingResolver
+        );
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             serverPolicyPatch,
             pluginPolicies,
             scopeResolver,
-            new PathLookupImpl(
-                getUserHome(),
-                configDir,
-                dataDirs,
-                sharedRepoDirs,
-                libDir,
-                modulesDir,
-                pluginsDir,
-                logsDir,
-                tempDir,
-                pidFile,
-                settingResolver
-            ),
+            pathLookup,
             sourcePaths,
-            suppressFailureLogPackages
+            suppressFailureLogPackages,
+            createPolicyManager(
+                pluginPolicies,
+                pathLookup,
+                serverPolicyPatch,
+                scopeResolver,
+                sourcePaths
+            )
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
@@ -149,6 +158,19 @@ public class EntitlementBootstrap {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+    }
+
+    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Path> sourcePaths) {
+        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
+
+        return new PolicyManager(
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
+            HardcodedEntitlements.agentEntitlements(),
+            pluginPolicies,
+            scopeResolver,
+            sourcePaths,
+            pathLookup
+        );
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

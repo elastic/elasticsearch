@@ -69,7 +69,7 @@ public class EntitlementInitialization {
      */
     public static void initialize(Instrumentation inst) throws Exception {
         // the checker _MUST_ be set before _any_ instrumentation is done
-        checker = initChecker(createPolicyManager());
+        checker = initChecker(initializeArgs.policyManager());
         initInstrumentation(inst);
     }
 
@@ -90,7 +90,8 @@ public class EntitlementInitialization {
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         PathLookup pathLookup,
         Map<String, Path> sourcePaths,
-        Set<Package> suppressFailureLogPackages
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager
     ) {
         public InitializeArgs {
             requireNonNull(pluginPolicies);
@@ -107,22 +108,6 @@ public class EntitlementInitialization {
             ENTITLEMENTS_MODULE,
             policyManager,
             initializeArgs.pathLookup()
-        );
-    }
-
-    private static PolicyManager createPolicyManager() {
-        Map<String, Policy> pluginPolicies = initializeArgs.pluginPolicies();
-        PathLookup pathLookup = initializeArgs.pathLookup();
-
-        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
-
-        return new PolicyManager(
-            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), initializeArgs.serverPolicyPatch()),
-            HardcodedEntitlements.agentEntitlements(),
-            pluginPolicies,
-            initializeArgs.scopeResolver(),
-            initializeArgs.sourcePaths(),
-            pathLookup
         );
     }
 

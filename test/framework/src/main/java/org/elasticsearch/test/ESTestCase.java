@@ -105,6 +105,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -159,7 +160,6 @@ import org.junit.rules.RuleChain;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -495,8 +495,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Marks a test suite or a test method that should run without checking for entitlements.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.TYPE, ElementType.METHOD })
+    @Target( ElementType.TYPE )
     public @interface WithoutEntitlements {
+    }
+
+    @BeforeClass
+    public static void setupEntitlementsForClass() {
+        boolean isActive = false == getTestClass().isAnnotationPresent(WithoutEntitlements.class);
+        TestEntitlementBootstrap.setIsActive(isActive);
+    }
+
+    @AfterClass
+    public static void enableEntitlements() {
+        TestEntitlementBootstrap.restoreDefaultIsActive();
     }
 
     // setup mock filesystems for this test run. we change PathUtils

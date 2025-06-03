@@ -14,18 +14,23 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 public class TestPolicyManager extends PolicyManager {
+    final AtomicBoolean isActive;
+
     public TestPolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Path> sourcePaths,
-        PathLookup pathLookup
+        PathLookup pathLookup,
+        AtomicBoolean isActive
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, sourcePaths, pathLookup);
+        this.isActive = isActive;
     }
 
     /**
@@ -43,7 +48,13 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     boolean isTriviallyAllowed(Class<?> requestingClass) {
-        return isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass) || super.isTriviallyAllowed(requestingClass);
+        if (isActive.get() == false) {
+            return true;
+        }
+        if (isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass)) {
+            return true;
+        }
+        return super.isTriviallyAllowed(requestingClass);
     }
 
     private boolean isEntitlementClass(Class<?> requestingClass) {
@@ -53,6 +64,18 @@ public class TestPolicyManager extends PolicyManager {
 
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
         String packageName = requestingClass.getPackageName();
-        return packageName.startsWith("org.junit") || packageName.startsWith("org.gradle");
+        for (String prefix: TEST_FRAMEWORK_PACKAGE_PREFIXES) {
+            if (packageName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
+
+    private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
+        "com.carrotsearch.randomizedtesting",
+        "org.apache.lucene.tests",
+        "org.gradle",
+        "org.junit",
+    };
 }

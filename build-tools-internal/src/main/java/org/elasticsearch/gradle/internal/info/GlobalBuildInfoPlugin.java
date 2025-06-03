@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
@@ -202,13 +203,18 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private List<String> getDevelopmentBranches() {
-        List<String> branches = new ArrayList<>();
+    private List<DevelopmentBranch> getDevelopmentBranches() {
+        List<DevelopmentBranch> branches = new ArrayList<>();
         File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
         try (InputStream is = new FileInputStream(branchesFile)) {
             JsonNode json = objectMapper.readTree(is);
             for (JsonNode node : json.get("branches")) {
-                branches.add(node.get("branch").asText());
+                branches.add(
+                    new DevelopmentBranch(
+                        node.get("branch").asText(),
+                        Version.fromString(node.get("version").asText())
+                    )
+                );
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -90,7 +91,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         SnapshotStats stats,
         String nodeId,
         String failure,
-        String description
+        @Nullable String description
     ) {
         super(shardId);
         this.stage = stage;
@@ -146,6 +147,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     /**
      * Returns the optional description of the data values contained in the {@code stats} field.
      */
+    @Nullable
     public String getDescription() {
         return description;
     }

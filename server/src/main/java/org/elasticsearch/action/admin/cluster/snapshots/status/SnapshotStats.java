@@ -250,10 +250,10 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         long time = 0;
         int incrementalFileCount = 0;
         int totalFileCount = 0;
-        int processedFileCount = 0;
+        int processedFileCount = Integer.MIN_VALUE;
         long incrementalSize = 0;
         long totalSize = 0;
-        long processedSize = 0;
+        long processedSize = Long.MIN_VALUE;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentName = parser.currentName();
@@ -328,10 +328,11 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                 }
             }
         }
-        // For missing stats incrementalFileCount will be -1, and we expect processedFileCount and processedSize to be omitted (still zero).
-        if (incrementalFileCount == -1) {
-            assert processedFileCount == 0 && processedSize == 0L && incrementalSize == -1L && totalFileCount == -1 && totalSize == -1L;
-            return SnapshotStats.forMissingStats();
+        // Handle the case where the "processed" sub-object is omitted in toXContent() when processedFileCount == incrementalFileCount.
+        if (processedFileCount == Integer.MIN_VALUE) {
+            assert processedSize == Long.MIN_VALUE;
+            processedFileCount = incrementalFileCount;
+            processedSize = incrementalSize;
         }
         return new SnapshotStats(
             startTime,

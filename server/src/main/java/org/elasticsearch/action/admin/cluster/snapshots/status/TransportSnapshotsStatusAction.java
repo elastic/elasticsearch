@@ -246,8 +246,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         if (minTransportVersion.onOrAfter(TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
                             shardStatus = SnapshotIndexShardStatus.forDoneButMissingStats(shardId, """
                                 Snapshot shard stats missing from a currently running snapshot due to a node leaving the cluster after \
-                                completing the shard snapshot; use /_snapshot/<repository>/<snapshot>/_status to load from the repository \
-                                once the snapshot has completed.""");
+                                completing the shard snapshot; retry once the snapshot has completed to load all shard stats from the \
+                                repository.""");
                         } else {
                             // BWC behavior, load the stats directly from the repository.
                             shardStatus = new SnapshotIndexShardStatus(

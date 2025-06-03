@@ -29,8 +29,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * ES|QL function that mimics the behavior of Math.copySign(double magnitude, double sign).
+ * ES|QL function that mimics the behavior of {@code Math.copySign(double magnitude, double sign)}.
  * Returns a value with the magnitude of the first argument and the sign of the second argument.
+ *
+ * <p>
+ * The output of this function is the MAGNITUDE with the SIGN from `sign` applied to it.
+ * For that reason, we cast the SIGN to DOUBLE, which is the most general numeric type,
+ * and allows us to write a single check (<0 or >=0) for all possible types of `sign`.
+ * However, the output type of this function is determined by the `magnitude` type.
  */
 public class CopySign extends EsqlScalarFunction {
 

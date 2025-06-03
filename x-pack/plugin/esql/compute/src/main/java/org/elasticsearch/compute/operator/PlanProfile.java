@@ -35,7 +35,7 @@ public record PlanProfile(String description, String clusterName, String nodeNam
             .field("description", description)
             .field("cluster_name", clusterName)
             .field("node_name", nodeName)
-            .field("plan_tree", planTree)
+            .field("plan", planTree)
             .endObject();
     }
 }

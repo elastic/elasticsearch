@@ -128,7 +128,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                     type = "double",
                     valueHint = { "3.5" },
                     description = "Applies the specified oversampling for rescoring quantized vectors. "
-                        + "See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
+                        + "See [oversampling and rescoring quantized vectors]"
+                        + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-knn-query,knn query>> for more information.",

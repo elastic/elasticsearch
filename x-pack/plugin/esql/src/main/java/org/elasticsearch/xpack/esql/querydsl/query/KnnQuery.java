@@ -64,8 +64,9 @@ public class KnnQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof KnnQuery knnQuery)) return false;
         if (super.equals(o) == false) return false;
+
+        KnnQuery knnQuery = (KnnQuery) o;
         return Objects.equals(field, knnQuery.field)
             && Objects.deepEquals(query, knnQuery.query)
             && Objects.equals(options, knnQuery.options);

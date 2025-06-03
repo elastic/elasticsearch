@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.MappingGenerator;
@@ -49,7 +50,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
     // of text multi field in a keyword field.
     public void testBlockLoaderOfParentField() throws IOException {
         var template = new Template(Map.of("parent", new Template.Leaf("parent", FieldType.KEYWORD.toString())));
-        var specification = buildSpecification(List.of(new DataSourceHandler() {
+        DataGeneratorSpecification specification = buildSpecification(List.of(new DataSourceHandler() {
             @Override
             public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
                 // This is a bit tricky meta-logic.
@@ -101,7 +102,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         var fieldValue = document.get("parent");
 
         Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+        XContentBuilder mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         var mapperService = params.syntheticSource()
             ? createSytheticSourceMapperService(mappingXContent)
             : createMapperService(mappingXContent);

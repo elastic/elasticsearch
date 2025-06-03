@@ -13,8 +13,8 @@ import org.apache.lucene.search.ScoreDoc;
 /**
  * A score normalizer that applies L2 normalization to a set of scores.
  * <p>
- * This normalizer scales the scores so that the L2 norm of the score vector is 1,
- * if possible. If all scores are zero or NaN, normalization is skipped and the original scores are returned.
+ * Each score is divided by the L2 norm of the scores if the norm is greater than a small EPSILON.
+ * If all scores are zero or NaN, normalization is skipped and the original scores are returned.
  * </p>
  */
 public class L2ScoreNormalizer extends ScoreNormalizer {

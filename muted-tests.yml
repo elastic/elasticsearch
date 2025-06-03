@@ -540,6 +540,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
   method: testSimpleOffHeapSizeFSDir
   issue: https://github.com/elastic/elasticsearch/issues/128800
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIOUsed
+  issue: https://github.com/elastic/elasticsearch/issues/128829
 
 # Examples:
 #

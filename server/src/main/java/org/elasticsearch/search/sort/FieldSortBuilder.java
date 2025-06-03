@@ -409,7 +409,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     }
                 }, reverse);
             } else {
-                field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+                field = fieldData.sortField(context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
                 if (fieldData instanceof IndexNumericFieldData) {
                     isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
                 }

@@ -1,6 +1,11 @@
 ---
 teardown:
+  - requires:
+      test_runner_features: ["allowed_warnings"]
+
   - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.async-search], but in a future major version, direct access to system indices will be prevented by default"
       indices.delete:
         index: .*,-.security-*
 
@@ -194,3 +199,17 @@ teardown:
   - do:
       indices.delete_index_template:
         name: my-template2
+
+---
+"System indices do not cause deprecation warnings":
+  - do:
+      index:
+        index: myindex
+        id: "1"
+        body: {foo: bar}
+
+  - do:
+      async_search.submit:
+        index: myindex
+        keep_alive: 1m
+        keep_on_completion: true

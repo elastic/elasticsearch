@@ -275,6 +275,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LIMIT_ROW_SIZE = def(9_085_0_00);
     public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY = def(9_086_0_00);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = def(9_087_0_00);
+    public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = def(9_088_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

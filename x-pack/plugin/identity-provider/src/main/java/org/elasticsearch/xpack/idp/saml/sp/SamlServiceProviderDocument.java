@@ -42,6 +42,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST;
+
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
  */
@@ -87,6 +89,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         @Nullable
         public String roles;
 
+        /**
+         * Extensions are attributes that are provided at runtime (by the trusted client that initiates
+         * the SAML SSO. They are sourced from the rest request rather than the user object itself.
+         */
+        public Set<String> extensions = Set.of();
+
         public void setPrincipal(String principal) {
             this.principal = principal;
         }
@@ -103,6 +111,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             this.roles = roles;
         }
 
+        public void setExtensions(Collection<String> names) {
+            this.extensions = names == null ? Set.of() : Set.copyOf(names);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -111,7 +123,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             return Objects.equals(principal, that.principal)
                 && Objects.equals(email, that.email)
                 && Objects.equals(name, that.name)
-                && Objects.equals(roles, that.roles);
+                && Objects.equals(roles, that.roles)
+                && Objects.equals(extensions, that.extensions);
         }
 
         @Override
@@ -263,6 +276,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         attributeNames.name = in.readOptionalString();
         attributeNames.roles = in.readOptionalString();
 
+        if (in.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+            attributeNames.extensions = in.readCollectionAsImmutableSet(StreamInput::readString);
+        }
+
         certificates.serviceProviderSigning = in.readStringCollectionAsList();
         certificates.identityProviderSigning = in.readStringCollectionAsList();
         certificates.identityProviderMetadataSigning = in.readStringCollectionAsList();
@@ -287,6 +304,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalString(attributeNames.email);
         out.writeOptionalString(attributeNames.name);
         out.writeOptionalString(attributeNames.roles);
+
+        if (out.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+            out.writeStringCollection(attributeNames.extensions);
+        }
 
         out.writeStringCollection(certificates.serviceProviderSigning);
         out.writeStringCollection(certificates.identityProviderSigning);
@@ -426,6 +447,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setEmail, Fields.Attributes.EMAIL);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setName, Fields.Attributes.NAME);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setRoles, Fields.Attributes.ROLES);
+        ATTRIBUTES_PARSER.declareStringArray(AttributeNames::setExtensions, Fields.Attributes.EXTENSIONS);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (p, doc) -> CERTIFICATES_PARSER.parse(p, doc.certificates, null), Fields.CERTIFICATES);
         CERTIFICATES_PARSER.declareStringArray(Certificates::setServiceProviderSigning, Fields.Certificates.SP_SIGNING);
@@ -516,6 +538,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.Attributes.EMAIL.getPreferredName(), attributeNames.email);
         builder.field(Fields.Attributes.NAME.getPreferredName(), attributeNames.name);
         builder.field(Fields.Attributes.ROLES.getPreferredName(), attributeNames.roles);
+        builder.field(Fields.Attributes.EXTENSIONS.getPreferredName(), attributeNames.extensions);
         builder.endObject();
 
         builder.startObject(Fields.CERTIFICATES.getPreferredName());
@@ -553,6 +576,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             ParseField EMAIL = new ParseField("email");
             ParseField NAME = new ParseField("name");
             ParseField ROLES = new ParseField("roles");
+            ParseField EXTENSIONS = new ParseField("extensions");
         }
 
         interface Certificates {

@@ -78,7 +78,26 @@ public class SamlServiceProviderIndex implements Closeable {
     static final String TEMPLATE_VERSION_STRING_DEPRECATED = "idp.template.version_deprecated";
     static final String FINAL_TEMPLATE_VERSION_STRING_DEPRECATED = "8.14.0";
 
-    static final int CURRENT_TEMPLATE_VERSION = 1;
+    /**
+     * The object in the index mapping metadata that contains a version field
+     */
+    private static final String INDEX_META_FIELD = "_meta";
+    /**
+     * The field in the {@link #INDEX_META_FIELD} metadata that contains the version number
+     */
+    private static final String TEMPLATE_VERSION_META_FIELD = "idp-template-version";
+
+    /**
+     * The first version of this template (since it was moved to use {@link org.elasticsearch.xpack.core.template.IndexTemplateRegistry}
+     */
+    private static final int VERSION_ORIGINAL = 1;
+    /**
+     * The version that added the {@code attributes.extensions} field to the SAML SP document
+     */
+    private static final int VERSION_EXTENSION_ATTRIBUTES = 2;
+    static final int CURRENT_TEMPLATE_VERSION = VERSION_EXTENSION_ATTRIBUTES;
+
+    private volatile boolean indexUpToDate = false;
 
     public static final class DocumentVersion {
         public final String id;

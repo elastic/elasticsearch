@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -73,5 +74,25 @@ public final class ProjectState {
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(metadata());
         projectBuilderConsumer.accept(projectBuilder);
         return ClusterState.builder(cluster).putProjectMetadata(projectBuilder).build();
+    }
+
+    /**
+     * Build a new {@link ProjectState} with the updated {@code project}.
+     */
+    public ProjectState withProject(ProjectMetadata updatedProject) {
+        // No need to build a new object if the project is unchanged.
+        if (metadata() == updatedProject) {
+            return this;
+        }
+        if (updatedProject.id() != this.project) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Unable to update project state with project ID [%s] because updated project has ID [%s]",
+                    project,
+                    updatedProject.id()
+                )
+            );
+        }
+        return new ProjectState(ClusterState.builder(cluster).putProjectMetadata(updatedProject).build(), project);
     }
 }

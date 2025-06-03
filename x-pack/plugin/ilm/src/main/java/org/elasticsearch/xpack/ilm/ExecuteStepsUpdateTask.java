@@ -110,7 +110,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                     );
                     try {
                         ClusterStateActionStep actionStep = (ClusterStateActionStep) currentStep;
-                        state = actionStep.performAction(index, state);
+                        state = actionStep.performAction(index, state.projectState()).cluster();
                         // If this step (usually a CopyExecutionStateStep step) has brought the
                         // index to where it needs to have async actions invoked, then add that
                         // index to the list so that when the new cluster state has been

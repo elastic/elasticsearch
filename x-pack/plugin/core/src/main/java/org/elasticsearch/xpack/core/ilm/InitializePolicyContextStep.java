@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -33,17 +33,17 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().index(index);
         if (indexMetadata == null) {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
-            return clusterState;
+            return projectState;
         }
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         if (lifecycleState.lifecycleDate() != null) {
-            return clusterState;
+            return projectState;
         }
 
         LifecycleExecutionState newLifecycleState = LifecycleExecutionState.builder(lifecycleState)
@@ -63,11 +63,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         if (parsedOriginationDate == null) {
             // we don't need to update the LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, so we can use the fast path
-            return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-                clusterState,
-                indexMetadata.getIndex(),
-                newLifecycleState
-            );
+            return projectState.withProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState));
         } else {
             // we do need to update the LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, so we can't use the fast path
             IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
@@ -79,9 +75,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                         .build()
                 );
             builder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap());
-            return ClusterState.builder(clusterState)
-                .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject()).put(builder).build())
-                .build();
+            return projectState.withProject(ProjectMetadata.builder(projectState.metadata()).put(builder).build());
         }
     }
 

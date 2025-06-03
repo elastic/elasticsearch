@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
@@ -60,18 +60,18 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata originalIndexMetadata = clusterState.metadata().getProject().index(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata originalIndexMetadata = projectState.metadata().index(index);
         if (originalIndexMetadata == null) {
             // Index must have been since deleted, skip the shrink action
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", NAME, index.getName());
-            return clusterState;
+            return projectState;
         }
 
         String originalIndex = index.getName();
         String targetIndexName = targetIndexNameSupplier.apply(originalIndex, originalIndexMetadata.getLifecycleExecutionState());
         String policyName = originalIndexMetadata.getLifecyclePolicyName();
-        IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = projectState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream == null) {
@@ -100,7 +100,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = projectState.metadata().index(targetIndexName);
         if (targetIndexMetadata == null) {
             String errorMessage = Strings.format(
                 "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for index [%s]",
@@ -115,8 +115,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         DataStream updatedDataStream = dataStream.isFailureStoreIndex(originalIndex)
             ? dataStream.replaceFailureStoreIndex(index, targetIndexMetadata.getIndex())
             : dataStream.replaceBackingIndex(index, targetIndexMetadata.getIndex());
-        Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata()).put(updatedDataStream);
-        return ClusterState.builder(clusterState).metadata(newMetaData).build();
+        return projectState.withProject(ProjectMetadata.builder(projectState.metadata()).put(updatedDataStream).build());
     }
 
     @Override

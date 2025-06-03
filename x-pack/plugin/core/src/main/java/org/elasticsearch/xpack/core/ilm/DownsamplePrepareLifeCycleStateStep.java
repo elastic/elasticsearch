@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
@@ -35,12 +35,12 @@ public class DownsamplePrepareLifeCycleStateStep extends ClusterStateActionStep 
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             LOGGER.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
-            return clusterState;
+            return projectState;
         }
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -49,11 +49,7 @@ public class DownsamplePrepareLifeCycleStateStep extends ClusterStateActionStep 
         final String downsampleIndexName = generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, indexMetadata, fixedInterval);
         newLifecycleState.setDownsampleIndexName(downsampleIndexName);
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            clusterState,
-            indexMetadata.getIndex(),
-            newLifecycleState.build()
-        );
+        return projectState.withProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
     @Override

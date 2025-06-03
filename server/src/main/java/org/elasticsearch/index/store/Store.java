@@ -147,18 +147,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     );
 
     /**
+     * A {@link org.apache.lucene.store.IOContext.FileOpenHint} that we will only read the Lucene file footer
+     */
+    public enum FileFooterOnly implements IOContext.FileOpenHint {
+        INSTANCE
+    }
+
+    /**
      * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile}.
      */
-    public static final IOContext READONCE_CHECKSUM = createReadOnceContext();
-
-    // while equivalent, these different read once contexts are checked by identity in directory implementations
-    private static IOContext createReadOnceContext() {
-        var context = IOContext.READONCE.withHints(DataAccessHint.SEQUENTIAL, ReadOnceHint.INSTANCE);
-        assert context != IOContext.READONCE;
-        assert context.equals(IOContext.READONCE);
-        return context;
-    }
+    public static final IOContext READONCE_CHECKSUM = IOContext.READONCE.withHints(
+        DataAccessHint.SEQUENTIAL,
+        ReadOnceHint.INSTANCE,
+        FileFooterOnly.INSTANCE
+    );
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -935,8 +938,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            // We select the read once context carefully here since these constants, while equivalent are
-            // checked by identity in the different directory implementations.
             var context = file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : READONCE_CHECKSUM;
             try (IndexInput in = directory.openInput(file, context)) {
                 final long length = in.length();

@@ -25,7 +25,7 @@ public class KMeansLocalTests extends ESTestCase {
         int dims = random().nextInt(2, 20);
         int sampleSize = random().nextInt(100, nVectors);
         int maxIterations = random().nextInt(0, 100);
-        short clustersPerNeighborhood = (short) random().nextInt(0, 512);
+        int clustersPerNeighborhood = random().nextInt(0, 512);
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         float[][] centroids = KMeans.pickInitialCentroids(vectors, nClusters);
@@ -35,8 +35,8 @@ public class KMeansLocalTests extends ESTestCase {
         int[] assignmentOrdinals = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {
             float minDist = Float.MAX_VALUE;
-            short ord = -1;
-            for (short j = 0; j < centroids.length; j++) {
+            int ord = -1;
+            for (int j = 0; j < centroids.length; j++) {
                 float dist = VectorUtil.squareDistance(vectors.vectorValue(i), centroids[j]);
                 if (dist < minDist) {
                     minDist = dist;
@@ -58,7 +58,7 @@ public class KMeansLocalTests extends ESTestCase {
     public void testKMeansLocalAllZero() throws IOException {
         int nClusters = 10;
         int maxIterations = 10;
-        short clustersPerNeighborhood = 128;
+        int clustersPerNeighborhood = 128;
         int nVectors = 1000;
         List<float[]> vectors = new ArrayList<>();
         for (int i = 0; i < nVectors; i++) {
@@ -75,8 +75,8 @@ public class KMeansLocalTests extends ESTestCase {
         int[] assignmentOrdinals = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {
             float minDist = Float.MAX_VALUE;
-            short ord = -1;
-            for (short j = 0; j < centroids.length; j++) {
+            int ord = -1;
+            for (int j = 0; j < centroids.length; j++) {
                 float dist = VectorUtil.squareDistance(fvv.vectorValue(i), centroids[j]);
                 if (dist < minDist) {
                     minDist = dist;

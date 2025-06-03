@@ -51,7 +51,7 @@ public class CopySign extends EsqlScalarFunction {
         );
     }
 
-    private static final Map<DataType, CopySignFactoryProvider> FACTORY_PROVIDERS = Map.of(
+    private static final Map<DataType, CopySignFactoryProvider> FACTORY_PROVIDERS = Map.ofEntries(
         Map.entry(DataType.FLOAT, CopySignFloatEvaluator.Factory::new),
         Map.entry(DataType.DOUBLE, CopySignDoubleEvaluator.Factory::new),
         Map.entry(DataType.LONG, CopySignLongEvaluator.Factory::new),

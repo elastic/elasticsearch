@@ -207,6 +207,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             assertThat(explainIndexWithMissingPolicy.get("action"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("step"), is(ErrorStep.NAME));
             assertThat(explainIndexWithMissingPolicy.get("age"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("age_in_millis"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("failed_step"), is(nullValue()));
             Map<String, Object> stepInfo = (Map<String, Object>) explainIndexWithMissingPolicy.get("step_info");
             assertThat(stepInfo, is(notNullValue()));
@@ -343,6 +344,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         assertThat(explainIndexMap.get("step"), is("complete"));
         assertThat(explainIndexMap.get("phase_time_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("age"), is(notNullValue()));
+        assertThat(explainIndexMap.get("age_in_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("phase_execution"), is(notNullValue()));
         assertThat(explainIndexMap.get("failed_step"), is(nullValue()));
         assertThat(explainIndexMap.get("step_info"), is(nullValue()));

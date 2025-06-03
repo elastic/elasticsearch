@@ -2116,21 +2116,21 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsNullArgs() throws Exception {
-        testFullTextFunctionNullArgs("match(null, \"query\")", "first");
-        testFullTextFunctionNullArgs("match(title, null)", "second");
-        testFullTextFunctionNullArgs("qstr(null)", "");
-        testFullTextFunctionNullArgs("kql(null)", "");
+        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
+        checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionNullArgs("qstr(null)", "");
+        checkFullTextFunctionNullArgs("kql(null)", "");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            testFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
+            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionNullArgs("term(null, \"query\")", "first");
-            testFullTextFunctionNullArgs("term(title, null)", "second");
+            checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
+            checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
     }
 
-    private void testFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+    private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
@@ -2138,19 +2138,19 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsConstantQuery() throws Exception {
-        testFullTextFunctionsConstantQuery("match(title, category)", "second");
-        testFullTextFunctionsConstantQuery("qstr(title)", "");
-        testFullTextFunctionsConstantQuery("kql(title)", "");
+        checkFullTextFunctionsConstantQuery("match(title, category)", "second");
+        checkFullTextFunctionsConstantQuery("qstr(title)", "");
+        checkFullTextFunctionsConstantQuery("kql(title)", "");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
-            testFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
+            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
+            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            testFullTextFunctionsConstantQuery("term(title, tags)", "second");
+            checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
         }
     }
 
-    private void testFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
+    private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")

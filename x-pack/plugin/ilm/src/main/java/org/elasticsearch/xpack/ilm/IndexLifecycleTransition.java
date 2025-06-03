@@ -108,29 +108,29 @@ public final class IndexLifecycleTransition {
      * For this reason, it is reasonable to throw {@link IllegalArgumentException} when state is not as expected.
      *
      * @param index          The index whose step is to change
-     * @param state          The current {@link ClusterState}
+     * @param project        The current {@link ProjectMetadata}
      * @param newStepKey     The new step to move the index into
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
      * @param forcePhaseDefinitionRefresh Whether to force the phase JSON to be reread or not
      * @return The updated cluster state where the index moved to <code>newStepKey</code>
      */
-    static ClusterState moveClusterStateToStep(
+    static ProjectMetadata moveIndexToStep(
         Index index,
-        ClusterState state,
+        ProjectMetadata project,
         Step.StepKey newStepKey,
         LongSupplier nowSupplier,
         PolicyStepsRegistry stepRegistry,
         boolean forcePhaseDefinitionRefresh
     ) {
-        IndexMetadata idxMeta = state.getMetadata().getProject().index(index);
+        IndexMetadata idxMeta = project.index(index);
         Step.StepKey currentStepKey = Step.getCurrentStepKey(idxMeta.getLifecycleExecutionState());
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         String policyName = idxMeta.getLifecyclePolicyName();
         logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policyName);
 
-        IndexLifecycleMetadata ilmMeta = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata ilmMeta = project.custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         LifecycleExecutionState newLifecycleState = updateExecutionStateToStep(
@@ -142,7 +142,7 @@ public final class IndexLifecycleTransition {
             true
         );
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta.getIndex(), newLifecycleState);
+        return project.withLifecycleState(idxMeta.getIndex(), newLifecycleState);
     }
 
     /**

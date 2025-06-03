@@ -8,10 +8,18 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+configurations {
+  javaRestTestRuntimeClasspath {
+    attributes {
+      attribute(Attribute.of('hdfs.major.version', Integer), 3)
+    }
+  }
+}
+
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
   javaRestTestCompileOnly project(path: ':test:fixtures:hdfs-fixture')
-  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture', configuration:"shadow")
+  javaRestTestRuntimeOnly project(path: ':test:fixtures:hdfs-fixture', configuration: "shadow")
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   javaRestTestImplementation "org.slf4j:slf4j-simple:${versions.slf4j}"

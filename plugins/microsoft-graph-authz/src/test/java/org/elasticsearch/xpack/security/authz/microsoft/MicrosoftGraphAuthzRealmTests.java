@@ -138,19 +138,23 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         realm.lookupUser(username, future);
 
         try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
-            mockLog.addExpectation(new MockLog.SeenEventExpectation(
-                "Fetch user properties",
-                MicrosoftGraphAuthzRealm.class.getName(),
-                Level.TRACE,
-                Strings.format("Fetched user with name [%s] and email [%s] from Microsoft Graph", name, email)
-            ));
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Fetch user properties",
+                    MicrosoftGraphAuthzRealm.class.getName(),
+                    Level.TRACE,
+                    Strings.format("Fetched user with name [%s] and email [%s] from Microsoft Graph", name, email)
+                )
+            );
 
-            mockLog.addExpectation(new MockLog.SeenEventExpectation(
-                "Fetch group membership",
-                MicrosoftGraphAuthzRealm.class.getName(),
-                Level.TRACE,
-                Strings.format("Fetched [1] groups from Microsoft Graph: [%s]", groupId)
-            ));
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Fetch group membership",
+                    MicrosoftGraphAuthzRealm.class.getName(),
+                    Level.TRACE,
+                    Strings.format("Fetched [1] groups from Microsoft Graph: [%s]", groupId)
+                )
+            );
 
             final var user = future.actionGet();
             assertThat(user.principal(), equalTo(username));
@@ -181,12 +185,14 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         final var future = new PlainActionFuture<User>();
 
         try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
-            mockLog.addExpectation(new MockLog.SeenEventExpectation(
-                "Log exception",
-                MicrosoftGraphAuthzRealm.class.getName(),
-                Level.ERROR,
-                Strings.format("Failed to authorize [{}] with MS Graph realm", username)
-            ));
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Log exception",
+                    MicrosoftGraphAuthzRealm.class.getName(),
+                    Level.ERROR,
+                    Strings.format("Failed to authorize [{}] with MS Graph realm", username)
+                )
+            );
 
             realm.lookupUser(username, future);
             final var thrown = assertThrows(ODataError.class, future::actionGet);
@@ -217,12 +223,14 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
         final var future = new PlainActionFuture<User>();
 
         try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
-            mockLog.addExpectation(new MockLog.SeenEventExpectation(
-                "Log exception",
-                MicrosoftGraphAuthzRealm.class.getName(),
-                Level.ERROR,
-                Strings.format("Failed to authorize [{}] with MS Graph realm", username)
-            ));
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Log exception",
+                    MicrosoftGraphAuthzRealm.class.getName(),
+                    Level.ERROR,
+                    Strings.format("Failed to authorize [{}] with MS Graph realm", username)
+                )
+            );
 
             realm.lookupUser(username, future);
             final var thrown = assertThrows(ODataError.class, future::actionGet);

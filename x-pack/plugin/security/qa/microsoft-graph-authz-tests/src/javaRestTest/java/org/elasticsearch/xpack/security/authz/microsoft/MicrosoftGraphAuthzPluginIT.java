@@ -64,7 +64,13 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             List.of("unmapped-group-1", "unmapped-group-2", "unmapped-group-3", EXPECTED_GROUP),
             List.of("microsoft_graph_user")
         ),
-        new MicrosoftGraphHttpFixture.TestUser("User2", "User 2", "user2@example.com", List.of(EXPECTED_GROUP), List.of("microsoft_graph_user")),
+        new MicrosoftGraphHttpFixture.TestUser(
+            "User2",
+            "User 2",
+            "user2@example.com",
+            List.of(EXPECTED_GROUP),
+            List.of("microsoft_graph_user")
+        ),
         new MicrosoftGraphHttpFixture.TestUser("User3", "User 3", "user3@example.com", List.of(), List.of())
     );
 

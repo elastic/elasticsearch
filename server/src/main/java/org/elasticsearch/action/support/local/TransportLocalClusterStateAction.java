@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -31,7 +32,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -108,10 +108,10 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         );
         // We track whether we already notified the listener or started executing the action, to avoid invoking the listener twice.
         // Because of that second part, we can not use ActionListener#notifyOnce.
-        final var waitComplete = new AtomicBoolean(false);
+        final var waitComplete = Predicates.once();
         if (task instanceof CancellableTask cancellableTask) {
             cancellableTask.addListener(() -> {
-                if (waitComplete.compareAndSet(false, true) == false) {
+                if (waitComplete.getAsBoolean() == false) {
                     return;
                 }
                 listener.onFailure(new TaskCancelledException("Task was cancelled"));
@@ -121,7 +121,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                if (waitComplete.compareAndSet(false, true) == false) {
+                if (waitComplete.getAsBoolean() == false) {
                     return;
                 }
                 logger.trace("retrying with cluster state version [{}]", state.version());
@@ -130,7 +130,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
             @Override
             public void onClusterServiceClose() {
-                if (waitComplete.compareAndSet(false, true) == false) {
+                if (waitComplete.getAsBoolean() == false) {
                     return;
                 }
                 listener.onFailure(new NodeClosedException(clusterService.localNode()));
@@ -138,7 +138,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                if (waitComplete.compareAndSet(false, true) == false) {
+                if (waitComplete.getAsBoolean() == false) {
                     return;
                 }
                 logger.debug(

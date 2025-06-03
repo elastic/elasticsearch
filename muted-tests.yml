@@ -561,6 +561,9 @@ tests:
 - class: org.elasticsearch.upgrades.IndexSortUpgradeIT
   method: testIndexSortForNumericTypes {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/128862
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/128863
 
 # Examples:
 #

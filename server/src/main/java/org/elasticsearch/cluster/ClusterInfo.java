@@ -72,6 +72,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param nodesHeapUsage heap usage broken down by node
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -214,6 +215,15 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             }),
             endObject() // end "heap_usage"
         );
+    }
+
+    /**
+     * Returns a node id to estimated heap usage mapping for all nodes that we have such data for.
+     * Note that these estimates should be considered minimums. They may be used to determine whether
+     * there IS NOT capacity to do something, but not to determine that there IS capacity to do something.
+     */
+    public Map<String, HeapUsage> getNodesHeapUsage() {
+        return nodesHeapUsage;
     }
 
     /**

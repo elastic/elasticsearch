@@ -1,0 +1,5 @@
+pr: 128702
+summary: Semantic_text `match_all` with Highlighter
+area: Relevance
+type: bug
+issues: []

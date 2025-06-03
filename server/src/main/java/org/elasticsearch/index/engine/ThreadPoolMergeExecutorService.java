@@ -236,7 +236,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
-        assert mergeTask.isRunning() == false;
+        assert mergeTask.hasStartedRunning() == false;
         // first enqueue the runnable that runs exactly one merge task (the smallest it can find)
         if (enqueueMergeTaskExecution() == false) {
             // if the thread pool cannot run the merge, just abort it
@@ -275,7 +275,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
-        assert mergeTask.isRunning() == false;
+        assert mergeTask.hasStartedRunning() == false;
         enqueueMergeTask(mergeTask);
     }
 
@@ -347,7 +347,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     private void runMergeTask(MergeTask mergeTask) {
-        assert mergeTask.isRunning() == false;
+        assert mergeTask.hasStartedRunning() == false;
         boolean added = runningMergeTasks.add(mergeTask);
         assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
@@ -366,7 +366,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     private void abortMergeTask(MergeTask mergeTask) {
-        assert mergeTask.isRunning() == false;
+        assert mergeTask.hasStartedRunning() == false;
         assert runningMergeTasks.contains(mergeTask) == false;
         try {
             mergeTask.abort();

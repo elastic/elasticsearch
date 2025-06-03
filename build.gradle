@@ -427,6 +427,10 @@ tasks.named("updateDaemonJvm") {
       org.gradle.platform.Architecture.X86_64,
       org.gradle.platform.OperatingSystem.WINDOWS
     ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
     // anyone still using x86 osx?
     BuildPlatformFactory.of(
       org.gradle.platform.Architecture.X86_64,

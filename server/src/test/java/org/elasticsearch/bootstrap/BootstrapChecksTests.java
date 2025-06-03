@@ -687,7 +687,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         BootstrapChecks.check(emptyContext, true, checks);
 
     }
-    
+
     public void testAlwaysEnforcedChecks() {
         final BootstrapCheck check = new BootstrapCheck() {
             @Override

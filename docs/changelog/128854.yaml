@@ -1,7 +1,7 @@
 pr: 128854
 summary: Mark token pruning for sparse vector as GA
-area: Relevance
-type: docs
+area: ml
+type: feature
 issues: []
 highlight:
   title: Mark Token Pruning for Sparse Vector as GA

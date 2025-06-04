@@ -11,5 +11,13 @@ chmod +x "$HOME/git-wrapper/git"
 
 export PATH="$HOME/git-wrapper:$PATH"
 
+git init "${BUILDKITE_BUILD_CHECKOUT_PATH}"
+git --git-dir "${BUILDKITE_BUILD_CHECKOUT_PATH}/.git" remote add origin "${BUILDKITE_REPO}"
+git --git-dir "${BUILDKITE_BUILD_CHECKOUT_PATH}/.git" sparse-checkout init --cone
+git --git-dir "${BUILDKITE_BUILD_CHECKOUT_PATH}/.git" sparse-checkout set .buildkite
+if [[ -n "${ES_PARTIAL_CHECKOUT_PATHS:-}" ]]; then
+  git --git-dir "${BUILDKITE_BUILD_CHECKOUT_PATH}/.git" sparse-checkout add "$ES_PARTIAL_CHECKOUT_PATHS"
+fi
+
 export BUILDKITE_GIT_CLONE_FLAGS="-v --filter=blob:none --no-checkout --depth=1 --sparse"
-export BUILDKITE_GIT_FETCH_FLAGS="-v --update-shallow"
+export BUILDKITE_GIT_FETCH_FLAGS="-v --update-shallow --depth 1"

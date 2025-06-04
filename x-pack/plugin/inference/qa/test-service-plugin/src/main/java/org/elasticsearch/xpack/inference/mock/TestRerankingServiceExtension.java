@@ -97,11 +97,6 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
-        protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
-            return TestRerankingServiceExtension.TestTaskSettings.fromMap(taskSettingsMap);
-        }
-
-        @Override
         public InferenceServiceConfiguration getConfiguration() {
             return Configuration.get();
         }

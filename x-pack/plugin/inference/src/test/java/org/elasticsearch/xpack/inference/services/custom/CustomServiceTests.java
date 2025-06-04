@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.services.AbstractServiceTests;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.inference.services.custom.response.SparseE
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CustomServiceTests extends AbstractServiceTests {
+public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public CustomServiceTests() {
         super(createTestConfiguration());
@@ -150,7 +150,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 QueryParameters.QUERY_PARAMETERS,
                 List.of(List.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, "request body")),
+                "request body",
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(

@@ -320,7 +320,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                     );
                     selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
                         if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
-                            fail();
+                            fail("there are still search tasks running");
                         }
                     });
                 } catch (ResponseException e) {

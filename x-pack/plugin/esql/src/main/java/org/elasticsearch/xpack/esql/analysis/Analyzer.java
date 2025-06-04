@@ -1697,7 +1697,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 && fa.field() instanceof MultiTypeEsField mtf) {
                     // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
                     // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
-                    // with explicit casting.
+                    // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
+                    // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
+                    // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
+                    // the multiTypeEsField is not casted to datetime directly.
                     if (((Expression) convert).dataType() == mtf.getDataType()) {
                         return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
                     }
@@ -1705,7 +1708,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
                     // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (supportedTypes.contains(fa.dataType())) {
+                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
                         // Build the mapping between index name and conversion expressions
                         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
                         for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
@@ -1716,7 +1719,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                            fa.name(),
+                            fa.fieldName(),
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions
@@ -1765,6 +1768,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
+        }
+
+        private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
+            return multiTypeEsField.getIndexToConversionExpressions()
+                .values()
+                .stream()
+                .allMatch(
+                    e -> e instanceof AbstractConvertFunction convertFunction
+                        && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())
+                );
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {

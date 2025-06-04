@@ -436,5 +436,16 @@ public class QueryTranslatorTests extends ESTestCase {
             "2020-01-01T00:00:00.000Z","boost":0.0.*""" + """
             esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
             "2025-01-01T00:00:00.000Z","boost":0.0.*"""));
+
+        // explicit casting
+        assertQueryTranslationDateDateNanosUnionTypes(
+            """
+                FROM test* | WHERE date_and_date_nanos::datetime < "2025-12-31" and date_and_date_nanos > "2025-01-01\"""",
+            stats,
+            containsString("""
+                "esql_single_value":{"field":"date_and_date_nanos",\
+                "next":{"range":{"date_and_date_nanos":{"gt":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+                "format":"strict_date_optional_time_nanos","boost":0.0}}}""")
+        );
     }
 }

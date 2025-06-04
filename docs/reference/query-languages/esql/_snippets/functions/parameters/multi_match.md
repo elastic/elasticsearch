@@ -2,11 +2,11 @@
 
 **Parameters**
 
-`query`
-:   Value to find in the provided fields.
-
 `fields`
 :   Fields to use for matching
+
+`query`
+:   Value to find in the provided fields.
 
 `options`
 :   (Optional) Additional options for MultiMatch, passed as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)."  See [multi-match query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-multi-match-query) for more information.

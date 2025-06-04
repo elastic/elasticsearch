@@ -1262,7 +1262,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-        Source filterSource = new Source(4, 8, "emp_no > 10000");
         var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna").fuzziness(Fuzziness.AUTO)
             .prefixLength(3)
             .maxExpansions(10)
@@ -1317,7 +1316,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testMultiMatchOptionsPushDown() {
         String query = """
             from test
-            | where MULTI_MATCH("Anna", first_name, last_name, {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
+            | where MATCH(first_name, last_name, "Anna", {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
             "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
             "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0,
             "type": "best_fields", "boost": 2.0})

@@ -2,5 +2,5 @@
 
 **Description**
 
-Use `MATCH` to perform a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on the specified field. Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.  Match can be used on fields from the text family like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), as well as other field types like keyword, boolean, dates, and numeric types.  Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional options for the match query. All [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params) are supported.  For a simplified syntax, you can use the [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:` operator instead of `MATCH`.  `MATCH` returns true if the provided query matches the row.
+Use `MULTI_MATCH` to perform a [multi-match query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-multi-match-query) on the specified field. The multi_match query builds on the match query to allow multi-field queries.
 

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -1216,16 +1215,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFieldBasedFullTextFunctions() throws Exception {
-        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        checkFieldBasedWithNonIndexedColumn("Match", "match(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("Match", "function", "match(title, \"Meditation\")");
 
         checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
 
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
-            checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
@@ -1349,16 +1344,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("Match", "match(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
         }
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
-        }
+    }
+
+    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere("Match", "match(title, \"Anna\")", "function");
+    }
+
+    public void testTermFunctionOnlyAllowedInWhere() throws Exception {
+        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
+        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Anna\")", "function");
+    }
+
+    public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Anna\"", "operator");
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1388,9 +1393,6 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("title : \"Meditation\"");
         checkWithFullTextFunctionsDisjunctions("qstr(\"title: Meditation\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
@@ -1445,13 +1447,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("Match", "match(title, \"Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions(":", "title:\"Meditation\"", "operator");
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
@@ -1516,9 +1515,6 @@ public class VerifierTests extends ESTestCase {
     public void testFullTextFunctionsTargetsExistingField() throws Exception {
         testFullTextFunctionTargetsExistingField("match(title, \"Meditation\")");
         testFullTextFunctionTargetsExistingField("title : \"Meditation\"");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
         }
@@ -2041,11 +2037,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionOptions() {
-        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
+        checkOptionDataTypes(Match.OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
-        }
     }
 
     /**
@@ -2100,9 +2093,6 @@ public class VerifierTests extends ESTestCase {
     public void testFullTextFunctionCurrentlyUnsupportedBehaviour() throws Exception {
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(title, \"Meditation\")");
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("title : \"Meditation\"");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Meditation\", title)");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
         }
@@ -2120,10 +2110,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionNullArgs("match(title, null)", "second");
         checkFullTextFunctionNullArgs("qstr(null)", "");
         checkFullTextFunctionNullArgs("kql(null)", "");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("term(title, null)", "second");
@@ -2141,10 +2127,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsConstantQuery("match(title, category)", "second");
         checkFullTextFunctionsConstantQuery("qstr(title)", "");
         checkFullTextFunctionsConstantQuery("kql(title)", "");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
         }
@@ -2171,9 +2153,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsInStats("title : \"Meditation\"");
         checkFullTextFunctionsInStats("qstr(\"title: Meditation\")");
         checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
-        }
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

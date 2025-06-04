@@ -308,7 +308,7 @@ public class RelocationIT extends ESIntegTestCase {
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
-                if(throttleIndexing) {
+                if (throttleIndexing) {
                     // Deactivate throttling on source shard to allow indexing threads to pass
                     shard.deactivateThrottling();
                     // Activate throttling on target shard before next relocation
@@ -321,7 +321,7 @@ public class RelocationIT extends ESIntegTestCase {
             }
             logger.info("--> done relocations");
             // Deactivate throttling on the primary shard to allow indexing threads to pass
-            if(throttleIndexing) {
+            if (throttleIndexing) {
                 shard.deactivateThrottling();
             }
             logger.info("--> waiting for indexing threads to stop ...");

@@ -34,7 +34,7 @@ required_capability: knn_function
 // tag::knn-function-options[]
 from colors metadata _score 
 | where knn(rgb_vector, [0,255,255], {"k": 4})
-| sort _score desc 
+| sort _score desc, color asc
 // end::knn-function-options[]
 | keep color, rgb_vector
 | limit 4

@@ -1164,7 +1164,12 @@ public class EsqlCapabilities {
         /**
          * Enable support for index aliases in lookup joins
          */
-        ENABLE_LOOKUP_JOIN_ON_ALIASES(JOIN_LOOKUP_V12.isEnabled());
+        ENABLE_LOOKUP_JOIN_ON_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Allows RLIKE to correctly handle the "empty language" flag, `#`.
+         */
+        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN;
 
         private final boolean enabled;
 

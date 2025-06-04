@@ -89,7 +89,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
-    private volatile Map<String, HeapUsage> nodesHeapUsage;
+    private volatile Map<String, ShardHeapUsage> shardHeapUsages;
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -98,7 +98,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
 
-    private HeapUsageSupplier heapUsageSupplier = HeapUsageSupplier.EMPTY;
+    private ShardHeapUsageSupplier shardHeapUsageSupplier = ShardHeapUsageSupplier.EMPTY;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
@@ -106,7 +106,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
-        this.nodesHeapUsage = Map.of();
+        this.shardHeapUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -137,11 +137,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     /**
      * This can be provided by plugins, which are initialised long after the ClusterInfoService is created
      *
-     * @param heapUsageSupplier The HeapUsageSupplier to use
+     * @param shardHeapUsageSupplier The HeapUsageSupplier to use
      */
-    public void setHeapUsageSupplier(HeapUsageSupplier heapUsageSupplier) {
-        assert this.heapUsageSupplier == HeapUsageSupplier.EMPTY;
-        this.heapUsageSupplier = heapUsageSupplier;
+    public void setShardHeapUsageSupplier(ShardHeapUsageSupplier shardHeapUsageSupplier) {
+        assert this.shardHeapUsageSupplier == ShardHeapUsageSupplier.EMPTY;
+        this.shardHeapUsageSupplier = shardHeapUsageSupplier;
     }
 
     @Override
@@ -205,10 +205,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void fetchNodesHeapUsage() {
-            heapUsageSupplier.getClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+            shardHeapUsageSupplier.getClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, HeapUsage> stringHeapUsageMap) {
-                    nodesHeapUsage = stringHeapUsageMap;
+                public void onResponse(Map<String, ShardHeapUsage> stringHeapUsageMap) {
+                    shardHeapUsages = stringHeapUsageMap;
                 }
 
                 @Override
@@ -442,7 +442,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardDataSetSizes,
             indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace,
-            nodesHeapUsage
+            shardHeapUsages
         );
     }
 

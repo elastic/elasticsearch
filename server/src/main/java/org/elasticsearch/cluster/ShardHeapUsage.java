@@ -19,15 +19,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Record representing the heap usage for a single cluster node
+ * Record representing an estimate of the heap used by allocated shards and ongoing merges on a particular node
  */
-public record HeapUsage(String nodeId, String nodeName, long totalBytes, long usedBytes) implements ToXContentFragment, Writeable {
+public record ShardHeapUsage(String nodeId, String nodeName, long totalBytes, long estimatedUsageBytes)
+    implements
+        ToXContentFragment,
+        Writeable {
 
-    public HeapUsage {
-        assert usedBytes <= totalBytes;
+    public ShardHeapUsage {
+        assert estimatedUsageBytes <= totalBytes;
     }
 
-    public HeapUsage(StreamInput in) throws IOException {
+    public ShardHeapUsage(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readVLong(), in.readVLong());
     }
 
@@ -36,16 +39,16 @@ public record HeapUsage(String nodeId, String nodeName, long totalBytes, long us
         out.writeString(this.nodeId);
         out.writeString(this.nodeName);
         out.writeVLong(this.totalBytes);
-        out.writeVLong(this.usedBytes);
+        out.writeVLong(this.estimatedUsageBytes);
     }
 
     public XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("node_name", this.nodeName);
         builder.humanReadableField("total_heap_bytes", "total", ByteSizeValue.ofBytes(this.totalBytes));
-        builder.humanReadableField("used_heap_bytes", "used", ByteSizeValue.ofBytes(this.usedBytes));
-        builder.humanReadableField("free_heap_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes()));
-        builder.field("free_heap_percent", truncatePercent(this.freeHeapAsPercentage()));
-        builder.field("used_heap_percent", truncatePercent(this.usedHeapAsPercentage()));
+        builder.humanReadableField("estimated_usage_bytes", "used", ByteSizeValue.ofBytes(this.estimatedUsageBytes));
+        builder.humanReadableField("estimated_free_bytes", "free", ByteSizeValue.ofBytes(this.estimatedFreeBytes()));
+        builder.field("estimated_free_percent", truncatePercent(this.freeHeapAsPercentage()));
+        builder.field("estimated_usage_percent", truncatePercent(this.estimatedUsageAsPercentage()));
         return builder;
     }
 
@@ -57,15 +60,15 @@ public record HeapUsage(String nodeId, String nodeName, long totalBytes, long us
     }
 
     public double freeHeapAsPercentage() {
-        return 100.0 - usedHeapAsPercentage();
+        return 100.0 - estimatedUsageAsPercentage();
     }
 
-    public double usedHeapAsPercentage() {
-        return 100.0 * usedBytes / (double) totalBytes;
+    public double estimatedUsageAsPercentage() {
+        return 100.0 * estimatedUsageBytes / (double) totalBytes;
     }
 
-    public long freeBytes() {
-        return totalBytes - usedBytes;
+    public long estimatedFreeBytes() {
+        return totalBytes - estimatedUsageBytes;
     }
 
     private static double truncatePercent(double pct) {

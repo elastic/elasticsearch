@@ -18,9 +18,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.HeapUsage;
-import org.elasticsearch.cluster.HeapUsageSupplier;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.ShardHeapUsage;
+import org.elasticsearch.cluster.ShardHeapUsageSupplier;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -121,7 +121,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, BogusHeapUsagePlugin.class);
+        return pluginList(InternalSettingsPlugin.class, BogusShardHeapUsagePlugin.class);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -263,13 +263,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        Map<String, HeapUsage> heapUsages = clusterInfoService.getClusterInfo().getNodesHeapUsage();
-        assertNotNull(heapUsages);
-        assertEquals(state.nodes().size(), heapUsages.size());
+        Map<String, ShardHeapUsage> shardHeapUsages = clusterInfoService.getClusterInfo().getShardHeapUsages();
+        assertNotNull(shardHeapUsages);
+        assertEquals(state.nodes().size(), shardHeapUsages.size());
         for (DiscoveryNode node : state.nodes()) {
-            assertTrue(heapUsages.containsKey(node.getId()));
-            HeapUsage heapUsage = heapUsages.get(node.getId());
-            assertThat(heapUsage.freeBytes(), lessThanOrEqualTo(heapUsage.totalBytes()));
+            assertTrue(shardHeapUsages.containsKey(node.getId()));
+            ShardHeapUsage shardHeapUsage = shardHeapUsages.get(node.getId());
+            assertThat(shardHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(shardHeapUsage.totalBytes()));
         }
     }
 
@@ -816,34 +816,34 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    private static class BogusHeapUsageSupplier implements HeapUsageSupplier {
+    private static class BogusShardShardHeapUsageSupplier implements ShardHeapUsageSupplier {
 
         private final ClusterService clusterService;
 
-        private BogusHeapUsageSupplier(ClusterService clusterService) {
+        private BogusShardShardHeapUsageSupplier(ClusterService clusterService) {
             this.clusterService = clusterService;
         }
 
         @Override
-        public void getClusterHeapUsage(ActionListener<Map<String, HeapUsage>> listener) {
+        public void getClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
             ActionListener.completeWith(
                 listener,
                 () -> clusterService.state().nodes().stream().collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> {
                     final long maxHeap = randomNonNegativeLong();
                     final long usedHeap = (long) (randomFloat() * maxHeap);
-                    return new HeapUsage(node.getId(), node.getName(), maxHeap, usedHeap);
+                    return new ShardHeapUsage(node.getId(), node.getName(), maxHeap, usedHeap);
                 }))
             );
         }
     }
 
-    public static class BogusHeapUsagePlugin extends Plugin implements ClusterPlugin {
+    public static class BogusShardHeapUsagePlugin extends Plugin implements ClusterPlugin {
 
-        public BogusHeapUsagePlugin() {}
+        public BogusShardHeapUsagePlugin() {}
 
         @Override
         public Collection<?> createComponents(PluginServices services) {
-            BogusHeapUsageSupplier bogusHeapUsageSupplier = new BogusHeapUsageSupplier(services.clusterService());
+            BogusShardShardHeapUsageSupplier bogusHeapUsageSupplier = new BogusShardShardHeapUsageSupplier(services.clusterService());
             services.allocationService().setHeapUsageSupplier(bogusHeapUsageSupplier);
             return List.of();
         }

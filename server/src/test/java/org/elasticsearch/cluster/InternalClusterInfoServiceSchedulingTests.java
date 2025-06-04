@@ -77,8 +77,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        final HeapUsageSupplier mockHeapUsageSupplier = spy(new StubHeapUsageSupplier());
-        clusterInfoService.setHeapUsageSupplier(mockHeapUsageSupplier);
+        final ShardHeapUsageSupplier mockShardHeapUsageSupplier = spy(new StubShardShardHeapUsageSupplier());
+        clusterInfoService.setShardHeapUsageSupplier(mockShardHeapUsageSupplier);
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
 
@@ -114,13 +114,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
-            Mockito.clearInvocations(mockHeapUsageSupplier);
+            Mockito.clearInvocations(mockShardHeapUsageSupplier);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
-            verify(mockHeapUsageSupplier).getClusterHeapUsage(any()); // Should poll for heap usage once per interval
+            verify(mockShardHeapUsageSupplier).getClusterHeapUsage(any()); // Should poll for heap usage once per interval
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -137,10 +137,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
     }
 
-    private static class StubHeapUsageSupplier implements HeapUsageSupplier {
+    private static class StubShardShardHeapUsageSupplier implements ShardHeapUsageSupplier {
 
         @Override
-        public void getClusterHeapUsage(ActionListener<Map<String, HeapUsage>> listener) {
+        public void getClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
             listener.onResponse(Map.of());
         }
     }

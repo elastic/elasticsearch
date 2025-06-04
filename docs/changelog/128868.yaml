@@ -1,5 +1,5 @@
 pr: 128868
-summary: Correctly ignore system indices when validationg dot-prefixed indices
+summary: Correctly ignore system indices when validating dot-prefixed indices
 area: Indices APIs
 type: bug
 issues: []

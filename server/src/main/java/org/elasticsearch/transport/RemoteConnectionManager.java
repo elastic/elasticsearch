@@ -61,7 +61,7 @@ public class RemoteConnectionManager implements ConnectionManager {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 removeConnectedNode(node);
             }
         });

@@ -832,7 +832,7 @@ public class TransportSearchActionTests extends ESTestCase {
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
             RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                 @Override
-                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+                public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                     if (disconnectedNodes.remove(node)) {
                         disconnectedLatch.countDown();
                     }
@@ -1135,7 +1135,7 @@ public class TransportSearchActionTests extends ESTestCase {
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
             RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                 @Override
-                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+                public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                     if (disconnectedNodes.remove(node)) {
                         disconnectedLatch.countDown();
                     }

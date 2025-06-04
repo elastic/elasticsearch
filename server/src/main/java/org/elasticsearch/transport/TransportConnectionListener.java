@@ -39,5 +39,5 @@ public interface TransportConnectionListener {
     /**
      * Called once a node connection is closed and unregistered.
      */
-    default void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {}
+    default void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {}
 }

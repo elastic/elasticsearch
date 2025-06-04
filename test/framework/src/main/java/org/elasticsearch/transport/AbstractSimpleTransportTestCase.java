@@ -202,7 +202,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 fail("disconnect should not be called " + node);
             }
         };
@@ -924,7 +924,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 latch.countDown();
             }
         };
@@ -2118,7 +2118,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 fail("disconnect should not be called " + node);
             }
         };

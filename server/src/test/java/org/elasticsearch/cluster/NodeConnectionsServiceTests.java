@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.NodeConnectionsService.ConnectionTarget;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -49,6 +50,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -247,35 +249,37 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnectedExactlyToNodes(transportService, targetNodes);
     }
 
-    public void testConnectionHistoryLogging() {
+    public void testDisconnectionHistory() {
         final Settings.Builder settings = Settings.builder();
-        settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "10ms");
+        settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "100ms");
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
 
         MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
         TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final NodeConnectionsService service = new NodeConnectionsService(
-            settings.build(),
-            deterministicTaskQueue.getThreadPool(),
-            transportService
-        );
+        final NodeConnectionsService service = new NodeConnectionsService(settings.build(), threadPool, transportService);
         service.start();
 
+        final DiscoveryNode noClose = DiscoveryNodeUtils.create("noClose");
         final DiscoveryNode gracefulClose = DiscoveryNodeUtils.create("gracefulClose");
         final DiscoveryNode exceptionalClose = DiscoveryNodeUtils.create("exceptionalClose");
 
         nodeCloseExceptions.put(exceptionalClose, new RuntimeException());
 
         final AtomicBoolean connectionCompleted = new AtomicBoolean();
-        DiscoveryNodes nodes = DiscoveryNodes.builder().add(gracefulClose).add(exceptionalClose).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(noClose).add(gracefulClose).add(exceptionalClose).build();
 
         service.connectToNodes(nodes, () -> connectionCompleted.set(true));
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(connectionCompleted.get());
+
+        assertNullDisconnectionHistory(service, noClose);
+        assertNullDisconnectionHistory(service, gracefulClose);
+        assertNullDisconnectionHistory(service, exceptionalClose);
 
         try (var mockLog = MockLog.capture(NodeConnectionsService.class)) {
             mockLog.addExpectation(
@@ -305,9 +309,41 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             transportService.disconnectFromNode(gracefulClose);
             transportService.disconnectFromNode(exceptionalClose);
 
-            runTasksUntil(deterministicTaskQueue, 1000);
+            // check disconnection history set after close
+            assertNullDisconnectionHistory(service, noClose);
+            assertDisconnectionHistoryDetails(service, threadPool, gracefulClose, null);
+            assertDisconnectionHistoryDetails(service, threadPool, exceptionalClose, RuntimeException.class);
+
+            runTasksUntil(deterministicTaskQueue, 200);
+
+            // check on reconnect -- disconnection history is reset
+            assertNullDisconnectionHistory(service, noClose);
+            assertNullDisconnectionHistory(service, gracefulClose);
+            assertNullDisconnectionHistory(service, exceptionalClose);
 
             mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    private void assertNullDisconnectionHistory(NodeConnectionsService service, DiscoveryNode node) {
+        ConnectionTarget nodeTarget = service.connectionTargetForNode(node);
+        assertNull(nodeTarget.disconnectionHistory);
+    }
+
+    private void assertDisconnectionHistoryDetails(
+        NodeConnectionsService service,
+        ThreadPool threadPool,
+        DiscoveryNode node,
+        @Nullable Class<?> disconnectCauseClass
+    ) {
+        ConnectionTarget nodeTarget = service.connectionTargetForNode(node);
+        assertNotNull(nodeTarget.disconnectionHistory);
+        assertTrue(threadPool.absoluteTimeInMillis() - nodeTarget.disconnectionHistory.getDisconnectTimeMillis() >= 0);
+        assertTrue(threadPool.absoluteTimeInMillis() - nodeTarget.disconnectionHistory.getDisconnectTimeMillis() <= 200);
+        if (disconnectCauseClass != null) {
+            assertThat(nodeTarget.disconnectionHistory.getDisconnectCause(), Matchers.isA(disconnectCauseClass));
+        } else {
+            assertNull(nodeTarget.disconnectionHistory.getDisconnectCause());
         }
     }
 
@@ -317,7 +353,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         final AtomicReference<ActionListener<DiscoveryNode>> disconnectListenerRef = new AtomicReference<>();
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 final ActionListener<DiscoveryNode> disconnectListener = disconnectListenerRef.getAndSet(null);
                 if (disconnectListener != null) {
                     disconnectListener.onResponse(node);

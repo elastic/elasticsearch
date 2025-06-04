@@ -83,14 +83,12 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     private final TimeValue reconnectInterval;
     private volatile ConnectionChecker connectionChecker;
-    private final ConnectionHistoryListener connectionHistoryListener;
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
-        this.connectionHistoryListener = new ConnectionHistoryListener();
     }
 
     /**
@@ -194,6 +192,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        transportService.addConnectionListener(new ConnectionChangeListener());
         final ConnectionChecker connectionChecker = new ConnectionChecker();
         this.connectionChecker = connectionChecker;
         connectionChecker.scheduleNextCheck();
@@ -215,16 +214,35 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         });
     }
 
-    record ConnectionHistory(String ephemeralId, long disconnectTime, Exception disconnectCause) {}
+    // exposed for testing
+    protected ConnectionTarget connectionTargetForNode(DiscoveryNode node) {
+        synchronized (mutex) {
+            return targetsByNode.get(node);
+        }
+    }
 
-    private class ConnectionTarget {
+    /**
+     * Time of disconnect in absolute time ({@link ThreadPool#absoluteTimeInMillis()}),
+     * and disconnect-causing exception, if any
+     */
+    record DisconnectionHistory(long disconnectTimeMillis, @Nullable Exception disconnectCause) {
+        public long getDisconnectTimeMillis() {
+            return disconnectTimeMillis;
+        }
+
+        public Exception getDisconnectCause() {
+            return disconnectCause;
+        }
+    }
+
+    protected class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
 
         // access is synchronized by the service mutex
-        protected ConnectionHistory connectionHistory = null;
+        protected DisconnectionHistory disconnectionHistory = null;
 
         // all access to these fields is synchronized
         private List<Releasable> pendingRefs;
@@ -359,43 +377,41 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
     }
 
-    private class ConnectionHistoryListener implements TransportConnectionListener {
-        /**
-         * Receives connection/disconnection events from the transport, and records in per-node ConnectionHistory
-         * structures for logging network issues. ConnectionHistory records are stored in ConnectionTargets.
-         *
-         * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
-         * and it has the same ephemeral Id as it did during the last connection.
-         */
-        ConnectionHistoryListener() {
-            transportService.addConnectionListener(ConnectionHistoryListener.this);
-        }
-
+    /**
+     * Receives connection/disconnection events from the transport, and records them in per-node DisconnectionHistory
+     * structures for logging network issues. DisconnectionHistory records are stored their node's ConnectionTarget.
+     *
+     * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
+     * and it has the same ephemeral ID as it did during the last connection; this happens when a connection event
+     * occurs, and its ConnectionTarget entry has a previous DisconnectionHistory stored.
+     */
+    private class ConnectionChangeListener implements TransportConnectionListener {
         @Override
         public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
-            ConnectionHistory connectionHistory = null;
+            DisconnectionHistory disconnectionHistory = null;
             synchronized (mutex) {
                 ConnectionTarget connectionTarget = targetsByNode.get(node);
                 if (connectionTarget != null) {
-                    connectionHistory = connectionTarget.connectionHistory;
-                    connectionTarget.connectionHistory = null;
+                    disconnectionHistory = connectionTarget.disconnectionHistory;
+                    connectionTarget.disconnectionHistory = null;
                 }
             }
 
-            if (connectionHistory != null && connectionHistory.ephemeralId.equals(connection.getNode().getEphemeralId())) {
-                long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - connectionHistory.disconnectTime;
-                if (connectionHistory.disconnectCause != null) {
+            if (disconnectionHistory != null) {
+                long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis;
+                if (disconnectionHistory.disconnectCause != null) {
                     logger.warn(
                         () -> format(
-                            "reopened transport connection to node [%s] "
-                                + "which disconnected exceptionally [%dms] ago but did not "
-                                + "restart, so the disconnection is unexpected; "
-                                + "see [%s] for troubleshooting guidance",
-                            connection.getNode().descriptionWithoutAttributes(),
+                            """
+                                reopened transport connection to node [%s] \
+                                which disconnected exceptionally [%dms] ago but did not \
+                                restart, so the disconnection is unexpected; \
+                                see [%s] for troubleshooting guidance""",
+                            node.descriptionWithoutAttributes(),
                             millisSinceDisconnect,
                             ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                         ),
-                        connectionHistory.disconnectCause
+                        disconnectionHistory.disconnectCause
                     );
                 } else {
                     logger.warn(
@@ -404,7 +420,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                             which disconnected gracefully [{}ms] ago but did not \
                             restart, so the disconnection is unexpected; \
                             see [{}] for troubleshooting guidance""",
-                        connection.getNode().descriptionWithoutAttributes(),
+                        node.descriptionWithoutAttributes(),
                         millisSinceDisconnect,
                         ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                     );
@@ -413,16 +429,12 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
-            ConnectionHistory connectionHistory = new ConnectionHistory(
-                connection.getNode().getEphemeralId(),
-                threadPool.absoluteTimeInMillis(),
-                closeException
-            );
+        public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
+            DisconnectionHistory disconnectionHistory = new DisconnectionHistory(threadPool.absoluteTimeInMillis(), closeException);
             synchronized (mutex) {
                 ConnectionTarget connectionTarget = targetsByNode.get(node);
                 if (connectionTarget != null) {
-                    connectionTarget.connectionHistory = connectionHistory;
+                    connectionTarget.disconnectionHistory = disconnectionHistory;
                 }
             }
         }

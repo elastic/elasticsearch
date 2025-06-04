@@ -102,7 +102,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -659,7 +659,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -699,7 +699,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection, @Nullable Exception closeException) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });

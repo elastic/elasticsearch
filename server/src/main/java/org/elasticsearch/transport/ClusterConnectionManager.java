@@ -242,7 +242,7 @@ public class ClusterConnectionManager implements ConnectionManager {
 
                                     void handleClose(@Nullable Exception e) {
                                         connectedNodes.remove(node, conn);
-                                        connectionListener.onNodeDisconnected(node, conn, e);
+                                        connectionListener.onNodeDisconnected(node, e);
                                         managerRefs.decRef();
                                     }
                                 });

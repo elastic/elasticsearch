@@ -60,9 +60,9 @@ public interface ConnectionManager extends Closeable {
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key, Transport.Connection connection, @Nullable Exception closeException) {
+        public void onNodeDisconnected(DiscoveryNode key, @Nullable Exception closeException) {
             for (TransportConnectionListener listener : listeners) {
-                listener.onNodeDisconnected(key, connection, closeException);
+                listener.onNodeDisconnected(key, closeException);
             }
         }
 

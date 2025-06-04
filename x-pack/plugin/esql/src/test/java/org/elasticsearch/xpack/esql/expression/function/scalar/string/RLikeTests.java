@@ -97,7 +97,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         Function<String, String> escapeString,
         Supplier<String> optionalPattern
     ) {
-        casesForString(cases, title, textSupplier, canGenerateDifferent, true, escapeString, optionalPattern );
+        casesForString(cases, title, textSupplier, canGenerateDifferent, true, escapeString, optionalPattern);
     }
 
     private static void casesForString(

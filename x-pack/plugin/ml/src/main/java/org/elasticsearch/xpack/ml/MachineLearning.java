@@ -852,7 +852,10 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
-            DUMMY_ENTITY_PROCESSORS
+            DUMMY_ENTITY_PROCESSORS,
+            DEFAULT_TIME_INTERVAL,
+            SCALE_UP_COOLDOWN_TIME,
+            SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME
         );
     }
 

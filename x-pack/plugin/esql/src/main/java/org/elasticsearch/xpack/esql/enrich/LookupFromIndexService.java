@@ -190,7 +190,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES_8_19)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
-                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
+                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
             }
 
             out.writeString(inputDataType.typeName());

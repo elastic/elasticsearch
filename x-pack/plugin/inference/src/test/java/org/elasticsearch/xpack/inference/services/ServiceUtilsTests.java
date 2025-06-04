@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1116,7 +1116,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var validation = new ValidationException();
         assertThat(
             convertMapStringsToSecureString(Map.of("key", "value", "key2", "abc"), "setting", validation),
-            is(Map.of("key", new SerializableSecureString("value"), "key2", new SerializableSecureString("abc")))
+            is(Map.of("key", new SecureString("value".toCharArray()), "key2", new SecureString("abc".toCharArray())))
         );
     }
 

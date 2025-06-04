@@ -6,7 +6,14 @@ ES_ORIGINAL_GIT_BINARY=$(which git)
 export ES_ORIGINAL_GIT_BINARY
 
 mkdir -p "$HOME/git-wrapper"
-cp "$DIR/../git" "$HOME/git-wrapper/"
+cat << 'EOF' > "$HOME/git-wrapper/git"
+#!/bin/bash
+
+if [[ "${1:-}" == "submodule" || "${1:-}" == "clone" ]]; then exit 0; fi
+
+"$ES_ORIGINAL_GIT_BINARY" "${@}"
+EOF
+
 chmod +x "$HOME/git-wrapper/git"
 
 export PATH="$HOME/git-wrapper:$PATH"

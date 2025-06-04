@@ -3304,7 +3304,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 5 )
                    ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
             """));
-        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting {"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM test
@@ -3651,7 +3651,10 @@ public class AnalyzerTests extends ESTestCase {
                     | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
                     """, "mapping-books.json");
             } catch (ParsingException ex) {
-                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+                assertThat(
+                    ex.getMessage(),
+                    containsString("line 3:36: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}")
+                );
             }
         }
 

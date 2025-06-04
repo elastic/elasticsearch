@@ -39,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -48,30 +49,39 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
+import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -87,10 +97,12 @@ import java.nio.ByteOrder;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -98,6 +110,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
@@ -106,6 +120,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
+
+    public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -376,7 +392,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexed.getValue(),
                     similarity.getValue(),
                     indexOptions.getValue(),
-                    meta.getValue()
+                    meta.getValue(),
+                    context.isSourceSynthetic()
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
@@ -1589,10 +1606,59 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return dims >= BBQ_MIN_DIMS;
             }
+        },
+        BBQ_IVF("bbq_ivf", true) {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
+                int clusterSize = IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+                if (clusterSizeNode != null) {
+                    clusterSize = XContentMapValues.nodeIntegerValue(clusterSizeNode);
+                    if (clusterSize < MIN_VECTORS_PER_CLUSTER || clusterSize > MAX_VECTORS_PER_CLUSTER) {
+                        throw new IllegalArgumentException(
+                            "cluster_size must be between "
+                                + MIN_VECTORS_PER_CLUSTER
+                                + " and "
+                                + MAX_VECTORS_PER_CLUSTER
+                                + ", got: "
+                                + clusterSize
+                        );
+                    }
+                }
+                RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                if (rescoreVector == null) {
+                    rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                }
+                Object nProbeNode = indexOptionsMap.remove("default_n_probe");
+                int nProbe = -1;
+                if (nProbeNode != null) {
+                    nProbe = XContentMapValues.nodeIntegerValue(nProbeNode);
+                    if (nProbe < 1 && nProbe != -1) {
+                        throw new IllegalArgumentException(
+                            "default_n_probe must be at least 1 or exactly -1, got: " + nProbe + " for field [" + fieldName + "]"
+                        );
+                    }
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new BBQIVFIndexOptions(clusterSize, nProbe, rescoreVector);
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return dims >= BBQ_MIN_DIMS;
+            }
         };
 
         static Optional<VectorIndexType> fromString(String type) {
-            return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
+            return Stream.of(VectorIndexType.values())
+                .filter(vectorIndexType -> vectorIndexType != VectorIndexType.BBQ_IVF || IVF_FORMAT.isEnabled())
+                .filter(vectorIndexType -> vectorIndexType.name.equals(type))
+                .findFirst();
         }
 
         private final String name;
@@ -2091,6 +2157,54 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
+    static class BBQIVFIndexOptions extends QuantizedIndexOptions {
+        final int clusterSize;
+        final int defaultNProbe;
+
+        BBQIVFIndexOptions(int clusterSize, int defaultNProbe, RescoreVector rescoreVector) {
+            super(VectorIndexType.BBQ_IVF, rescoreVector);
+            this.clusterSize = clusterSize;
+            this.defaultNProbe = defaultNProbe;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT;
+            return new IVFVectorsFormat(clusterSize);
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return update.type.equals(this.type);
+        }
+
+        @Override
+        boolean doEquals(IndexOptions other) {
+            BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
+            return clusterSize == that.clusterSize
+                && defaultNProbe == that.defaultNProbe
+                && Objects.equals(rescoreVector, that.rescoreVector);
+        }
+
+        @Override
+        int doHashCode() {
+            return Objects.hash(clusterSize, defaultNProbe, rescoreVector);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("cluster_size", clusterSize);
+            builder.field("default_n_probe", defaultNProbe);
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
     public record RescoreVector(float oversample) implements ToXContentObject {
         static final String NAME = "rescore_vector";
         static final String OVERSAMPLE = "oversample";
@@ -2138,6 +2252,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
         private final IndexOptions indexOptions;
+        private final boolean isSyntheticSource;
 
         public DenseVectorFieldType(
             String name,
@@ -2147,7 +2262,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean indexed,
             VectorSimilarity similarity,
             IndexOptions indexOptions,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.elementType = elementType;
@@ -2156,6 +2272,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -2399,17 +2516,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
-            Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(
-                    name(),
-                    queryVector,
-                    filter,
-                    adjustedK,
-                    numCands,
-                    parentFilter,
-                    knnSearchStrategy
-                )
-                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
+            if (parentFilter != null && indexOptions instanceof BBQIVFIndexOptions) {
+                throw new IllegalArgumentException("IVF index does not support nested queries");
+            }
+            Query knnQuery;
+            if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                knnQuery = new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
+            } else {
+                knnQuery = parentFilter != null
+                    ? new ESDiversifyingChildrenFloatKnnVectorQuery(
+                        name(),
+                        queryVector,
+                        filter,
+                        adjustedK,
+                        numCands,
+                        parentFilter,
+                        knnSearchStrategy
+                    )
+                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
+            }
             if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),
@@ -2443,6 +2568,44 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public IndexOptions getIndexOptions() {
             return indexOptions;
+        }
+
+        @Override
+        public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
+            if (elementType != ElementType.FLOAT) {
+                // Just float dense vector support for now
+                return null;
+            }
+
+            if (indexed) {
+                return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims);
+            }
+
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated);
+            }
+
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.DenseVectorBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, dims);
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return null;
+                    }
+                    return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
+                }
+
+                @Override
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                    List<Object> result = super.fetchValues(source, doc, ignoredValues);
+                    assert result.size() == dims : "Unexpected number of dimensions; got " + result.size() + " but expected " + dims;
+                    return result;
+                }
+            };
         }
     }
 
@@ -2498,7 +2661,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().indexed,
                 fieldType().similarity,
                 fieldType().indexOptions,
-                fieldType().meta()
+                fieldType().meta(),
+                fieldType().isSyntheticSource
             );
             Mapper update = new DenseVectorFieldMapper(
                 leafName(),
@@ -2598,6 +2762,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName(), indexCreatedVersion).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup mappers) {
+        if (indexOptions instanceof BBQIVFIndexOptions && mappers.nestedLookup().getNestedParent(fullPath()) != null) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONTENT_TYPE
+                    + "] fields with index type ["
+                    + indexOptions.type
+                    + "] cannot be indexed if they're within [nested] mappings"
+            );
+        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {

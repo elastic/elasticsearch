@@ -89,7 +89,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return weights;
     }
 
-    private static ScoreNormalizer[] getDefaultNormalizers(int size) {
+    public static ScoreNormalizer[] getDefaultNormalizers(int size) {
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
         Arrays.fill(normalizers, IdentityScoreNormalizer.INSTANCE);
         return normalizers;
@@ -143,6 +143,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores(true);
         return sourceBuilder;
+    }
+
+    public LinearRetrieverBuilder minScore(float minScore) {
+        if (minScore < 0.0f) {
+            throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: " + minScore);
+        }
+        return (LinearRetrieverBuilder) super.minScore(minScore);
     }
 
     @Override

@@ -102,10 +102,15 @@ public class MachineDependentHeap {
              * could result in ML processes crashing with OOM errors or repeated autoscaling up and down.
              */
             case ML_ONLY -> {
-                if (availableMemory <= (GB * 16)) {
-                    yield mb((long) (availableMemory * .4 * 2 / 3), 4);
+                double heapFractionBelow16GB = 0.4 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                double heapFractionAbove16GB = 0.1 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                if (availableMemory <= GB * 16) {
+                    yield mb((long) (availableMemory * heapFractionBelow16GB), 4);
                 } else {
-                    yield mb((long) min(((GB * 16) * .4 + (availableMemory - GB * 16) * .1) * 2 / 3, MAX_HEAP_SIZE), 4);
+                    yield mb(
+                        (long) min(GB * 16 * heapFractionBelow16GB + (availableMemory - GB * 16) * heapFractionAbove16GB, MAX_HEAP_SIZE),
+                        4
+                    );
                 }
             }
             /*

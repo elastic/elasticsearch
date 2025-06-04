@@ -20,7 +20,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -38,6 +37,7 @@ import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
@@ -446,13 +446,13 @@ public class TimestampQueryTests extends ESTestCase {
 
         // Create an (unrealistic) fallback query that is sure to be rewritten.
         Query fallbackQuery = new BooleanQuery.Builder().build();
-        Query query = new IndexSortSortedNumericDocValuesRangeQuery("field", 1, 42, fallbackQuery);
+        Query query = new XIndexSortSortedNumericDocValuesRangeQuery("field", 1, 42, fallbackQuery);
 
         Query rewrittenQuery = query.rewrite(newSearcher(reader));
         assertNotEquals(query, rewrittenQuery);
-        MatcherAssert.assertThat(rewrittenQuery, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
+        MatcherAssert.assertThat(rewrittenQuery, instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class));
 
-        IndexSortSortedNumericDocValuesRangeQuery rangeQuery = (IndexSortSortedNumericDocValuesRangeQuery) rewrittenQuery;
+        XIndexSortSortedNumericDocValuesRangeQuery rangeQuery = (XIndexSortSortedNumericDocValuesRangeQuery) rewrittenQuery;
         assertEquals(new MatchNoDocsQuery(), rangeQuery.getFallbackQuery());
 
         writer.close();
@@ -545,7 +545,7 @@ public class TimestampQueryTests extends ESTestCase {
         // we use an unrealistic query that exposes its own Weight#count
         Query fallbackQuery = new MatchNoDocsQuery();
         // the index is not sorted on this field, the fallback query is used
-        Query query = new IndexSortSortedNumericDocValuesRangeQuery("another", 1, 42, fallbackQuery);
+        Query query = new XIndexSortSortedNumericDocValuesRangeQuery("another", 1, 42, fallbackQuery);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         for (LeafReaderContext context : searcher.getLeafContexts()) {
             assertEquals(0, weight.count(context));
@@ -598,7 +598,7 @@ public class TimestampQueryTests extends ESTestCase {
                 final Query q1 = LongPoint.newRangeQuery("field", min, max);
 
                 final Query fallbackQuery = LongPoint.newRangeQuery("field", min, max);
-                final Query q2 = new IndexSortSortedNumericDocValuesRangeQuery("field", min, max, fallbackQuery);
+                final Query q2 = new XIndexSortSortedNumericDocValuesRangeQuery("field", min, max, fallbackQuery);
                 final Weight weight1 = q1.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
                 final Weight weight2 = q2.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
                 assertSameCount(weight1, weight2, searcher);
@@ -634,7 +634,7 @@ public class TimestampQueryTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader);
 
         Query fallbackQuery = LongPoint.newRangeQuery(FIELD_NAME, lowerValue, upperValue);
-        Query query = new IndexSortSortedNumericDocValuesRangeQuery(FIELD_NAME, lowerValue, upperValue, fallbackQuery);
+        Query query = new XIndexSortSortedNumericDocValuesRangeQuery(FIELD_NAME, lowerValue, upperValue, fallbackQuery);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         int count = 0;
         for (LeafReaderContext context : searcher.getLeafContexts()) {

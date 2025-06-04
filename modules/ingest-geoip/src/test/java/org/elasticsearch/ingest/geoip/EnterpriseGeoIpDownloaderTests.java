@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -76,9 +77,12 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private MockClient client;
     private EnterpriseGeoIpDownloader geoIpDownloader;
+    private ProjectId projectId;
 
     @Before
     public void setup() throws IOException {
+        // TODO: change to random projectId
+        projectId = ProjectId.DEFAULT;
         httpClient = mock(HttpClient.class);
         when(httpClient.getBytes(any(), anyString())).thenReturn(
             "e4a3411cdd7b21eaf18675da5a7f9f360d33c6882363b2c19c38715834c9e836  GeoIP2-City_20240709.tar.gz".getBytes(StandardCharsets.UTF_8)
@@ -92,7 +96,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, Set.of(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING))
         );
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
         geoIpDownloader = new EnterpriseGeoIpDownloader(
@@ -440,15 +444,15 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabasesWriteBlock() {
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
         var geoIpIndex = state.getMetadata()
-            .getProject()
+            .getProject(projectId)
             .getIndicesLookup()
             .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
             .getWriteIndex()
             .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
@@ -467,15 +471,15 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabasesIndexNotReady() throws IOException {
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()), true);
         var geoIpIndex = state.getMetadata()
-            .getProject()
+            .getProject(projectId)
             .getIndicesLookup()
             .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
             .getWriteIndex()
             .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();

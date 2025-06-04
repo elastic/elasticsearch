@@ -9,5 +9,5 @@
 :   Value to find in the provided field.
 
 `options`
-:   (Optional) Match additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) for more information.
+:   (Optional) Match additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).{applies_to}`stack: coming` See [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) for more information.
 

@@ -2,8 +2,8 @@
 
 ## `QSTR` [esql-qstr]
 ```{applies_to}
-product: ga 9.1
-product: preview 9.0
+stack: preview
+serverless: preview
 ```
 
 **Syntax**

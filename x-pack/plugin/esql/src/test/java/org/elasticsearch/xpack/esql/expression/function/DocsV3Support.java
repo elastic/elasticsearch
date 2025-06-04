@@ -608,7 +608,7 @@ public abstract class DocsV3Support {
                 StringBuilder stackEntries = new StringBuilder();
 
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
-                    if (!stackEntries.isEmpty()) {
+                    if (stackEntries.isEmpty() == false) {
                         stackEntries.append(", ");
                     }
                     stackEntries.append(appliesTo.lifeCycle().name().toLowerCase(Locale.ROOT));
@@ -618,7 +618,7 @@ public abstract class DocsV3Support {
                 }
 
                 // Add the stack entries
-                if (!stackEntries.isEmpty()) {
+                if (stackEntries.isEmpty() == false) {
                     appliesToText.append("stack: ").append(stackEntries).append("\n");
                 }
 

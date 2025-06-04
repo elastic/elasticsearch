@@ -11,12 +11,6 @@ ROW message = "Some Text"
 | --- | --- |
 | Some Text | some text |
 
-
-**Advanced:**
-```{applies_to}
-product: ga 9.1
-```
-
 ```esql
 ROW v = TO_LOWER(["Some", "Text"])
 ```

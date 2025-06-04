@@ -2,8 +2,7 @@
 
 ## `ROUND_TO` [esql-round_to]
 ```{applies_to}
-product: COMING 8.19.0/9.1.0
-serverless: GA
+stack: coming
 ```
 
 **Syntax**

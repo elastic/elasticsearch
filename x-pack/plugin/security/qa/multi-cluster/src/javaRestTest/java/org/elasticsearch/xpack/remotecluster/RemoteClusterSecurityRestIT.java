@@ -318,15 +318,13 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         EntityUtils.toString(queryingClusterTasks.getEntity()),
                         false
                     );
-                    AtomicBoolean searchTasksFound = new AtomicBoolean(false);
                     selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
                         if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
-                            searchTasksFound.set(true);
+                            fail();
                         }
                     });
-                    assertFalse("Expected no search tasks to be running", searchTasksFound.get());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                } catch (ResponseException e) {
+                    fail(e.getMessage());
                 }
             });
         }

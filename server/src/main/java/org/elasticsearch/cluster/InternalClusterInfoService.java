@@ -82,7 +82,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.NodeScope
     );
 
-    private volatile boolean enabled;
+    private volatile boolean diskThresholdEnabled;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
@@ -112,18 +112,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.client = client;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
-        this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
         clusterSettings.addSettingsUpdateConsumer(
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-            this::setEnabled
+            this::setDiskThresholdEnabled
         );
     }
 
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
+        this.diskThresholdEnabled = diskThresholdEnabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -182,24 +182,21 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         void execute() {
-            if (enabled == false) {
-                logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
-                leastAvailableSpaceUsages = Map.of();
-                mostAvailableSpaceUsages = Map.of();
-                nodesHeapUsage = Map.of();
-                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                callListeners();
-                return;
-            }
-
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodeStats();
-                }
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchIndicesStats();
+                if (diskThresholdEnabled) {
+                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                        fetchNodeStats();
+                    }
+                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                        fetchIndicesStats();
+                    }
+                } else {
+                    logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty cluster info");
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
+                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 }
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchNodesHeapUsage();

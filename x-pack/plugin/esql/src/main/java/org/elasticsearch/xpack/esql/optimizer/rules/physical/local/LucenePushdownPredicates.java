@@ -126,11 +126,12 @@ public interface LucenePushdownPredicates {
     };
 
     /**
-     * If we have access to SearchStats over a collection of shards, we can make more fine-grained decisions about what can be pushed down.
-     * This should open up more opportunities for lucene pushdown.
+     * If we have access to {@link SearchStats} over a collection of shards, we can make more fine-grained decisions about what can be
+     * pushed down. This should open up more opportunities for lucene pushdown.
      */
     static LucenePushdownPredicates from(SearchStats stats) {
-        // TODO: fix
+        // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
+        // C.f. https://github.com/elastic/elasticsearch/issues/128905
         return new LucenePushdownPredicates() {
             @Override
             public boolean hasExactSubfield(FieldAttribute attr) {

@@ -76,7 +76,7 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             QueryAndDocsInputs.class
         );
         var errorMessage = constructFailedToSendRequestMessage(
-            String.format(Locale.ROOT, "%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
+            Strings.format("%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }

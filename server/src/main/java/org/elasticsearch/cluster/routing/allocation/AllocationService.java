@@ -640,8 +640,8 @@ public class AllocationService {
     }
 
     public void setHeapUsageSupplier(ShardHeapUsageSupplier shardHeapUsageSupplier) {
-        if (clusterInfoService instanceof InternalClusterInfoService icis) {
-            icis.setShardHeapUsageSupplier(shardHeapUsageSupplier);
+        if (clusterInfoService instanceof InternalClusterInfoService internalClusterInfoService) {
+            internalClusterInfoService.setShardHeapUsageSupplier(shardHeapUsageSupplier);
         }
     }
 

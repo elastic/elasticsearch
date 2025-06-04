@@ -9,13 +9,13 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidIndexTemplateException;

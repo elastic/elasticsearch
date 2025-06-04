@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;

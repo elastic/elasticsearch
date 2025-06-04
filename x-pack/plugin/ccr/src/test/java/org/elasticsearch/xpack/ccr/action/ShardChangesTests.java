@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -15,6 +13,8 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.RetentionLease;

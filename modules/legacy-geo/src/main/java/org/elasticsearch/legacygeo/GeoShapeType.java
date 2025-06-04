@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.legacygeo;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.legacygeo.builders.CircleBuilder;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.EnvelopeBuilder;

@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;

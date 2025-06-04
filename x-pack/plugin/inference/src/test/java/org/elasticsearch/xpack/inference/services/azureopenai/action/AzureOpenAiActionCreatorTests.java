@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.action;
 
 import org.apache.http.HttpHeaders;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;

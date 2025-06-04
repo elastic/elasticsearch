@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +19,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;

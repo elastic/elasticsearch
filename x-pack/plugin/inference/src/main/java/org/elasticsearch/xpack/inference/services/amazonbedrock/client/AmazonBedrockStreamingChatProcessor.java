@@ -11,10 +11,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEve
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;

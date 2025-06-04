@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;

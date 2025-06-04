@@ -9,7 +9,6 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Build;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;

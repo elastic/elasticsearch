@@ -9,12 +9,12 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.threadpool.ThreadPool;

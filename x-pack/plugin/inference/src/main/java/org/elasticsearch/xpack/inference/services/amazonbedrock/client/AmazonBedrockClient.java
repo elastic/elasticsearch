@@ -13,8 +13,8 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamReques
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.time.Instant;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.apache.lucene.util.SuppressForbidden;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;

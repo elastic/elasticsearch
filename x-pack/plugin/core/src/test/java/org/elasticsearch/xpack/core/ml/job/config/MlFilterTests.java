@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;

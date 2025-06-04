@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;

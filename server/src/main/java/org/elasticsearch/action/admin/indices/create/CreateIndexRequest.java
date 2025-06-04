@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.exception.ElasticsearchGenerationException;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -27,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

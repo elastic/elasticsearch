@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -20,6 +18,8 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 

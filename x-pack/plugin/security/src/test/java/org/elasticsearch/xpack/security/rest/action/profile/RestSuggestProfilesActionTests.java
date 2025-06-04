@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.security.rest.action.profile;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;

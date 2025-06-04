@@ -10,12 +10,12 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;

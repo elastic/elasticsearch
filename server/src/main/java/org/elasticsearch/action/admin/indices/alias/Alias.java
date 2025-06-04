@@ -9,13 +9,13 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;

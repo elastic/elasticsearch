@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;

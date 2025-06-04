@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;

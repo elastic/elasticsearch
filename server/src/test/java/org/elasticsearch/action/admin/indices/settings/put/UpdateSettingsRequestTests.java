@@ -9,10 +9,10 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;

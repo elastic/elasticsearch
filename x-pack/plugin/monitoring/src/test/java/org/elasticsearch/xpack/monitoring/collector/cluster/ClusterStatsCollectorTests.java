@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;

@@ -11,13 +11,13 @@ package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;

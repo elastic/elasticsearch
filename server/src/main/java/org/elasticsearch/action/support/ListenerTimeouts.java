@@ -9,9 +9,9 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -29,6 +27,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;

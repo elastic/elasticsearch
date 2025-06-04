@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;

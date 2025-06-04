@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.security.rest;
 import com.nimbusds.jose.util.StandardCharset;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.license.TestUtils;

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

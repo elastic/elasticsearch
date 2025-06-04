@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;

@@ -13,13 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 import java.io.InputStream;

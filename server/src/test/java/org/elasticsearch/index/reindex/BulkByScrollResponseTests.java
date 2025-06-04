@@ -9,14 +9,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchParseException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchParseException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;

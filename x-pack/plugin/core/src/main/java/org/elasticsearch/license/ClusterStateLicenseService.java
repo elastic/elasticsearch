@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;

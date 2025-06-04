@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.inference.rest;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;

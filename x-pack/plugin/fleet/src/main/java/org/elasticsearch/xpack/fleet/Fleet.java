@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.fleet;
 
-import org.elasticsearch.exception.ExceptionsHelper;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
@@ -28,6 +26,8 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;

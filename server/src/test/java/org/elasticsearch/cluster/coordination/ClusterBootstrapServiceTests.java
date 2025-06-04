@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransport;

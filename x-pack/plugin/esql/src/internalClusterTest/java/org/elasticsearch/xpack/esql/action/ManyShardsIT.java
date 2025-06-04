@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;

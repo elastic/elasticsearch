@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;

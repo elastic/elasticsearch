@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;

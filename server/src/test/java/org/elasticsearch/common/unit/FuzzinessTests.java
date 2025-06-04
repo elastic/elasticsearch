@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

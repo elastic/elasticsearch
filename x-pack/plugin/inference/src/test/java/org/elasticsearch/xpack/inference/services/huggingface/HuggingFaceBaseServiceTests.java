@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;

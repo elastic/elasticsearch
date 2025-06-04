@@ -9,8 +9,6 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.exception.ExceptionsHelper;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -35,6 +33,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exception.ExceptionsHelper;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;

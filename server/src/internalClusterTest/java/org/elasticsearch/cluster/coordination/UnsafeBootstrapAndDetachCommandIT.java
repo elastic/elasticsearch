@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;

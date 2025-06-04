@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAlloc
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexVersion;
 
 import java.util.Collections;

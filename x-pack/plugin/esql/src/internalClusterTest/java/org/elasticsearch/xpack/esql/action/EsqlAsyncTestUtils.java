@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;

@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -23,6 +21,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.CancellableTask;

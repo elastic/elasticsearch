@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.core.util.Holder;

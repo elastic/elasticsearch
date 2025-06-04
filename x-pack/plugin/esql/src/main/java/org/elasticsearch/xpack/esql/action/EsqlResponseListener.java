@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;

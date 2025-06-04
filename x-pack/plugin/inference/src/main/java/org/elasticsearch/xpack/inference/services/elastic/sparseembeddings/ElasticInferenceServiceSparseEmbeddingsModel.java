@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;

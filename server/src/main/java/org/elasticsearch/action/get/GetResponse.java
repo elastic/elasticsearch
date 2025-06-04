@@ -9,13 +9,13 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

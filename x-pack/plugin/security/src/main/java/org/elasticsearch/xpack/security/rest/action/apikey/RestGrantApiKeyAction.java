@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;

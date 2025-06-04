@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionRequest;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;

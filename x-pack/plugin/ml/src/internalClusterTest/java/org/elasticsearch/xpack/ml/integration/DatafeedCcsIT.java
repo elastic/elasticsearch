@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;

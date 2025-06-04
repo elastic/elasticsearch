@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -36,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;

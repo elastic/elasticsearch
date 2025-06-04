@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -18,6 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 

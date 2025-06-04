@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -19,6 +18,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;

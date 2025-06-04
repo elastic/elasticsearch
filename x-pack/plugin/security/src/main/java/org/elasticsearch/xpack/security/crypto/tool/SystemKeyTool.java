@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.crypto.tool;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.nio.file.Files;

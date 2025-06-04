@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;

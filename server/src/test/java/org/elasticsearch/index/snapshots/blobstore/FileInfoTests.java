@@ -10,9 +10,9 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;

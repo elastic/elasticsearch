@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;

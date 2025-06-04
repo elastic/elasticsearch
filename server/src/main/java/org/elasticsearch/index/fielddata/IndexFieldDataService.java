@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;

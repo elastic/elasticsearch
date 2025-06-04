@@ -10,13 +10,13 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;

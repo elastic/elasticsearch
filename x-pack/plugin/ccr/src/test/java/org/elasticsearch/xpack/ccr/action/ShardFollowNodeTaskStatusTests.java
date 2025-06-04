@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;

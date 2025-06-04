@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredSc
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;

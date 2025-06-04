@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;

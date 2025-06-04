@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;

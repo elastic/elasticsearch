@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.xcontent.XContentParser;

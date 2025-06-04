@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.search.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Iterators;
@@ -19,6 +17,8 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;

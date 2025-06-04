@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;

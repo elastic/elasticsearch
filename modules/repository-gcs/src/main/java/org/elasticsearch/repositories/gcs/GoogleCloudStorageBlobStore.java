@@ -22,7 +22,6 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -43,6 +42,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;

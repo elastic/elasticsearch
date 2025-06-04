@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -27,6 +25,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;

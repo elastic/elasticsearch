@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;

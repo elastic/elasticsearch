@@ -9,9 +9,9 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;

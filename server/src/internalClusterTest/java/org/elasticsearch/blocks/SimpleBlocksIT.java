@@ -9,7 +9,6 @@
 
 package org.elasticsearch.blocks;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;

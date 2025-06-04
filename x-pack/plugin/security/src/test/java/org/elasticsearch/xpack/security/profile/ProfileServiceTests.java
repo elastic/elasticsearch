@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -45,6 +43,8 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;

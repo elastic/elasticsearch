@@ -12,12 +12,12 @@ import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixtures.smb.SmbTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;

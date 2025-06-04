@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;

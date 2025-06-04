@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.rest.RestStatus;

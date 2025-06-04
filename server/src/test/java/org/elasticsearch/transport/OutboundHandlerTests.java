@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -34,6 +33,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;

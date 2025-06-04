@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -17,6 +15,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;

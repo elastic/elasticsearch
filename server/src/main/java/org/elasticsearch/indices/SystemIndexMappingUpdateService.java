@@ -11,8 +11,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -33,6 +31,8 @@ import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 

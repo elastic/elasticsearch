@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -25,6 +24,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;

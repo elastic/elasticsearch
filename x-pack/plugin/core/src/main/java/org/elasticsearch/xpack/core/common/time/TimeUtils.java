@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.common.time;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;

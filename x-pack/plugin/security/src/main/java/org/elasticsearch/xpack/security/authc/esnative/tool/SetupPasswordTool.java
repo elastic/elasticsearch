@@ -10,7 +10,6 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.ProcessInfo;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -39,6 +37,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskId;

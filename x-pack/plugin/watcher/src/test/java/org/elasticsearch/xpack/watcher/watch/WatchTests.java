@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -14,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;

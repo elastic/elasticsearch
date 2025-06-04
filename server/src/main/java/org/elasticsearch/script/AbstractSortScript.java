@@ -9,10 +9,10 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;

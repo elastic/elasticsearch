@@ -9,10 +9,10 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;

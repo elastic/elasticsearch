@@ -9,7 +9,6 @@
 
 package org.elasticsearch.aggregations.bucket;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -21,6 +20,7 @@ import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;

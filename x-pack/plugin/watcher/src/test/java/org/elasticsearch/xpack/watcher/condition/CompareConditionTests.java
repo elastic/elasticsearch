@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

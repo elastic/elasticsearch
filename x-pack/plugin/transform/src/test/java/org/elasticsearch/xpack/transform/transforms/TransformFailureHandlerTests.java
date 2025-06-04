@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.test.ESTestCase;

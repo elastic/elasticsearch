@@ -7,12 +7,12 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;

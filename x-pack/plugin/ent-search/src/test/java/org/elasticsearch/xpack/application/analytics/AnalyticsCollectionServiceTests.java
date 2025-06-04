@@ -8,10 +8,6 @@
 package org.elasticsearch.xpack.application.analytics;
 
 import org.apache.logging.log4j.util.TriConsumer;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,6 +19,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;

@@ -10,9 +10,9 @@ package org.elasticsearch.bwcompat;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.test.ESIntegTestCase;
 

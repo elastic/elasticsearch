@@ -10,8 +10,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -23,6 +21,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;

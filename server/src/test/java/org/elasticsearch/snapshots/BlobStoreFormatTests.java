@@ -9,8 +9,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.exception.ElasticsearchCorruptionException;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -19,6 +17,8 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.exception.ElasticsearchCorruptionException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;

@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -43,6 +41,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;

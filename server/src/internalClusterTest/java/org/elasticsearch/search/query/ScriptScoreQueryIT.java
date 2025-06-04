@@ -9,8 +9,8 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;

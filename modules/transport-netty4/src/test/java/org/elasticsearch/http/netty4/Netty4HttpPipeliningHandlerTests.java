@@ -28,7 +28,6 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.network.ThreadWatchdogHelper;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;

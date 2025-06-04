@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;

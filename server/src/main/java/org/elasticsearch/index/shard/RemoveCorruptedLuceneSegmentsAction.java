@@ -11,9 +11,9 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 import java.io.PrintStream;

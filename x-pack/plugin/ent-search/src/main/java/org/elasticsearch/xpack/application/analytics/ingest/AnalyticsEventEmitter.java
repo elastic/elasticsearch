@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.ingest;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.index.IndexRequest;
@@ -17,6 +15,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;

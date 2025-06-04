@@ -12,10 +12,10 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;

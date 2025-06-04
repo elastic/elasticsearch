@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc.support;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;

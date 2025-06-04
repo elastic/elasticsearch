@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

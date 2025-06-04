@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;

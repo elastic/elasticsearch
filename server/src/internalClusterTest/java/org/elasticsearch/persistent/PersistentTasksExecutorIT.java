@@ -9,8 +9,6 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -20,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;

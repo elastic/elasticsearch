@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;

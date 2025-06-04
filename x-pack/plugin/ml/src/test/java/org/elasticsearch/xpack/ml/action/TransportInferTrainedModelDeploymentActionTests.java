@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;

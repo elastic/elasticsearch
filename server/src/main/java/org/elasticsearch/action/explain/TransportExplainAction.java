@@ -10,7 +10,6 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ResolvedIndices;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;

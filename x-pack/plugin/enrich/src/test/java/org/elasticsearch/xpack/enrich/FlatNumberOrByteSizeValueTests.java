@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;

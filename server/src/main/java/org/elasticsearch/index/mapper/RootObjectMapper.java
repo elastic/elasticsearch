@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;

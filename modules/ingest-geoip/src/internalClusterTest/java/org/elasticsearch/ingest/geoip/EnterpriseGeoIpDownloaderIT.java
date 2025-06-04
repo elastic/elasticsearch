@@ -11,8 +11,6 @@ package org.elasticsearch.ingest.geoip;
 
 import fixture.geoip.EnterpriseGeoIpHttpFixture;
 
-import org.elasticsearch.exception.ExceptionsHelper;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -30,6 +28,8 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;

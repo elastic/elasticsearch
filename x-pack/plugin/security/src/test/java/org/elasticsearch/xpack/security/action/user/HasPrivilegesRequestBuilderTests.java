@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;

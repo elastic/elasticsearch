@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.Request;

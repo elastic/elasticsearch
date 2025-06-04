@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

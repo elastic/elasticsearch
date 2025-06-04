@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction.Request;

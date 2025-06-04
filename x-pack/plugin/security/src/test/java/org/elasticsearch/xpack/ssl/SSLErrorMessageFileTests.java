@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.ssl;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;

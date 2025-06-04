@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;

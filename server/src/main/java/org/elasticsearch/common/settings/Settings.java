@@ -11,8 +11,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchGenerationException;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -34,6 +32,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;

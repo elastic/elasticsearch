@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.action;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,6 +14,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;

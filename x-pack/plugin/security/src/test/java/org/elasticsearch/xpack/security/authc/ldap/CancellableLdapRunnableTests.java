@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm.CancellableLdapRunnable;

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
@@ -17,6 +15,8 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;

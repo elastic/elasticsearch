@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 
 /**
  * Exception thrown when a problem is encountered while initialising an ILM policy for an index.

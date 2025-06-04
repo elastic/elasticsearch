@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;

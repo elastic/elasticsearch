@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -48,7 +48,10 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
                 new ElasticsearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz")))
             );
-            assertThat(exception.toString(), startsWith("[null][-1] failed, reason [org.elasticsearch.exception.ElasticsearchException: foo"));
+            assertThat(
+                exception.toString(),
+                startsWith("[null][-1] failed, reason [org.elasticsearch.exception.ElasticsearchException: foo")
+            );
         }
 
         {

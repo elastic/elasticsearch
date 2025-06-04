@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusOrException;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;

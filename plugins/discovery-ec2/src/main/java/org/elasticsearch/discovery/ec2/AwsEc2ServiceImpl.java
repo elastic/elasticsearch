@@ -20,10 +20,10 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.Ec2ClientBuilder;
 
 import org.apache.http.client.utils.URIBuilder;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 

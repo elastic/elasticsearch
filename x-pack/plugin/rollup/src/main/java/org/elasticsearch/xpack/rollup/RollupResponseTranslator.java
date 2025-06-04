@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;

@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.apache.http.Header;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.MockNode;

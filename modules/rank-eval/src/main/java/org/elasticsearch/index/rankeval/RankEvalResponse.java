@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 

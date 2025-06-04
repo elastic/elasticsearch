@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -14,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.ParseField;

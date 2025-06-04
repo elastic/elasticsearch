@@ -8,11 +8,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ExceptionsHelper;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -66,6 +61,11 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ExceptionsHelper;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;

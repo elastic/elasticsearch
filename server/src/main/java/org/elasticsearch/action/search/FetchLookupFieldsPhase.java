@@ -10,11 +10,11 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;

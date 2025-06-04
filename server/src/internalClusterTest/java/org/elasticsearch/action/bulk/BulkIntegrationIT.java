@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;

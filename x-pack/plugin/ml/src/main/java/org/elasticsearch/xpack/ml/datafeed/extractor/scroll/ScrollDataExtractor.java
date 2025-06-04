@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;

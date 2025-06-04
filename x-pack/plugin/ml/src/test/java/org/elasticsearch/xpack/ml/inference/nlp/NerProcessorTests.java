@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;

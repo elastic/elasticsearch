@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;

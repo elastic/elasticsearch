@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;

@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination.votingonly;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;

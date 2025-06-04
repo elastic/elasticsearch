@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.monitoring.collector;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
@@ -16,6 +14,8 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.HashSet;

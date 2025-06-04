@@ -10,12 +10,12 @@ package org.elasticsearch.client.benchmark.ops.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.BufferedReader;
 import java.io.IOException;

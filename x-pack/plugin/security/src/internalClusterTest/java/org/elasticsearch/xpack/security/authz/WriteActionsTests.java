@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;

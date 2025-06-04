@@ -9,8 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +43,8 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;

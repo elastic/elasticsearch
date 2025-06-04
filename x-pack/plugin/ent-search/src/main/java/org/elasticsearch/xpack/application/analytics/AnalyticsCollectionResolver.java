@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;

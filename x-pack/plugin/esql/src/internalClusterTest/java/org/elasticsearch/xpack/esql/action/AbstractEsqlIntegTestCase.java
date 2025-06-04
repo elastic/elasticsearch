@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -22,6 +21,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;

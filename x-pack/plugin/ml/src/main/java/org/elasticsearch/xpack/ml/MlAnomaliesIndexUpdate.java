@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +24,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;

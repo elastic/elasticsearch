@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;

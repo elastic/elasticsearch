@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportInfo;

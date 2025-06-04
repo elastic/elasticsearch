@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.exception.ResourceNotFoundException;
 
 import java.util.Collections;
 import java.util.List;

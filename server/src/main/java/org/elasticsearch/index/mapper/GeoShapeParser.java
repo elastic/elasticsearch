@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.xcontent.XContentParser;
 

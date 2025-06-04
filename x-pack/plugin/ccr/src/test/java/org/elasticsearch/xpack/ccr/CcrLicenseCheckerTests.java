@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;

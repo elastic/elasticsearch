@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.idp.saml.idp;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;

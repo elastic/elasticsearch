@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;

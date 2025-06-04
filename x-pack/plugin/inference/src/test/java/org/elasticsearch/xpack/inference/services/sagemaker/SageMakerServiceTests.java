@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.inference.services.sagemaker;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponse;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;

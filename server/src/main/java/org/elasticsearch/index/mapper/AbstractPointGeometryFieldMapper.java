@@ -8,12 +8,12 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

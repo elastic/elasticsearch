@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.TransportVersionUtils;

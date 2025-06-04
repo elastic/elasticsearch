@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;

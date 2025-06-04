@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;

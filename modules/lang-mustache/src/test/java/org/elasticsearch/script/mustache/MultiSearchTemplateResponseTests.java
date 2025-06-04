@@ -8,12 +8,12 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;

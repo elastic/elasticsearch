@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;

@@ -11,7 +11,6 @@ package org.elasticsearch.env;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots.PolicySnapshot;
 import org.elasticsearch.snapshots.SnapshotException;

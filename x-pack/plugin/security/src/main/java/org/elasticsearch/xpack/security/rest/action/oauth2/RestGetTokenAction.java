@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;

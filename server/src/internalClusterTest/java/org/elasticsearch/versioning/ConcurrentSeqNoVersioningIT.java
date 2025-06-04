@@ -9,7 +9,6 @@
 package org.elasticsearch.versioning;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;

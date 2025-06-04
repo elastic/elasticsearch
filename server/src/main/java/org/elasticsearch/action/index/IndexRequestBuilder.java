@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;

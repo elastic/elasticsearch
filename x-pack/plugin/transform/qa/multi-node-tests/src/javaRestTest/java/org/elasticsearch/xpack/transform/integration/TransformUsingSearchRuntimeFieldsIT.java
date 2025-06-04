@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;

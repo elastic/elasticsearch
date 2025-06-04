@@ -12,7 +12,6 @@ package org.elasticsearch.common.io.stream;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;

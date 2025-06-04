@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -25,6 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -36,10 +36,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.exception.ElasticsearchExceptionTests.assertDeepEquals;
-import static org.elasticsearch.exception.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.exception.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.elasticsearch.exception.ElasticsearchExceptionTests.randomExceptions;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkItemResponseTests extends ESTestCase {

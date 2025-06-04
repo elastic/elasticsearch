@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;

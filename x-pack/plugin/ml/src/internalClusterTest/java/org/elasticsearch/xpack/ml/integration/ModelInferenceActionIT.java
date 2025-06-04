@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;

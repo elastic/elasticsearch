@@ -9,11 +9,11 @@
 
 package org.elasticsearch.ingest.geoip.direct;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;

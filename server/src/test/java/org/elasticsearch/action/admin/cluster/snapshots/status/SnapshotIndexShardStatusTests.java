@@ -9,9 +9,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractXContentTestCase;

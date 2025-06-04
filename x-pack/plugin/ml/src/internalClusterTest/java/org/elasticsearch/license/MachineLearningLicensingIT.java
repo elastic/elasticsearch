@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;

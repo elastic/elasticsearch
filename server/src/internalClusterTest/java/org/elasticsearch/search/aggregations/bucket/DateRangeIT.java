@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;

@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.xml.XMLObject;

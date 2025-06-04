@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;

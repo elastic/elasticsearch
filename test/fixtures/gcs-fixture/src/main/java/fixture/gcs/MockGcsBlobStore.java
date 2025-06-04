@@ -9,13 +9,13 @@
 
 package fixture.gcs;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 

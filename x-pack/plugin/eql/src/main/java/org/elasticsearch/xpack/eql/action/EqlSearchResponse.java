@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;

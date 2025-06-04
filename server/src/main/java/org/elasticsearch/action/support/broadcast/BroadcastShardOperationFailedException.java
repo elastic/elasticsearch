@@ -9,9 +9,9 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchWrapperException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;

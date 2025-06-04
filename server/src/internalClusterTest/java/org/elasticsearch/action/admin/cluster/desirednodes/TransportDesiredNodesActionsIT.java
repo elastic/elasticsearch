@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 

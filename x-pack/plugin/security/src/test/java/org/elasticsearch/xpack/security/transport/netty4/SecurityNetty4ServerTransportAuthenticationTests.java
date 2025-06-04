@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;

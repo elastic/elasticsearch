@@ -32,7 +32,6 @@ import io.netty.util.concurrent.PromiseCombiner;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;

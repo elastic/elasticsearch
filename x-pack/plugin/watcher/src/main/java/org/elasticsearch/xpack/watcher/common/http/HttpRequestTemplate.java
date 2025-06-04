@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.ToXContent;

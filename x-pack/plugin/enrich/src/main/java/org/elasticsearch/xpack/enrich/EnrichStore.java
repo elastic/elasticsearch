@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -20,6 +18,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 

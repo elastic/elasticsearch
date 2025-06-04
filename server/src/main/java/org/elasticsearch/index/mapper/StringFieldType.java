@@ -21,12 +21,12 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.CaseInsensitivePrefixQuery;
 import org.elasticsearch.common.lucene.search.CaseInsensitiveWildcardQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;

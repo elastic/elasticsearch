@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.exception.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 

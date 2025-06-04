@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.user;
 
 import org.apache.http.Header;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -19,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.XPackSettings;

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;

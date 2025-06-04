@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;

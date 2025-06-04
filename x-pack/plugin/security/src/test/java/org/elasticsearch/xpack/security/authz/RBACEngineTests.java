@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.exception.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;

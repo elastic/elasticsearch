@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.translog.TestTranslog;

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;

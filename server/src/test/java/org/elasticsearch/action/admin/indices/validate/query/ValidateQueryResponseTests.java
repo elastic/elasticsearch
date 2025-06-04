@@ -9,10 +9,10 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;

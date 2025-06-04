@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;

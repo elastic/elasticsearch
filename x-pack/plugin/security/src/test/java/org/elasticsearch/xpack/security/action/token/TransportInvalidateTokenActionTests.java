@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -17,6 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.MockLicenseState;

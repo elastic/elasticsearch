@@ -10,7 +10,6 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpInfo;

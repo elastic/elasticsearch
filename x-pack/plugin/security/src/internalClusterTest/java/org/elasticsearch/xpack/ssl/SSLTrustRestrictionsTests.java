@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -14,6 +13,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;

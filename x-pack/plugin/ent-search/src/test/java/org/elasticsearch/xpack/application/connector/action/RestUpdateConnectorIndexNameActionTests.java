@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;

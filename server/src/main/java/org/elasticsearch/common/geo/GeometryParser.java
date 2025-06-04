@@ -9,8 +9,8 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;

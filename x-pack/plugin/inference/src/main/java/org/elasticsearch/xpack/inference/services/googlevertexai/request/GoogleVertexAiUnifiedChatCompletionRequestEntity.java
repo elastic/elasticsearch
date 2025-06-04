@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;

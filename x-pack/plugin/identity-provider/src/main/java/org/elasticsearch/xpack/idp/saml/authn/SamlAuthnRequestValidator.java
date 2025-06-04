@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;

@@ -8,11 +8,11 @@
  */
 package org.elasticsearch.datastreams.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;

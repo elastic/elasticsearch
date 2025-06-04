@@ -9,9 +9,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;

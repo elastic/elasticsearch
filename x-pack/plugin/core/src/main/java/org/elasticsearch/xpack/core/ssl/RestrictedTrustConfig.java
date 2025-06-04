@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 import java.nio.file.Path;

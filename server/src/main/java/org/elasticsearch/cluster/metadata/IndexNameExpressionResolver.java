@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -33,6 +32,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;

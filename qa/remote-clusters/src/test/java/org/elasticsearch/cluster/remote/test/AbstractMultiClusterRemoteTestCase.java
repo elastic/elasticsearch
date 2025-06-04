@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;

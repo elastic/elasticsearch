@@ -21,7 +21,6 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.OperatorException;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObjectGenerator;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.IOException;

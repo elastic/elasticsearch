@@ -7,7 +7,6 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;

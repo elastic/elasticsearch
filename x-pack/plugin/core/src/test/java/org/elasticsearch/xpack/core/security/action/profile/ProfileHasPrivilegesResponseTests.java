@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;

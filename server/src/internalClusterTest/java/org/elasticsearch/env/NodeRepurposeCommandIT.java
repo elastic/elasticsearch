@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;

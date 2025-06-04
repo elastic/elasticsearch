@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;

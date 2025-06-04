@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.LogoutResponse;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -42,6 +41,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;

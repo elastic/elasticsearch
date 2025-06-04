@@ -23,7 +23,6 @@ import io.netty.util.concurrent.ImmediateEventExecutor;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.TransportException;
 

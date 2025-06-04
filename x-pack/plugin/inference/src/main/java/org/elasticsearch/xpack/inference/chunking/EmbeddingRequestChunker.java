@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.chunking;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;

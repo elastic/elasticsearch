@@ -21,8 +21,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.AsciiString;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchWrapperException;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +28,8 @@ import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchWrapperException;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRequest;

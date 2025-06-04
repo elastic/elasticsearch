@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;

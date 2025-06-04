@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;

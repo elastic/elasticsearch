@@ -10,7 +10,6 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;

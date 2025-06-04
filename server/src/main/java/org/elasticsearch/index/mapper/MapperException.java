@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 

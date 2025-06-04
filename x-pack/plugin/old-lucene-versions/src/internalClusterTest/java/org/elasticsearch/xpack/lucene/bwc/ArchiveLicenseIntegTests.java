@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.lucene.bwc;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;

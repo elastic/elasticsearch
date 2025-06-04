@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

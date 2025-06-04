@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;

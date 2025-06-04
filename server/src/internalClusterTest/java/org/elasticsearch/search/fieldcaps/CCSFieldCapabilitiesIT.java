@@ -9,11 +9,11 @@
 
 package org.elasticsearch.search.fieldcaps;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryBuilder;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryPlugin;

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeometryParserFormat;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

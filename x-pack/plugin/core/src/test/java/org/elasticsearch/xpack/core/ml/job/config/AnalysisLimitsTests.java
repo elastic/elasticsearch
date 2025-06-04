@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchParseException;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;

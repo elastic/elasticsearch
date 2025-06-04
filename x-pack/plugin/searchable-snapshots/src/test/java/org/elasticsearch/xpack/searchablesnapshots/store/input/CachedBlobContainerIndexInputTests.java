@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;

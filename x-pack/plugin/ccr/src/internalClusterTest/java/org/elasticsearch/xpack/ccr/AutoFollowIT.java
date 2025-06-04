@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;

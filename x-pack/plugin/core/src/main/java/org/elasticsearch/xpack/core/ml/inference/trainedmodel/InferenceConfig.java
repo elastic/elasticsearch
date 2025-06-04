@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;

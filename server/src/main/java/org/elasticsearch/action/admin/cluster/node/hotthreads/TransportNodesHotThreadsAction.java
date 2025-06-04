@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;

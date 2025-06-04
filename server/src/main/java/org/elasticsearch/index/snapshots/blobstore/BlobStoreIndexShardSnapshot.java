@@ -10,7 +10,6 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xcontent.ParseField;

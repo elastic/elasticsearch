@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;

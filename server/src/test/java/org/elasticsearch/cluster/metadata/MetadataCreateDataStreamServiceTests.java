@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;

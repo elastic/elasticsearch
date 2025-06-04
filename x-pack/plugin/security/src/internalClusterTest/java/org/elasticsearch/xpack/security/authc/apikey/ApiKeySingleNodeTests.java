@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.apikey;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -29,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.TestSecurityClient;

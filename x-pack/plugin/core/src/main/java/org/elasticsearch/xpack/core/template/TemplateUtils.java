@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.template;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 

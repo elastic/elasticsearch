@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;

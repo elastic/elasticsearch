@@ -1165,12 +1165,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             18,
             UNKNOWN_VERSION_ADDED
         ),
-        RESOURCE_NOT_FOUND_EXCEPTION(
-            ResourceNotFoundException.class,
-            ResourceNotFoundException::new,
-            19,
-            UNKNOWN_VERSION_ADDED
-        ),
+        RESOURCE_NOT_FOUND_EXCEPTION(ResourceNotFoundException.class, ResourceNotFoundException::new, 19, UNKNOWN_VERSION_ADDED),
         ACTION_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.ActionTransportException.class,
             org.elasticsearch.transport.ActionTransportException::new,
@@ -1241,12 +1236,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             34,
             UNKNOWN_VERSION_ADDED
         ),
-        ELASTICSEARCH_PARSE_EXCEPTION(
-            ElasticsearchParseException.class,
-            ElasticsearchParseException::new,
-            35,
-            UNKNOWN_VERSION_ADDED
-        ),
+        ELASTICSEARCH_PARSE_EXCEPTION(ElasticsearchParseException.class, ElasticsearchParseException::new, 35, UNKNOWN_VERSION_ADDED),
         SEARCH_EXCEPTION(
             org.elasticsearch.search.SearchException.class,
             org.elasticsearch.search.SearchException::new,
@@ -1389,12 +1379,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         HTTP_EXCEPTION(org.elasticsearch.http.HttpException.class, org.elasticsearch.http.HttpException::new, 67, UNKNOWN_VERSION_ADDED),
-        ELASTICSEARCH_EXCEPTION(
-            ElasticsearchException.class,
-            ElasticsearchException::new,
-            68,
-            UNKNOWN_VERSION_ADDED
-        ),
+        ELASTICSEARCH_EXCEPTION(ElasticsearchException.class, ElasticsearchException::new, 68, UNKNOWN_VERSION_ADDED),
         SNAPSHOT_MISSING_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotMissingException.class,
             org.elasticsearch.snapshots.SnapshotMissingException::new,
@@ -1766,12 +1751,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             144,
             UNKNOWN_VERSION_ADDED
         ),
-        STATUS_EXCEPTION(
-            ElasticsearchStatusException.class,
-            ElasticsearchStatusException::new,
-            145,
-            UNKNOWN_VERSION_ADDED
-        ),
+        STATUS_EXCEPTION(ElasticsearchStatusException.class, ElasticsearchStatusException::new, 145, UNKNOWN_VERSION_ADDED),
         TASK_CANCELLED_EXCEPTION(
             org.elasticsearch.tasks.TaskCancelledException.class,
             org.elasticsearch.tasks.TaskCancelledException::new,

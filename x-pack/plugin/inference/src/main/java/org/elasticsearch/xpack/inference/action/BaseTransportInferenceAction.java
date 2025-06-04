@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -55,8 +55,8 @@ import java.util.concurrent.Flow;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.exception.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.exception.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;

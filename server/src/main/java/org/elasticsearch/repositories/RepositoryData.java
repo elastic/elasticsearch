@@ -9,8 +9,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -21,6 +19,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchParseException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;

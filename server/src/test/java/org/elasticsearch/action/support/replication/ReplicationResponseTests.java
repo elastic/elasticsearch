@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -27,8 +27,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.exception.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.exception.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class ReplicationResponseTests extends ESTestCase {

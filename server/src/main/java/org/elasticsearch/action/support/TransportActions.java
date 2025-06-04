@@ -10,9 +10,9 @@
 package org.elasticsearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;

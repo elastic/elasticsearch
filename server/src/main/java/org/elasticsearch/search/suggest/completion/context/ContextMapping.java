@@ -9,8 +9,8 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;

@@ -9,11 +9,11 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

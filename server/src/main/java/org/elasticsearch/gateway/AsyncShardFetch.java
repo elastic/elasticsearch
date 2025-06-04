@@ -9,8 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -22,6 +20,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 

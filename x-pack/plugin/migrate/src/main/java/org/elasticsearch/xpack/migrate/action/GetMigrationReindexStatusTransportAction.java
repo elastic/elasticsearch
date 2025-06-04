@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -24,6 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;

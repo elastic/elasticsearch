@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Assertions;
@@ -19,6 +17,8 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;

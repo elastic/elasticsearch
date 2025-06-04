@@ -10,7 +10,6 @@
 package org.elasticsearch.get;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;

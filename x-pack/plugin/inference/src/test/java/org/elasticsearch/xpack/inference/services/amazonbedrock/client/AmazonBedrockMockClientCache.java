@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.io.IOException;

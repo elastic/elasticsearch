@@ -9,9 +9,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;

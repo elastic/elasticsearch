@@ -11,10 +11,10 @@ package org.elasticsearch.env;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Objects;

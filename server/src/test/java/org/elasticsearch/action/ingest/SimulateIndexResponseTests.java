@@ -9,11 +9,11 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentType;

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;

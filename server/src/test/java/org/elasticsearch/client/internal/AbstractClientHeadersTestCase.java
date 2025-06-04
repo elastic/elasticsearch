@@ -9,7 +9,6 @@
 
 package org.elasticsearch.client.internal;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;

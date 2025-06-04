@@ -7,7 +7,6 @@
 
 package org.elasticsearch.integration;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;

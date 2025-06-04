@@ -7,8 +7,8 @@
 
 package org.elasticsearch.system_indices.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;

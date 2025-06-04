@@ -9,9 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.exception.ResourceNotFoundException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;

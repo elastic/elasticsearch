@@ -39,7 +39,6 @@ import io.netty.handler.stream.ChunkedWriteHandler;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -62,6 +61,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpBodyTracer;
 import org.elasticsearch.http.HttpServerTransport;

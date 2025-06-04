@@ -9,7 +9,6 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -76,6 +75,7 @@ import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;

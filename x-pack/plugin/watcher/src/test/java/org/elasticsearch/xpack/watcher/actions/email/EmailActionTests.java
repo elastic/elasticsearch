@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions.email;
 
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;

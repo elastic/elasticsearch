@@ -9,7 +9,6 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.support.WriteRequest;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.mapper.DocumentParsingException;

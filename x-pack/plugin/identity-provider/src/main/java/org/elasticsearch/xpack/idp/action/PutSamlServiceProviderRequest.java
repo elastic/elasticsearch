@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 

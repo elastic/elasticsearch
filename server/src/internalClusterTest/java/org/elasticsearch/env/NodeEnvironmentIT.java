@@ -10,11 +10,11 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;

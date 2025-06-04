@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;

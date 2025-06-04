@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;

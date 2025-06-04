@@ -9,10 +9,10 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 

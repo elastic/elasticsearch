@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;

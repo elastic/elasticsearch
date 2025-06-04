@@ -11,7 +11,6 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;

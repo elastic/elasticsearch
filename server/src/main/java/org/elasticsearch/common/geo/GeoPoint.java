@@ -11,8 +11,8 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.BitUtil;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoUtils.EffectivePoint;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;

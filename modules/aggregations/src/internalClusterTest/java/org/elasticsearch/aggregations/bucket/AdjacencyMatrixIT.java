@@ -10,13 +10,13 @@
 package org.elasticsearch.aggregations.bucket;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;

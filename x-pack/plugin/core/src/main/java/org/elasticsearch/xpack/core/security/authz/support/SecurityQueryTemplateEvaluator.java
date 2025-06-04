@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.support;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;

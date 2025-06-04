@@ -9,8 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.util.Collections;
 import java.util.HashMap;

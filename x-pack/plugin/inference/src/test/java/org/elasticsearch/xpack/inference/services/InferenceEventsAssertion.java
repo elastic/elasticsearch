@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.MatcherAssert;

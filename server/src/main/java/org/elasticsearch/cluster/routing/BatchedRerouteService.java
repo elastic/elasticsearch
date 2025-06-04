@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.util.ArrayList;
 import java.util.List;

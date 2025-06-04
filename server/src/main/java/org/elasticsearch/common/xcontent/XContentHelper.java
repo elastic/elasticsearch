@@ -9,8 +9,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.exception.ElasticsearchGenerationException;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -22,6 +20,8 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

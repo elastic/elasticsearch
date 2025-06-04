@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.type.DataType;

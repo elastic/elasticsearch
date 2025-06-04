@@ -9,12 +9,12 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;

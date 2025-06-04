@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

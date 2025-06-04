@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;

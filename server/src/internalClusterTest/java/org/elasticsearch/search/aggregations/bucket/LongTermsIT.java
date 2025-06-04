@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;

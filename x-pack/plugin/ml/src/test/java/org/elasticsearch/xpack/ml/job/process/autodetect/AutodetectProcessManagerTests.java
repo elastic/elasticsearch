@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;

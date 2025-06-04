@@ -11,8 +11,8 @@ package fixture.aws.sts;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;

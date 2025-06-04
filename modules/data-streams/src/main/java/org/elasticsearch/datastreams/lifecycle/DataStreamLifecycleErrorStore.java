@@ -9,12 +9,12 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
 

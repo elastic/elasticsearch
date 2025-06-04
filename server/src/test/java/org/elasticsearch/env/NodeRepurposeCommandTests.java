@@ -10,7 +10,6 @@ package org.elasticsearch.env;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;

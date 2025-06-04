@@ -9,9 +9,9 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 

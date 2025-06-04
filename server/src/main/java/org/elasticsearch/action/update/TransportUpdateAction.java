@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -42,6 +40,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -64,9 +64,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.exception.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportBulkAction.unwrappingSingleItemBulkResponse;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.exception.ExceptionsHelper.unwrapCause;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 

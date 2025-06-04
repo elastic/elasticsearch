@@ -10,9 +10,9 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 import java.util.HashSet;

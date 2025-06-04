@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.idp.saml.test;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.junit.After;

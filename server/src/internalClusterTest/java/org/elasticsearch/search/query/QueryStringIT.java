@@ -9,9 +9,9 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;

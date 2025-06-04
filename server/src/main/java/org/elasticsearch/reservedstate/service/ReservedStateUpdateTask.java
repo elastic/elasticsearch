@@ -32,8 +32,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.exception.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.exception.ExceptionsHelper.stackTrace;
 
 /**
  * Generic task to update and reserve parts of the cluster state

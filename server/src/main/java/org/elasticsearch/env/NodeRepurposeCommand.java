@@ -11,7 +11,6 @@ package org.elasticsearch.env;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 

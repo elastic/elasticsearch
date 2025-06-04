@@ -9,8 +9,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.dissect.DissectException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 

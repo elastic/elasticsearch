@@ -10,11 +10,11 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;

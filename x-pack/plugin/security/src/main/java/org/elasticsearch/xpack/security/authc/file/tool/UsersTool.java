@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.file.tool;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.ProcessInfo;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;

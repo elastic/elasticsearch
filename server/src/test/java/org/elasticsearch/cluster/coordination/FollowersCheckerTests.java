@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionResponse.Empty;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;

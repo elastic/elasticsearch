@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;

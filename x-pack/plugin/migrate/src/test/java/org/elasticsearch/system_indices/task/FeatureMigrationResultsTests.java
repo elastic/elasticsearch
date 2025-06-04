@@ -7,11 +7,11 @@
 
 package org.elasticsearch.system_indices.task;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;

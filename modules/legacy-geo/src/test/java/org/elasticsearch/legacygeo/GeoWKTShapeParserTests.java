@@ -9,11 +9,11 @@
 package org.elasticsearch.legacygeo;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;

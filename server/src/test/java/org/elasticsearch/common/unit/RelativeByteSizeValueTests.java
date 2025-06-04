@@ -9,8 +9,8 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

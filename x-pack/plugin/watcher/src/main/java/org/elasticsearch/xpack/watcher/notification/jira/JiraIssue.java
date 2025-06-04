@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

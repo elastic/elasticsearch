@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;

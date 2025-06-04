@@ -11,9 +11,9 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;

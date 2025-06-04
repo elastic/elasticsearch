@@ -7,10 +7,10 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.integrity;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exception.ResourceNotFoundException;
 
 import java.util.Map;
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.exception.ElasticsearchExceptionTests;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.exception.ElasticsearchExceptionTests;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;

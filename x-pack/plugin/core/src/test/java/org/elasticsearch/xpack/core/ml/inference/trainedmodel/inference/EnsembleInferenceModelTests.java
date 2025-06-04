@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

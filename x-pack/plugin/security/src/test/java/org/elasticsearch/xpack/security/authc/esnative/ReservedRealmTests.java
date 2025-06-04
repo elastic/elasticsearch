@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.elasticsearch.exception.ElasticsearchAuthenticationProcessingError;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -15,6 +13,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchAuthenticationProcessingError;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;

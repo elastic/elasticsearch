@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.threadpool.Scheduler;

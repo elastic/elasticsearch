@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.rollup.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;

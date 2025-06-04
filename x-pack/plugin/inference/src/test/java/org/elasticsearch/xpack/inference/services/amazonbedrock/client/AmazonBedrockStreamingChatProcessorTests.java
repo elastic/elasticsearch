@@ -13,8 +13,8 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEve
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;

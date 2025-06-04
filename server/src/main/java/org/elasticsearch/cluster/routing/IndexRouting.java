@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;

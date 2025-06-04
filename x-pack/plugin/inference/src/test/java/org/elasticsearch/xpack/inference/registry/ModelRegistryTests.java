@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.exception.ResourceNotFoundException;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;

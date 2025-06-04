@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;

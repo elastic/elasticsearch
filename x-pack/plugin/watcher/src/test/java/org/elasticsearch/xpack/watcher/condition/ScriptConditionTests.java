@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;

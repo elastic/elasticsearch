@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentParseException;

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.application.connector.secrets;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;

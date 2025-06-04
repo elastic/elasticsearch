@@ -9,11 +9,11 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;

@@ -9,10 +9,10 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;

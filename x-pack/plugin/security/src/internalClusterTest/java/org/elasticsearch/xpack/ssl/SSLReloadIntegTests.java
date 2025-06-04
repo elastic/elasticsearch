@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;

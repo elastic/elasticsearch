@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;

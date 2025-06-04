@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchWrapperException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;

@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;

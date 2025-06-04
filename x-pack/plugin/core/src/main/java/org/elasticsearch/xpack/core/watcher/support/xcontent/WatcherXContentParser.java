@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;

@@ -11,8 +11,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;

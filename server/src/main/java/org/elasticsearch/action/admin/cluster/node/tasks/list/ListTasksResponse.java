@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;

@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.rest;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.hamcrest.CustomTypeSafeMatcher;

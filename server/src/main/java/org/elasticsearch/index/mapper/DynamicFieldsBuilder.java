@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;

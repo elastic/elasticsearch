@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;

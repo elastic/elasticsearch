@@ -9,9 +9,9 @@
 
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchParseException;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;

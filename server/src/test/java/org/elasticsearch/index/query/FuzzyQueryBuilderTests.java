@@ -13,10 +13,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

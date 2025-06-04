@@ -10,9 +10,9 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.shard.ShardId;
 
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;

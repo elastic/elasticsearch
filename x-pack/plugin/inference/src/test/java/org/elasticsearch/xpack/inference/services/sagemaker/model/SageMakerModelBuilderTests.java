@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;

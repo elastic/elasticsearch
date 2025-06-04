@@ -10,12 +10,12 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;

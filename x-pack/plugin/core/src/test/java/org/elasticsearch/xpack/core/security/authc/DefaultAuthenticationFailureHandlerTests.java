@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;

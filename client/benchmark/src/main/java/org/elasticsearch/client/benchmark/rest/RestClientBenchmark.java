@@ -12,13 +12,13 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.benchmark.AbstractBenchmark;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 import java.util.Collections;

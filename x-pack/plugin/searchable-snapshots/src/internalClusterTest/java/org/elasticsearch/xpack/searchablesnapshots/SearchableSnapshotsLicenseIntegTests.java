@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -19,6 +17,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;

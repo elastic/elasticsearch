@@ -12,7 +12,6 @@ import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.ssl.SslHandshakeTimeoutException;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +38,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;

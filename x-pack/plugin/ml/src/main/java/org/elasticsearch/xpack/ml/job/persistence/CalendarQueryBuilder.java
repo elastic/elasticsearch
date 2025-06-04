@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;

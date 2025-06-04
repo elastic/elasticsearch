@@ -26,7 +26,6 @@ import io.netty.util.ReferenceCounted;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.CountDownActionListener;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;

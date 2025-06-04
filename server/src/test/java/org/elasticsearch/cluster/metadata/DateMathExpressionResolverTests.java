@@ -9,8 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;

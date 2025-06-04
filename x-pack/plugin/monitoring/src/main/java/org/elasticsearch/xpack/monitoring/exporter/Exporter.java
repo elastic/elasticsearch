@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 

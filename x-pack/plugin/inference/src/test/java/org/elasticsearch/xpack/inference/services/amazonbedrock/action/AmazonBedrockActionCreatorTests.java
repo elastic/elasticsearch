@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;

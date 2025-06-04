@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.core.security.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 
 import java.util.ArrayList;
 import java.util.Collection;

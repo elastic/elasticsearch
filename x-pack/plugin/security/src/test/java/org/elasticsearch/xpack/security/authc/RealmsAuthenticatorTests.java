@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.Authentication;

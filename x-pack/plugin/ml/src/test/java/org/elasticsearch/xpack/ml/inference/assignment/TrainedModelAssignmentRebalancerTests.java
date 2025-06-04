@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;

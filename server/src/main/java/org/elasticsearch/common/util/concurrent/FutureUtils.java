@@ -9,9 +9,9 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;

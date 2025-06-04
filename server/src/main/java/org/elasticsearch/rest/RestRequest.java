@@ -10,8 +10,6 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchParseException;
-import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -25,6 +23,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;

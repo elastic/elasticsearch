@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.transform.utils;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;

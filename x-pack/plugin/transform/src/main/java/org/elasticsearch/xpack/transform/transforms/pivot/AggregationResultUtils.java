@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;

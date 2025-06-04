@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContentFragment;

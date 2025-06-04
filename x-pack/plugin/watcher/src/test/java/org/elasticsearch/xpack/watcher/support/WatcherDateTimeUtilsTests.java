@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

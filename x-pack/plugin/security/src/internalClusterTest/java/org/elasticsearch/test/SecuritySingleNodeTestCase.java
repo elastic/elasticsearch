@@ -7,7 +7,6 @@
 package org.elasticsearch.test;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;

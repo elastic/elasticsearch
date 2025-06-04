@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;

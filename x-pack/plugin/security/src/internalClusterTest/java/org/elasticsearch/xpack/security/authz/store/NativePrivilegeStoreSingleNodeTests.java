@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;

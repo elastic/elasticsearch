@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.joni.Matcher;

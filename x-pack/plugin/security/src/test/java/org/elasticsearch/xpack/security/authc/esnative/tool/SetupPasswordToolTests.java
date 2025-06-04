@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;

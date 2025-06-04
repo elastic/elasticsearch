@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -38,6 +36,8 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;

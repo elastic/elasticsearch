@@ -9,11 +9,11 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;

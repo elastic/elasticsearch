@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 
 import java.io.IOException;
 import java.util.Objects;

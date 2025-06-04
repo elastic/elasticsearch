@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -136,6 +135,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;

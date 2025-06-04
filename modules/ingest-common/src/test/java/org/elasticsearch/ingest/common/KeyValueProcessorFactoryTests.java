@@ -9,9 +9,9 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.exception.ElasticsearchParseException;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

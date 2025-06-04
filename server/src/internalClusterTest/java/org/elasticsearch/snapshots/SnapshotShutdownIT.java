@@ -10,7 +10,6 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;

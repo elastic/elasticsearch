@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskManager;

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

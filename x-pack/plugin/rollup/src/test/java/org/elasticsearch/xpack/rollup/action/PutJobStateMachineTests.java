@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;

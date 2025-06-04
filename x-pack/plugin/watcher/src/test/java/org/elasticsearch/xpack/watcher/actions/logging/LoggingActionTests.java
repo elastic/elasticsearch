@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

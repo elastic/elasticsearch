@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

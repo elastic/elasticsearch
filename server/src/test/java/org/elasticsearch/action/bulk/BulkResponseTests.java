@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.exception.ElasticsearchException;
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
@@ -19,6 +17,8 @@ import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,13 +28,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.exception.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
 import static org.elasticsearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
+import static org.elasticsearch.exception.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 

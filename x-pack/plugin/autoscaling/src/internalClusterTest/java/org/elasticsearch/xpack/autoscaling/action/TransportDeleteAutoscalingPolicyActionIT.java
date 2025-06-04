@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;

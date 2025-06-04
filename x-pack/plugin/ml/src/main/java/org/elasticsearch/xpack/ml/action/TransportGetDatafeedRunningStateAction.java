@@ -69,9 +69,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
         List<FailedNodeException> failedNodeExceptions
     ) {
         ExceptionsHelper.rethrowAndSuppress(
-            taskOperationFailures.stream()
-                .map(t -> ExceptionsHelper.convertToElastic(t.getCause()))
-                .collect(Collectors.toList())
+            taskOperationFailures.stream().map(t -> ExceptionsHelper.convertToElastic(t.getCause())).collect(Collectors.toList())
         );
         ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
         return Response.fromResponses(tasks);

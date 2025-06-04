@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;

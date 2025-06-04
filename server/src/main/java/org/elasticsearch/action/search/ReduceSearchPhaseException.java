@@ -9,8 +9,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;

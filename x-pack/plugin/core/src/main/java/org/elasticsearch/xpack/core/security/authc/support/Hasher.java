@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.nio.CharBuffer;
 import java.security.MessageDigest;

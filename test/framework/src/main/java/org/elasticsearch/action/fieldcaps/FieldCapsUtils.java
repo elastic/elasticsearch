@@ -8,9 +8,9 @@
  */
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.net.InetAddress;

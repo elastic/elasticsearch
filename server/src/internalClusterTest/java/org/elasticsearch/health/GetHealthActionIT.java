@@ -9,13 +9,13 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.plugins.HealthPlugin;

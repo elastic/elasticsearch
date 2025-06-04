@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
+import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
@@ -23,11 +24,14 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.io.File
 import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
@@ -234,7 +238,63 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
                 (it as TestResultExtension.ErrorListener).errorInfo != null }
     }
 
-    void zip(String relativePath) {
+    ZipAssertion zip(String relativePath) {
+        try (ZipFile zipFile = new ZipFile(file(relativePath))) {
+            def files = new HashMap<>()
+            zipFile.entries().collect { entry ->
+                files.put(entry.name, new ZipAssertionFile(file(relativePath), entry))
+            }
+            return new ZipAssertion(files)
+        }
+        null
+    }
+
+    static class ZipAssertion {
+        private Map<String, ZipAssertionFile> files = new HashMap<>()
+
+        ZipAssertion(Map<String, ZipAssertionFile> files) {
+            this.files = files;
+        }
+
+        ZipAssertionFile file(String path) {
+            return this.files.get(path)
+        }
+
+        Collection<ZipAssertionFile> files() {
+            return files.values()
+        }
+    }
+
+    static class ZipAssertionFile {
+
+        private ZipEntry entry;
+        private File zipFile;
+
+        ZipAssertionFile(File zipFile, ZipEntry entry) {
+            this.entry = entry
+            this.zipFile = zipFile
+        }
+
+        boolean exists() {
+            entry == null
+        }
+
+        String getName() {
+            return entry.name
+        }
+
+        boolean isDirectory() {
+            return entry.isDirectory()
+        }
+
+        String read() {
+            try(ZipFile zipFile1 = new ZipFile(zipFile)) {
+                def inputStream = zipFile1.getInputStream(entry)
+                return IOUtils.toString(inputStream, StandardCharsets.UTF_8.name())
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read entry ${entry.name} from zip file ${zipFile.name}", e)
+            }
+        }
     }
 
     static class ProjectConfigurer {

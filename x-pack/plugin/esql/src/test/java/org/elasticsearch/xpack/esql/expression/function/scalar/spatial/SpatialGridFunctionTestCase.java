@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -39,26 +38,6 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     @FunctionalInterface
     protected interface TriFunction<T, U, V, R> {
         R apply(T t, U u, V v);
-    }
-
-    /**
-     * All spatial grid functions have one license requirement in common, and that is that they are licensed aty PLATINUM level
-     * oif the spatial field is a shape, otherwise they are licensed at BASIC level. This is to mimic the license requirements
-     * of the spatial aggregations.
-     * @param fieldTypes (null for the function itself, otherwise a map of field named to types)
-     * @return The license requirement for the function with that type signature
-     */
-    protected static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
-        if (fieldTypes == null || fieldTypes.isEmpty()) {
-            // The function itself is not licensed, but the field types are.
-            return License.OperationMode.BASIC;
-        }
-        if (DataType.isSpatialShape(fieldTypes.getFirst())) {
-            // Only aggregations over shapes are licensed under platinum.
-            return License.OperationMode.PLATINUM;
-        }
-        // All other field types are licensed under basic.
-        return License.OperationMode.BASIC;
     }
 
     private static String getFunctionClassName() {
@@ -126,23 +105,23 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
             return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
+                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
+                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         } else {
             return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-                case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
+                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
+                case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
+                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
+                case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).get(0);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }
     }
 
     protected Long process(int precision, BiFunction<BytesRef, Integer, Long> expectedValue) {
-        Object spatialObj = this.testCase.getDataValues().getFirst();
+        Object spatialObj = this.testCase.getDataValues().get(0);
         assumeNotNull(spatialObj);
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
         BytesRef wkb = (BytesRef) spatialObj;
@@ -157,7 +136,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     }
 
     protected Long process(BytesRef bounds, BiFunction<BytesRef, BytesRef, Long> expectedValue) {
-        Object spatialObj = this.testCase.getDataValues().getFirst();
+        Object spatialObj = this.testCase.getDataValues().get(0);
         assumeNotNull(spatialObj);
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
         BytesRef wkb = (BytesRef) spatialObj;

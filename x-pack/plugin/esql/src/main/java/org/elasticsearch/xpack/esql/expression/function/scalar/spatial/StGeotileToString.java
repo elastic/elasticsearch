@@ -44,8 +44,7 @@ public class StGeotileToString extends AbstractConvertFunction implements Evalua
     @FunctionInfo(
         returnType = "keyword",
         description = "Converts an input value representing a geotile grid-ID in long format into a string.",
-        examples = { @Example(file = "spatial-grid", tag = "geotile_to_string") },
-        depthOffset = 1 // make it appear as a subsection of ST_GEOTILE
+        examples = { @Example(file = "spatial-grid", tag = "geotile_to_string") }
     )
     public StGeotileToString(
         Source source,

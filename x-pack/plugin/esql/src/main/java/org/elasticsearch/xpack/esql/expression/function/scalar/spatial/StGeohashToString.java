@@ -44,8 +44,7 @@ public class StGeohashToString extends AbstractConvertFunction implements Evalua
     @FunctionInfo(
         returnType = "keyword",
         description = "Converts an input value representing a geohash grid-ID in long format into a string.",
-        examples = { @Example(file = "spatial-grid", tag = "geohash_to_string") },
-        depthOffset = 1 // make it appear as a subsection of ST_GEOHASH
+        examples = { @Example(file = "spatial-grid", tag = "geohash_to_string") }
     )
     public StGeohashToString(
         Source source,

@@ -44,8 +44,7 @@ public class StGeohashToLong extends AbstractConvertFunction implements Evaluato
     @FunctionInfo(
         returnType = "long",
         description = "Converts an input value representing a geohash grid-ID in string format into a long.",
-        examples = { @Example(file = "spatial-grid", tag = "geohash_to_long") },
-        depthOffset = 1 // make it appear as a subsection of ST_GEOHASH
+        examples = { @Example(file = "spatial-grid", tag = "geohash_to_long") }
     )
     public StGeohashToLong(
         Source source,

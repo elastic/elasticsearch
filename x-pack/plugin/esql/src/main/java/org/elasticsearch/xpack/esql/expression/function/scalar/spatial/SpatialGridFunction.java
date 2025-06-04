@@ -208,7 +208,7 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
         if (gridIds.isEmpty()) {
             results.appendNull();
         } else if (gridIds.size() == 1) {
-            results.appendLong(gridIds.getFirst());
+            results.appendLong(gridIds.get(0));
         } else {
             results.beginPositionEntry();
             for (long gridId : gridIds) {

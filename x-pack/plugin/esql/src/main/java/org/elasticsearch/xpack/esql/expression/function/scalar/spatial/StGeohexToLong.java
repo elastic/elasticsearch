@@ -44,8 +44,7 @@ public class StGeohexToLong extends AbstractConvertFunction implements Evaluator
     @FunctionInfo(
         returnType = "long",
         description = "Converts an input value representing a geohex grid-ID in string format into a long.",
-        examples = { @Example(file = "spatial-grid", tag = "geohex_to_long") },
-        depthOffset = 1 // make it appear as a subsection of ST_GEOHEX
+        examples = { @Example(file = "spatial-grid", tag = "geohex_to_long") }
     )
     public StGeohexToLong(
         Source source,

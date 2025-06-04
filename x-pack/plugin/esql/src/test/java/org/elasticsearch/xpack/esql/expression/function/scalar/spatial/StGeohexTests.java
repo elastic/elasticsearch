@@ -31,14 +31,6 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    /**
-     * Other geo grid functions use the same type-specific license requirement as the spatial aggregations, but geohex is licensed
-     * more strictly, at platinum for all field types.
-     */
-    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
-        return License.OperationMode.PLATINUM;
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();

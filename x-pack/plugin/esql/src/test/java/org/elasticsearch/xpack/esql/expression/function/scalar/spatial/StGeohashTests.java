@@ -31,14 +31,6 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    /**
-     * Since geo grid functions are primarily used for spatial aggregations,
-     * we use the same license requirement as the spatial aggregations.
-     */
-    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
-        return SpatialGridFunctionTestCase.licenseRequirement(fieldTypes);
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();

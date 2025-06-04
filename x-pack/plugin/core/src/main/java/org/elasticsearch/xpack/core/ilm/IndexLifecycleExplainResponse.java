@@ -122,6 +122,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             return BytesReference.bytes(builder);
         }, PREVIOUS_STEP_INFO_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
     }
 
     private final String index;

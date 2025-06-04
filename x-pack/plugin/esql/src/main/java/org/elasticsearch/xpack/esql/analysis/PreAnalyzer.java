@@ -31,7 +31,12 @@ public class PreAnalyzer {
         public final List<InferencePlan<?>> inferencePlans;
         public final List<TableInfo> lookupIndices;
 
-        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches, List<InferencePlan<?>> inferencePlans, List<TableInfo> lookupIndices) {
+        public PreAnalysis(
+            List<TableInfo> indices,
+            List<Enrich> enriches,
+            List<InferencePlan<?>> inferencePlans,
+            List<TableInfo> lookupIndices
+        ) {
             this.indices = indices;
             this.enriches = enriches;
             this.inferencePlans = inferencePlans;

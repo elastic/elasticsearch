@@ -207,7 +207,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, defaultLookupResolution(), enrichResolution, emptyInferenceResolution()),
+            new AnalyzerContext(
+                config,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }

@@ -5321,7 +5321,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution, defaultInferenceResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultAirports,
+                enrichResolution,
+                defaultInferenceResolution()
+            ),
             TEST_VERIFIER
         );
 

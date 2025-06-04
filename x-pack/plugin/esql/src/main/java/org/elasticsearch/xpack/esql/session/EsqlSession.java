@@ -796,7 +796,14 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withIndexResolution(IndexResolution newIndexResolution) {
-            return new PreAnalysisResult(newIndexResolution, lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices(), inferenceResolution());
+            return new PreAnalysisResult(
+                newIndexResolution,
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
@@ -805,11 +812,25 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withFieldNames(Set<String> newFields) {
-            return new PreAnalysisResult(indices(), lookupIndices(), enrichResolution(), newFields, wildcardJoinIndices(), inferenceResolution());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                newFields,
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
         }
 
         public PreAnalysisResult withWildcardJoinIndices(Set<String> wildcardJoinIndices) {
-            return new PreAnalysisResult(indices(), lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices, inferenceResolution());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices,
+                inferenceResolution()
+            );
         }
     }
 }

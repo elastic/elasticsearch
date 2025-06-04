@@ -138,7 +138,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.ingest;
     exports org.elasticsearch.action.resync;
     exports org.elasticsearch.action.search;
-    exports org.elasticsearch.action.search.load;
     exports org.elasticsearch.action.support;
     exports org.elasticsearch.action.support.broadcast;
     exports org.elasticsearch.action.support.broadcast.node;

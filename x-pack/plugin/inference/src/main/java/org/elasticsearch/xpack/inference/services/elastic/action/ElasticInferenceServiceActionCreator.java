@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -75,9 +74,7 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             ),
             QueryAndDocsInputs.class
         );
-        var errorMessage = constructFailedToSendRequestMessage(
-            Strings.format("%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
-        );
+        var errorMessage = constructFailedToSendRequestMessage(Strings.format("%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER));
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

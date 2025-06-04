@@ -43,6 +43,16 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     @Override
     protected LinearRetrieverBuilder createTestInstance() {
         int rankWindowSize = randomInt(100);
+
+        List<String> fields = null;
+        String query = null;
+        ScoreNormalizer normalizer = null;
+        if (randomBoolean()) {
+            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            query = randomAlphaOfLengthBetween(1, 10);
+            normalizer = randomScoreNormalizer();
+        }
+
         int num = randomIntBetween(1, 3);
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>();
         float[] weights = new float[num];
@@ -54,7 +64,8 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
             weights[i] = randomFloat();
             normalizers[i] = randomScoreNormalizer();
         }
-        return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+
+        return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
     }
 
     @Override

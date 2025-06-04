@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
@@ -44,9 +45,6 @@ public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<
     public static Stream<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
         String data = event.data();
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            moveToFirstToken(jsonParser);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, jsonParser.currentToken(), jsonParser);
-
             var chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(jsonParser);
 
             return chunk.choices()
@@ -54,7 +52,7 @@ public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<
                 .map(choice -> choice.delta())
                 .filter(Objects::nonNull)
                 .map(delta -> delta.content())
-                .filter(content -> content != null && content.isEmpty() == false)
+                .filter(content -> Strings.isNullOrEmpty(content) == false)
                 .map(StreamingChatCompletionResults.Result::new);
 
         } catch (IOException e) {

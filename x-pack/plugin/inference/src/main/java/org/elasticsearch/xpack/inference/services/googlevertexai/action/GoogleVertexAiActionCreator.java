@@ -18,15 +18,16 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRerankRequestManager;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
 
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -41,10 +42,17 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
 
     private final ServiceComponents serviceComponents;
 
-    static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
+    static final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
         "Google VertexAI chat completion"
     );
-    static final ResponseHandler CHAT_COMPLETION_HANDLER = new GoogleVertexAiChatCompletionResponseHandler("Google VertexAI completion");
+
+    static final ResponseHandler CHAT_COMPLETION_HANDLER = new GoogleVertexAiResponseHandler(
+        "Google VertexAI completion",
+        GoogleVertexAiCompletionResponseEntity::fromResponse,
+        GoogleVertexAiUnifiedChatCompletionResponseHandler.GoogleVertexAiErrorResponse::fromResponse,
+        true
+    );
+
     static final String USER_ROLE = "user";
 
     public GoogleVertexAiActionCreator(Sender sender, ServiceComponents serviceComponents) {
@@ -78,7 +86,7 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
-            UNIFIED_CHAT_COMPLETION_HANDLER,
+            COMPLETION_HANDLER,
             inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
             ChatCompletionInput.class
         );

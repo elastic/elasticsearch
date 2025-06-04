@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.UNIFIED_CHAT_COMPLETION_HANDLER;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.COMPLETION_HANDLER;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.USER_ROLE;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -130,7 +130,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         var manager = new GenericRequestManager<>(
             threadPool,
             model,
-            UNIFIED_CHAT_COMPLETION_HANDLER,
+                COMPLETION_HANDLER,
             inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
             ChatCompletionInput.class
         );

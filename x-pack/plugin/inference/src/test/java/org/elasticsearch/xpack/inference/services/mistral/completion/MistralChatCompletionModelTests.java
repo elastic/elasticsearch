@@ -29,6 +29,18 @@ public class MistralChatCompletionModelTests extends ESTestCase {
         );
     }
 
+    public static MistralChatCompletionModel createCompletionModel(String url, String apiKey, String modelId) {
+        MistralChatCompletionModel mistralChatCompletionModel = new MistralChatCompletionModel(
+            "id",
+            TaskType.COMPLETION,
+            "service",
+            new MistralChatCompletionServiceSettings(modelId, null),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+        mistralChatCompletionModel.setURI(url);
+        return mistralChatCompletionModel;
+    }
+
     public static MistralChatCompletionModel createChatCompletionModel(String apiKey, String modelId) {
         return new MistralChatCompletionModel(
             "id",
@@ -37,6 +49,18 @@ public class MistralChatCompletionModelTests extends ESTestCase {
             new MistralChatCompletionServiceSettings(modelId, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
+    }
+
+    public static MistralChatCompletionModel createChatCompletionModel(String url, String apiKey, String modelId) {
+        MistralChatCompletionModel mistralChatCompletionModel = new MistralChatCompletionModel(
+            "id",
+            TaskType.CHAT_COMPLETION,
+            "service",
+            new MistralChatCompletionServiceSettings(modelId, null),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+        mistralChatCompletionModel.setURI(url);
+        return mistralChatCompletionModel;
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {

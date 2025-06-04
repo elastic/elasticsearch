@@ -102,6 +102,9 @@ public class StEnvelope extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
+        if (dataType == null) {
+            resolveType();
+        }
         return dataType;
     }
 

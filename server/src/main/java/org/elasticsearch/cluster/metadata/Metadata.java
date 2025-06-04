@@ -1716,13 +1716,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return putProjectCustom(type, custom);
         }
 
-        @Deprecated(forRemoval = true)
-        public Builder putDefaultProjectCustom(String type, ProjectCustom custom) {
-            assert projectMetadata.containsKey(ProjectId.DEFAULT) : projectMetadata.keySet();
-            getProject(ProjectId.DEFAULT).putCustom(type, custom);
-            return this;
-        }
-
         public ClusterCustom getCustom(String type) {
             return customs.get(type);
         }

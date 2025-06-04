@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      cluster_features: [ "gte_v8.13.0" ]
       reason: "Exact subfields fixed in v 8.13"
       test_runner_features: allowed_warnings_regex
   - do:
@@ -45,12 +45,15 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "emp_no": 10, "text_ignore_above":"this is a long text", "text_normalizer": "CamelCase", "non_indexed": "foo"}
+          - { "emp_no": 10, "text_ignore_above": "this is a long text", "text_normalizer": "CamelCase", "non_indexed": "foo" }
           - { "index": { } }
-          - { "emp_no": 20, "text_ignore_above":"this", "text_normalizer": "abc", "non_indexed": "bar"}
+          - { "emp_no": 20, "text_ignore_above": "this", "text_normalizer": "abc", "non_indexed": "bar" }
 
 ---
 "extract":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -72,11 +75,14 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
-  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ] }
 
 ---
 "filter ignore above":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -98,7 +104,7 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
 
   - do:
       allowed_warnings_regex:
@@ -121,7 +127,7 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
 
   - do:
@@ -191,10 +197,13 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
 ---
-"filter with normalizer":
+"filter with normalizer 1":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -216,15 +225,19 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
-
+---
+"filter with normalizer 2":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_normalizer == text_normalizer.raw | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
+          query: 'from test | where text_normalizer == text_normalizer.raw | SORT emp_no | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -239,11 +252,15 @@ setup:
   - match: { columns.5.name: "non_indexed.raw" }
   - match: { columns.5.type: "keyword" }
 
-  - length: { values: 1 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - length: { values: 2 }
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ] }
 
 ---
 "sort ignore above":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -265,8 +282,8 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
+  - match: { values.1: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
   - do:
       allowed_warnings_regex:
@@ -289,8 +306,8 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
-  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ] }
 
   - do:
       allowed_warnings_regex:
@@ -313,8 +330,8 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
+  - match: { values.1: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
   - do:
       allowed_warnings_regex:
@@ -337,11 +354,14 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
+  - match: { values.1: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
 ---
-"sort normalizer":
+"sort normalizer 1":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -363,9 +383,14 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
-  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
+  - match: { values.1: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
+---
+"sort normalizer 2":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -387,9 +412,14 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ] }
 
+---
+"sort normalizer 3":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -411,12 +441,15 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
+  - match: { values.1: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
 
 ---
 "non indexed":
+  - requires:
+      cluster_features: "mapper.keyword.keyword_normalizer_synthetic_source"
+      reason: "Behavior changed in #126623"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -438,8 +471,8 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ] }
+  - match: { values.1: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
 
   - do:
       allowed_warnings_regex:
@@ -462,8 +495,8 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
-  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ] }
 
   - do:
       allowed_warnings_regex:
@@ -486,4 +519,4 @@ setup:
   - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.0: [ "this is a long text", null, "camelcase", "camelcase", "foo", "foo" ] }

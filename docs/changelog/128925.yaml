@@ -1,0 +1,5 @@
+pr: 128925
+summary: Take `match_phrase` out of snapshot and make tech preview
+area: ES|QL
+type: enhancement
+issues: []

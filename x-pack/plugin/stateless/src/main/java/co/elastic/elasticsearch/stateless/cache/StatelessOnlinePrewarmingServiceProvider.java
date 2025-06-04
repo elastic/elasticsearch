@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class StatelessOnlinePrewarmingServiceProvider implements OnlinePrewarmingServiceProvider {
@@ -40,9 +41,19 @@ public class StatelessOnlinePrewarmingServiceProvider implements OnlinePrewarmin
     }
 
     @Override
-    public OnlinePrewarmingService create(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
+    public OnlinePrewarmingService create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TelemetryProvider provider
+    ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new StatelessOnlinePrewarmingService(settings, threadPool, plugin.getStatelessSharedBlobCacheService());
+            return new StatelessOnlinePrewarmingService(
+                settings,
+                threadPool,
+                plugin.getStatelessSharedBlobCacheService(),
+                provider.getMeterRegistry()
+            );
         } else {
             // the index tier can coordinate searches but we must not prewarm the cache
             // on the index tier

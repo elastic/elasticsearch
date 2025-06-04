@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -44,7 +45,17 @@ public class TestStatelessOnlinePrewarmingServiceProvider implements OnlinePrewa
     }
 
     @Override
-    public OnlinePrewarmingService create(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
-        return new StatelessOnlinePrewarmingService(settings, threadPool, plugin.getStatelessSharedBlobCacheService());
+    public OnlinePrewarmingService create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TelemetryProvider telemetryProvider
+    ) {
+        return new StatelessOnlinePrewarmingService(
+            settings,
+            threadPool,
+            plugin.getStatelessSharedBlobCacheService(),
+            telemetryProvider.getMeterRegistry()
+        );
     }
 }

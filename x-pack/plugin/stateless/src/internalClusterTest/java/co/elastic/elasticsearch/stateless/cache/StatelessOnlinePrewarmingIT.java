@@ -36,7 +36,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -44,8 +47,11 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService.SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME;
+import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService.SHARD_TOOK_DURATION_HISTOGRAM_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -76,6 +82,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -149,6 +156,18 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         assertThat(statsAfterFirstPrewarm.writeBytes() - statsBeforePrewarming.writeBytes(), greaterThan(0L));
 
         assertThat(bytesWarmedAfterFirstPrewarming - bytesWarmedBeforePrewarming, is(greaterThan(0L)));
+
+        TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, DiscoveryNodeRole.SEARCH_ROLE)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        List<Measurement> shardTookTimes = testTelemetryPlugin.getLongHistogramMeasurement(SHARD_TOOK_DURATION_HISTOGRAM_NAME);
+        List<Measurement> segmentsPrewarmingWaitTimes = testTelemetryPlugin.getLongHistogramMeasurement(
+            SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME
+        );
+        // we should be recording telemetry for online prewarming
+        assertThat(shardTookTimes.size(), is(greaterThan(0)));
+        assertThat(segmentsPrewarmingWaitTimes.size(), is(greaterThan(0)));
 
         // second prewarming call should be a no-op as we prewarmed everything already
         PlainActionFuture<Void> secondPrewarmingFuture = new PlainActionFuture<>();

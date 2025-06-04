@@ -423,3 +423,12 @@ emp_no:integer |first_name:keyword
 10001          |Georgi
 10055          |Georgy
 ;
+
+# test for https://github.com/elastic/elasticsearch/issues/128813
+rlikeWithEmptyLanguagePattern
+ROW x = "abc" | EVAL bool = x RLIKE "#"
+;
+
+x:keyword | bool:boolean
+abc       | false
+;

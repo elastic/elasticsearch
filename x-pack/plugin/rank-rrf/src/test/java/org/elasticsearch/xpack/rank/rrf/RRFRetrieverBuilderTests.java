@@ -96,6 +96,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null
         );
 
+        // No wildcards
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
@@ -111,7 +112,31 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "foo"
         );
 
-        // TODO: Test with wildcard resolution
+        // Glob matching on inference and non-inference fields
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*", "*_field_1"),
+            "bar",
+            10,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+        );
+        assertSimplifiedParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_*", 1.0f, "*_field_1", 1.0f),
+            Map.of("semantic_field_1", 1.0f),
+            "bar"
+        );
+
+        // All-fields wildcard
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(null, List.of("*"), "baz", 10, RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT);
+        assertSimplifiedParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("*", 1.0f),
+            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
+            "baz"
+        );
     }
 
     @Override

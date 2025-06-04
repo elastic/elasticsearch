@@ -237,7 +237,7 @@ public class EsqlSession {
         Holder<LogicalPlanTuple> subPlan = new Holder<>();
         // Collect the first inlinejoin (bottom up in the tree or, viewing from the user-friendly query pov, the closest to ES source
         // inlinestats command)
-        optimizedPlan.forEachUp(InlineJoin.class,  ij -> {
+        optimizedPlan.forEachUp(InlineJoin.class, ij -> {
             // extract the right side of the plan and replace its source
             if (subPlan.get() == null && ij.right().anyMatch(p -> p instanceof StubRelation)) {
                 var p = InlineJoin.replaceStub(ij.left(), ij.right());
@@ -267,8 +267,9 @@ public class EsqlSession {
                 LocalRelation resultWrapper = resultToPlan(subPlans.nonStubbedSubPlan, result);
 
                 // replace the original logical plan with the backing result
-                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(InlineJoin.class, ij ->
-                    ij.right() == subPlans.originalSubPlan ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+                    InlineJoin.class,
+                    ij -> ij.right() == subPlans.originalSubPlan ? InlineJoin.inlineData(ij, resultWrapper) : ij
                 );
                 newLogicalPlan.setOptimized();
                 // look for the next inlinejoin plan

@@ -213,7 +213,7 @@ class KnnSearcher {
             36
         );
         String nnFileName = "nn-" + hash + ".bin";
-        Path nnPath = Paths.get(nnFileName);
+        Path nnPath = Paths.get("target/" + nnFileName);
         if (Files.exists(nnPath)) {
             logger.info("read pre-cached exact match vectors from cache file \"" + nnPath + "\"");
             return readExactNN(nnPath);
@@ -352,7 +352,7 @@ class KnnSearcher {
                 for (int i = 0; i < numQueryVectors; i++) {
                     float[] queryVector = new float[dim];
                     queryReader.next(queryVector);
-                    tasks.add(new ComputeNNFloatTask(i, queryVector, result, reader, similarityFunction));
+                    tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, similarityFunction));
                 }
                 ForkJoinPool.commonPool().invokeAll(tasks);
             }
@@ -384,19 +384,27 @@ class KnnSearcher {
         private final int[][] result;
         private final IndexReader reader;
         private final VectorSimilarityFunction similarityFunction;
+        private final int topK;
 
-        ComputeNNFloatTask(int queryOrd, float[] query, int[][] result, IndexReader reader, VectorSimilarityFunction similarityFunction) {
+        ComputeNNFloatTask(
+            int queryOrd,
+            int topK,
+            float[] query,
+            int[][] result,
+            IndexReader reader,
+            VectorSimilarityFunction similarityFunction
+        ) {
             this.queryOrd = queryOrd;
             this.query = query;
             this.result = result;
             this.reader = reader;
             this.similarityFunction = similarityFunction;
+            this.topK = topK;
         }
 
         @Override
         public Void call() {
             IndexSearcher searcher = new IndexSearcher(reader);
-            int topK = result[0].length;
             try {
                 var queryVector = new ConstKnnFloatValueSource(query);
                 var docVectors = new FloatKnnVectorFieldSource(VECTOR_FIELD);

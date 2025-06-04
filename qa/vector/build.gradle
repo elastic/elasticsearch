@@ -26,10 +26,16 @@ tasks.register("checkVec", JavaExec) {
   mainClass.set("org.elasticsearch.test.knn.KnnIndexTester")
   // TODO REGISTER ARGS
   args = [
-    "--docVectors=<path>",
+    "--docVectors=/some/path",
     "--numDocs=100000",
-    "--reindex",
-    "--queryVectors=<path>",
+    //"--reindex",
+    //"--forceMerge",
+    "--queryVectors=/some/other/path",
     "--dimensions=768",
+    "--overSamplingFactor=3",
+    "--nProbe=5"
   ]
+  if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
+    jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED', '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8'
+  }
 }

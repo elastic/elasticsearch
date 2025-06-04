@@ -135,7 +135,7 @@ class KnnIndexTester {
         int hnswEfConstruction = 100;
         int searchThreads = 1;
         int indexThreads = 1;
-        boolean reindex = true;
+        boolean reindex = false;
         boolean forceMerge = false;
         VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
         // 32 means no quantization
@@ -205,10 +205,10 @@ class KnnIndexTester {
         StringBuilder resultHeaders = new StringBuilder();
         StringBuilder resultValues = new StringBuilder();
         // indicate params used for index creation
-        resultHeaders.append("index_type,");
-        resultValues.append(cmdLineArgs.indexType).append(",");
-        resultHeaders.append("num_docs,");
-        resultValues.append(cmdLineArgs.numDocs).append(",");
+        resultHeaders.append("index_type\t");
+        resultValues.append(cmdLineArgs.indexType).append("\t");
+        resultHeaders.append("num_docs\t");
+        resultValues.append(cmdLineArgs.numDocs).append("\t");
         if (cmdLineArgs.reindex || cmdLineArgs.forceMerge) {
             KnnIndexer knnIndexer = new KnnIndexer(
                 cmdLineArgs.docVectors,
@@ -230,28 +230,27 @@ class KnnIndexTester {
             }
         }
         if (indexCreationTimeMS > 0) {
-            resultHeaders.append("index_time(ms)").append(",");
-            resultValues.append(indexCreationTimeMS).append(",");
+            resultHeaders.append("index_time(ms)").append("\t");
+            resultValues.append(indexCreationTimeMS).append("\t");
         }
         if (forceMergeTimeMS > 0) {
-            resultHeaders.append("force_merge_time(ms)").append(",");
-            resultValues.append(forceMergeTimeMS).append(",");
+            resultHeaders.append("force_merge_time(ms)").append("\t");
+            resultValues.append(forceMergeTimeMS).append("\t");
         }
-        resultHeaders.append("num_segments,");
-        resultValues.append(numSegments).append(",");
+        resultHeaders.append("num_segments\t");
+        resultValues.append(numSegments).append("\t");
 
         if (cmdLineArgs.queryVectors != null) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
             KnnSearcher.SearcherResults results = knnSearcher.runSearch();
-            resultHeaders.append("latency(ms),");
-            resultValues.append(results.avgLatency()).append(",");
-            resultHeaders.append("qps,");
-            resultValues.append(results.qps()).append(",");
-            resultHeaders.append("recall,");
-            resultValues.append(results.avgRecall()).append(",");
-            resultHeaders.append("visited,");
-            resultValues.append(results.averageVisited()).append(",");
-            return;
+            resultHeaders.append("latency(ms)\t");
+            resultValues.append(results.avgLatency()).append("\t");
+            resultHeaders.append("qps\t");
+            resultValues.append(results.qps()).append("\t");
+            resultHeaders.append("recall\t");
+            resultValues.append(results.avgRecall()).append("\t");
+            resultHeaders.append("visited\t");
+            resultValues.append(results.averageVisited()).append("\t");
         }
         System.out.println(resultHeaders);
         System.out.println(resultValues);

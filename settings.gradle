@@ -172,4 +172,4 @@ if (extraProjects.exists()) {
   }
 }
 
-include 'test:external-modules:vector'
+include 'qa:vector'

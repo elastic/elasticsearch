@@ -830,8 +830,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 listener,
                 () -> clusterService.state().nodes().stream().collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> {
                     final long maxHeap = randomNonNegativeLong();
-                    final long freeHeap = (long) (randomFloat() * maxHeap);
-                    return new HeapUsage(node.getId(), node.getName(), maxHeap, freeHeap);
+                    final long usedHeap = (long) (randomFloat() * maxHeap);
+                    return new HeapUsage(node.getId(), node.getName(), maxHeap, usedHeap);
                 }))
             );
         }

@@ -21,7 +21,11 @@ import java.io.IOException;
 /**
  * Record representing the heap usage for a single cluster node
  */
-public record HeapUsage(String nodeId, String nodeName, long totalBytes, long freeBytes) implements ToXContentFragment, Writeable {
+public record HeapUsage(String nodeId, String nodeName, long totalBytes, long usedBytes) implements ToXContentFragment, Writeable {
+
+    public HeapUsage {
+        assert usedBytes <= totalBytes;
+    }
 
     public HeapUsage(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readVLong(), in.readVLong());
@@ -32,14 +36,14 @@ public record HeapUsage(String nodeId, String nodeName, long totalBytes, long fr
         out.writeString(this.nodeId);
         out.writeString(this.nodeName);
         out.writeVLong(this.totalBytes);
-        out.writeVLong(this.freeBytes);
+        out.writeVLong(this.usedBytes);
     }
 
     public XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("node_name", this.nodeName);
         builder.humanReadableField("total_heap_bytes", "total", ByteSizeValue.ofBytes(this.totalBytes));
-        builder.humanReadableField("used_heap_bytes", "used", ByteSizeValue.ofBytes(this.usedBytes()));
-        builder.humanReadableField("free_heap_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes));
+        builder.humanReadableField("used_heap_bytes", "used", ByteSizeValue.ofBytes(this.usedBytes));
+        builder.humanReadableField("free_heap_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes()));
         builder.field("free_heap_percent", truncatePercent(this.freeHeapAsPercentage()));
         builder.field("used_heap_percent", truncatePercent(this.usedHeapAsPercentage()));
         return builder;
@@ -53,15 +57,15 @@ public record HeapUsage(String nodeId, String nodeName, long totalBytes, long fr
     }
 
     public double freeHeapAsPercentage() {
-        return 100.0 * freeBytes / (double) totalBytes;
+        return 100.0 - usedHeapAsPercentage();
     }
 
     public double usedHeapAsPercentage() {
-        return 100.0 - freeHeapAsPercentage();
+        return 100.0 * usedBytes / (double) totalBytes;
     }
 
-    public long usedBytes() {
-        return totalBytes - freeBytes;
+    public long freeBytes() {
+        return totalBytes - usedBytes;
     }
 
     private static double truncatePercent(double pct) {

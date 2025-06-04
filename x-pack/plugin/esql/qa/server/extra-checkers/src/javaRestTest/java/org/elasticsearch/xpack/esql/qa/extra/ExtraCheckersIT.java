@@ -19,8 +19,6 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
-import javax.swing.text.html.parser.Entity;
-
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;

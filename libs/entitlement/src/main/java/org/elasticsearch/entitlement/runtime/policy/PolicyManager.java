@@ -141,17 +141,17 @@ public class PolicyManager {
         }
     }
 
-    private FileAccessTree getDefaultFileAccess(Path componentPath) {
-        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPath);
+    private FileAccessTree getDefaultFileAccess(Iterable<Path> componentPaths) {
+        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPaths);
     }
 
     // pkg private for testing
-    ModuleEntitlements defaultEntitlements(String componentName, Path componentPath, String moduleName) {
-        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPath), getLogger(componentName, moduleName));
+    ModuleEntitlements defaultEntitlements(String componentName, Iterable<Path> componentPaths, String moduleName) {
+        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPaths), getLogger(componentName, moduleName));
     }
 
     // pkg private for testing
-    ModuleEntitlements policyEntitlements(String componentName, Path componentPath, String moduleName, List<Entitlement> entitlements) {
+    ModuleEntitlements policyEntitlements(String componentName, Iterable<Path> componentPaths, String moduleName, List<Entitlement> entitlements) {
         FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
         for (Entitlement entitlement : entitlements) {
             if (entitlement instanceof FilesEntitlement) {
@@ -161,7 +161,7 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths),
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths),
             getLogger(componentName, moduleName)
         );
     }
@@ -203,7 +203,7 @@ public class PolicyManager {
         .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
         .collect(Collectors.toUnmodifiableSet());
 
-    private final Map<String, Path> pluginSourcePaths;
+    private final Map<String, Iterable<Path>> pluginSourcePaths;
 
     /**
      * Paths that are only allowed for a single module. Used to generate
@@ -217,7 +217,7 @@ public class PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Path> pluginSourcePaths,
+        Map<String, Iterable<Path>> pluginSourcePaths,
         PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -352,13 +352,13 @@ public class PolicyManager {
         Map<String, List<Entitlement>> scopeEntitlements,
         String scopeName,
         String componentName,
-        Path componentPath
+        Iterable<Path> componentPaths
     ) {
         var entitlements = scopeEntitlements.get(scopeName);
         if (entitlements == null) {
-            return defaultEntitlements(componentName, componentPath, scopeName);
+            return defaultEntitlements(componentName, componentPaths, scopeName);
         }
-        return policyEntitlements(componentName, componentPath, scopeName, entitlements);
+        return policyEntitlements(componentName, componentPaths, scopeName, entitlements);
     }
 
     /**

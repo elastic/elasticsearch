@@ -89,7 +89,7 @@ public class EntitlementInitialization {
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         PathLookup pathLookup,
-        Map<String, Path> sourcePaths,
+        Map<String, Iterable<Path>> sourcePaths,
         Set<Package> suppressFailureLogPackages,
         PolicyManager policyManager
     ) {

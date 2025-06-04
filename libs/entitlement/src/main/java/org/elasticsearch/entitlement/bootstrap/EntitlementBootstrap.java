@@ -66,7 +66,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
-        Map<String, Path> pluginSourcePaths,
+        Map<String, Iterable<Path>> pluginSourcePaths,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -160,7 +160,7 @@ public class EntitlementBootstrap {
         }
     }
 
-    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Path> pluginSourcePaths) {
+    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Iterable<Path>> pluginSourcePaths) {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         return new PolicyManager(

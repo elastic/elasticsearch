@@ -26,7 +26,7 @@ public class TestPolicyManager extends PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Path> pluginSourcePaths,
+        Map<String, Iterable<Path>> pluginSourcePaths,
         PathLookup pathLookup
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);

@@ -163,4 +163,28 @@ public class TextTests extends ESTestCase {
         }
     }
 
+    public void testRandomized() {
+        int stringLength = randomInt(128);
+        String value = randomUnicodeOfLength(stringLength);
+        byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
+        var encoded = new XContentString.UTF8Bytes(encodedArr);
+
+        Text text = switch (randomInt(2)) {
+            case 0 -> new Text(value);
+            case 1 -> new Text(encoded);
+            default -> new Text(encoded, stringLength);
+        };
+
+        for (int i = 0; i < 20; i++) {
+            switch (randomInt(5)) {
+                case 0 -> assertEquals(encoded, text.bytes());
+                case 1 -> assertSame(text.bytes(), text.bytes());
+                case 2 -> assertEquals(value, text.string());
+                case 3 -> assertEquals(value, text.toString());
+                case 4 -> assertEquals(stringLength, text.stringLength());
+                case 5 -> assertEquals(new Text(value), text);
+            }
+        }
+    }
+
 }

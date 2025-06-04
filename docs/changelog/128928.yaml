@@ -1,0 +1,5 @@
+pr: 128928
+summary: Fix `SnapshotStats` toXContent()/fromXContent() round trip serialization
+area: Snapshot/Restore
+type: bug
+issues: []

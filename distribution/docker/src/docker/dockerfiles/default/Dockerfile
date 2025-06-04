@@ -112,7 +112,6 @@ RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
-
 EXPOSE 9200 9300
 
 LABEL org.label-schema.build-date="${build_date}" \\

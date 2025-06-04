@@ -45,6 +45,8 @@ public final class SearchCapabilities {
     /** Support deprecated window_size field in rank. */
     private static final String RRF_WINDOW_SIZE_SUPPORT_DEPRECATED = "rrf_window_size_support_deprecated";
 
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -63,6 +65,7 @@ public final class SearchCapabilities {
             capabilities.add(KQL_QUERY_SUPPORTED);
         }
         capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

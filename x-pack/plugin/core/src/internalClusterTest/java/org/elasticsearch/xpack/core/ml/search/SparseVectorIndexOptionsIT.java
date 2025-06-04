@@ -176,8 +176,12 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private SearchSourceBuilder getBuilderForSearch() throws IOException {
         boolean shouldUseDefaultTokens = (testQueryShouldNotPrune == false && testHasIndexOptions == false);
-        TokenPruningConfig queryPruningConfig = overrideQueryPruningConfig ? new TokenPruningConfig(3f, 0.5f, true) : null;
+
+        // if we're overriding the index pruning config in the query, always prune
+        // if not, and the query should _not_ prune, set prune=false,
+        // else, set to `null` to let the index options propagate
         Boolean shouldPrune = overrideQueryPruningConfig ? Boolean.TRUE : (testQueryShouldNotPrune ? Boolean.FALSE : null);
+        TokenPruningConfig queryPruningConfig = overrideQueryPruningConfig ? new TokenPruningConfig(3f, 0.5f, true) : null;
 
         SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(
             SPARSE_VECTOR_FIELD,
@@ -206,7 +210,11 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     private String getDescriptiveTestType() {
         String testDescription = "";
         if (testQueryShouldNotPrune) {
-            testDescription = "query override prune=false:";
+            testDescription += " query override prune=false:";
+        }
+
+        if (overrideQueryPruningConfig) {
+            testDescription += " query override pruningConfig=true:";
         }
 
         if (testHasIndexOptions) {
@@ -232,19 +240,16 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     );
 
     private static final List<WeightedToken> SEARCH_WEIGHTED_TOKENS = List.of(
-        new WeightedToken("cheese", 0.5f),
-        new WeightedToken("comet", 0.5f),
-        new WeightedToken("globe", 0.484035f),
-        new WeightedToken("ocean", 0.080102935f),
-        new WeightedToken("underground", 0.053516876f),
-        new WeightedToken("is", 0.54600334f)
+        new WeightedToken("pugs", 0.5f),
+        new WeightedToken("cats", 0.5f),
+        new WeightedToken("is", 0.14600334f)
     );
 
     private static final List<WeightedToken> SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS = List.of(new WeightedToken("planet", 0.2f));
 
-    private static final List<String> EXPECTED_DOC_IDS_WITHOUT_PRUNING = List.of("1", "3", "2");
+    private static final List<String> EXPECTED_DOC_IDS_WITHOUT_PRUNING = List.of("3", "2", "1");
 
-    private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of("3");
+    private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of();
 
     private static final List<String> EXPECTED_DOC_IDS_WITH_DEFAULT_PRUNING = List.of("2");
 

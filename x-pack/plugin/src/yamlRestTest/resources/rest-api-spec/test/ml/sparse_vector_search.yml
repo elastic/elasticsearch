@@ -887,3 +887,60 @@ teardown:
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "2" }
+
+---
+"Check sparse_vector should prune by default":
+
+  - requires:
+      cluster_features: 'sparse_vector.index_options_supported'
+      reason: "sparse_vector token pruning index options added support in 8.19"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      indices.create:
+        index: test-sparse-vector-pruning-default
+        body:
+          mappings:
+            properties:
+              content_embedding:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
+        Content-Type: application/json
+      bulk:
+        index: test-sparse-vector-pruning-default
+        refresh: true
+        body: |
+          {"index": { "_id": "1" }}
+          {"content_embedding":{"cheese": 2.671405,"is": 0.11809908,"comet": 0.26088917}}
+          {"index": { "_id": "2" }}
+          {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
+          {"index": { "_id": "3" }}
+          {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+
+  - do:
+      search:
+        index: test-sparse-vector-pruning-default
+        body:
+          query:
+            sparse_vector:
+              field: content_embedding
+              query_vector:
+                cheese: 0.5
+                comet: 0.5
+                globe: 0.484035
+                ocean: 0.080102935
+                underground: 0.053516876
+                is: 0.54600334
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }

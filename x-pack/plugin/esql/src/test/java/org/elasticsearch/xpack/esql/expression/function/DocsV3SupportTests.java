@@ -415,10 +415,7 @@ public class DocsV3SupportTests extends ESTestCase {
                     file = "stats",
                     tag = "count-or-null"
                 ) },
-            appliesTo = {
-                @FunctionAppliesTo(
-                    lifeCycle = FunctionAppliesToLifecycle.COMING
-                ) }
+            appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "9.1.0") }
         )
         public TestClass(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
             String expression. If `null`, the function returns `null`.

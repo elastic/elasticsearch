@@ -1,0 +1,7 @@
+pr: 105773
+summary: Inject an unfollow action before executing a downsample action in ILM
+area: ILM+SLM
+type: bug
+issues:
+ - 105773
+

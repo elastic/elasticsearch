@@ -20,6 +20,7 @@ import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
@@ -30,6 +31,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.initInstrumentation;
 
 /**
  * Test-specific version of {@code EntitlementInitialization}
@@ -45,7 +48,8 @@ public class TestEntitlementInitialization {
     }
 
     public static void initialize(Instrumentation inst) throws Exception {
-        checker = EntitlementInitialization.initChecker(inst, createPolicyManager(initializeArgs.pathLookup()));
+        checker = EntitlementInitialization.initChecker(createPolicyManager(initializeArgs.pathLookup()));
+        initInstrumentation(inst);
     }
 
     public record InitializeArgs(PathLookup pathLookup) {}
@@ -106,7 +110,7 @@ public class TestEntitlementInitialization {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        PolicyManager policyManager = new PolicyManager(
+        return new TestPolicyManager(
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
@@ -114,7 +118,6 @@ public class TestEntitlementInitialization {
             Map.of(),
             pathLookup
         );
-        throw new IllegalStateException("Not yet implemented!");
     }
 
 }

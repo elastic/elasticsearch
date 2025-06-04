@@ -82,7 +82,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -97,7 +96,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,
         TEXT,
-        SEMANTIC_TEXT,
         BOOLEAN,
         DATETIME,
         DATE_NANOS,

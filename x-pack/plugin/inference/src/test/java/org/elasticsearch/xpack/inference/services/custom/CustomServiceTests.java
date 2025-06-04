@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -25,7 +26,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.services.AbstractServiceTests;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.inference.services.custom.response.RerankResponse
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.inference.services.custom.response.SparseE
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CustomServiceTests extends AbstractServiceTests {
+public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public CustomServiceTests() {
         super(createTestConfiguration());
@@ -123,7 +123,7 @@ public class CustomServiceTests extends AbstractServiceTests {
         assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
         assertThat(
             customModel.getSecretSettings().getSecretParameters(),
-            is(Map.of("test_key", new SerializableSecureString("test_value")))
+            is(Map.of("test_key", new SecureString("test_value".toCharArray())))
         );
 
         return customModel;
@@ -150,7 +150,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 QueryParameters.QUERY_PARAMETERS,
                 List.of(List.of("key", "value")),
                 CustomServiceSettings.REQUEST,
-                new HashMap<>(Map.of(CustomServiceSettings.REQUEST_CONTENT, "request body")),
+                "request body",
                 CustomServiceSettings.RESPONSE,
                 new HashMap<>(
                     Map.of(
@@ -249,7 +249,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 new ErrorResponseParser("$.error.message", inferenceId)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
+            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
         );
     }
 
@@ -271,7 +271,7 @@ public class CustomServiceTests extends AbstractServiceTests {
                 new ErrorResponseParser("$.error.message", inferenceId)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SerializableSecureString("test_value")))
+            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
         );
     }
 

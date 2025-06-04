@@ -41,6 +41,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.unknown_field_mapping_update_error_message"
     );
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
+    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -69,6 +70,7 @@ public class MapperFeatures implements FeatureSpecification {
             NPE_ON_DIMS_UPDATE_FIX,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            IVF_FORMAT_CLUSTER_FEATURE,
             KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE
         );
     }

@@ -75,7 +75,15 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         casesForString(cases, "ascii string", () -> randomAlphaOfLengthBetween(2, 100), true, escapeString, optionalPattern);
         casesForString(cases, "3 bytes, 1 code point", () -> "☕", false, escapeString, optionalPattern);
         casesForString(cases, "6 bytes, 2 code points", () -> "❗️", false, escapeString, optionalPattern);
-        casesForString(cases, "100 random code points", () -> randomUnicodeOfCodepointLength(100), true, escapeString, optionalPattern);
+        casesForString(
+            cases,
+            "100 random code points",
+            () -> randomUnicodeOfCodepointLength(100),
+            true,
+            false, // 8.x's Lucene doesn't support case-insensitive matching for Unicode code points, only ASCII
+            escapeString,
+            optionalPattern
+        );
         return parameterSuppliersFromTypedData(cases);
     }
 
@@ -89,49 +97,62 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         Function<String, String> escapeString,
         Supplier<String> optionalPattern
     ) {
+        casesForString(cases, title, textSupplier, canGenerateDifferent, true, escapeString, optionalPattern );
+    }
+
+    private static void casesForString(
+        List<TestCaseSupplier> cases,
+        String title,
+        Supplier<String> textSupplier,
+        boolean canGenerateDifferent,
+        boolean canGenerateCaseInsensitive,
+        Function<String, String> escapeString,
+        Supplier<String> optionalPattern
+    ) {
         cases(cases, title + " matches self", () -> {
             String text = textSupplier.get();
             return new TextAndPattern(text, escapeString.apply(text));
         }, true);
-        cases(cases, title + " matches self case insensitive", () -> {
-            // RegExp doesn't support case-insensitive matching for Unicodes whose length changes when the case changes.
-            // Example: a case-insensitive ES regexp query for the pattern `weiß` won't match the value `WEISS` (but will match `WEIß`).
-            // Or `ŉ` (U+0149) vs. `ʼN` (U+02BC U+004E).
-            String text, caseChanged;
-            for (text = textSupplier.get(), caseChanged = randomCasing(text); text.length() != caseChanged.length();) {
-                text = textSupplier.get();
-                caseChanged = randomCasing(text);
-            }
-            return new TextAndPattern(caseChanged, escapeString.apply(text));
-        }, true, true);
+        if (canGenerateCaseInsensitive) {
+            cases(cases, title + " matches self case insensitive", () -> {
+                String text = textSupplier.get();
+                return new TextAndPattern(randomCasing(text), escapeString.apply(text));
+            }, true, true);
+        }
         cases(cases, title + " doesn't match self with trailing", () -> {
             String text = textSupplier.get();
             return new TextAndPattern(text, escapeString.apply(text) + randomAlphaOfLength(1));
         }, false);
-        cases(cases, title + " doesn't match self with trailing case insensitive", () -> {
-            String text = textSupplier.get();
-            return new TextAndPattern(randomCasing(text), escapeString.apply(text) + randomAlphaOfLength(1));
-        }, true, false);
+        if (canGenerateCaseInsensitive) {
+            cases(cases, title + " doesn't match self with trailing case insensitive", () -> {
+                String text = textSupplier.get();
+                return new TextAndPattern(randomCasing(text), escapeString.apply(text) + randomAlphaOfLength(1));
+            }, true, false);
+        }
         cases(cases, title + " matches self with optional trailing", () -> {
             String text = randomAlphaOfLength(1);
             return new TextAndPattern(text, escapeString.apply(text) + optionalPattern.get());
         }, true);
-        cases(cases, title + " matches self with optional trailing case insensitive", () -> {
-            String text = randomAlphaOfLength(1);
-            return new TextAndPattern(randomCasing(text), escapeString.apply(text) + optionalPattern.get());
-        }, true, true);
+        if (canGenerateCaseInsensitive) {
+            cases(cases, title + " matches self with optional trailing case insensitive", () -> {
+                String text = randomAlphaOfLength(1);
+                return new TextAndPattern(randomCasing(text), escapeString.apply(text) + optionalPattern.get());
+            }, true, true);
+        }
         if (canGenerateDifferent) {
             cases(cases, title + " doesn't match different", () -> {
                 String text = textSupplier.get();
                 String different = escapeString.apply(randomValueOtherThan(text, textSupplier));
                 return new TextAndPattern(text, different);
             }, false);
-            cases(cases, title + " doesn't match different case insensitive", () -> {
-                String text = textSupplier.get();
-                Predicate<String> predicate = t -> t.toLowerCase(Locale.ROOT).equals(text.toLowerCase(Locale.ROOT));
-                String different = escapeString.apply(randomValueOtherThanMany(predicate, textSupplier));
-                return new TextAndPattern(text, different);
-            }, true, false);
+            if (canGenerateCaseInsensitive) {
+                cases(cases, title + " doesn't match different case insensitive", () -> {
+                    String text = textSupplier.get();
+                    Predicate<String> predicate = t -> t.toLowerCase(Locale.ROOT).equals(text.toLowerCase(Locale.ROOT));
+                    String different = escapeString.apply(randomValueOtherThanMany(predicate, textSupplier));
+                    return new TextAndPattern(text, different);
+                }, true, false);
+            }
         }
     }
 

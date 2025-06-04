@@ -558,6 +558,9 @@ tests:
 - class: org.elasticsearch.upgrades.IndexSortUpgradeIT
   method: testIndexSortForNumericTypes {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/128863
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test150MachineDependentHeap
+  issue: https://github.com/elastic/elasticsearch/issues/128120
 
 # Examples:
 #

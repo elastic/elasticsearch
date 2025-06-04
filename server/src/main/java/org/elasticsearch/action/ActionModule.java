@@ -183,8 +183,6 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
-import org.elasticsearch.action.search.load.ShardSearchLoadStatsAction;
-import org.elasticsearch.action.search.load.TransportShardSearchLoadStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -746,7 +744,6 @@ public class ActionModule extends AbstractModule {
         actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
         actions.register(MasterHistoryAction.INSTANCE, MasterHistoryAction.TransportAction.class);
         actions.register(CoordinationDiagnosticsAction.INSTANCE, CoordinationDiagnosticsAction.TransportAction.class);
-        actions.register(ShardSearchLoadStatsAction.INSTANCE, TransportShardSearchLoadStatsAction.class);
 
         // Indexed scripts
         actions.register(TransportPutStoredScriptAction.TYPE, TransportPutStoredScriptAction.class);

@@ -839,19 +839,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public static class BogusHeapUsagePlugin extends Plugin implements ClusterPlugin {
 
-        private BogusHeapUsageSupplier bogusHeapUsageSupplier;
-
         public BogusHeapUsagePlugin() {}
 
         @Override
         public Collection<?> createComponents(PluginServices services) {
-            bogusHeapUsageSupplier = new BogusHeapUsageSupplier(services.clusterService());
-            return Collections.singletonList(bogusHeapUsageSupplier);
-        }
-
-        @Override
-        public HeapUsageSupplier getHeapUsageSupplier() {
-            return bogusHeapUsageSupplier;
+            BogusHeapUsageSupplier bogusHeapUsageSupplier = new BogusHeapUsageSupplier(services.clusterService());
+            services.allocationService().setHeapUsageSupplier(bogusHeapUsageSupplier);
+            return List.of();
         }
     }
 }

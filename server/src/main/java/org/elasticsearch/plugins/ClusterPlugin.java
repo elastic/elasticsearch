@@ -9,7 +9,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cluster.HeapUsageSupplier;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -40,16 +39,6 @@ public interface ClusterPlugin {
      */
     default Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyList();
-    }
-
-    /**
-     * Create a {@link HeapUsageSupplier} that will be used to determine the approximate heap usage for all
-     * cluster nodes
-     * <p>
-     * Note: Only a single {@link ClusterPlugin} can define a heap usage supplier.
-     */
-    default HeapUsageSupplier getHeapUsageSupplier() {
-        return null;
     }
 
     /**

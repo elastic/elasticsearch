@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
@@ -341,7 +340,6 @@ class NodeConstruction {
     private TerminationHandler terminationHandler;
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
-    private ClusterInfoService clusterInfoService;
 
     private NodeConstruction(List<Closeable> resourcesToClose) {
         this.resourcesToClose = resourcesToClose;
@@ -735,7 +733,13 @@ class NodeConstruction {
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
-        this.clusterInfoService = serviceProvider.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
+        final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
+            pluginsService,
+            settings,
+            clusterService,
+            threadPool,
+            client
+        );
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             settings,
             clusterService,
@@ -986,9 +990,6 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        if (clusterInfoService instanceof InternalClusterInfoService icis) {
-            icis.setHeapUsageSupplier(serviceProvider.newHeapUsageSupplier(pluginsService));
-        }
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

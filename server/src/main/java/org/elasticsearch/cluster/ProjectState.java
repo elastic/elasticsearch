@@ -84,7 +84,7 @@ public final class ProjectState {
         if (metadata() == updatedProject) {
             return this;
         }
-        if (updatedProject.id() != this.project) {
+        if (project.equals(updatedProject.id()) == false) {
             throw new IllegalArgumentException(
                 Strings.format(
                     "Unable to update project state with project ID [%s] because updated project has ID [%s]",

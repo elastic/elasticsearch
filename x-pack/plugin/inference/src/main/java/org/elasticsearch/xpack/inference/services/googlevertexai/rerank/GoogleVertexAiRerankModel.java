@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleV
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -131,5 +132,18 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
                 format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
             )
             .build();
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project, region, model and endpoint.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
+        var projectId = getServiceSettings().projectId();
+        var modelId = getServiceSettings().modelId();
+
+        // In this case, we don't include the location since it's a global endpoint
+        return Objects.hash(projectId, modelId);
     }
 }

@@ -25,9 +25,6 @@ import java.util.Deque;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-
 public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, InferenceServiceResults.Result> {
 
     @Override

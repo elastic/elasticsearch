@@ -156,4 +156,25 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             .setCustomQuery(GoogleVertexAiUtils.QUERY_PARAM_ALT_SSE)
             .build();
     }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project, region, model and endpoint.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
+        var projectId = getServiceSettings().projectId();
+        var location = getServiceSettings().location();
+        var modelId = getServiceSettings().modelId();
+
+        // Since we don't beforehand know which API is going to be used, we take a conservative approach and
+        // count both endpoint for the rate limit
+        return Objects.hash(
+            projectId,
+            location,
+            modelId,
+            GoogleVertexAiUtils.GENERATE_CONTENT,
+            GoogleVertexAiUtils.STREAM_GENERATE_CONTENT
+        );
+    }
 }

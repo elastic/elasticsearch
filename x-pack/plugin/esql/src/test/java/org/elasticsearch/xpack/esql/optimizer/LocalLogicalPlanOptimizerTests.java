@@ -653,7 +653,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var rlike = as(filter.condition(), RLike.class);
         var field = as(rlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
+        assertThat(field.fieldName().toString(), is("first_name"));
         assertThat(rlike.pattern().pattern(), is("VALÜ*"));
         assertThat(rlike.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);
@@ -667,7 +667,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var rlike = as(filter.condition(), RLike.class);
         var field = as(rlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
+        assertThat(field.fieldName().toString(), is("first_name"));
         assertThat(rlike.pattern().pattern(), is("valü*"));
         assertThat(rlike.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);
@@ -692,7 +692,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var wlike = as(filter.condition(), WildcardLike.class);
         var field = as(wlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
+        assertThat(field.fieldName().toString(), is("first_name"));
         assertThat(wlike.pattern().pattern(), is("VALÜ*"));
         assertThat(wlike.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);
@@ -706,7 +706,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var wlike = as(filter.condition(), WildcardLike.class);
         var field = as(wlike.field(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
+        assertThat(field.fieldName().toString(), is("first_name"));
         assertThat(wlike.pattern().pattern(), is("valü*"));
         assertThat(wlike.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);

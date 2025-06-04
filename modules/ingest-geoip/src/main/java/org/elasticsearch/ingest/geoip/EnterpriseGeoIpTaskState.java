@@ -146,7 +146,6 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
      * @return the geoip downloader's task state or null if there is not a state to read
      */
     @Nullable
-    @Deprecated(forRemoval = true)
     static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ClusterState state) {
         PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER);
         return (task == null) ? null : (EnterpriseGeoIpTaskState) task.getState();

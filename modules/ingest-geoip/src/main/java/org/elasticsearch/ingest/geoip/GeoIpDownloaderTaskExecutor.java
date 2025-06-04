@@ -53,7 +53,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -107,9 +106,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
 
-    private final ConcurrentMap<ProjectId, AtomicBoolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
-    private final ConcurrentMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
-    private final ConcurrentMap<ProjectId, AtomicReference<GeoIpDownloader>> tasks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, AtomicBoolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, AtomicReference<GeoIpDownloader>> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
     GeoIpDownloaderTaskExecutor(
@@ -410,7 +409,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private void startTask(Runnable onFailure) {
         assert projectResolver.getProjectId() != null : "projectId must be set before starting geoIp download task";
         persistentTasksService.sendStartRequest(
-            getTaskId(projectResolver.getProjectId(), projectResolver.supportsMultipleProjects()),
+            getTaskId(projectResolver.getProjectId()),
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
@@ -439,7 +438,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
         );
         persistentTasksService.sendRemoveRequest(
-            getTaskId(projectId, projectResolver.supportsMultipleProjects()),
+            getTaskId(projectId),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.runAfter(listener, () -> {
                 IndexAbstraction databasesAbstraction = clusterService.state()
@@ -472,7 +471,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         return null;
     }
 
-    public static String getTaskId(ProjectId projectId, boolean supportsMultipleProjects) {
-        return supportsMultipleProjects ? projectId + "/" + GEOIP_DOWNLOADER : GEOIP_DOWNLOADER;
+    private String getTaskId(ProjectId projectId) {
+        return projectResolver.supportsMultipleProjects() ? projectId + "/" + GEOIP_DOWNLOADER : GEOIP_DOWNLOADER;
     }
 }

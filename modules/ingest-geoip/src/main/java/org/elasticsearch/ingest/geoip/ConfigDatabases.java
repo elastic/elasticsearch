@@ -39,7 +39,6 @@ final class ConfigDatabases implements Closeable {
     private final GeoIpCache cache;
     private final Path geoipConfigDir;
 
-    // private final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> configDatabasesByProject;
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     ConfigDatabases(Environment environment, GeoIpCache cache) {

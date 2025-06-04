@@ -9,8 +9,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
 /**
  * Provides construction and initialization logic for {@link IpDatabase} instances.
  */
@@ -22,17 +20,15 @@ public interface IpDatabaseProvider {
      * Verifying database expiration is left to each provider implementation to determine. A return value of <code>false</code> does not
      * preclude the possibility of a provider returning <code>true</code> in the future.
      *
-     * @param projectId projectId to look for database.
      * @param name the name of the database to provide.
      * @return <code>false</code> IFF the requested database file is expired,
      *         <code>true</code> for all other cases (including unknown file name, file missing, wrong database type, etc).
      */
-    Boolean isValid(ProjectId projectId, String name);
+    Boolean isValid(String name);
 
     /**
-     * @param projectId projectId to look for database.
      * @param name the name of the database to provide.
      * @return a ready-to-use database instance, or <code>null</code> if no database could be loaded.
      */
-    IpDatabase getDatabase(ProjectId projectId, String name);
+    IpDatabase getDatabase(String name);
 }

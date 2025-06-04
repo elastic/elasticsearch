@@ -21,12 +21,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -88,7 +88,6 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.getTaskId;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
@@ -136,12 +135,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
         databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize(
-            "nodeId",
-            resourceWatcherService,
-            ingestService,
-            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
-        );
+        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService);
     }
 
     @After
@@ -154,22 +148,21 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testCheckDatabases() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
-        ProjectId projectId = randomProjectIdOrDefault();
-        String taskId = getTaskId(projectId, randomBoolean());
+        String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        ClusterState state = createClusterState(projectId, tasksCustomMetadata);
+        ClusterState state = createClusterState(tasksCustomMetadata);
 
         int numPipelinesToBeReloaded = randomInt(4);
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
-        assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
         databaseNodeService.checkDatabases(state);
-        DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoIP2-City.mmdb");
+        DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
         verify(ingestService, times(0)).reloadPipeline(any(), anyString());
@@ -183,11 +176,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         );
         tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        state = createClusterState(projectId, tasksCustomMetadata);
+        state = createClusterState(tasksCustomMetadata);
 
         // Database should be downloaded
         databaseNodeService.checkDatabases(state);
-        database = databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoIP2-City.mmdb");
+        database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
         verify(client, times(10)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
@@ -201,13 +194,12 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testCheckDatabases_dontCheckDatabaseOnNonIngestNode() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
-        ProjectId projectId = randomProjectIdOrDefault();
-        String taskId = getTaskId(projectId, randomBoolean());
+        String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        ClusterState state = ClusterState.builder(createClusterState(projectId, tasksCustomMetadata))
+        ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
                     DiscoveryNodeUtils.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
@@ -216,7 +208,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             .build();
 
         databaseNodeService.checkDatabases(state);
-        assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
@@ -225,19 +217,18 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testCheckDatabases_dontCheckDatabaseWhenNoDatabasesIndex() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 0, 9);
-        ProjectId projectId = randomProjectIdOrDefault();
-        String taskId = getTaskId(projectId, randomBoolean());
+        String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
-            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(TYPE, tasksCustomMetadata))
+            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
             .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
         databaseNodeService.checkDatabases(state);
-        assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
@@ -247,13 +238,12 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void testCheckDatabases_dontCheckDatabaseWhenGeoIpDownloadTask() throws Exception {
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(0L, Map.of());
 
-        ProjectId projectId = randomProjectIdOrDefault();
-        ClusterState state = createClusterState(projectId, tasksCustomMetadata);
+        ClusterState state = createClusterState(tasksCustomMetadata);
 
         mockSearches("GeoIP2-City.mmdb", 0, 9);
 
         databaseNodeService.checkDatabases(state);
-        assertThat(databaseNodeService.getDatabase(projectId, "GeoIP2-City.mmdb"), nullValue());
+        assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
@@ -262,7 +252,6 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testRetrieveDatabase() throws Exception {
         String md5 = mockSearches("_name", 0, 29);
-        ProjectId projectId = randomProjectIdOrDefault();
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 29, md5, 10);
 
         @SuppressWarnings("unchecked")
@@ -271,7 +260,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         CheckedRunnable<Exception> completedHandler = mock(CheckedRunnable.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
-        databaseNodeService.retrieveDatabase(projectId, "_name", md5, metadata, chunkConsumer, completedHandler, failureHandler);
+        databaseNodeService.retrieveDatabase("_name", md5, metadata, chunkConsumer, completedHandler, failureHandler);
         verify(failureHandler, never()).accept(any());
         verify(chunkConsumer, times(30)).accept(any());
         verify(completedHandler, times(1)).run();
@@ -280,7 +269,6 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testRetrieveDatabaseCorruption() throws Exception {
         String md5 = mockSearches("_name", 0, 9);
-        ProjectId projectId = randomProjectIdOrDefault();
         String incorrectMd5 = "different";
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(-1, 0, 9, incorrectMd5, 10);
 
@@ -290,7 +278,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         CheckedRunnable<Exception> completedHandler = mock(CheckedRunnable.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
-        databaseNodeService.retrieveDatabase(projectId, "_name", incorrectMd5, metadata, chunkConsumer, completedHandler, failureHandler);
+        databaseNodeService.retrieveDatabase("_name", incorrectMd5, metadata, chunkConsumer, completedHandler, failureHandler);
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(failureHandler, times(1)).accept(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getAllValues().size(), equalTo(1));
@@ -305,11 +293,10 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     public void testUpdateDatabase() throws Exception {
         int numPipelinesToBeReloaded = randomInt(4);
-        ProjectId projectId = randomProjectIdOrDefault();
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
         when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
-        databaseNodeService.updateDatabase(projectId, "_name", "_md5", geoIpTmpDir.resolve("some-file"));
+        databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
 
         // Updating the first time may trigger a reload.
         verify(clusterService, times(1)).addListener(any());
@@ -321,7 +308,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         reset(ingestService);
 
         // Subsequent updates shouldn't trigger a reload.
-        databaseNodeService.updateDatabase(projectId, "_name", "_md5", geoIpTmpDir.resolve("some-file"));
+        databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
         verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
     }
@@ -379,8 +366,16 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return MessageDigests.toHexString(md.digest());
     }
 
+    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
+        return createClusterState(Metadata.DEFAULT_PROJECT_ID, tasksCustomMetadata, false);
+    }
+
     static ClusterState createClusterState(ProjectId projectId, PersistentTasksCustomMetadata tasksCustomMetadata) {
         return createClusterState(projectId, tasksCustomMetadata, false);
+    }
+
+    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata, boolean noStartedShards) {
+        return createClusterState(Metadata.DEFAULT_PROJECT_ID, tasksCustomMetadata, noStartedShards);
     }
 
     static ClusterState createClusterState(

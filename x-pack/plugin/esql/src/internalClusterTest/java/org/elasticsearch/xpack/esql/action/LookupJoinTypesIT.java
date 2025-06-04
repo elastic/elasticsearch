@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -174,6 +175,19 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
         }
 
+        // Tests for mixed-date/time types
+        var dateTypes = List.of(DATETIME, DATE_NANOS);
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("mixed-temporal", TestConfigs::new);
+            for (DataType mainType : dateTypes) {
+                for (DataType lookupType : dateTypes) {
+                    if (mainType != lookupType) {
+                        configs.addFails(mainType, lookupType);
+                    }
+                }
+            }
+        }
+
         // Tests for all unsupported types
         DataType[] unsupported = Join.UNSUPPORTED_TYPES;
         {
@@ -199,7 +213,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Tests for all types where left and right are the same type
-        DataType[] supported = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD, SCALED_FLOAT };
+        DataType[] supported = {
+            BOOLEAN,
+            LONG,
+            INTEGER,
+            DOUBLE,
+            SHORT,
+            BYTE,
+            FLOAT,
+            HALF_FLOAT,
+            DATETIME,
+            DATE_NANOS,
+            IP,
+            KEYWORD,
+            SCALED_FLOAT };
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
@@ -273,6 +300,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     public void testLookupJoinMixedNumerical() {
         testLookupJoinTypes("mixed-numerical");
+    }
+
+    public void testLookupJoinMixedTemporal() {
+        testLookupJoinTypes("mixed-temporal");
     }
 
     public void testLookupJoinSame() {

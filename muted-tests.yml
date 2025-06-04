@@ -486,27 +486,39 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test124CanRestartContainerWithStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128121
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
-  method: testSymlinkUpdateTriggerReload
-  issue: https://github.com/elastic/elasticsearch/issues/128619
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test085EnvironmentVariablesAreRespectedUnderDockerExec
   issue: https://github.com/elastic/elasticsearch/issues/128115
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128676
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128677
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128705
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128706
-- class: org.elasticsearch.repositories.s3.S3ClientsManagerTests
-  method: testClientsLifeCycleForSingleProject
-  issue: https://github.com/elastic/elasticsearch/issues/128707
+- class: org.elasticsearch.compute.operator.LimitOperatorTests
+  method: testEarlyTermination
+  issue: https://github.com/elastic/elasticsearch/issues/128721
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test040JavaUsesTheOsProvidedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128230
+- class: org.elasticsearch.xpack.rank.rrf.LinearRankClientYamlTestSuiteIT
+  method: test {yaml=linear/10_linear_retriever/should normalize initial scores with l2_norm}
+  issue: https://github.com/elastic/elasticsearch/issues/128774
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128799
+- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128800
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIOUsed
+  issue: https://github.com/elastic/elasticsearch/issues/128829
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/128861
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/128862
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/128863
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test150MachineDependentHeap
+  issue: https://github.com/elastic/elasticsearch/issues/128120
 
 # Examples:
 #

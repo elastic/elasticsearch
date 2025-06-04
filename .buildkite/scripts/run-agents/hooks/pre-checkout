@@ -9,7 +9,9 @@ mkdir -p "$HOME/git-wrapper"
 cat << 'EOF' > "$HOME/git-wrapper/git"
 #!/bin/bash
 
-if [[ "${1:-}" == "submodule" || "${1:-}" == "clone" ]]; then exit 0; fi
+if [[ -z "${SKIP_GIT_WRAPPER:-}" ]]; then
+  if [[ "${1:-}" == "submodule" || "${1:-}" == "clone" || "${1:-}" == "clean" ]]; then exit 0; fi
+fi
 
 "$ES_ORIGINAL_GIT_BINARY" "${@}"
 EOF
@@ -18,6 +20,7 @@ chmod +x "$HOME/git-wrapper/git"
 
 export PATH="$HOME/git-wrapper:$PATH"
 
+rm -rf "${BUILDKITE_BUILD_CHECKOUT_PATH}"
 git init "${BUILDKITE_BUILD_CHECKOUT_PATH}"
 git --git-dir "${BUILDKITE_BUILD_CHECKOUT_PATH}/.git" remote add origin "${BUILDKITE_REPO}"
 git --git-dir "${BUILDKITE_BUILD_CHECKOUT_PATH}/.git" sparse-checkout init --cone

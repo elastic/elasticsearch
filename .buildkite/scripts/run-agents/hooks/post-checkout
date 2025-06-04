@@ -8,3 +8,5 @@
 # fi
 
 # git checkout HEAD
+
+export SKIP_GIT_WRAPPER=true

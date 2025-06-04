@@ -194,7 +194,7 @@ alias-pattern-multiple:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [2] indices" }
+  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [4] indices" }
 
 ---
 alias-pattern-single:

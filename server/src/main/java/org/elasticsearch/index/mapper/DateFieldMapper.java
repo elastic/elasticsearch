@@ -589,7 +589,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
         }
 
-        public DateFieldType(String name, boolean isIndexed) {
+        public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
             this(
                 name,
                 isIndexed,
@@ -599,11 +599,15 @@ public final class DateFieldMapper extends FieldMapper {
                 false,
                 false,
                 DEFAULT_DATE_TIME_FORMATTER,
-                Resolution.MILLISECONDS,
+                resolution,
                 null,
                 null,
                 Collections.emptyMap()
             );
+        }
+
+        public DateFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, Resolution.MILLISECONDS);
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -822,14 +826,17 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         /**
-         * When the date value is already fully parsed and available as a long, use this method to skip parsing.
+         * Similar to the {@link DateFieldType#termQuery} method, but works on dates that are already parsed to a long
+         * in the same precision as the field mapper.
          */
         public Query equalityQuery(Long value, @Nullable SearchExecutionContext context) {
             return rangeQuery(value, value, true, true, context);
         }
 
         /**
-         * When the date value is already fully parsed and available as a long, use this method to skip parsing.
+         * Similar to the existing
+         * {@link DateFieldType#rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, SearchExecutionContext)}
+         * method, but works on dates that are already parsed to a long in the same precision as the field mapper.
          */
         public Query rangeQuery(
             Long lowerTerm,

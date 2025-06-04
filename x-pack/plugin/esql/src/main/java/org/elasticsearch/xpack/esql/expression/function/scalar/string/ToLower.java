@@ -28,14 +28,10 @@ public class ToLower extends ChangeCase {
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to lower case.",
-<<<<<<< HEAD
-        examples = { @Example(file = "string", tag = "to_lower"), @Example(file = "string", tag = "to_lower_mv") }
-=======
         examples = {
             @Example(file = "string", tag = "to_lower"),
-            @Example(file = "string", tag = "to_lower_mv", applies_to = "stack: ga 9.1") }
->>>>>>> d836aa8538b24a7906b4db3939b6ff183b43e90a
-    )
+            @Example(file = "string", tag = "to_lower_mv")}
+            )
 
     public ToLower(Source source, @Param(
         name = "str",

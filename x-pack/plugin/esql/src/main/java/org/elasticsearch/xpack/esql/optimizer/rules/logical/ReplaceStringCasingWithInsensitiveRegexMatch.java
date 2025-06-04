@@ -36,16 +36,16 @@ public class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules
     }
 
     private static Expression insensitiveRegexMatch(RegexMatch<? extends StringPattern> regexMatch) {
-        return switch (regexMatch) {
-            case RLike rlike -> new RLike(rlike.source(), unwrapCase(rlike.field()), rlike.pattern(), true);
-            case WildcardLike wildcardLike -> new WildcardLike(
+        if (regexMatch instanceof RLike rLike) {
+            return new RLike(rLike.source(), unwrapCase(rLike.field()), rLike.pattern(), true);
+        } else if (regexMatch instanceof WildcardLike wildcardLike) {
+            return new WildcardLike(
                 wildcardLike.source(),
                 unwrapCase(wildcardLike.field()),
                 wildcardLike.pattern(),
                 true
             );
-            default -> regexMatch;
-        };
+        }
+        return regexMatch;
     }
-
 }

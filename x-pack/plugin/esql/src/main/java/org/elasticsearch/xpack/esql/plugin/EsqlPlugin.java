@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -190,7 +189,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    private SetOnce<List<Verifier.ExtraCheckers>> extraCheckers = new SetOnce<>();
+    private final List<Verifier.ExtraCheckers> extraCheckers = new ArrayList<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -210,7 +209,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
-                extraCheckers.get()
+                extraCheckers
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -343,6 +342,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        extraCheckers.set(loader.loadExtensions(Verifier.ExtraCheckers.class));
+        extraCheckers.addAll(loader.loadExtensions(Verifier.ExtraCheckers.class));
     }
 }

@@ -18,6 +18,7 @@ esplugin {
 dependencies {
   compileOnly project(':x-pack:plugin:esql')
   compileOnly project(':x-pack:plugin:esql-core')
+  clusterPlugins project(':x-pack:plugin:esql:qa:server:extra-checkers')
 }
 
 tasks.named('javaRestTest') {

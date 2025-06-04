@@ -204,9 +204,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
-- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
-  method: testChildrenTasksCancelledOnTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/123568
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/123773
@@ -495,9 +492,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
-- class: org.elasticsearch.xpack.rank.rrf.LinearRankClientYamlTestSuiteIT
-  method: test {yaml=linear/10_linear_retriever/should normalize initial scores with l2_norm}
-  issue: https://github.com/elastic/elasticsearch/issues/128774
 - class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
   method: testSimpleOffHeapSizeFSDir
   issue: https://github.com/elastic/elasticsearch/issues/128799
@@ -507,18 +501,6 @@ tests:
 - class: org.elasticsearch.index.store.DirectIOIT
   method: testDirectIOUsed
   issue: https://github.com/elastic/elasticsearch/issues/128829
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/190_lookup_join/alias-repeated-index}
-  issue: https://github.com/elastic/elasticsearch/issues/128849
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/190_lookup_join/alias-repeated-alias}
-  issue: https://github.com/elastic/elasticsearch/issues/128850
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/190_lookup_join/alias-pattern-single}
-  issue: https://github.com/elastic/elasticsearch/issues/128855
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/191_lookup_join_on_datastreams/data streams supported in LOOKUP JOIN}
-  issue: https://github.com/elastic/elasticsearch/issues/128856
 - class: org.elasticsearch.upgrades.IndexSortUpgradeIT
   method: testIndexSortForNumericTypes {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/128861

@@ -134,7 +134,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(13));
+        assertThat(services.size(), equalTo(14));
 
         var providers = providers(services);
 

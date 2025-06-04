@@ -20,6 +20,15 @@
 * experimental:[] <<esql-st_xmin>>
 * experimental:[] <<esql-st_ymax>>
 * experimental:[] <<esql-st_ymin>>
+* experimental_[] <<esql-st_geohash>>
+* experimental_[] <<esql-st_geohash_to_long>>
+* experimental_[] <<esql-st_geohash_to_string>>
+* experimental_[] <<esql-st_geotile>>
+* experimental_[] <<esql-st_geotile_to_long>>
+* experimental_[] <<esql-st_geotile_to_string>>
+* experimental_[] <<esql-st_geohex>>
+* experimental_[] <<esql-st_geohex_to_long>>
+* experimental_[] <<esql-st_geohex_to_string>>
 // end::spatial_list[]
 
 include::layout/st_distance.asciidoc[]
@@ -34,3 +43,12 @@ include::layout/st_xmax.asciidoc[]
 include::layout/st_xmin.asciidoc[]
 include::layout/st_ymax.asciidoc[]
 include::layout/st_ymin.asciidoc[]
+include::layout/st_geohash.asciidoc[]
+include::layout/st_geohash_to_long.asciidoc[]
+include::layout/st_geohash_to_string.asciidoc[]
+include::layout/st_geotile.asciidoc[]
+include::layout/st_geotile_to_long.asciidoc[]
+include::layout/st_geotile_to_string.asciidoc[]
+include::layout/st_geohex.asciidoc[]
+include::layout/st_geohex_to_long.asciidoc[]
+include::layout/st_geohex_to_string.asciidoc[]

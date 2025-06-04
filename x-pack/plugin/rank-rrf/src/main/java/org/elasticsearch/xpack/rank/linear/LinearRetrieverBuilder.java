@@ -336,6 +336,14 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return NAME;
     }
 
+    float[] getWeights() {
+        return weights;
+    }
+
+    ScoreNormalizer[] getNormalizers() {
+        return normalizers;
+    }
+
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         int index = 0;
         if (innerRetrievers.isEmpty() == false) {

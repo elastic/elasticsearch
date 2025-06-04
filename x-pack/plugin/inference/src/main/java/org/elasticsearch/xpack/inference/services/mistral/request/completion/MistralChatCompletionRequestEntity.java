@@ -5,26 +5,28 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai.request;
+package org.elasticsearch.xpack.inference.services.mistral.request.completion;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
+/**
+ * MistralChatCompletionRequestEntity is responsible for creating the request entity for Mistral chat completion.
+ * It implements ToXContentObject to allow serialization to XContent format.
+ */
+public class MistralChatCompletionRequestEntity implements ToXContentObject {
 
-    public static final String USER_FIELD = "user";
-    private final OpenAiChatCompletionModel model;
+    private final MistralChatCompletionModel model;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
-    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
+    public MistralChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, MistralChatCompletionModel model) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
     }
@@ -34,15 +36,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         builder.startObject();
         unifiedRequestEntity.toXContent(
             builder,
-            UnifiedCompletionRequest.withMaxCompletionTokensTokens(model.getServiceSettings().modelId(), params)
+            UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(model.getServiceSettings().modelId(), params)
         );
-
-        if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
-            builder.field(USER_FIELD, model.getTaskSettings().user());
-        }
-
         builder.endObject();
-
         return builder;
     }
 }

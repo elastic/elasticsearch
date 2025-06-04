@@ -153,7 +153,7 @@ public class IndexLifecycleService
     }
 
     /**
-     * Move the cluster state to an arbitrary step for the provided index.
+     * Move the project to an arbitrary step for the provided index.
      *
      * In order to avoid a check-then-set race condition, the current step key
      * is required in order to validate that the index is currently on the
@@ -161,18 +161,13 @@ public class IndexLifecycleService
      * thrown.
      * @throws IllegalArgumentException if the step movement cannot be validated
      */
-    public ClusterState moveClusterStateToStep(ClusterState currentState, Index index, StepKey currentStepKey, StepKey newStepKey) {
+    public ProjectMetadata moveIndexToStep(ProjectMetadata project, Index index, StepKey currentStepKey, StepKey newStepKey) {
         // We manually validate here, because any API must correctly specify the current step key
         // when moving to an arbitrary step key (to avoid race conditions between the
-        // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
+        // check-and-set). moveProjectToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
-        IndexLifecycleTransition.validateTransition(
-            currentState.getMetadata().getProject().index(index),
-            currentStepKey,
-            newStepKey,
-            policyRegistry
-        );
-        return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey, nowSupplier, policyRegistry, true);
+        IndexLifecycleTransition.validateTransition(project.index(index), currentStepKey, newStepKey, policyRegistry);
+        return IndexLifecycleTransition.moveIndexToStep(index, project, newStepKey, nowSupplier, policyRegistry, true);
     }
 
     public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {

@@ -98,15 +98,17 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     private final String query;
     private final int rankConstant;
 
-    public RRFRetrieverBuilder(int rankWindowSize, int rankConstant) {
-        this(null, rankWindowSize, rankConstant);
-    }
-
-    RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
+    public RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
         this(childRetrievers, null, null, rankWindowSize, rankConstant);
     }
 
-    RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, List<String> fields, String query, int rankWindowSize, int rankConstant) {
+    public RRFRetrieverBuilder(
+        List<RetrieverSource> childRetrievers,
+        List<String> fields,
+        String query,
+        int rankWindowSize,
+        int rankConstant
+    ) {
         // Use a mutable list for childRetrievers so that we can use addChild
         super(childRetrievers == null ? new ArrayList<>() : new ArrayList<>(childRetrievers), rankWindowSize);
         this.fields = fields == null ? List.of() : List.copyOf(fields);

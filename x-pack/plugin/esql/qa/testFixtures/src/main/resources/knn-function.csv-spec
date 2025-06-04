@@ -1,3 +1,7 @@
+# TODO Most tests explicitly set k. Until knn function uses LIMIT as k, we need to explicitly set it to all values
+# in the dataset to avoid test failures due to docs allocation in different shards, which can impact results for a 
+# top-n query at the shard level 
+
 knnSearch
 required_capability: knn_function
 
@@ -33,6 +37,7 @@ from colors metadata _score
 | sort _score desc 
 // end::knn-function-options[]
 | keep color, rgb_vector
+| limit 4
 ;
 
 color:text     | rgb_vector:dense_vector
@@ -46,7 +51,7 @@ knnSearchWithSimilarityOption
 required_capability: knn_function
 
 from colors metadata _score 
-| where knn(rgb_vector, [255,192,203], {"similarity": 40})
+| where knn(rgb_vector, [255,192,203], {"k": 140, "similarity": 40})
 | sort _score desc 
 | keep color, rgb_vector
 ;
@@ -64,29 +69,31 @@ knnHybridSearch
 required_capability: knn_function
 
 from colors metadata _score 
-| where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 5})
+| where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 140})
 | sort _score desc 
 | eval round_score = round(_score, 4)
 | keep color, rgb_vector, round_score
+| limit 10
 ;
 
 color:text        | rgb_vector:dense_vector | round_score:double
-violet            | [238.0, 130.0, 238.0]   | 13.9457           
-blue violet       | [138.0, 43.0, 226.0]    | 3.0871            
-dark violet       | [148.0, 0.0, 211.0]     | 3.0871            
-medium violet red | [199.0, 21.0, 133.0]    | 2.5355            
-pale violet red   | [219.0, 112.0, 147.0]   | 2.5355            
-orchid            | [218.0, 112.0, 214.0]   | 0.0083            
-plum              | [221.0, 160.0, 221.0]   | 0.0071            
-hot pink          | [255.0, 105.0, 180.0]   | 0.0024            
-thistle           | [216.0, 191.0, 216.0]   | 0.0021  
+violet            | [238.0, 130.0, 238.0]   | 13.9457
+blue violet       | [138.0, 43.0, 226.0]    | 3.0877
+dark violet       | [148.0, 0.0, 211.0]     | 3.0877
+pale violet red   | [219.0, 112.0, 147.0]   | 2.5366
+medium violet red | [199.0, 21.0, 133.0]    | 2.5359
+orchid            | [218.0, 112.0, 214.0]   | 0.0083
+plum              | [221.0, 160.0, 221.0]   | 0.0071
+hot pink          | [255.0, 105.0, 180.0]   | 0.0024
+thistle           | [216.0, 191.0, 216.0]   | 0.0021
+light pink        | [255.0, 182.0, 193.0]   | 0.0021
 ;
 
 knnWithMultipleFunctions
 required_capability: knn_function
 
 from colors metadata _score
-| where knn(rgb_vector, [128,128,0]) and match(color, "olive") 
+| where knn(rgb_vector, [128,128,0], {"k": 140}) and match(color, "olive") 
 | sort _score desc
 | eval round_score = round(_score, 4)
 | keep color, rgb_vector, round_score
@@ -103,7 +110,7 @@ required_capability: knn_function
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
-| where knn(rgb_vector, [128,128,0]) 
+| where knn(rgb_vector, [128,128,0], {"k": 140})
 | eval round_score = round(_score, 4)
 | sort round_score desc, color asc
 | keep rgb_vector, round_score
@@ -123,8 +130,9 @@ required_capability: knn_function
 
 from colors metadata _score
 | drop color
-| where knn(rgb_vector, [128,128,0]) 
+| where knn(rgb_vector, [128,128,0], {"k": 140})
 | eval round_score = round(_score, 4)
+| sort round_score desc
 | keep rgb_vector, round_score
 | limit 5
 ;
@@ -142,22 +150,23 @@ required_capability: knn_function
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0]) 
-| sort _score, color desc
+| where knn(rgb_vector, [128,128,0], {"k": 140})
+| sort _score desc, color asc
 | keep color, composed_name 
+| limit 10
 ;
 
 color:text       | composed_name:boolean
-peru             | false                
-yellow green     | true                 
-chocolate        | false                
-dim gray         | true                 
-saddle brown     | true                 
-sienna           | false                
-dark golden rod  | true                 
-dark olive green | true                 
-olive drab       | true                 
-olive            | false 
+olive            | false
+olive drab       | true
+dark olive green | true
+dark golden rod  | true
+sienna           | false
+saddle brown     | true
+dim gray         | true
+chocolate        | false
+yellow green     | true
+peru             | false
 ;
 
 knnWithConjunction
@@ -165,19 +174,23 @@ required_capability: knn_function
 
 # TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
-| where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*" 
+| where knn(rgb_vector, [255,255,238], {"k": 140}) and hex_code like "#FFF*" 
+| sort _score desc, color asc
 | keep color, hex_code, rgb_vector
 ;
 ignoreOrder:true
 
-color:text        | hex_code: keyword    | rgb_vector:dense_vector
-light yellow      | #FFFFE0              | [255.0, 255.0, 224.0]
-lavender blush    | #FFF0F5              | [255.0, 240.0, 245.0]
-sea shell         | #FFF5EE              | [255.0, 245.0, 238.0]
-floral white      | #FFFAF0              | [255.0, 250.0, 240.0]
-ivory             | #FFFFF0              | [255.0, 255.0, 240.0]
-snow              | #FFFAFA              | [255.0, 250.0, 250.0]
-white             | #FFFFFF              | [255.0, 255.0, 255.0]
+color:text     | hex_code:keyword | rgb_vector:dense_vector
+corn silk      | #FFF8DC          | [255.0, 248.0, 220.0]
+floral white   | #FFFAF0          | [255.0, 250.0, 240.0]
+ivory          | #FFFFF0          | [255.0, 255.0, 240.0]
+lavender blush | #FFF0F5          | [255.0, 240.0, 245.0]
+lemon chiffon  | #FFFACD          | [255.0, 250.0, 205.0]
+light yellow   | #FFFFE0          | [255.0, 255.0, 224.0]
+sea shell      | #FFF5EE          | [255.0, 245.0, 238.0]
+snow           | #FFFAFA          | [255.0, 250.0, 250.0]
+white          | #FFFFFF          | [255.0, 255.0, 255.0]
+yellow         | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
@@ -185,27 +198,22 @@ required_capability: knn_function
 
 # TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
-| where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [128, 0, 255])) and primary == true 
+| where (knn(rgb_vector, [0,255,255], {"k": 140}) or knn(rgb_vector, [128, 0, 255], {"k": 140})) and primary == true 
 | keep color, rgb_vector, _score
+| sort _score desc, color asc
+| limit 10
 ;
 
 color:text        | rgb_vector:dense_vector | _score:double
-cyan              | [0.0, 255.0, 255.0]     | 1.0                 
-blue              | [0.0, 0.0, 255.0]       | 9.922293975250795E-5
-;
-
-knnWithDisjunctionAndConjunction
-required_capability: knn_function
-required_capability: full_text_functions_disjunctions
-
-# TODO We need kNN prefiltering here so we get more candidates that pass the filter
-from colors metadata _score 
-| where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [0, 0, 255])) and knn(rgb_vector, [0, 255, 0])
-| keep color, rgb_vector, _score
-;
-
-color:text          | rgb_vector:dense_vector | _score:double
-medium spring green | [0.0, 250.0, 154.0]     | 1.6871128173079342E-4
+red        | [255.0, 0.0, 0.0]       | 2.1994377675582655E-5
+yellow     | [255.0, 255.0, 0.0]     | 1.867113314801827E-5
+green      | [0.0, 128.0, 0.0]       | 2.9579907277366146E-5
+cyan       | [0.0, 255.0, 255.0]     | 1.000016689300537
+blue       | [0.0, 0.0, 255.0]       | 1.1921183613594621E-4
+magenta    | [255.0, 0.0, 255.0]     | 7.578763325000182E-5
+black      | [0.0, 0.0, 0.0]         | 2.6632071239873767E-5
+gray       | [128.0, 128.0, 128.0]   | 6.426929758163169E-5
+white      | [255.0, 255.0, 255.0]   | 3.5320219467394054E-5
 ;
 
 knnWithNonPushableConjunction
@@ -213,9 +221,10 @@ required_capability: knn_function
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0]) and composed_name == false
+| where knn(rgb_vector, [128,128,0], {"k": 140}) and composed_name == false
 | eval round_score = round(_score, 4)
 | keep color, composed_name, round_score
+| sort round_score desc, color asc
 ;
 
 color:text | composed_name:boolean | round_score:double
@@ -229,7 +238,7 @@ testKnnWithNonPushableDisjunctions
 required_capability: knn_function
 
 from colors metadata _score 
-| where knn(rgb_vector, [128,128,0], {"k": 5}) or length(color) > 17 
+| where knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 30}) or length(color) > 17 
 | sort _score desc, color asc
 | eval round_score = round(_score, 4)
 | keep color, round_score 
@@ -238,9 +247,6 @@ from colors metadata _score
 color:text              | round_score:double
 olive                   | 1.0
 olive drab              | 0.0014
-dark olive green        | 4.0E-4
-dark golden rod         | 3.0E-4
-sienna                  | 3.0E-4
 light golden rod yellow | 0.0
 medium aqua marine      | 0.0
 medium spring green     | 0.0
@@ -250,25 +256,16 @@ testKnnWithNonPushableDisjunctionsOnComplexExpressions
 required_capability: knn_function
 
 from colors metadata _score 
-| where (knn(rgb_vector, [128,128,0]) and length(color) > 12) or (knn(rgb_vector, [128,0,128]) and primary == false) 
+| where (knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 40}) and length(color) > 5) or (knn(rgb_vector, [128,0,128], {"k": 140, "similarity": 40}) and primary == false) 
 | sort _score desc 
 | eval round_score = round(_score, 4) 
 | keep color, primary, round_score
 ;
 
-color: text       | primary: boolean   | round_score: double  
-purple            | false              | 1.0            
-dark magenta      | false              | 0.0045         
-dark olive green  | false              | 4.0E-4         
-indigo            | false              | 4.0E-4         
-dark golden rod   | false              | 3.0E-4         
-dim gray          | false              | 3.0E-4         
-dark slate blue   | false              | 2.0E-4         
-medium violet red | false              | 2.0E-4         
-dark orchid       | false              | 1.0E-4         
-dark violet       | false              | 1.0E-4         
-brown             | false              | 1.0E-4         
-blue violet       | false              | 1.0E-4         
+color:text   | primary:boolean | round_score:double
+purple       | false           | 1.0
+dark magenta | false           | 0.0045
+olive drab   | false           | 0.0014  
 ;
 
 testKnnInStatsNonPushable

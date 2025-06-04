@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -40,6 +41,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
 
     static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
@@ -86,9 +88,21 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
             throw new RetryException(false, buildError(REDIRECTION, request, result));
+        } else if (statusCode == 422) {
+            // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
+            // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
+            throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, request, result));
+        } else if (statusCode == 400) {
+            throw new RetryException(false, buildError(BAD_REQUEST, request, result));
+        } else if (statusCode == 404) {
+            throw new RetryException(false, buildError(resourceNotFoundError(request), request, result));
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
+    }
+
+    private static String resourceNotFoundError(Request request) {
+        return format("Resource not found at [%s]", request.getURI());
     }
 
     protected RetryException buildExceptionHandling429(Request request, HttpResult result) {

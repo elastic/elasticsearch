@@ -265,6 +265,23 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_INDEX_ALIAS).privileges("all").build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX, ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS)
+                    .privileges(
+                        "create_index",
+                        "read",
+                        "write",
+                        "view_index_metadata",
+                        "maintenance",
+                        RolloverAction.NAME,
+                        TransportIndicesAliasesAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name()
+                    )
+                    .build(),
+                // "Alerts as data" public index alias used in Security Solution
+                // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS).privileges("all").build(),
                 // "Alerts as data" internal backing indices used in Security Solution
                 // Kibana system user creates these indices; reads / writes to them via the
@@ -485,6 +502,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-tenable_sc.vulnerability-*",
                         "logs-tenable_io.vulnerability-*",
                         "logs-rapid7_insightvm.vulnerability-*",
+                        "logs-rapid7_insightvm.asset_vulnerability-*",
                         "logs-carbon_black_cloud.asset_vulnerability_summary-*"
                     )
                     .privileges("read", "view_index_metadata")

@@ -471,7 +471,7 @@ public class LocalExecutionPlanner {
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE -> TopNEncoder.DEFAULT_UNSORTABLE;
+                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
@@ -739,6 +739,7 @@ public class LocalExecutionPlanner {
                 matchConfig.channel(),
                 ctx -> lookupFromIndexService,
                 matchConfig.type(),
+                localSourceExec.indexPattern(),
                 indexName,
                 matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
@@ -818,7 +819,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+        final Integer rowSize = limit.estimatedRowSize();
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
+        int pageSize = context.pageSize(rowSize);
+        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx), pageSize), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

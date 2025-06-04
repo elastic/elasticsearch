@@ -1,0 +1,135 @@
+version: 9.0.2
+released: false
+generated: 2025-05-22T15:14:00.768080Z
+changelogs:
+  - pr: 126992
+    summary: Add missing `outbound_network` entitlement to x-pack-core
+    area: Infra/Core
+    type: bug
+    issues:
+      - 127003
+  - pr: 127009
+    summary: "ESQL: Keep `DROP` attributes when resolving field names"
+    area: ES|QL
+    type: bug
+    issues:
+      - 126418
+  - pr: 127337
+    summary: Http proxy support in JWT realm
+    area: Authentication
+    type: enhancement
+    issues:
+      - 114956
+  - pr: 127383
+    summary: Don't push down filters on the right hand side of an inlinejoin
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 127475
+    summary: Remove dangling spaces wherever found
+    area: Security
+    type: bug
+    issues: []
+  - pr: 127563
+    summary: "ESQL: Avoid unintended attribute removal"
+    area: ES|QL
+    type: bug
+    issues:
+      - 127468
+  - pr: 127658
+    summary: Append all data to Chat Completion buffer
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 127687
+    summary: "ESQL: Fix alias removal in regex extraction with JOIN"
+    area: ES|QL
+    type: bug
+    issues:
+      - 127467
+  - pr: 127752
+    summary: Downsampling does not consider passthrough fields as dimensions
+    area: Downsampling
+    type: bug
+    issues:
+      - 125156
+  - pr: 127798
+    summary: Handle streaming request body in audit log
+    area: Audit
+    type: bug
+    issues: []
+  - pr: 127824
+    summary: Skip the validation when retrieving the index mode during reindexing a time series data stream
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 127856
+    summary: Fix services API Google Vertex AI Rerank location field requirement
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 127877
+    summary: Check hidden frames in entitlements
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 127921
+    summary: "[9.x] Revert \"Enable madvise by default for all builds\""
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 127924
+    summary: Limit Replace function memory usage
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 127949
+    summary: Ensure ordinal builder emit ordinal blocks
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 127975
+    summary: Fix a bug in `significant_terms`
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 127991
+    summary: Avoid nested docs in painless execute api
+    area: Infra/Scripting
+    type: bug
+    issues:
+      - 41004
+  - pr: 128043
+    summary: Make S3 custom query parameter optional
+    area: Snapshot/Restore
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Make S3 custom query parameter optional
+      details: "Earlier versions of Elasticsearch would record the purpose of each S3 API call using the `?x-purpose=` custom query parameter. This isn't believed to be necessary outside of the ECH/ECE/ECK/... managed services, and it adds rather a lot to the request logs, so with this change we make the feature optional and disabled by default."
+      impact: "If you wish to reinstate the old behaviour on a S3 repository, set `s3.client.${CLIENT_NAME}.add_purpose_custom_query_parameter` to `true` for the relevant client."
+      notable: false
+      essSettingChange: false
+  - pr: 128047
+    summary: Add missing entitlement to `repository-azure`
+    area: Snapshot/Restore
+    type: bug
+    issues:
+      - 128046
+  - pr: 128111
+    summary: Fix union types in CCS
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 128153
+    summary: "Fix: Add `NamedWriteable` for `RuleQueryRankDoc`"
+    area: Relevance
+    type: bug
+    issues:
+      - 126071
+  - pr: 128161
+    summary: Fix system data streams incorrectly showing up in the list of template validation problems
+    area: Data streams
+    type: bug
+    issues: []

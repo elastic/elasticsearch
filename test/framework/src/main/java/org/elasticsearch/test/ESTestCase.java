@@ -508,13 +508,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface WithEntitlementsOnTestCode {
     }
 
-//    @BeforeClass
+    @BeforeClass
     public static void setupEntitlementsForClass() {
         TestEntitlementBootstrap.setActive(false == getTestClass().isAnnotationPresent(WithoutEntitlements.class));
         TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class));
     }
 
-//    @AfterClass
+    @AfterClass
     public static void resetEntitlements() {
         TestEntitlementBootstrap.reset();
     }

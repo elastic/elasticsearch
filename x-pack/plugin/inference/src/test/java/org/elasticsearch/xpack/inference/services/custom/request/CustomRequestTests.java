@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseP
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -72,7 +72,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var request = new CustomRequest(null, List.of("abc", "123"), model);
@@ -126,7 +126,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var request = new CustomRequest(null, List.of("abc", "123"), model);
@@ -174,7 +174,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "https://www.elastic.com")),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var request = new CustomRequest(null, List.of("abc", "123"), model);
@@ -222,7 +222,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of()),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var request = new CustomRequest("query string", List.of("abc", "123"), model);
@@ -265,7 +265,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of("task.key", 100)),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var request = new CustomRequest(null, List.of("abc", "123"), model);
@@ -297,7 +297,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of("url", "^")),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var exception = expectThrows(IllegalStateException.class, () -> new CustomRequest(null, List.of("abc", "123"), model));

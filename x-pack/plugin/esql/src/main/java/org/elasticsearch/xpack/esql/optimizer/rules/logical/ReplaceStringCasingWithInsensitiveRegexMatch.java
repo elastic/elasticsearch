@@ -39,12 +39,7 @@ public class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules
         if (regexMatch instanceof RLike rLike) {
             return new RLike(rLike.source(), unwrapCase(rLike.field()), rLike.pattern(), true);
         } else if (regexMatch instanceof WildcardLike wildcardLike) {
-            return new WildcardLike(
-                wildcardLike.source(),
-                unwrapCase(wildcardLike.field()),
-                wildcardLike.pattern(),
-                true
-            );
+            return new WildcardLike(wildcardLike.source(), unwrapCase(wildcardLike.field()), wildcardLike.pattern(), true);
         }
         return regexMatch;
     }

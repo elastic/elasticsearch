@@ -27,6 +27,7 @@ public class InferenceFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT = new NodeFeature("semantic_text.highlighter.default");
+    private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -45,7 +46,8 @@ public class InferenceFeatures implements FeatureSpecification {
             TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
             SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
-            SEMANTIC_KNN_FILTER_FIX
+            SEMANTIC_KNN_FILTER_FIX,
+            SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER
         );
     }
 }

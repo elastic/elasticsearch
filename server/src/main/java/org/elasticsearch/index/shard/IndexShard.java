@@ -801,7 +801,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            // indexShardOperationPermits.blockOperations(new ActionListener<>() {
             blockOperations(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -3872,7 +3871,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
         try {
             blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
-            // indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic(), this);
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;

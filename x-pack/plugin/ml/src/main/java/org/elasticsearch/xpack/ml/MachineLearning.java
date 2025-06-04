@@ -740,6 +740,44 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * The time interval between the adaptive allocations triggers.
+     * This setting requires a reboot to take effect, as it is only consumed during startup.
+     */
+    public static final Setting<TimeValue> DEFAULT_TIME_INTERVAL = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.trigger_time",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The time that has to pass after scaling up, before scaling down is allowed.
+     * Note that the ML autoscaling has its own cooldown time to release the hardware.
+     */
+    public static final Setting<TimeValue> SCALE_UP_COOLDOWN_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_up_cooldown_time",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(5),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The time interval without any requests that has to pass, before scaling down
+     * to zero allocations (in case min_allocations = 0). After this time interval
+     * without requests, the number of allocations is set to zero. When this time
+     * interval hasn't passed, the minimum number of allocations will always be
+     * larger than zero.
+     */
+    public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
+        TimeValue.timeValueHours(24),
+        TimeValue.timeValueMinutes(15),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Each model deployment results in one or more entries in the cluster state
      * for the model allocations. In order to prevent the cluster state from
      * potentially growing uncontrollably we impose a limit on the number of
@@ -1300,7 +1338,8 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            machineLearningExtension.get().isNlpEnabled()
+            machineLearningExtension.get().isNlpEnabled(),
+            settings
         );
 
         MlInitializationService mlInitializationService = new MlInitializationService(

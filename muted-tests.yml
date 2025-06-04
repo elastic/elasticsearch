@@ -489,51 +489,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test085EnvironmentVariablesAreRespectedUnderDockerExec
   issue: https://github.com/elastic/elasticsearch/issues/128115
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128676
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128677
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128705
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128706
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128710
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128711
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128712
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128713
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128714
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128715
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128716
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128717
 - class: org.elasticsearch.compute.operator.LimitOperatorTests
   method: testEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/128721
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
-- class: org.elasticsearch.xpack.rank.rrf.LinearRankClientYamlTestSuiteIT
-  method: test {yaml=linear/10_linear_retriever/should normalize initial scores with l2_norm}
-  issue: https://github.com/elastic/elasticsearch/issues/128774
 - class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
   method: testSimpleOffHeapSizeFSDir
   issue: https://github.com/elastic/elasticsearch/issues/128799
@@ -543,27 +504,6 @@ tests:
 - class: org.elasticsearch.index.store.DirectIOIT
   method: testDirectIOUsed
   issue: https://github.com/elastic/elasticsearch/issues/128829
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/190_lookup_join/alias-repeated-index}
-  issue: https://github.com/elastic/elasticsearch/issues/128849
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/190_lookup_join/alias-repeated-alias}
-  issue: https://github.com/elastic/elasticsearch/issues/128850
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/190_lookup_join/alias-pattern-single}
-  issue: https://github.com/elastic/elasticsearch/issues/128855
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/191_lookup_join_on_datastreams/data streams supported in LOOKUP JOIN}
-  issue: https://github.com/elastic/elasticsearch/issues/128856
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/128861
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/128862
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/128863
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120

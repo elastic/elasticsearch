@@ -324,12 +324,8 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
            GWL | [mid, military] | 9                 | [2, 4]
 ;
 
-afterStats-Ignore
-required_capability: join_planning_v1
-// fails with
-// line 1:104: Plan [ProjectExec[[count{r}#174, country{f}#182, avg{r}#177]]] optimized incorrectly due to missing references [count{r}#174]
-// line 1:104: Plan [TopNExec[[Order[count{r}#174,DESC,FIRST], Order[country{f}#182,ASC,LAST]],1000[INTEGER],null]] optimized incorrectly due to missing references [count{r}#174]
-// line 1:80: Plan [FilterExec[count{r}#174 > 13.365[DOUBLE]]] optimized incorrectly due to missing references [count{r}#174]
+afterStats
+required_capability: join_planning_v8
 
 FROM airports
 | STATS count=COUNT(*) BY country
@@ -1041,12 +1037,8 @@ emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:
 10066          |5                |31897          |66817             |25324          
 ;
 
-// Fails with (in json format only; for format=txt it returns empty result)
-// line 1:101: Plan [FieldExtractExec[description{f}#274, host{f}#272, ip0{f}#273, _index..]<[],[]>] optimized incorrectly due to duplicate output attribute ip1{r}#267
-// line 1:101: Plan [TopNExec[[Order[ip1{r}#267,ASC,LAST]],1[INTEGER],null]] optimized incorrectly due to duplicate output attribute ip1{r}#267
-// line 1:44: Plan [HashJoinExec[[host_group{f}#271, card{f}#276],[host_group{f}#271, card{f}#276],[host_group{r}#271, card{r}#276],[ip1{r}#267]]] optimized incorrectly due to duplicate output attribute ip1{r}#267
-// https://github.com/elastic/elasticsearch/issues/128311
-inlineStatsOverrideEVALed_FieldWithSameName-Ignore
+inlineStatsOverrideEVALed_FieldWithSameName
+required_capability: inlinestats_v8
 
 FROM hosts METADATA _index
 | EVAL x = ip1

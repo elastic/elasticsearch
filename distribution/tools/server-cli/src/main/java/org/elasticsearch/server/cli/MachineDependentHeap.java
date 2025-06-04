@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.node.NodeRoleSettings;
 
 import java.io.IOException;
@@ -36,6 +37,8 @@ public class MachineDependentHeap {
     protected static final long GB = 1024L * 1024L * 1024L; // 1GB
     protected static final long MAX_HEAP_SIZE = GB * 31; // 31GB
     protected static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
+
+    private static final FeatureFlag NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG = new FeatureFlag("new_ml_memory_computation");
 
     public MachineDependentHeap() {}
 
@@ -102,8 +105,12 @@ public class MachineDependentHeap {
              * could result in ML processes crashing with OOM errors or repeated autoscaling up and down.
              */
             case ML_ONLY -> {
-                double heapFractionBelow16GB = 0.4 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
-                double heapFractionAbove16GB = 0.1 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                double heapFractionBelow16GB = 0.4;
+                double heapFractionAbove16GB = 0.1;
+                if (NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
+                    heapFractionBelow16GB = 0.4 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                    heapFractionAbove16GB = 0.1 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                }
                 if (availableMemory <= GB * 16) {
                     yield mb((long) (availableMemory * heapFractionBelow16GB), 4);
                 } else {

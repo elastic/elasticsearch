@@ -22,19 +22,24 @@ public class HierarchicalKMeans {
     static final int MAXK = 128;
     static final int MAX_ITERATIONS_DEFAULT = 6;
     static final int SAMPLES_PER_CLUSTER_DEFAULT = 256;
+    static final float DEFAULT_SOAR_LAMBDA = 1.0f;
 
+    final int dimension;
     final int maxIterations;
     final int samplesPerCluster;
     final int clustersPerNeighborhood;
+    final float soarLambda;
 
-    public HierarchicalKMeans() {
-        this(MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK);
+    public HierarchicalKMeans(int dimension) {
+        this(dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
     }
 
-    HierarchicalKMeans(int maxIterations, int samplesPerCluster, int clustersPerNeighborhood) {
+    HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
+        this.dimension = dimension;
         this.maxIterations = maxIterations;
         this.samplesPerCluster = samplesPerCluster;
         this.clustersPerNeighborhood = clustersPerNeighborhood;
+        this.soarLambda = soarLambda;
     }
 
     /**
@@ -54,24 +59,24 @@ public class HierarchicalKMeans {
 
         // if we have a small number of vectors pick one and output that as the centroid
         if (vectors.size() < targetSize) {
-            float[] centroid = new float[vectors.dimension()];
-            System.arraycopy(vectors.vectorValue(0), 0, centroid, 0, vectors.dimension());
+            float[] centroid = new float[dimension];
+            System.arraycopy(vectors.vectorValue(0), 0, centroid, 0, dimension);
             return new KMeansResult(new float[][] { centroid }, new int[vectors.size()]);
         }
 
         // partition the space
-        KMeansResult kMeansResult = kMeansHierarchical(new FloatVectorValuesSlice(vectors), targetSize);
+        KMeansResult kMeansResult = cluster(new FloatVectorValuesSlice(vectors), targetSize);
         if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
             float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
             int localSampleSize = (int) (f * vectors.size());
-            KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood);
+            KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
             kMeansLocal.cluster(vectors, kMeansResult);
         }
 
         return kMeansResult;
     }
 
-    KMeansResult kMeansHierarchical(final FloatVectorValuesSlice vectors, final int targetSize) throws IOException {
+    KMeansResult cluster(final FloatVectorValuesSlice vectors, final int targetSize) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansResult();
         }
@@ -92,7 +97,7 @@ public class HierarchicalKMeans {
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
         int[] centroidVectorCount = new int[centroids.length];
-        float[][] nextCentroids = new float[centroids.length][vectors.dimension()];
+        float[][] nextCentroids = new float[centroids.length][dimension];
         for (int i = 0; i < vectors.size(); i++) {
             float smallest = Float.MAX_VALUE;
             int centroidIdx = -1;
@@ -106,7 +111,7 @@ public class HierarchicalKMeans {
                 }
             }
             centroidVectorCount[centroidIdx]++;
-            for (int j = 0; j < vectors.dimension(); j++) {
+            for (int j = 0; j < dimension; j++) {
                 nextCentroids[centroidIdx][j] += vector[j];
             }
             assignments[i] = centroidIdx;
@@ -116,7 +121,7 @@ public class HierarchicalKMeans {
         // update centroids based on assignments of all vectors
         for (int i = 0; i < centroids.length; i++) {
             if (centroidVectorCount[i] > 0) {
-                for (int j = 0; j < vectors.dimension(); j++) {
+                for (int j = 0; j < dimension; j++) {
                     centroids[i][j] = nextCentroids[i][j] / centroidVectorCount[i];
                 }
             }
@@ -143,7 +148,9 @@ public class HierarchicalKMeans {
                 FloatVectorValuesSlice sample = createClusterSlice(clusterSizes[c], c, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
-                updateAssignmentsWithRecursiveSplit(kMeansResult, c, kMeansHierarchical(sample, targetSize));
+                // recursive call to build out the sub partitions around this centroid c
+                // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
+                updateAssignmentsWithRecursiveSplit(kMeansResult, c, cluster(sample, targetSize));
             }
         }
 
@@ -163,30 +170,30 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
-    static void updateAssignmentsWithRecursiveSplit(KMeansResult current, int cluster, KMeansResult splitClusters) {
+    void updateAssignmentsWithRecursiveSplit(KMeansResult current, int cluster, KMeansResult subPartitions) {
         int orgCentroidsSize = current.centroids().length;
+        int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
         // update based on the outcomes from the split clusters recursion
-        if (splitClusters.centroids().length > 1) {
-            float[][] newCentroids = new float[current.centroids().length + splitClusters.centroids().length - 1][current
-                .centroids()[0].length];
+        if (subPartitions.centroids().length > 1) {
+            float[][] newCentroids = new float[newCentroidsSize][dimension];
             System.arraycopy(current.centroids(), 0, newCentroids, 0, current.centroids().length);
 
             // replace the original cluster
             int origCentroidOrd = 0;
-            newCentroids[cluster] = splitClusters.centroids()[0];
+            newCentroids[cluster] = subPartitions.centroids()[0];
 
             // append the remainder
-            System.arraycopy(splitClusters.centroids(), 1, newCentroids, current.centroids().length, splitClusters.centroids().length - 1);
+            System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
 
             current.setCentroids(newCentroids);
 
-            for (int i = 0; i < splitClusters.assignments().length; i++) {
+            for (int i = 0; i < subPartitions.assignments().length; i++) {
                 // this is a new centroid that was added, and so we'll need to remap it
-                if (splitClusters.assignments()[i] != origCentroidOrd) {
-                    int parentOrd = splitClusters.assignmentOrds()[i];
+                if (subPartitions.assignments()[i] != origCentroidOrd) {
+                    int parentOrd = subPartitions.assignmentOrds()[i];
                     assert current.assignments()[parentOrd] == cluster;
-                    current.assignments()[parentOrd] = splitClusters.assignments()[i] + orgCentroidsSize - 1;
+                    current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
                 }
             }
         }

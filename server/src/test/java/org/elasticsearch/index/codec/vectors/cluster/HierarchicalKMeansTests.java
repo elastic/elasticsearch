@@ -24,10 +24,11 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int sampleSize = random().nextInt(100, nVectors);
         int maxIterations = random().nextInt(0, 100);
         int clustersPerNeighborhood = random().nextInt(0, 512);
+        float soarLambda = random().nextFloat(0.5f, 1.5f);
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         int targetSize = (int) ((float) nVectors / (float) nClusters);
-        HierarchicalKMeans hkmeans = new HierarchicalKMeans(maxIterations, sampleSize, clustersPerNeighborhood);
+        HierarchicalKMeans hkmeans = new HierarchicalKMeans(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
 
         KMeansResult result = hkmeans.cluster(vectors, targetSize);
 
@@ -38,6 +39,11 @@ public class HierarchicalKMeansTests extends ESTestCase {
         assertEquals(nClusters, centroids.length, 5);
         assertEquals(nVectors, assignments.length);
         assertEquals(nVectors, soarAssignments.length);
+
+        // verify no duplicates exist
+        for(int i = 0; i < assignments.length; i++) {
+            assert assignments[i] != soarAssignments[i];
+        }
     }
 
     private static FloatVectorValues generateData(int nSamples, int nDims, int nClusters) {

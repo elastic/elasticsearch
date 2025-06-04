@@ -15,7 +15,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -25,11 +24,13 @@ import java.util.List;
  */
 class KMeansLocal extends KMeans {
 
+    final float soarLambda;
     final int clustersPerNeighborhood;
 
-    KMeansLocal(int sampleSize, int maxIterations, int clustersPerNeighborhood) {
+    KMeansLocal(int sampleSize, int maxIterations, int clustersPerNeighborhood, float soarLambda) {
         super(sampleSize, maxIterations);
         this.clustersPerNeighborhood = clustersPerNeighborhood;
+        this.soarLambda = soarLambda;
     }
 
     private void computeNeighborhoods(
@@ -60,7 +61,6 @@ class KMeansLocal extends KMeans {
             int neighborCount = queue.size();
             int[] neighbors = new int[neighborCount];
             queue.consumeNodes(neighbors);
-            Arrays.sort(neighbors);
             neighborhoods.set(i, neighbors);
         }
     }
@@ -135,11 +135,10 @@ class KMeansLocal extends KMeans {
     }
 
     private float distanceSoar(float[] residual, float[] vector, float[] centroid, float rnorm) {
-        float lambda = 1.0F;
         // TODO: combine these to be more efficient
         float dsq = VectorUtil.squareDistance(vector, centroid);
         float rproj = ESVectorUtil.soarResidual(vector, centroid, residual);
-        return dsq + lambda * rproj * rproj / rnorm;
+        return dsq + soarLambda * rproj * rproj / rnorm;
     }
 
     /**

@@ -40,6 +40,8 @@ import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.IVF_VECTOR_
  */
 public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
+    static final float SOAR_LAMBDA = 1.0f;
+
     private final int vectorPerCluster;
 
     public DefaultIVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate, int vectorPerCluster) throws IOException {
@@ -75,7 +77,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             float[] centroid = centroidSupplier.centroid(c);
             binarizedByteVectorValues.centroid = centroid;
 
-            // TODO: remove duplicates from cluster
             // TODO: add back in sorting
             IntArrayList cluster = new IntArrayList(vectorPerCluster);
             for (int j = 0; j < assignments.length; j++) {
@@ -100,10 +101,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), cluster.size(), postingsOutput);
             writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
-
-            if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-                clustersForMetrics[c] = cluster.toArray();
-            }
         }
 
         if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
@@ -198,11 +195,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    CentroidSupplier createCentroidSupplier(float[][] cachedCentroids) {
-        return new OnHeapCentroidSupplier(cachedCentroids);
-    }
-
-    @Override
     CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid) {
         return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
     }
@@ -277,7 +269,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         long nanoTime = System.nanoTime();
 
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
-        KMeansResult kMeansResult = new HierarchicalKMeans().cluster(floatVectorValues, vectorPerCluster);
+        KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
@@ -393,25 +385,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;
-        }
-    }
-
-    // TODO throw away rawCentroids
-    static class OnHeapCentroidSupplier implements CentroidSupplier {
-        private final float[][] centroids;
-
-        OnHeapCentroidSupplier(float[][] centroids) {
-            this.centroids = centroids;
-        }
-
-        @Override
-        public int size() {
-            return centroids.length;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) throws IOException {
-            return centroids[centroidOrdinal];
         }
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 
 /**
@@ -55,12 +56,15 @@ class KMeans {
         return centroids;
     }
 
-    private boolean stepLloyd(FloatVectorValues vectors, float[][] centroids, int[] assignments, int sampleSize, ClusteringAugment augment)
+    private boolean stepLloyd(FloatVectorValues vectors, float[][] centroids, float[][] nextCentroids, int[] assignments, int sampleSize, ClusteringAugment augment)
         throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
         int[] centroidCounts = new int[centroids.length];
-        float[][] nextCentroids = new float[centroids.length][dim];
+
+        for(int i = 0; i < nextCentroids.length; i++) {
+            Arrays.fill(nextCentroids[i], 0.0f);
+        }
 
         for (int i = 0; i < sampleSize; i++) {
             float[] vector = vectors.vectorValue(i);
@@ -123,12 +127,13 @@ class KMeans {
         }
 
         int[] assignments = new int[n];
+        float[][] nextCentroids = new float[centroids.length][vectors.dimension()];
         for (int i = 0; i < maxIterations; i++) {
-            if (stepLloyd(vectors, centroids, assignments, sampleSize, augment) == false) {
+            if (stepLloyd(vectors, centroids, nextCentroids, assignments, sampleSize, augment) == false) {
                 break;
             }
         }
-        stepLloyd(vectors, centroids, assignments, vectors.size(), augment);
+        stepLloyd(vectors, centroids, nextCentroids, assignments, vectors.size(), augment);
     }
 
     /**

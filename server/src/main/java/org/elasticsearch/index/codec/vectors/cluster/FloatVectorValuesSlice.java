@@ -20,9 +20,9 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     private final int[] slice;
 
     FloatVectorValuesSlice(FloatVectorValues allValues, int[] slice) {
-        assert slice.length <= allValues.size();
+        assert slice == null || slice.length <= allValues.size();
         this.allValues = allValues;
-        if (slice.length == allValues.size()) {
+        if (slice != null && slice.length == allValues.size()) {
             this.slice = null;
         } else {
             this.slice = slice;

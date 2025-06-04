@@ -17,6 +17,9 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.GENERATE_CONTENT;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.STREAM_GENERATE_CONTENT;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiCompletionModelTests extends ESTestCase {
@@ -37,6 +40,15 @@ public class GoogleVertexAiCompletionModelTests extends ESTestCase {
             )
         );
         assertThat(model.uri(), is(expectedUri));
+    }
+
+    public void testUpdateUri() throws URISyntaxException {
+        var model = createCompletionModel(DEFAULT_PROJECT_ID, DEFAULT_LOCATION, DEFAULT_MODEL_ID);
+        assertThat(model.uri().toString(), containsString(GENERATE_CONTENT));
+        model.updateUri(true);
+        assertThat(model.uri().toString(), containsString(STREAM_GENERATE_CONTENT));
+        model.updateUri(false);
+        assertThat(model.uri().toString(), containsString(GENERATE_CONTENT));
     }
 
     private static GoogleVertexAiCompletionModel createCompletionModel(String projectId, String location, String modelId) {

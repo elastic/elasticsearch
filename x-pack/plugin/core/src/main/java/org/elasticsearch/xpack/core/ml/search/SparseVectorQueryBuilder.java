@@ -357,7 +357,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         // if we are not on a supported index version, do not prune by default
-        // nor do we check the index options
+        // nor do we check the index options, so, we'll return a pruning config only if the query specifies it.
         if (context.indexVersionCreated().onOrAfter(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT) == false
             && context.indexVersionCreated()
                 .between(

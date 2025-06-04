@@ -507,50 +507,5 @@ public class SparseVectorFieldMapper extends FieldMapper {
             builder.endObject();
             return builder;
         }
-
-        /*
-        public static Boolean parseIndexOptionsPruneValue(Map<String, Object> indexOptionsMap) {
-            Object shouldPrune = indexOptionsMap.get(IndexOptions.PRUNE_FIELD_NAME.getPreferredName());
-            if (shouldPrune == null) {
-                return null;
-            }
-
-            if (shouldPrune instanceof Boolean boolValue) {
-                return boolValue;
-            }
-
-            throw new MapperParsingException(
-                "[" + SPARSE_VECTOR_INDEX_OPTIONS + "] field [" + PRUNE_FIELD_NAME.getPreferredName() + "] should be true or false"
-            );
-        }
-         */
-
-        /*
-        public static TokenPruningConfig parseIndexOptionsPruningConfig(Boolean prune, Map<String, Object> indexOptionsMap) {
-            Object pruningConfiguration = indexOptionsMap.get(IndexOptions.PRUNING_CONFIG_FIELD_NAME.getPreferredName());
-            if (pruningConfiguration == null) {
-                return null;
-            }
-
-            if (prune == null || prune == false) {
-                throw new MapperParsingException(
-                    "["
-                        + SPARSE_VECTOR_INDEX_OPTIONS
-                        + "] field ["
-                        + PRUNING_CONFIG_FIELD_NAME.getPreferredName()
-                        + "] should only be set if ["
-                        + PRUNE_FIELD_NAME.getPreferredName()
-                        + "] is set to true"
-                );
-            }
-
-            Map<String, Object> pruningConfigurationMap = XContentMapValues.nodeMapValue(
-                pruningConfiguration,
-                PRUNING_CONFIG_FIELD_NAME.getPreferredName()
-            );
-
-            return TokenPruningConfig.parseFromMap(pruningConfigurationMap);
-        }
-         */
     }
 }

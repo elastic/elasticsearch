@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
@@ -224,7 +225,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         }
     }
 
-    private void withSearchIndex(Consumer<SearchExecutionContext> consumer) throws IOException {
+    private void withSearchIndex(CheckedConsumer<SearchExecutionContext, IOException> consumer) throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             Document document = new Document();
             document.add(new FloatDocValuesField(SPARSE_VECTOR_FIELD, 1.0f));

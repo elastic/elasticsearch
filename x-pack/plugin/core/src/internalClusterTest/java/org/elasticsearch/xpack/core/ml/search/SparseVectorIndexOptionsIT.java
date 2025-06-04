@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.core.ml.search;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.http.HttpStatus;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -61,16 +62,6 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(XPackClientPlugin.class);
     }
@@ -86,48 +77,76 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         flushAndRefresh(TEST_INDEX_NAME);
     }
 
-    public void testSparseVectorTokenPruning() throws IOException {
-        Response response = performSearch(getBuilderForSearch());
-        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            response.getEntity().getContent(),
-            true
-        );
-        assertCorrectResponse(responseMap);
+    public void testSparseVectorTokenPruning() throws Exception {
+        assertBusy(() -> {
+            SearchResponse response = performSearch(getBuilderForSearch());
+            try {
+                assertThat(response.status(), Matchers.equalTo(RestStatus.OK));
+                assertCorrectResponse(response);
+            } finally {
+                response.decRef();
+            }
+        });
     }
 
-    @SuppressWarnings("unchecked")
-    private void assertCorrectResponse(Map<String, Object> responseMap) {
+    private void assertCorrectResponse(SearchResponse response) {
         List<String> expectedIds = getTestExpectedDocIds();
 
-        Map<String, Object> mapHits = (Map<String, Object>) responseMap.get("hits");
-        Map<String, Object> mapHitsTotal = (Map<String, Object>) mapHits.get("total");
-        int actualTotalHits = (int) mapHitsTotal.get("value");
-        int numHitsExpected = expectedIds.size();
+        assertEquals(
+            getAssertMessage("Search result total hits count mismatch"),
+            expectedIds.size(),
+            response.getHits().getTotalHits().value()
+        );
 
-        assertEquals(getAssertMessage("Search result total hits count mismatch"), numHitsExpected, actualTotalHits);
-
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) mapHits.get("hits");
         List<String> actualDocIds = new ArrayList<>();
-        for (Map<String, Object> doc : hits) {
-            actualDocIds.add((String) doc.get("_id"));
+        for (SearchHit doc : response.getHits().getHits()) {
+            actualDocIds.add(doc.getId());
         }
 
         assertEquals(getAssertMessage("Result document ids mismatch"), expectedIds, actualDocIds);
     }
 
     private String getTestIndexMapping() {
-        String testPruningConfigMapping = "\"pruning_config\":{\"tokens_freq_ratio_threshold\":"
-            + TEST_PRUNING_TOKENS_FREQ_THRESHOLD
-            + ",\"tokens_weight_threshold\":"
-            + TEST_PRUNING_TOKENS_WEIGHT_THRESHOLD
-            + "}";
+        try {
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject();
+            {
+                docBuilder.startObject("properties");
+                {
+                    docBuilder.startObject(SPARSE_VECTOR_FIELD);
+                    {
+                        docBuilder.field("type", "sparse_vector");
+                        addIndexFieldIndexOptions(docBuilder);
+                    }
+                    docBuilder.endObject();
+                }
+                docBuilder.endObject();
+            }
+            docBuilder.endObject();
+            return Strings.toString(docBuilder);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
-        String pruningMappingString = testIndexShouldPrune ? "\"prune\":true," + testPruningConfigMapping : "\"prune\":false";
-        String indexOptionsString = testHasIndexOptions ? ",\"index_options\":{" + pruningMappingString + "}" : "";
+    private void addIndexFieldIndexOptions(XContentBuilder docBuilder) throws IOException {
+        if (testHasIndexOptions == false) {
+            return;
+        }
 
-        return "{\"properties\":{\"" + SPARSE_VECTOR_FIELD + "\":{\"type\":\"sparse_vector\"" + indexOptionsString + "}}}";
+        docBuilder.startObject("index_options");
+        if (testIndexShouldPrune) {
+            docBuilder.field("prune", true);
+            docBuilder.startObject("pruning_config");
+            {
+                docBuilder.field("tokens_freq_ratio_threshold", TEST_PRUNING_TOKENS_FREQ_THRESHOLD);
+                docBuilder.field("tokens_weight_threshold", TEST_PRUNING_TOKENS_WEIGHT_THRESHOLD);
+            }
+            docBuilder.endObject();
+        } else {
+            docBuilder.field("prune", false);
+        }
+        docBuilder.endObject();
     }
 
     private List<String> getTestExpectedDocIds() {
@@ -149,26 +168,27 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
         return EXPECTED_DOC_IDS_WITH_DEFAULT_PRUNING;
     }
 
-    private Response performSearch(String source) throws IOException {
-        Request request = new Request("GET", TEST_INDEX_NAME + "/_search");
-        request.setJsonEntity(source);
-        return getRestClient().performRequest(request);
+    private SearchResponse performSearch(SearchSourceBuilder source) {
+        SearchRequest searchRequest = new SearchRequest(TEST_INDEX_NAME);
+        searchRequest.source(source);
+        return client().search(searchRequest).actionGet();
     }
 
-    private String getBuilderForSearch() {
+    private SearchSourceBuilder getBuilderForSearch() throws IOException {
         boolean shouldUseDefaultTokens = (testQueryShouldNotPrune == false && testHasIndexOptions == false);
         TokenPruningConfig queryPruningConfig = overrideQueryPruningConfig ? new TokenPruningConfig(3f, 0.5f, true) : null;
+        Boolean shouldPrune = overrideQueryPruningConfig ? Boolean.TRUE : (testQueryShouldNotPrune ? Boolean.FALSE : null);
 
         SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(
             SPARSE_VECTOR_FIELD,
             shouldUseDefaultTokens ? SEARCH_WEIGHTED_TOKENS_WITH_DEFAULTS : SEARCH_WEIGHTED_TOKENS,
             null,
             null,
-            overrideQueryPruningConfig ? Boolean.TRUE : (testQueryShouldNotPrune ? false : null),
+            shouldPrune,
             queryPruningConfig
         );
 
-        return "{\"query\":" + Strings.toString(queryBuilder) + "}";
+        return new SearchSourceBuilder().query(queryBuilder);
     }
 
     private String getAssertMessage(String message) {

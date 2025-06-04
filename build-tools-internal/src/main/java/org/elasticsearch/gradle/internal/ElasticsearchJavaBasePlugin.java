@@ -214,6 +214,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection bridgeFiles = bridgeJarConfig;
 
+//        project.getGradle().allprojects(subproject -> {
+//            subproject.getPluginManager().withPlugin("java", plugin -> {
+//                subproject.getDependencies().add("testRuntimeOnly", project.project(bridgeProject));
+//            });
+//        });
+
         project.getTasks().withType(Test.class).configureEach(test -> {
             // See also SystemJvmOptions.maybeAttachEntitlementAgent.
 

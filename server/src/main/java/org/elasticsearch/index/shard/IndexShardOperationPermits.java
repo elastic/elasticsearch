@@ -84,19 +84,13 @@ final class IndexShardOperationPermits implements Closeable {
         final ActionListener<Releasable> onAcquired,
         final long timeout,
         final TimeUnit timeUnit,
-        final Executor executor,
-        @Nullable IndexShard indexShard
+        final Executor executor
     ) {
         delayOperations();
-        // In case indexing is paused on the shard, suspend throttling so that any currently paused task can
-        // go ahead and release the indexing permit it holds.
-        indexShard.suspendThrottling();
         waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
-        // TODO: Does this do anything ? Looks like the relocated shard does not have throttling enabled
-        indexShard.resumeThrottling();
     }
 
-    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, Executor executor) {
+    protected void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, Executor executor) {
         executor.execute(new AbstractRunnable() {
 
             final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
@@ -132,7 +126,7 @@ final class IndexShardOperationPermits implements Closeable {
         });
     }
 
-    private void delayOperations() {
+    protected void delayOperations() {
         if (closed) {
             throw new IndexShardClosedException(shardId);
         }

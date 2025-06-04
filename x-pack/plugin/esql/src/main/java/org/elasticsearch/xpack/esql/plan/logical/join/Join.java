@@ -37,7 +37,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
@@ -72,7 +71,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
-        DATE_NANOS,
         OBJECT,
         SOURCE,
         DATE_PERIOD,

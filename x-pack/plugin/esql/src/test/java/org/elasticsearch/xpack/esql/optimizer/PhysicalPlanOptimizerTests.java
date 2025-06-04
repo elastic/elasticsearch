@@ -8297,12 +8297,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final SearchStats SEARCH_STATS_SHORT_DELEGATES = new EsqlTestUtils.TestSearchStats() {
         @Override
-        public boolean hasExactSubfield(String field) {
+        public boolean hasExactSubfield(FieldAttribute.FieldName field) {
             return false;
         }
 
         @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
             return value.length() < 4;
         }
     };

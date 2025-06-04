@@ -97,7 +97,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                 if (target instanceof FieldAttribute fa) {
                                     var fName = fa.fieldName();
                                     if (context.searchStats().isSingleValue(fName)) {
-                                        fieldName = fName;
+                                        fieldName = fName.toString();
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }
                                 }

@@ -152,7 +152,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private static String getFieldName(Attribute attr) {
         // Do not use the field attribute name, this can deviate from the field name for union types.
-        return attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
+        return attr instanceof FieldAttribute fa ? fa.fieldName().toString() : attr.name();
     }
 
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {

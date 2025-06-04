@@ -156,20 +156,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
     };
 
     private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
 
         @Override
-        public String constantValue(String name) {
-            return name.startsWith("constant_keyword") ? "foo" : null;
+        public String constantValue(FieldAttribute.FieldName name) {
+            return name.toString().startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -549,8 +549,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testLocalAggOptimizedToLocalRelation() {
         var stats = new TestSearchStats() {
             @Override
-            public boolean exists(String field) {
-                return "emp_no".equals(field) == false;
+            public boolean exists(FieldAttribute.FieldName field) {
+                return "emp_no".equals(field.toString()) == false;
             }
         };
 

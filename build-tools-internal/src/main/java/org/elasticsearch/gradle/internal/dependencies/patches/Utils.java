@@ -113,9 +113,9 @@ public class Utils {
                     try (InputStream is = jarFile.getInputStream(entry)) {
                         if (unsignJar && entryName.equals("META-INF/MANIFEST.MF")) {
                             var manifest = new Manifest(is);
-                            for (var manifestEntry: manifest.getEntries().entrySet()) {
+                            for (var manifestEntry : manifest.getEntries().entrySet()) {
                                 var nonSignatureAttributes = new Attributes();
-                                for (var attribute: manifestEntry.getValue().entrySet()) {
+                                for (var attribute : manifestEntry.getValue().entrySet()) {
                                     if (attribute.getKey().toString().endsWith("Digest") == false) {
                                         nonSignatureAttributes.put(attribute.getKey(), attribute.getValue());
                                     }

@@ -44,8 +44,7 @@ public class WildcardPattern extends AbstractStringPattern {
     public Automaton createAutomaton(boolean ignoreCase) {
         return ignoreCase
             ? Operations.determinize(
-                new RegExp(luceneWildcardToRegExp(wildcard), RegExp.ALL, RegExp.ASCII_CASE_INSENSITIVE)
-                    .toAutomaton(),
+                new RegExp(luceneWildcardToRegExp(wildcard), RegExp.ALL, RegExp.ASCII_CASE_INSENSITIVE).toAutomaton(),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             )
             : MinimizationOperations.minimize(

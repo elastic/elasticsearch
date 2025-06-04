@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -143,6 +144,10 @@ public final class CsvAssert {
                         || expectedType == Type.TEXT
                         || expectedType == Type.SEMANTIC_TEXT)) {
                     // Type.asType translates all bytes references into keywords
+                    continue;
+                }
+                if (blockType == Type.FLOAT && expectedType == DENSE_VECTOR) {
+                    // DENSE_VECTOR is internally represented as a float block
                     continue;
                 }
                 if (blockType == Type.NULL) {
@@ -323,7 +328,7 @@ public final class CsvAssert {
         if (values.size() > rows) {
             result.append("...").append(System.lineSeparator());
         }
-        return result.toString();
+        return result.toString().replaceAll("\\s+" + System.lineSeparator(), System.lineSeparator());
     }
 
     private static String header(String name, Type type) {

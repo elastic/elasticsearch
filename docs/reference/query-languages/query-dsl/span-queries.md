@@ -32,7 +32,7 @@ The queries in this group are:
 :   Wraps another span query, and excludes any documents which match that query.
 
 [`span_or` query](/reference/query-languages/query-dsl/query-dsl-span-query.md)
-:   Combines multiple span queries — returns documents which match any of the specified queries.
+:   Combines multiple span queries — returns documents which match any of the specified queries.
 
 [`span_term` query](/reference/query-languages/query-dsl/query-dsl-span-term-query.md)
 :   The equivalent of the [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md) but for use with other span queries.

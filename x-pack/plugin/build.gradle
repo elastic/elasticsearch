@@ -116,6 +116,8 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+  task.skipTest("service_accounts/10_basic/Test get service accounts", "Enterprise Search service account removed, invalidating the current tests")
+  task.skipTest("service_accounts/10_basic/Test service account tokens", "Enterprise Search service account removed, invalidating the current tests")
   task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
   task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")
@@ -131,6 +133,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
   task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
   task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
+  task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
 })
 
 tasks.named('yamlRestCompatTest').configure {

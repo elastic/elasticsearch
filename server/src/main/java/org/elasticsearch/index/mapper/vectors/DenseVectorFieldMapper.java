@@ -1640,7 +1640,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         BBQ_IVF("bbq_ivf", true) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
                 int clusterSize = IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
                 if (clusterSizeNode != null) {
@@ -1685,7 +1685,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         };
 
-        static Optional<VectorIndexType> fromString(String type) {
+        public static Optional<VectorIndexType> fromString(String type) {
             return Stream.of(VectorIndexType.values())
                 .filter(vectorIndexType -> vectorIndexType != VectorIndexType.BBQ_IVF || IVF_FORMAT.isEnabled())
                 .filter(vectorIndexType -> vectorIndexType.name.equals(type))

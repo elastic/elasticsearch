@@ -334,7 +334,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 validateServiceSettings(modelSettings.get(), resolvedModelSettings);
             }
 
-            if (indexOptions.get() != null) {
+            if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && indexOptions.get() != null) {
                 validateIndexOptions(indexOptions.get(), inferenceId.getValue(), resolvedModelSettings);
             }
             final String fullName = context.buildFullName(leafName());

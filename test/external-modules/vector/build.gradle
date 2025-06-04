@@ -7,21 +7,29 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-plugins {
-  id 'application'
-}
-
-ext {
-  javaMainClass = "org.elasticsearch.test.knn.KnnIndexTester"
-}
-
-application {
-  mainClass.set(javaMainClass)
-}
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  implementation project(':libs:logging')
+  implementation project(':server')
+}
+
+tasks.register("checkVec", JavaExec) {
+  group = "Execution"
+  description = "Runs KnnIndexTester with the provided parameters to validate recall and performance."
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass.set("org.elasticsearch.test.knn.KnnIndexTester")
+  // TODO REGISTER ARGS
+  args = [
+    "--docVectors=<path>",
+    "--numDocs=100000",
+    "--reindex",
+    "--queryVectors=<path>",
+    "--dimensions=768",
+  ]
 }

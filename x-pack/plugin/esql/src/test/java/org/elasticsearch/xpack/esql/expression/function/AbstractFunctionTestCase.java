@@ -843,7 +843,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 assertNotNull("License should not be null", license);
 
                 // Construct an instance of the class and then call it's licenseCheck method, and compare the results
-                Object[] args = new Object[signature.size() + 1];
+                Object[] args = new Object[ctor.getParameterCount()];
                 args[0] = Source.EMPTY;
                 for (int i = 0; i < signature.size(); i++) {
                     args[i + 1] = new Literal(Source.EMPTY, null, signature.get(i));

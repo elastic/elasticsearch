@@ -1164,7 +1164,12 @@ public class EsqlCapabilities {
         /**
          * Enable support for index aliases in lookup joins
          */
-        ENABLE_LOOKUP_JOIN_ON_ALIASES;
+        ENABLE_LOOKUP_JOIN_ON_ALIASES,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

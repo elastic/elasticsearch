@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,16 +28,20 @@ import java.util.SplittableRandom;
 
 public class SampleOperator implements Operator {
 
-    public record Factory(double probability, int seed) implements OperatorFactory {
+    public record Factory(double probability, Integer seed) implements OperatorFactory {
+
+        public Factory(double probability) {
+            this(probability, null);
+        }
 
         @Override
         public SampleOperator get(DriverContext driverContext) {
-            return new SampleOperator(probability, seed);
+            return new SampleOperator(probability, seed == null ? Randomness.get().nextInt() : seed);
         }
 
         @Override
         public String describe() {
-            return "SampleOperator[probability = " + probability + ", seed = " + seed + "]";
+            return "SampleOperator[probability = " + probability + "]";
         }
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -973,7 +974,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             List.of(new OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
-                    )
+                    ),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree"))
                 ),
                 false,
                 false,
@@ -1027,6 +1029,14 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "first" : [ ],
                           "last" : [ ]
                         }
+                      }
+                    ],
+                    "plans" : [
+                      {
+                        "description" : "test",
+                        "cluster_name" : "elasticsearch",
+                        "node_name" : "node-1",
+                        "plan" : "plan tree"
                       }
                     ]
                   }

@@ -170,12 +170,18 @@ public class IndexLifecycleService
         return IndexLifecycleTransition.moveIndexToStep(index, project, newStepKey, nowSupplier, policyRegistry, true);
     }
 
-    public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {
-        ClusterState newState = currentState;
+    public ProjectMetadata moveClusterStateToPreviouslyFailedStep(ProjectMetadata currentProject, String[] indices) {
+        ProjectMetadata newProject = currentProject;
         for (String index : indices) {
-            newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(newState, index, nowSupplier, policyRegistry, false);
+            newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+                newProject,
+                index,
+                nowSupplier,
+                policyRegistry,
+                false
+            );
         }
-        return newState;
+        return newProject;
     }
 
     // package private for testing

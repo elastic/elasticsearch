@@ -916,40 +916,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return newTestLifecyclePolicy(policyName, phases);
     }
 
-    public static void assertClusterStateOnNextStep(
-        ClusterState oldClusterState,
-        Index index,
-        StepKey currentStep,
-        StepKey nextStep,
-        ClusterState newClusterState,
-        long now
-    ) {
-        assertNotSame(oldClusterState, newClusterState);
-        Metadata newMetadata = newClusterState.metadata();
-        assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getProject().getIndexSafe(index);
-        assertNotSame(oldClusterState.metadata().getProject().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = newClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
-        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
-        assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(nextStep.phase(), newLifecycleState.phase());
-        assertEquals(nextStep.action(), newLifecycleState.action());
-        assertEquals(nextStep.name(), newLifecycleState.step());
-        if (currentStep.phase().equals(nextStep.phase())) {
-            assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
-        } else {
-            assertEquals(now, newLifecycleState.phaseTime().longValue());
-        }
-        if (currentStep.action().equals(nextStep.action())) {
-            assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
-        } else {
-            assertEquals(now, newLifecycleState.actionTime().longValue());
-        }
-        assertEquals(now, newLifecycleState.stepTime().longValue());
-        assertEquals(null, newLifecycleState.failedStep());
-        assertEquals(null, newLifecycleState.stepInfo());
-    }
-
     private static IndexMetadata createIndex(String name) {
         return IndexMetadata.builder(name).settings(randomIndexSettings()).build();
     }

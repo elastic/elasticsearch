@@ -8,17 +8,14 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -288,7 +285,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             for index [my_index] with policy [my_policy] does not exist"""));
     }
 
-    public void testMoveClusterStateToErrorStep() throws IOException {
+    public void testMoveIndexToErrorStep() throws IOException {
         String indexName = "my_index";
         Step.StepKey currentStep = new Step.StepKey("current_phase", "current_action", "current_step");
         Step.StepKey nextStepKey = new Step.StepKey("next_phase", "next_action", "next_step");
@@ -299,28 +296,28 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setPhase(currentStep.phase());
         lifecycleState.setAction(currentStep.action());
         lifecycleState.setStep(currentStep.name());
-        ClusterState clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), List.of());
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
+        ProjectMetadata project = buildProject(indexName, Settings.builder(), lifecycleState.build(), List.of());
+        Index index = project.index(indexName).getIndex();
 
-        ClusterState newClusterState = IndexLifecycleTransition.moveClusterStateToErrorStep(
+        ProjectMetadata newProject = IndexLifecycleTransition.moveIndexToErrorStep(
             index,
-            clusterState,
+            project,
             cause,
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
+        assertProjectOnErrorStep(project, index, currentStep, newProject, now, """
             {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE\"""");
 
         cause = new IllegalArgumentException("non elasticsearch-exception");
-        newClusterState = IndexLifecycleTransition.moveClusterStateToErrorStep(
+        newProject = IndexLifecycleTransition.moveIndexToErrorStep(
             index,
-            clusterState,
+            project,
             cause,
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
+        assertProjectOnErrorStep(project, index, currentStep, newProject, now, """
             {"type":"illegal_argument_exception","reason":"non elasticsearch-exception\"""");
     }
 
@@ -333,12 +330,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setPhase(currentStep.phase());
         lifecycleState.setAction(currentStep.action());
         lifecycleState.setStep(currentStep.name());
-        ClusterState clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), List.of());
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
-        ClusterState newClusterState = IndexLifecycleTransition.addStepInfoToClusterState(index, clusterState, stepInfo);
-        assertClusterStateStepInfo(clusterState, index, currentStep, newClusterState, stepInfo);
-        ClusterState runAgainClusterState = IndexLifecycleTransition.addStepInfoToClusterState(index, newClusterState, stepInfo);
-        assertSame(newClusterState, runAgainClusterState);
+        ProjectMetadata project = buildProject(indexName, Settings.builder(), lifecycleState.build(), List.of());
+        Index index = project.index(indexName).getIndex();
+        ProjectMetadata newProject = IndexLifecycleTransition.addStepInfoToClusterState(index, project, stepInfo);
+        assertProjectStepInfo(project, index, currentStep, newProject, stepInfo);
+        ProjectMetadata runAgainProject = IndexLifecycleTransition.addStepInfoToClusterState(index, newProject, stepInfo);
+        assertSame(newProject, runAgainProject);
     }
 
     public void testRemovePolicyForIndex() {
@@ -353,34 +350,29 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
+        Index index = project.index(indexName).getIndex();
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
+        ProjectMetadata newProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
 
         assertTrue(failedIndexes.isEmpty());
-        assertIndexNotManagedByILM(newClusterState, index);
+        assertIndexNotManagedByILM(newProject, index);
     }
 
     public void testRemovePolicyForIndexNoCurrentPolicy() {
         String indexName = randomAlphaOfLength(10);
         Settings.Builder indexSettingsBuilder = Settings.builder();
-        ClusterState clusterState = buildClusterState(
-            indexName,
-            indexSettingsBuilder,
-            LifecycleExecutionState.builder().build(),
-            List.of()
-        );
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, LifecycleExecutionState.builder().build(), List.of());
+        Index index = project.index(indexName).getIndex();
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
+        ProjectMetadata newProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
 
         assertTrue(failedIndexes.isEmpty());
-        assertIndexNotManagedByILM(newClusterState, index);
+        assertIndexNotManagedByILM(newProject, index);
     }
 
     public void testRemovePolicyForIndexIndexDoesntExist() {
@@ -395,16 +387,16 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = new Index("doesnt_exist", "im_not_here");
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
+        ProjectMetadata newProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
 
         assertEquals(1, failedIndexes.size());
         assertEquals("doesnt_exist", failedIndexes.get(0));
-        assertSame(clusterState, newClusterState);
+        assertSame(project, newProject);
     }
 
     public void testRemovePolicyForIndexIndexInUnsafe() {
@@ -419,15 +411,15 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
+        Index index = project.index(indexName).getIndex();
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
+        ProjectMetadata newProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
 
         assertTrue(failedIndexes.isEmpty());
-        assertIndexNotManagedByILM(newClusterState, index);
+        assertIndexNotManagedByILM(newProject, index);
     }
 
     public void testRemovePolicyWithIndexingComplete() {
@@ -444,15 +436,15 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
+        Index index = project.index(indexName).getIndex();
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
-        ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
+        ProjectMetadata newProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
 
         assertTrue(failedIndexes.isEmpty());
-        assertIndexNotManagedByILM(newClusterState, index);
+        assertIndexNotManagedByILM(newProject, index);
     }
 
     public void testValidateTransitionThrowsExceptionForMissingIndexPolicy() {
@@ -737,17 +729,17 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setStepTime(now);
         lifecycleState.setFailedStep(failedStepKey.name());
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
-        ClusterState nextClusterState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
-            clusterState,
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
+        Index index = project.index(indexName).getIndex();
+        ProjectMetadata newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            project,
             indexName,
             () -> now,
             policyRegistry,
             false
         );
-        IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = nextClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
+        assertClusterStateOnNextStep(project, index, errorStepKey, failedStepKey, newProject, now);
+        LifecycleExecutionState executionState = newProject.index(indexName).getLifecycleExecutionState();
         assertThat("manual move to failed step should not count as a retry", executionState.failedStepRetryCount(), is(nullValue()));
     }
 
@@ -778,10 +770,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setStepTime(now);
         lifecycleState.setFailedStep(failedStepKey.name());
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(clusterState, indexName, () -> now, policyRegistry, false)
+            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
         );
         assertThat(
             exception.getMessage(),
@@ -792,15 +784,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testMoveClusterStateToFailedStepIndexNotFound() {
         String existingIndexName = "my_index";
         String invalidIndexName = "does_not_exist";
-        ClusterState clusterState = buildClusterState(
-            existingIndexName,
-            Settings.builder(),
-            LifecycleExecutionState.builder().build(),
-            List.of()
-        );
+        ProjectMetadata project = buildProject(existingIndexName, Settings.builder(), LifecycleExecutionState.builder().build(), List.of());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(clusterState, invalidIndexName, () -> 0L, null, false)
+            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, invalidIndexName, () -> 0L, null, false)
         );
         assertThat(exception.getMessage(), equalTo("index [" + invalidIndexName + "] does not exist"));
     }
@@ -819,10 +806,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setAction(errorStepKey.action());
         lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setFailedStep(failedStepKey.name());
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), List.of());
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(clusterState, indexName, () -> now, policyRegistry, false)
+            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
         );
         assertThat(exception.getMessage(), equalTo("index [" + indexName + "] is not associated with an Index Lifecycle Policy"));
     }
@@ -839,10 +826,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setPhase(failedStepKey.phase());
         lifecycleState.setAction(failedStepKey.action());
         lifecycleState.setStep(failedStepKey.name());
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), List.of());
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(clusterState, indexName, () -> now, policyRegistry, false)
+            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
         );
         assertThat(
             exception.getMessage(),
@@ -879,17 +866,17 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setFailedStep(failedStepKey.name());
         String initialStepInfo = randomAlphaOfLengthBetween(10, 50);
         lifecycleState.setStepInfo(initialStepInfo);
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
-        Index index = clusterState.metadata().getProject().index(indexName).getIndex();
-        ClusterState nextClusterState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
-            clusterState,
+        ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
+        Index index = project.index(indexName).getIndex();
+        ProjectMetadata newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            project,
             indexName,
             () -> now,
             policyRegistry,
             true
         );
-        IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = nextClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
+        assertClusterStateOnNextStep(project, index, errorStepKey, failedStepKey, newProject, now);
+        LifecycleExecutionState executionState = newProject.index(indexName).getLifecycleExecutionState();
         assertThat(executionState.failedStepRetryCount(), is(1));
         assertThat(executionState.previousStepInfo(), is(initialStepInfo));
     }
@@ -936,24 +923,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         Step.StepKey errorStepKey = new Step.StepKey("hot", RolloverAction.NAME, ErrorStep.NAME);
         PolicyStepsRegistry stepsRegistry = createOneStepPolicyStepRegistry("my-policy", new ErrorStep(errorStepKey));
 
-        ClusterState clusterState = buildClusterState(
+        ProjectMetadata project = buildProject(
             indexName,
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"),
             currentExecutionState.build(),
             policyMetadatas
         );
-        ClusterState newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
-            clusterState,
+        ProjectMetadata newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            project,
             indexName,
             ESTestCase::randomNonNegativeLong,
             stepsRegistry,
             false
         );
 
-        LifecycleExecutionState nextLifecycleExecutionState = newState.metadata()
-            .getProject()
-            .index(indexName)
-            .getLifecycleExecutionState();
+        LifecycleExecutionState nextLifecycleExecutionState = newProject.index(indexName).getLifecycleExecutionState();
         assertThat(
             "we musn't refresh the cache definition if the failed step is not part of the real policy anymore",
             nextLifecycleExecutionState.phaseDefinition(),
@@ -1245,17 +1229,6 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         return newTestLifecyclePolicy(policyName, phases);
     }
 
-    private ClusterState buildClusterState(
-        String indexName,
-        Settings.Builder indexSettingsBuilder,
-        LifecycleExecutionState lifecycleState,
-        List<LifecyclePolicyMetadata> lifecyclePolicyMetadatas
-    ) {
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(buildProject(indexName, indexSettingsBuilder, lifecycleState, lifecyclePolicyMetadatas))
-            .build();
-    }
-
     private ProjectMetadata buildProject(
         String indexName,
         Settings.Builder indexSettingsBuilder,
@@ -1275,19 +1248,14 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 
-        @FixForMultiProject // Use non-default ID when the remainder of IndexLifecycleTransition is project-aware.
-        final var projectId = ProjectId.DEFAULT;
-        return ProjectMetadata.builder(projectId)
+        return ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexMetadata, true)
             .putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata)
             .build();
     }
 
-    public static void assertIndexNotManagedByILM(ClusterState clusterState, Index index) {
-        Metadata metadata = clusterState.metadata();
-        assertNotNull(metadata);
-
-        IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(index);
+    public static void assertIndexNotManagedByILM(ProjectMetadata project, Index index) {
+        IndexMetadata indexMetadata = project.getIndexSafe(index);
         assertNotNull(indexMetadata);
 
         assertNull(indexMetadata.getLifecyclePolicyName());
@@ -1349,21 +1317,19 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .build();
     }
 
-    private void assertClusterStateOnErrorStep(
-        ClusterState oldClusterState,
+    private static void assertProjectOnErrorStep(
+        ProjectMetadata oldProject,
         Index index,
         Step.StepKey currentStep,
-        ClusterState newClusterState,
+        ProjectMetadata newProject,
         long now,
         String expectedCauseValue
     ) {
-        assertNotSame(oldClusterState, newClusterState);
-        Metadata newMetadata = newClusterState.metadata();
-        assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getProject().getIndexSafe(index);
-        assertNotSame(oldClusterState.metadata().getProject().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = newClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
-        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
+        assertNotSame(oldProject, newProject);
+        IndexMetadata newIndexMetadata = newProject.getIndexSafe(index);
+        assertNotSame(oldProject.index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newProject.index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldProject.index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(currentStep.phase(), newLifecycleState.phase());
         assertEquals(currentStep.action(), newLifecycleState.action());
@@ -1375,23 +1341,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertEquals(now, newLifecycleState.stepTime().longValue());
     }
 
-    private void assertClusterStateStepInfo(
-        ClusterState oldClusterState,
+    private static void assertProjectStepInfo(
+        ProjectMetadata oldProject,
         Index index,
         Step.StepKey currentStep,
-        ClusterState newClusterState,
+        ProjectMetadata newProject,
         ToXContentObject stepInfo
     ) throws IOException {
         XContentBuilder stepInfoXContentBuilder = JsonXContent.contentBuilder();
         stepInfo.toXContent(stepInfoXContentBuilder, ToXContent.EMPTY_PARAMS);
         String expectedstepInfoValue = BytesReference.bytes(stepInfoXContentBuilder).utf8ToString();
-        assertNotSame(oldClusterState, newClusterState);
-        Metadata newMetadata = newClusterState.metadata();
-        assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getProject().getIndexSafe(index);
-        assertNotSame(oldClusterState.metadata().getProject().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = newClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
-        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
+        assertNotSame(oldProject, newProject);
+        IndexMetadata newIndexMetadata = newProject.getIndexSafe(index);
+        assertNotSame(oldProject.index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newProject.index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldProject.index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(currentStep.phase(), newLifecycleState.phase());
         assertEquals(currentStep.action(), newLifecycleState.action());
@@ -1400,5 +1364,36 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
         assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
         assertEquals(oldLifecycleState.stepTime(), newLifecycleState.stepTime());
+    }
+
+    static void assertClusterStateOnNextStep(
+        ProjectMetadata oldProject,
+        Index index,
+        Step.StepKey currentStep,
+        Step.StepKey nextStep,
+        ProjectMetadata newProject,
+        long now
+    ) {
+        IndexMetadata newIndexMetadata = newProject.getIndexSafe(index);
+        assertNotSame(oldProject.index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newProject.index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldProject.index(index).getLifecycleExecutionState();
+        assertNotSame(oldLifecycleState, newLifecycleState);
+        assertEquals(nextStep.phase(), newLifecycleState.phase());
+        assertEquals(nextStep.action(), newLifecycleState.action());
+        assertEquals(nextStep.name(), newLifecycleState.step());
+        if (currentStep.phase().equals(nextStep.phase())) {
+            assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        } else {
+            assertEquals(now, newLifecycleState.phaseTime().longValue());
+        }
+        if (currentStep.action().equals(nextStep.action())) {
+            assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        } else {
+            assertEquals(now, newLifecycleState.actionTime().longValue());
+        }
+        assertEquals(now, newLifecycleState.stepTime().longValue());
+        assertEquals(null, newLifecycleState.failedStep());
+        assertEquals(null, newLifecycleState.stepInfo());
     }
 }

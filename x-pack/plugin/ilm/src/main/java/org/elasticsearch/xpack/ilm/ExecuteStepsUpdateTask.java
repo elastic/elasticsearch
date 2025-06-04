@@ -206,7 +206,11 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                         if (stepInfo == null) {
                             return state;
                         } else {
-                            return IndexLifecycleTransition.addStepInfoToClusterState(index, state, stepInfo);
+                            return ClusterState.builder(state)
+                                .putProjectMetadata(
+                                    IndexLifecycleTransition.addStepInfoToClusterState(index, state.metadata().getProject(), stepInfo)
+                                )
+                                .build();
                         }
                     }
                 }
@@ -293,7 +297,12 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             ),
             cause
         );
-        return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
+        final var project = state.metadata().getProject();
+        return ClusterState.builder(state)
+            .putProjectMetadata(
+                IndexLifecycleTransition.moveIndexToErrorStep(index, project, cause, nowSupplier, policyStepsRegistry::getStep)
+            )
+            .build();
     }
 
     @Override

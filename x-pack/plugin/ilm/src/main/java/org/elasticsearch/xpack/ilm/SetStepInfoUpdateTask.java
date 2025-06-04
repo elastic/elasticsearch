@@ -46,14 +46,17 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
 
     @Override
     protected ClusterState doExecute(ClusterState currentState) throws IOException {
-        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
+        final var project = currentState.metadata().getProject();
+        IndexMetadata idxMeta = project.index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
         }
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(lifecycleState))) {
-            return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
+            return ClusterState.builder(currentState)
+                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToClusterState(index, project, stepInfo))
+                .build();
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

@@ -148,6 +148,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    private static final OriginalIndices SKIPPED_INDICES = new OriginalIndices(Strings.EMPTY_ARRAY, IndicesOptions.strictExpandOpen());
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -233,6 +235,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (String index : indices) {
             if (hasBlocks) {
                 blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
+                if (blocks.hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK)) {
+                    res.put(index, SKIPPED_INDICES);
+                    continue;
+                }
             }
 
             String[] aliases = indexNameExpressionResolver.allIndexAliases(projectState.metadata(), index, indicesAndAliases);
@@ -1889,7 +1895,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final ShardId shardId = shardRouting.shardId();
             OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;
-            list[i++] = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices);
+            var it = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices);
+            it.skip(finalIndices == SKIPPED_INDICES);
+            list[i++] = it;
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);

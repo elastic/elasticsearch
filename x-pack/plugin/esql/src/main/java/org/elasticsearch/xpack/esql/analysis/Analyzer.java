@@ -149,14 +149,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
-        new Batch<>(
-            "Initialize",
-            Limiter.ONCE,
-            new ResolveTable(),
-            new ResolveEnrich(),
-            new ResolveLookupTables(),
-            new ResolveFunctions()
-        ),
+        new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveLookupTables(), new ResolveFunctions()),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),

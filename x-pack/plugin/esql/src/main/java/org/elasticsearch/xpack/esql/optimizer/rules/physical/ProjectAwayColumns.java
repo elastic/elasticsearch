@@ -44,15 +44,29 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         // and the overall output will not change.
         AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
 
-        // This will require updating should we choose to have non-unary execution plans in the future.
         return plan.transformDown(currentPlanNode -> {
-            if (currentPlanNode instanceof MergeExec) {
-                keepTraversing.set(FALSE);
-            }
-
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }
+
+            // for non-unary execution plans, we apply the rule for each child
+            if (currentPlanNode instanceof MergeExec mergeExec) {
+                keepTraversing.set(FALSE);
+                List<PhysicalPlan> newChildren = new ArrayList<>();
+                boolean changed = false;
+
+                for (var child : mergeExec.children()) {
+                    var newChild = apply(child);
+
+                    if (newChild != child) {
+                        changed = true;
+                    }
+
+                    newChildren.add(newChild);
+                }
+                return changed ? new MergeExec(mergeExec.source(), newChildren, mergeExec.output()) : mergeExec;
+            }
+
             if (currentPlanNode instanceof ExchangeExec exec) {
                 keepTraversing.set(FALSE);
                 var child = exec.child();

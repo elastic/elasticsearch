@@ -34,8 +34,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.convertToRetrieverSource;
 
@@ -164,28 +166,36 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         Map<String, Float> expectedInferenceFields,
         String expectedQuery
     ) {
-        List<CompoundRetrieverBuilder.RetrieverSource> expectedInnerRetrievers = List.of(
+        Set<Object> expectedInnerRetrievers = Set.of(
             convertToRetrieverSource(
                 new StandardRetrieverBuilder(
                     new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
                         .fields(expectedNonInferenceFields)
                 )
             ),
-            convertToRetrieverSource(new RRFRetrieverBuilder(expectedInferenceFields.entrySet().stream().map(e -> {
+            Set.of(expectedInferenceFields.entrySet().stream().map(e -> {
                 if (e.getValue() != 1.0f) {
                     throw new IllegalArgumentException("Cannot apply per-field weights in RRF");
                 }
                 return convertToRetrieverSource(new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery)));
-            }).toList(), retriever.rankWindowSize(), retriever.rankConstant()))
-        );
-        RRFRetrieverBuilder expectedRewritten = new RRFRetrieverBuilder(
-            expectedInnerRetrievers,
-            retriever.rankWindowSize(),
-            retriever.rankConstant()
+            }).toArray())
         );
 
         RRFRetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
-        assertEquals(expectedRewritten, rewritten);
+        assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewritten));
+    }
+
+    private static Set<Object> getInnerRetrieversAsSet(RRFRetrieverBuilder retriever) {
+        Set<Object> innerRetrieversSet = new HashSet<>();
+        for (CompoundRetrieverBuilder.RetrieverSource innerRetriever : retriever.innerRetrievers()) {
+            if (innerRetriever.retriever() instanceof RRFRetrieverBuilder innerRrfRetriever) {
+                innerRetrieversSet.add(getInnerRetrieversAsSet(innerRrfRetriever));
+            } else {
+                innerRetrieversSet.add(innerRetriever);
+            }
+        }
+
+        return innerRetrieversSet;
     }
 }

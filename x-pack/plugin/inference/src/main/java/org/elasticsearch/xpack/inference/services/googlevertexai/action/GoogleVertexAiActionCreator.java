@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -23,13 +21,11 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiR
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
 
-import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,10 +37,6 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
     private final Sender sender;
 
     private final ServiceComponents serviceComponents;
-
-    static final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
-        "Google VertexAI chat completion"
-    );
 
     static final ResponseHandler CHAT_COMPLETION_HANDLER = new GoogleVertexAiResponseHandler(
         "Google VertexAI completion",
@@ -81,35 +73,15 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
 
     @Override
     public ExecutableAction create(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettings) {
-
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
+
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
-            COMPLETION_HANDLER,
+            CHAT_COMPLETION_HANDLER,
             inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
             ChatCompletionInput.class
         );
-
-        return new SingleInputSenderExecutableAction(sender, manager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
-    }
-
-    @Override
-    public ExecutableAction create(GoogleVertexAiCompletionModel model, Map<String, Object> taskSettings) {
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
-
-        var manager = new GenericRequestManager<>(serviceComponents.threadPool(), model, CHAT_COMPLETION_HANDLER, inputs -> {
-            try {
-                model.updateUri(inputs.stream());
-            } catch (URISyntaxException e) {
-                throw new ElasticsearchStatusException(
-                    "Error constructing URI for Google VertexAI completion",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                );
-            }
-            return new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model);
-        }, ChatCompletionInput.class);
 
         return new SingleInputSenderExecutableAction(sender, manager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
     }

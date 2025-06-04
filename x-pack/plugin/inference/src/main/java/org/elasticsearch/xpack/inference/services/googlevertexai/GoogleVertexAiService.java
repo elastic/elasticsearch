@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUnifiedChatCompletionRequest;
@@ -89,7 +88,7 @@ public class GoogleVertexAiService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    private final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
         "Google VertexAI chat completion"
     );
 
@@ -360,17 +359,7 @@ public class GoogleVertexAiService extends SenderService {
                 context
             );
 
-            case CHAT_COMPLETION -> new GoogleVertexAiChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-
-            case COMPLETION -> new GoogleVertexAiCompletionModel(
+            case CHAT_COMPLETION, COMPLETION -> new GoogleVertexAiChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,

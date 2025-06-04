@@ -25,6 +25,7 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
     private final GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings;
 
     protected URI uri;
+    protected URI nonStreamingUri;
 
     public GoogleVertexAiModel(
         ModelConfigurations configurations,
@@ -58,6 +59,10 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
 
     public URI uri() {
         return uri;
+    }
+
+    public URI nonStreamingUri() {
+        return nonStreamingUri;
     }
 
     @Override

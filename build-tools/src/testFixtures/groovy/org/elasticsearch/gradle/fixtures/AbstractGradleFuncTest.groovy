@@ -234,6 +234,9 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
                 (it as TestResultExtension.ErrorListener).errorInfo != null }
     }
 
+    void zip(String relativePath) {
+    }
+
     static class ProjectConfigurer {
         private File projectDir
 

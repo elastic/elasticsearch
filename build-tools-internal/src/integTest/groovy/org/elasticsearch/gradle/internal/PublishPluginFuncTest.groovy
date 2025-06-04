@@ -23,6 +23,90 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         configurationCacheCompatible = false
     }
 
+    def "project with plugin applied is considered for maven central publication"() {
+        given:
+        // required for JarHell to work
+        subProject(":libs:some-public-lib") << """
+            plugins {
+                id 'elasticsearch.java'
+                id 'elasticsearch.publish'
+            }
+        """
+
+        buildFile << """
+            plugins {
+                id 'com.gradleup.nmcp.aggregation'
+            }
+
+            version = "1.0"
+            group = 'org.acme'
+            description = "custom project description"
+            nmcpAggregation {
+              centralPortal {
+                username = 'acme'
+                password = 'acmepassword'
+                // publish manually from the portal
+                publishingType = "USER_MANAGED"
+              }
+              // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+              publishAllProjectsProbablyBreakingProjectIsolation()
+            }
+        """
+
+        when:
+        def result = gradleRunner(':zipAggregation').build()
+
+        then:
+        result.task(":zipAggregation").outcome == TaskOutcome.SUCCESS
+        file("build/nmcp/zip/aggregation.zip").exists()
+        zip("build/nmcp/zip/aggregation.zip").containsFile("hello-world-1.0.pom")
+
+//        assertXmlEquals(
+//            file("build/distributions/hello-world-1.0.pom").text, """
+//            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+//  <!-- This module was also published with a richer model, Gradle metadata,  -->
+//  <!-- which should be used instead. Do not delete the following line which  -->
+//  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+//  <!-- that they should prefer consuming it instead. -->
+//  <!-- do_not_remove: published-with-gradle-metadata -->
+//  <modelVersion>4.0.0</modelVersion>
+//  <groupId>org.acme</groupId>
+//  <artifactId>hello-world</artifactId>
+//  <version>1.0</version>
+//  <name>hello-world</name>
+//  <description>custom project description</description>
+//  <url>unknown</url>
+//  <scm>
+//    <url>unknown</url>
+//  </scm>
+//  <inceptionYear>2009</inceptionYear>
+//  <licenses>
+//    <license>
+//      <name>Elastic License 2.0</name>
+//      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+//      <distribution>repo</distribution>
+//    </license>
+//    <license>
+//      <name>GNU Affero General Public License Version 3</name>
+//      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+//      <distribution>repo</distribution>
+//    </license>
+//    <license>
+//      <name>Server Side Public License, v 1</name>
+//      <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+//      <distribution>repo</distribution>
+//    </license>
+//  </licenses>
+//  <developers>
+//    <developer>
+//      <name>Elastic</name>
+//      <url>https://www.elastic.co</url>
+//    </developer>
+//  </developers>
+//</project>"""
+//        )
+    }
+
     def "artifacts and tweaked pom is published"() {
         given:
         buildFile << """

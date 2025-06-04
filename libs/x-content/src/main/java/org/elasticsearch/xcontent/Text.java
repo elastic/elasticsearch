@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Both {@link String} and {@link EncodedBytes} representation of the text. Starts with one of those, and if
+ * Both {@link String} and {@link UTF8Bytes} representation of the text. Starts with one of those, and if
  * the other is requested, caches the other one in a local reference so no additional conversion will be needed.
  */
 public final class Text implements XContentString, Comparable<Text>, ToXContentFragment {
@@ -31,45 +31,46 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
         return texts;
     }
 
-    private EncodedBytes bytes;
-    private String text;
+    private UTF8Bytes bytes;
+    private String string;
     private int hash;
     private int stringLength = -1;
 
     /**
-     * Construct a Text from a UTF-8 encoded ByteBuffer. Since no string length is specified, {@link #stringLength()}
+     * Construct a Text from encoded UTF8Bytes. Since no string length is specified, {@link #stringLength()}
      * will perform a string conversion to measure the string length.
      */
-    public Text(EncodedBytes bytes) {
+    public Text(UTF8Bytes bytes) {
         this.bytes = bytes;
     }
 
     /**
-     * Construct a Text from a UTF-8 encoded ByteBuffer and an explicit string length. Used to avoid string conversion
-     * in {@link #stringLength()}.
+     * Construct a Text from encoded UTF8Bytes and an explicit string length. Used to avoid string conversion
+     * in {@link #stringLength()}. The provided stringLength should match the value that would
+     * be calculated by {@link Text#Text(UTF8Bytes)}.
      */
-    public Text(EncodedBytes bytes, int stringLength) {
+    public Text(UTF8Bytes bytes, int stringLength) {
         this.bytes = bytes;
         this.stringLength = stringLength;
     }
 
-    public Text(String text) {
-        this.text = text;
+    public Text(String string) {
+        this.string = string;
     }
 
     /**
-     * Whether an {@link EncodedBytes} view of the data is already materialized.
+     * Whether an {@link UTF8Bytes} view of the data is already materialized.
      */
     public boolean hasBytes() {
         return bytes != null;
     }
 
     @Override
-    public EncodedBytes bytes() {
+    public UTF8Bytes bytes() {
         if (bytes == null) {
-            var byteBuff = StandardCharsets.UTF_8.encode(text);
+            var byteBuff = StandardCharsets.UTF_8.encode(string);
             assert byteBuff.hasArray();
-            bytes = new EncodedBytes(byteBuff.array(), byteBuff.arrayOffset() + byteBuff.position(), byteBuff.remaining());
+            bytes = new UTF8Bytes(byteBuff.array(), byteBuff.arrayOffset() + byteBuff.position(), byteBuff.remaining());
         }
         return bytes;
     }
@@ -78,16 +79,17 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
      * Whether a {@link String} view of the data is already materialized.
      */
     public boolean hasString() {
-        return text != null;
+        return string != null;
     }
 
     @Override
     public String string() {
-        if (text == null) {
+        if (string == null) {
             var byteBuff = ByteBuffer.wrap(bytes.bytes(), bytes.offset(), bytes.length());
-            text = StandardCharsets.UTF_8.decode(byteBuff).toString();
+            string = StandardCharsets.UTF_8.decode(byteBuff).toString();
+            assert (stringLength < 0) || (string.length() == stringLength);
         }
-        return text;
+        return string;
     }
 
     @Override

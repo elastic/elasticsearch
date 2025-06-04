@@ -379,7 +379,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'text':'foo bar'}", () -> builder().startObject().field("text", new Text("foo bar")).endObject());
 
         final var random = randomBytes();
-        XContentBuilder builder = builder().startObject().field("text", new Text(new XContentString.EncodedBytes(random))).endObject();
+        XContentBuilder builder = builder().startObject().field("text", new Text(new XContentString.UTF8Bytes(random))).endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
@@ -597,7 +597,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':['a','b','c']}", new Object[] { "a", "b", "c" });
         objects.put(
             "{'objects':['a','b','c']}",
-            new Object[] { new Text("a"), new Text(new XContentString.EncodedBytes("b".getBytes(StandardCharsets.UTF_8))), new Text("c") }
+            new Object[] { new Text("a"), new Text(new XContentString.UTF8Bytes("b".getBytes(StandardCharsets.UTF_8))), new Text("c") }
         );
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[] { null, null, null });
@@ -644,7 +644,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':1}", (short) 1);
         object.put("{'object':'string'}", "string");
         object.put("{'object':'a'}", new Text("a"));
-        object.put("{'object':'b'}", new Text(new XContentString.EncodedBytes("b".getBytes(StandardCharsets.UTF_8))));
+        object.put("{'object':'b'}", new Text(new XContentString.UTF8Bytes("b".getBytes(StandardCharsets.UTF_8))));
         object.put("{'object':null}", null);
         object.put("{'object':'OPEN'}", IndexMetadata.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);

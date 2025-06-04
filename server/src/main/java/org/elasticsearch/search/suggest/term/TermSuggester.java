@@ -48,7 +48,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
                 suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
             var termBytes = token.term.bytes();
-            var termEncoded = new XContentString.EncodedBytes(termBytes.bytes, termBytes.offset, termBytes.length);
+            var termEncoded = new XContentString.UTF8Bytes(termBytes.bytes, termBytes.offset, termBytes.length);
             Text key = new Text(termEncoded);
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             for (SuggestWord suggestWord : suggestedWords) {
@@ -99,7 +99,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         List<Token> tokens = queryTerms(suggestion, spare);
         for (Token token : tokens) {
             var termBytes = token.term.bytes();
-            var termEncoded = new XContentString.EncodedBytes(termBytes.bytes, termBytes.offset, termBytes.length);
+            var termEncoded = new XContentString.UTF8Bytes(termBytes.bytes, termBytes.offset, termBytes.length);
             Text key = new Text(termEncoded);
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             termSuggestion.addTerm(resultEntry);

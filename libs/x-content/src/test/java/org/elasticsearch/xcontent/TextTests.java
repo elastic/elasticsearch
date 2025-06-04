@@ -17,7 +17,7 @@ public class TextTests extends ESTestCase {
     public void testConvertToBytes() {
         String value = randomUnicodeOfLength(randomInt(128));
         byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
-        var encoded = new XContentString.EncodedBytes(encodedArr);
+        var encoded = new XContentString.UTF8Bytes(encodedArr);
 
         var text = new Text(value);
         assertTrue(text.hasString());
@@ -39,7 +39,7 @@ public class TextTests extends ESTestCase {
     public void testConvertToString() {
         String value = randomUnicodeOfLength(randomInt(128));
         byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
-        var encoded = new XContentString.EncodedBytes(encodedArr);
+        var encoded = new XContentString.UTF8Bytes(encodedArr);
 
         var text = new Text(encoded);
         assertFalse(text.hasString());
@@ -62,7 +62,7 @@ public class TextTests extends ESTestCase {
         int stringLength = randomInt(128);
         String value = randomUnicodeOfLength(stringLength);
         byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
-        var encoded = new XContentString.EncodedBytes(encodedArr);
+        var encoded = new XContentString.UTF8Bytes(encodedArr);
 
         {
             var text = new Text(value);
@@ -88,7 +88,7 @@ public class TextTests extends ESTestCase {
     public void testEquals() {
         String value = randomUnicodeOfLength(randomInt(128));
         byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
-        var encoded = new XContentString.EncodedBytes(encodedArr);
+        var encoded = new XContentString.UTF8Bytes(encodedArr);
 
         {
             var text1 = new Text(value);
@@ -112,7 +112,7 @@ public class TextTests extends ESTestCase {
     public void testCompareTo() {
         String value1 = randomUnicodeOfLength(randomInt(128));
         byte[] encodedArr1 = value1.getBytes(StandardCharsets.UTF_8);
-        var encoded1 = new XContentString.EncodedBytes(encodedArr1);
+        var encoded1 = new XContentString.UTF8Bytes(encodedArr1);
 
         {
             var text1 = new Text(value1);
@@ -134,7 +134,7 @@ public class TextTests extends ESTestCase {
 
         String value2 = randomUnicodeOfLength(randomInt(128));
         byte[] encodedArr2 = value2.getBytes(StandardCharsets.UTF_8);
-        var encoded2 = new XContentString.EncodedBytes(encodedArr2);
+        var encoded2 = new XContentString.UTF8Bytes(encodedArr2);
 
         int compSign = (int) Math.signum(encoded1.compareTo(encoded2));
 

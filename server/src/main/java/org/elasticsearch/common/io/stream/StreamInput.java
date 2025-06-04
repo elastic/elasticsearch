@@ -391,7 +391,7 @@ public abstract class StreamInput extends InputStream {
         if (length > 0) {
             readBytes(bytes, 0, length);
         }
-        var encoded = new XContentString.EncodedBytes(bytes);
+        var encoded = new XContentString.UTF8Bytes(bytes);
         return new Text(encoded);
     }
 

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;

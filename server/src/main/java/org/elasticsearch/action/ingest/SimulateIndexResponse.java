@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;

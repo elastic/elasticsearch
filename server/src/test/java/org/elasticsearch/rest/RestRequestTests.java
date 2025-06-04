@@ -9,7 +9,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;

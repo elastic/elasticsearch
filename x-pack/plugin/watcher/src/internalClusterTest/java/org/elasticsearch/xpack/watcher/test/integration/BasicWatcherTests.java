@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 
 public class ModelDeploymentTimeoutException extends ElasticsearchStatusException {

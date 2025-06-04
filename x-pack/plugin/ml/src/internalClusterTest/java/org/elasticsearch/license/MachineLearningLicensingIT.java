@@ -7,7 +7,7 @@
 package org.elasticsearch.license;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;

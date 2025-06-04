@@ -10,7 +10,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;

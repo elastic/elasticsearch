@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 class TransformException extends ElasticsearchException {
     TransformException(String msg, Throwable cause, Object... args) {

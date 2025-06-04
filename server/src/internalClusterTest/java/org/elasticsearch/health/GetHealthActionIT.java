@@ -9,7 +9,7 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;

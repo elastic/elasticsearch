@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 
 public class ResultUtils {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;

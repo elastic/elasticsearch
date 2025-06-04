@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.transform.action.SetTransformUpgradeModeActi
 import java.util.Comparator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
+import static org.elasticsearch.exception.ExceptionsHelper.rethrowAndSuppress;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.transform.TransformField.AWAITING_UPGRADE;
 

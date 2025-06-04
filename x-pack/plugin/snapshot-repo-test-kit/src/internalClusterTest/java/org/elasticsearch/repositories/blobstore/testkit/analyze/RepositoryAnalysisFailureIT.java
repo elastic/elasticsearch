@@ -7,7 +7,7 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;

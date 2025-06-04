@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.SpatialPoint;

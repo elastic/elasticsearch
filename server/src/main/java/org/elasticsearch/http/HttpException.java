@@ -9,7 +9,7 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

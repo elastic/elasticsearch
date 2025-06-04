@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 

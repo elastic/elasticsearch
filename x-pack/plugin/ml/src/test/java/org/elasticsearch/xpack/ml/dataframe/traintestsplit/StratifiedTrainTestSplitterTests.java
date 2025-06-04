@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.junit.Before;

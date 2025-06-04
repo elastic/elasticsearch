@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
 
 import java.util.ArrayList;
 import java.util.Collections;

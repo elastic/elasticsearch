@@ -9,7 +9,7 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;

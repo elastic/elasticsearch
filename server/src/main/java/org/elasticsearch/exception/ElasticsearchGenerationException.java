@@ -6,20 +6,29 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch;
+
+package org.elasticsearch.exception;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class ResourceAlreadyUploadedException extends ResourceNotFoundException {
+/**
+ * A generic exception indicating failure to generate.
+ *
+ *
+ */
+public class ElasticsearchGenerationException extends ElasticsearchException {
 
-    public ResourceAlreadyUploadedException(String msg, Object... args) {
-        super(msg, args);
+    public ElasticsearchGenerationException(String msg) {
+        super(msg);
     }
 
-    public ResourceAlreadyUploadedException(StreamInput in) throws IOException {
+    public ElasticsearchGenerationException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
+
+    public ElasticsearchGenerationException(StreamInput in) throws IOException {
         super(in);
     }
-
 }

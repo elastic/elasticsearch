@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch;
+package org.elasticsearch.exception;
 
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import java.io.IOException;
 import java.util.Optional;
 
-import static org.elasticsearch.ExceptionsHelper.maybeError;
+import static org.elasticsearch.exception.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;

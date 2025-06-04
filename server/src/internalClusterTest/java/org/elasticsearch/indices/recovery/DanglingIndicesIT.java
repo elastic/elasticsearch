@@ -9,7 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;

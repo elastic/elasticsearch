@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.exception.ElasticsearchWrapperException;
 
 public class TransformStatePersistenceException extends RuntimeException implements ElasticsearchWrapperException {
     public TransformStatePersistenceException(String message, Throwable cause) {

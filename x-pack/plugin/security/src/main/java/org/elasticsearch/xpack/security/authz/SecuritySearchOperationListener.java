@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ReaderContext;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;

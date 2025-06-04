@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;

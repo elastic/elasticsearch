@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;

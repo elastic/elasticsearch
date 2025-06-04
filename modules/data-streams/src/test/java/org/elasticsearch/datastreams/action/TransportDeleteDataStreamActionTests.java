@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.datastreams.action;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;

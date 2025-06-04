@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -300,7 +301,7 @@ public class RequestExecutorService implements RequestExecutor {
      * @param requestManager the http request to send
      * @param inferenceInputs the inputs to send in the request
      * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
-     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+     *                listener::onFailure is called with a {@link ElasticsearchTimeoutException}.
      *                If null, then the request will wait forever
      * @param listener an {@link ActionListener<InferenceServiceResults>} for the response or failure
      */

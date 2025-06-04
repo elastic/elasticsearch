@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -134,10 +134,10 @@ public class ExceptionsHelper {
     }
 
     /**
-     * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
+     * @see org.elasticsearch.exception.ExceptionsHelper#unwrapCause(Throwable)
      */
     public static Throwable unwrapCause(Throwable t) {
-        return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+        return org.elasticsearch.exception.ExceptionsHelper.unwrapCause(t);
     }
 
     /**

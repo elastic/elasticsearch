@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -262,7 +263,7 @@ public class TransformUpdater {
                 currentState.v1(),
                 null, // set seqNoPrimaryTermAndIndex to `null` to force optype `create`, gh#80073
                 ActionListener.wrap(r -> listener.onResponse(lastCheckpoint), e -> {
-                    if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // if a version conflict occurs a new state has been written between us reading and writing.
                         // this is a benign case, as it means the transform is running and the latest state has been written by it
                         logger.trace("[{}] could not update transform state during update due to running transform", transformId);

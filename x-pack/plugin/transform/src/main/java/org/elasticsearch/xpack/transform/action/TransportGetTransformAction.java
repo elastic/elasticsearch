@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;

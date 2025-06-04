@@ -10,7 +10,7 @@
 package org.elasticsearch.aggregations.bucket;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;

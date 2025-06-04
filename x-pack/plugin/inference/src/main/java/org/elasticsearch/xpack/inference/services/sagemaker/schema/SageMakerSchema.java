@@ -17,7 +17,7 @@ import software.amazon.awssdk.services.sagemakerruntime.model.SageMakerRuntimeEx
 import software.amazon.awssdk.services.sagemakerruntime.model.ServiceUnavailableException;
 import software.amazon.awssdk.services.sagemakerruntime.model.ValidationErrorException;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

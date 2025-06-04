@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -24,7 +24,7 @@ public interface OperatorOnlyRegistry {
     /**
      * This method is only called if the user is not an operator.
      * Implementations should fail the request if the {@link RestRequest} is not allowed to proceed by throwing an
-     * {@link org.elasticsearch.ElasticsearchException}. If the request should be handled by the associated {@link RestHandler},
+     * {@link ElasticsearchException}. If the request should be handled by the associated {@link RestHandler},
      * then this implementations should do nothing.
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;

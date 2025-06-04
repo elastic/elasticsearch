@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 class CheckpointException extends ElasticsearchException {
     CheckpointException(String msg, Object... params) {

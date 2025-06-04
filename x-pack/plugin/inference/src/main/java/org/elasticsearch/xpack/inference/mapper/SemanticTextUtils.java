@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;

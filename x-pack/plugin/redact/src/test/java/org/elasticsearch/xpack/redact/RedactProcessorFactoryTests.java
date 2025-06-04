@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.redact;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;

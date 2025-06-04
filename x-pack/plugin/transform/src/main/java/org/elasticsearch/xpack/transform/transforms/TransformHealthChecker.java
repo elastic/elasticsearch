@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;

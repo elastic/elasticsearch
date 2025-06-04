@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.test;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 

@@ -10,7 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;

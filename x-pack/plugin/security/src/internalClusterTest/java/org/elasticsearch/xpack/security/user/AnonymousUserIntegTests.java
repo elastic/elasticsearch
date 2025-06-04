@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.user;
 
 import org.apache.http.Header;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;

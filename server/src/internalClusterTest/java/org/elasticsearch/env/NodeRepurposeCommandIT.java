@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;

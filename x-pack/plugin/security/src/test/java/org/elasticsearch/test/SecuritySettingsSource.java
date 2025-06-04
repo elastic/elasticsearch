@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;

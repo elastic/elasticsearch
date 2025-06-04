@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ssl;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.core.Nullable;

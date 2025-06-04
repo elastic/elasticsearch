@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;

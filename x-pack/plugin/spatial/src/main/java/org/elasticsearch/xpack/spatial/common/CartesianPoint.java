@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.spatial.common;
 
 import org.apache.lucene.geo.XYEncodingUtils;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GenericPointParser;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;

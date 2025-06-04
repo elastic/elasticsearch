@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;

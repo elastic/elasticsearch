@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -368,7 +368,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     listener.onResponse(null);
                 }
             }, statsExc -> {
-                if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
+                if (org.elasticsearch.exception.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
                     // - there are reasons the seq_id, primary_term changes without user intervention, e.g. an internal

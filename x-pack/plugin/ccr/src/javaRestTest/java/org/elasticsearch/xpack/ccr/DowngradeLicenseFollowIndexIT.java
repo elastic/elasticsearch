@@ -158,7 +158,7 @@ public class DowngradeLicenseFollowIndexIT extends AbstractCCRRestTestCase {
                     && actual.stacktrace()
                         .get(0)
                         .contains(
-                            "org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state "
+                            "org.elasticsearch.exception.ElasticsearchStatusException: can not fetch remote cluster state "
                                 + "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]"
                                 + " on cluster [leader_cluster] does not enable [ccr]"
                         );

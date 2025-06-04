@@ -7,13 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch;
+package org.elasticsearch.exception;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.*;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.RemoteException;
@@ -596,7 +597,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
+     * Static toXContent helper method that renders {@link ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
      * or {@link #innerToXContent(XContentBuilder, Params, Throwable, Map, Map, Throwable, int)}.
      *
@@ -722,7 +723,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     /**
      * Returns the root cause of this exception or multiple if different shards caused different exceptions.
-     * If the given exception is not an instance of {@link org.elasticsearch.ElasticsearchException} an empty array
+     * If the given exception is not an instance of {@link ElasticsearchException} an empty array
      * is returned.
      */
     public static ElasticsearchException[] guessRootCauses(Throwable t) {
@@ -1080,8 +1081,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         ELASTICSEARCH_SECURITY_EXCEPTION(
-            org.elasticsearch.ElasticsearchSecurityException.class,
-            org.elasticsearch.ElasticsearchSecurityException::new,
+            ElasticsearchSecurityException.class,
+            ElasticsearchSecurityException::new,
             4,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1165,8 +1166,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         RESOURCE_NOT_FOUND_EXCEPTION(
-            org.elasticsearch.ResourceNotFoundException.class,
-            org.elasticsearch.ResourceNotFoundException::new,
+            ResourceNotFoundException.class,
+            ResourceNotFoundException::new,
             19,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1177,8 +1178,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         ELASTICSEARCH_GENERATION_EXCEPTION(
-            org.elasticsearch.ElasticsearchGenerationException.class,
-            org.elasticsearch.ElasticsearchGenerationException::new,
+            ElasticsearchGenerationException.class,
+            ElasticsearchGenerationException::new,
             21,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1241,8 +1242,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         ELASTICSEARCH_PARSE_EXCEPTION(
-            org.elasticsearch.ElasticsearchParseException.class,
-            org.elasticsearch.ElasticsearchParseException::new,
+            ElasticsearchParseException.class,
+            ElasticsearchParseException::new,
             35,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1389,8 +1390,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ),
         HTTP_EXCEPTION(org.elasticsearch.http.HttpException.class, org.elasticsearch.http.HttpException::new, 67, UNKNOWN_VERSION_ADDED),
         ELASTICSEARCH_EXCEPTION(
-            org.elasticsearch.ElasticsearchException.class,
-            org.elasticsearch.ElasticsearchException::new,
+            ElasticsearchException.class,
+            ElasticsearchException::new,
             68,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1641,8 +1642,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         ELASTICSEARCH_TIMEOUT_EXCEPTION(
-            org.elasticsearch.ElasticsearchTimeoutException.class,
-            org.elasticsearch.ElasticsearchTimeoutException::new,
+            ElasticsearchTimeoutException.class,
+            ElasticsearchTimeoutException::new,
             118,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1766,8 +1767,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         STATUS_EXCEPTION(
-            org.elasticsearch.ElasticsearchStatusException.class,
-            org.elasticsearch.ElasticsearchStatusException::new,
+            ElasticsearchStatusException.class,
+            ElasticsearchStatusException::new,
             145,
             UNKNOWN_VERSION_ADDED
         ),
@@ -1857,8 +1858,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         AUTHENTICATION_PROCESSING_ERROR(
-            org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
-            org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
+            ElasticsearchAuthenticationProcessingError.class,
+            ElasticsearchAuthenticationProcessingError::new,
             162,
             UNKNOWN_VERSION_ADDED
         ),

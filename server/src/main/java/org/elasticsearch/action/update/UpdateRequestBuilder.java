@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;

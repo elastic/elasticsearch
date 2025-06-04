@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;

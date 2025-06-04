@@ -10,7 +10,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;

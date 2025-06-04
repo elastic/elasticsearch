@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.action.saml;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;

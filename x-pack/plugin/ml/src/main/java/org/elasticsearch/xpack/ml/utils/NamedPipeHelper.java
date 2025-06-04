@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;

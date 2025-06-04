@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.TimeValue;

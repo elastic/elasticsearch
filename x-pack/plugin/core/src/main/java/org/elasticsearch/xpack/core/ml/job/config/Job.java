@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;

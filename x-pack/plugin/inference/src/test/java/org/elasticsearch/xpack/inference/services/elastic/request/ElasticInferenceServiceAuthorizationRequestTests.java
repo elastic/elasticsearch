@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;

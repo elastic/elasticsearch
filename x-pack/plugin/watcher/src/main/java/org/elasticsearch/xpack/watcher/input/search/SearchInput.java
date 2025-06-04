@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;

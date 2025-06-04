@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

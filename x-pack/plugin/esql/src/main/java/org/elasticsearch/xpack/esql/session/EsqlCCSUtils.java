@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -300,7 +301,7 @@ public class EsqlCCSUtils {
      * @param indices index expression requested by user
      * @param indicesGrouper grouper of index expressions by cluster alias
      * @param licenseState license state on the querying cluster
-     * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
+     * @throws ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void checkForCcsLicense(
         EsqlExecutionInfo executionInfo,

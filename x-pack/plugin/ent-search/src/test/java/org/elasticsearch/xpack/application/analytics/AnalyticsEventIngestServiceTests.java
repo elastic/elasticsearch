@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;

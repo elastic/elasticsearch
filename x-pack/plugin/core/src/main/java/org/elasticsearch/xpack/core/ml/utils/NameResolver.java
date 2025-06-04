@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 

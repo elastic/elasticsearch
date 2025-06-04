@@ -9,8 +9,8 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.rest.RestStatus;
 

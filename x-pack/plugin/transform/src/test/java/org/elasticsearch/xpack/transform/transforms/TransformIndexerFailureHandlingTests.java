@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -590,7 +590,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     "timed out during dbq",
                     Level.WARNING,
                     transformId,
-                    "Transform encountered an exception: [org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq];"
+                    "Transform encountered an exception: [org.elasticsearch.exception.ElasticsearchTimeoutException: timed out during dbq];"
                         + " Will automatically retry [1/10]"
                 )
             );

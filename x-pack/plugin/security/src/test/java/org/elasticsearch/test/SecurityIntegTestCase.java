@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;

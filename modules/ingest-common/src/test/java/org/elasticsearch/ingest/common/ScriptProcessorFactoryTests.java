@@ -9,7 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.script.CtxMap;

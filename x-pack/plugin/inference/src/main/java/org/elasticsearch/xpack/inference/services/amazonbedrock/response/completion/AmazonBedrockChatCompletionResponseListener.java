@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.response.comple
 
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;

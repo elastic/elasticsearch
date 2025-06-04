@@ -9,8 +9,8 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchCorruptionException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchCorruptionException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;

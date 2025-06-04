@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;

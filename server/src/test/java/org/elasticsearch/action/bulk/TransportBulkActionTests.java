@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;

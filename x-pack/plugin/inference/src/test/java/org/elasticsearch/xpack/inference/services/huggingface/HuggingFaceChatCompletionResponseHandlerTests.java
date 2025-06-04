@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.elasticsearch.exception.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;

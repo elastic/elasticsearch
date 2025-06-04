@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.RejectedExecutionException;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;

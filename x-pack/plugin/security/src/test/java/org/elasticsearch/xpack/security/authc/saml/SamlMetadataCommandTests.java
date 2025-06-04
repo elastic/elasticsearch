@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;

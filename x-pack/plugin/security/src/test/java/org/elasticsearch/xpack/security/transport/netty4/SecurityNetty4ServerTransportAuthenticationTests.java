@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;

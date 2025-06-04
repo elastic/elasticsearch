@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeDeleteResult;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests.FakeIndexResult;

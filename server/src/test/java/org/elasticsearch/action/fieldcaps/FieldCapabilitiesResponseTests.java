@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.ElasticsearchExceptionTests;
+import org.elasticsearch.exception.ElasticsearchExceptionTests;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;

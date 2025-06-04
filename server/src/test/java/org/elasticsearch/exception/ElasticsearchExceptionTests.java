@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch;
+package org.elasticsearch.exception;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -490,7 +490,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             "foo",
             new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
         );
-        assertThat(exception.toString(), equalTo("org.elasticsearch.ElasticsearchException: foo"));
+        assertThat(exception.toString(), equalTo("org.elasticsearch.exception.ElasticsearchException: foo"));
     }
 
     public void testGetDetailedMessage() {
@@ -501,7 +501,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(
             exception.getDetailedMessage(),
             equalTo(
-                "org.elasticsearch.ElasticsearchException: foo; org.elasticsearch.ElasticsearchException: bar; "
+                "org.elasticsearch.exception.ElasticsearchException: foo; org.elasticsearch.exception.ElasticsearchException: bar; "
                     + "java.lang.IllegalArgumentException: index is closed"
             )
         );

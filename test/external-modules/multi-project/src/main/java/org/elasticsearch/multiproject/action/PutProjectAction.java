@@ -9,7 +9,7 @@
 
 package org.elasticsearch.multiproject.action;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;

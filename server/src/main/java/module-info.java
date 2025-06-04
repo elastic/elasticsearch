@@ -479,4 +479,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
     exports org.elasticsearch.lucene.search;
+    exports org.elasticsearch.exception;
 }

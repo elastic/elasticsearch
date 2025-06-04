@@ -14,7 +14,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;

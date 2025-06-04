@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.legacygeo.parsers;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.Loggers;

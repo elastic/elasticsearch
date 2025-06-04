@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ElasticsearchAuthenticationProcessingError;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.junit.AfterClass;

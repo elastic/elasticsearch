@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -163,7 +164,7 @@ public class TrainedModelAssignmentService {
         FailedToCommitClusterStateException.class };
 
     private static boolean isMasterChannelException(Exception exp) {
-        return org.elasticsearch.ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
+        return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 
 }

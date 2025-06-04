@@ -9,7 +9,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;

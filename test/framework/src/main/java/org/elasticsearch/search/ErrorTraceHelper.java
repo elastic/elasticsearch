@@ -10,7 +10,7 @@
 package org.elasticsearch.search;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;

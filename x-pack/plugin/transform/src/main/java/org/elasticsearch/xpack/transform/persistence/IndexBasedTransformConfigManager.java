@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.*;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -1017,7 +1014,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         }
 
         for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
-            RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
+            RestStatus failureStatus = ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;
                 reason = failure.getReason();

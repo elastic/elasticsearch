@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchWrapperException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
 public class RetryException extends ElasticsearchException implements ElasticsearchWrapperException, Retryable {

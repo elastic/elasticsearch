@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.history;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.exception.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
 /**
  * The {@link ILMHistoryItem} class encapsulates the state of an index at a point in time. It should

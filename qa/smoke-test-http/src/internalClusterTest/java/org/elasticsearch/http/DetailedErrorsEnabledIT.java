@@ -54,7 +54,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
             Map<String, Object> cause = (Map<String, Object>) jsonNode.<List<Object>>get("error.root_cause").get(0);
             assertThat(
                 cause.get("stack_trace").toString(),
-                startsWith("org.elasticsearch.ElasticsearchException$1: Validation Failed: 1: index / indices is missing")
+                startsWith("org.elasticsearch.exception.ElasticsearchException$1: Validation Failed: 1: index / indices is missing")
             );
         }
     }

@@ -10,7 +10,7 @@
 package org.elasticsearch.get;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;

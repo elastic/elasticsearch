@@ -9,7 +9,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;

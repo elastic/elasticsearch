@@ -10,6 +10,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accountable {
@@ -24,7 +25,7 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
      *
      * Example: {@link org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree} should check if there are any loops
      *
-     * @throws org.elasticsearch.ElasticsearchException if validations fail
+     * @throws ElasticsearchException if validations fail
      */
     void validate();
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 /**
  * Base class for all QL exceptions. Useful as a catch-all.

@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.transform.utils;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -58,7 +59,7 @@ public final class ExceptionRootCauseFinder {
      */
     public static Throwable getFirstIrrecoverableExceptionFromBulkResponses(Collection<BulkItemResponse> failures) {
         for (BulkItemResponse failure : failures) {
-            Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(failure.getFailure().getCause());
+            Throwable unwrappedThrowable = ExceptionsHelper.unwrapCause(failure.getFailure().getCause());
             if (unwrappedThrowable instanceof IllegalArgumentException) {
                 return unwrappedThrowable;
             }

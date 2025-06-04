@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 
 /**
  * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation

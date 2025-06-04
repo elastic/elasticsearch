@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 

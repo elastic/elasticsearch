@@ -421,7 +421,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         startTransform(transformId, RequestOptions.DEFAULT);
 
         var permissionIssues = Strings.format(
-            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+            "org.elasticsearch.exception.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
                 + "see privileges_check_failed issue for more details",
             transformId
         );
@@ -470,7 +470,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
         var permissionIssues = Strings.format(
-            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+            "org.elasticsearch.exception.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
                 + "see privileges_check_failed issue for more details",
             transformId
         );

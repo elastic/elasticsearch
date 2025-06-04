@@ -11,7 +11,7 @@ package org.elasticsearch.legacygeo.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.legacygeo.builders.LineStringBuilder;

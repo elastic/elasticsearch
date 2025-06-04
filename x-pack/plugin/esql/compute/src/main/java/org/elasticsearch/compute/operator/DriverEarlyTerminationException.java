@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 /**
  * An exception indicates that a compute should be terminated early as the downstream pipeline has enough or no long requires more data.

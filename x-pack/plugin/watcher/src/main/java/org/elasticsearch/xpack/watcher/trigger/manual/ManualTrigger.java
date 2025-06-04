@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.manual;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;

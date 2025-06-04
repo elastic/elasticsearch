@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.TransportAction;

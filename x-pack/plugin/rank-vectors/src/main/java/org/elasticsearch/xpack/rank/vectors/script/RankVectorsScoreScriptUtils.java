@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.rank.vectors.script;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.field.vectors.DenseVector;

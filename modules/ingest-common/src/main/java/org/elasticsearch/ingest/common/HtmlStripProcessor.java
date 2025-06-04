@@ -10,7 +10,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 import java.io.IOException;
 import java.io.StringReader;

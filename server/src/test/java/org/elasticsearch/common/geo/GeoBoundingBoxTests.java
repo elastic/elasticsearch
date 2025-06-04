@@ -10,7 +10,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;

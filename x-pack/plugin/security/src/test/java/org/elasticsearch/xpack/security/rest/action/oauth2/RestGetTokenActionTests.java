@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;

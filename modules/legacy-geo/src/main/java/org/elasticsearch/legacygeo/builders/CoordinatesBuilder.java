@@ -9,7 +9,7 @@
 
 package org.elasticsearch.legacygeo.builders;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.util.ArrayList;

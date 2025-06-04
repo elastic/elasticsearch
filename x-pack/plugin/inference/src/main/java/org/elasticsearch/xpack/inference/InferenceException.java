@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 
 public class InferenceException extends ElasticsearchException {

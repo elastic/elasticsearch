@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ExceptionsHelper;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -87,9 +88,9 @@ public class TransportStartRollupAction extends TransportTasksAction<
     ) {
 
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
         }
 
         // Either the job doesn't exist (the user didn't create it yet) or was deleted after the StartAPI executed.

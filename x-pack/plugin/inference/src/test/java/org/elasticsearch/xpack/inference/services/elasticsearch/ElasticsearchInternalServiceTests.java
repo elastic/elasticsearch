@@ -10,7 +10,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;

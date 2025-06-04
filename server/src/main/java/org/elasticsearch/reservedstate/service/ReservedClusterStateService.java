@@ -47,7 +47,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.ExceptionsHelper.stackTrace;
+import static org.elasticsearch.exception.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.checkErrorVersion;

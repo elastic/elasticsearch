@@ -11,7 +11,7 @@ package org.elasticsearch.lucene.spatial;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 

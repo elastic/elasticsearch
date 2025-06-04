@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;

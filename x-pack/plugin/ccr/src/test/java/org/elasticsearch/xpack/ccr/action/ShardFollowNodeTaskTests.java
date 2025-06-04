@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;

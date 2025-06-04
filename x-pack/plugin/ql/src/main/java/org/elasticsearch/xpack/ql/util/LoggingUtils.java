@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ql.util;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;

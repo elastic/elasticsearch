@@ -6,13 +6,14 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch;
+package org.elasticsearch.exception;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.*;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
@@ -664,7 +665,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(1, org.elasticsearch.search.dfs.DfsPhaseExecutionException.class);
         ids.put(2, org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class);
         ids.put(3, org.elasticsearch.discovery.MasterNotDiscoveredException.class);
-        ids.put(4, org.elasticsearch.ElasticsearchSecurityException.class);
+        ids.put(4, ElasticsearchSecurityException.class);
         ids.put(5, org.elasticsearch.index.snapshots.IndexShardRestoreException.class);
         ids.put(6, org.elasticsearch.indices.IndexClosedException.class);
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
@@ -679,9 +680,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(16, org.elasticsearch.index.IndexNotFoundException.class);
         ids.put(17, org.elasticsearch.cluster.routing.IllegalShardRoutingStateException.class);
         ids.put(18, org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class);
-        ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
+        ids.put(19, ResourceNotFoundException.class);
         ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
-        ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
+        ids.put(21, ElasticsearchGenerationException.class);
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
@@ -695,7 +696,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(32, org.elasticsearch.indices.InvalidIndexNameException.class);
         ids.put(33, org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException.class);
         ids.put(34, org.elasticsearch.transport.TransportException.class);
-        ids.put(35, org.elasticsearch.ElasticsearchParseException.class);
+        ids.put(35, ElasticsearchParseException.class);
         ids.put(36, org.elasticsearch.search.SearchException.class);
         ids.put(37, org.elasticsearch.index.mapper.MapperException.class);
         ids.put(38, org.elasticsearch.indices.InvalidTypeNameException.class);
@@ -728,7 +729,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(65, null); // GatewayException, never instantiated in 5.0+
         ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
         ids.put(67, org.elasticsearch.http.HttpException.class);
-        ids.put(68, org.elasticsearch.ElasticsearchException.class);
+        ids.put(68, ElasticsearchException.class);
         ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
         ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
         ids.put(71, org.elasticsearch.action.FailedNodeException.class);
@@ -775,12 +776,12 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
         ids.put(117, ReplicationOperation.RetryOnPrimaryException.class);
-        ids.put(118, org.elasticsearch.ElasticsearchTimeoutException.class);
+        ids.put(118, ElasticsearchTimeoutException.class);
         ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
         ids.put(122, null);
-        ids.put(123, org.elasticsearch.ResourceAlreadyExistsException.class);
+        ids.put(123, ResourceAlreadyExistsException.class);
         ids.put(124, null);
         ids.put(125, TcpTransport.HttpRequestOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
@@ -802,7 +803,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
-        ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
+        ids.put(145, ElasticsearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, null);

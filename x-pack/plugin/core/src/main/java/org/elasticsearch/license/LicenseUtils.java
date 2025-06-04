@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.license.License.LicenseType;
 import org.elasticsearch.license.internal.XPackLicenseStatus;

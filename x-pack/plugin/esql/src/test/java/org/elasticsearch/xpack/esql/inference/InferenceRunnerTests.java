@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;

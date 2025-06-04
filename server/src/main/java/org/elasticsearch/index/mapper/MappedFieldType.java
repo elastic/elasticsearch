@@ -25,13 +25,14 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -102,7 +103,7 @@ public abstract class MappedFieldType {
      * @param fieldDataContext the context for the fielddata
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
-     * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     * when this error occurs in a request. see: {@link ExceptionsHelper#status}
      */
     public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
@@ -501,7 +502,7 @@ public abstract class MappedFieldType {
 
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.
      *  An IllegalArgumentException is needed in order to return an http error 400
-     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     *  when this error occurs in a request. see: {@link ExceptionsHelper#status}
      **/
     protected final void failIfNoDocValues() {
         if (hasDocValues() == false) {

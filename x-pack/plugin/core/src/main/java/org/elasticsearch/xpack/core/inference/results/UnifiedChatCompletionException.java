@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.util.Collections.emptyIterator;
-import static org.elasticsearch.ExceptionsHelper.maybeError;
+import static org.elasticsearch.exception.ExceptionsHelper.maybeError;
 import static org.elasticsearch.common.collect.Iterators.concat;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;

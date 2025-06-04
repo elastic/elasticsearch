@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.idp.saml.test;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;

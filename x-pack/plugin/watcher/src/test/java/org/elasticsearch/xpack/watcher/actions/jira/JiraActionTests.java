@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;

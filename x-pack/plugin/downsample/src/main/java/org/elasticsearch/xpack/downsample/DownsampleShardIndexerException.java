@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 public class DownsampleShardIndexerException extends ElasticsearchException {
     private final boolean retriable;

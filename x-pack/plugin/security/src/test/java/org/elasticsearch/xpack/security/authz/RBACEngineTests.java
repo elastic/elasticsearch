@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.exception.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;

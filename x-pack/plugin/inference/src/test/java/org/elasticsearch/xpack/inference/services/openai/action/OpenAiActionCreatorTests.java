@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.openai.action;
 
 import org.apache.http.HttpHeaders;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

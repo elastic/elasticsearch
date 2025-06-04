@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 /**
  * Indicates a configuration or execution problem specific to a SAML ServiceProvider

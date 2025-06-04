@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;

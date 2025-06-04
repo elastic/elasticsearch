@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 // Wrapper for indexing failures thrown internally in the transform indexer
 class BulkIndexingException extends ElasticsearchException {

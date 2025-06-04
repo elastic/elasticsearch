@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.voyageai.action;
 
 import org.apache.http.HttpHeaders;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;

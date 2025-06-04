@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 

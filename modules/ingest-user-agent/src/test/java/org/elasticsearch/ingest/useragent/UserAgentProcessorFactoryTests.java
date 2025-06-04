@@ -9,7 +9,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 

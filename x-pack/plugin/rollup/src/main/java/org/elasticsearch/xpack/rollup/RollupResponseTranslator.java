@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;

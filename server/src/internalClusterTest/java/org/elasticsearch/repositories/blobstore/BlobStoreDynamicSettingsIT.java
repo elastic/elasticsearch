@@ -9,7 +9,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.common.settings.Settings;

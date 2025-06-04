@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.transform.utils;
 
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.common.breaker.CircuitBreaker;

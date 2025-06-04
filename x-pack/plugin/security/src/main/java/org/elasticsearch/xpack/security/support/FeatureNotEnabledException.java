@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 public class FeatureNotEnabledException extends ElasticsearchException {

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionRequest;

@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;

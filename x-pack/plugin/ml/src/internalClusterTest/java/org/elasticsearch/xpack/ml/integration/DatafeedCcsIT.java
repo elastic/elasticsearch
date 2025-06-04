@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;

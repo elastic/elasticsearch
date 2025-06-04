@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;

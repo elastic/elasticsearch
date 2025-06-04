@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;

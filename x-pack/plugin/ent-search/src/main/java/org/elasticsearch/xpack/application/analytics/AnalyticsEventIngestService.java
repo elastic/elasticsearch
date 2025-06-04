@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;

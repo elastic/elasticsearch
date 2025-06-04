@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.settings.Settings;

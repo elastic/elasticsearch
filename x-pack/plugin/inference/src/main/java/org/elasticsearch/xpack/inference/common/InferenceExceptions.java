@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 

@@ -10,7 +10,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

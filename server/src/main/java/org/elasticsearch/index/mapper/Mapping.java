@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.exception.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;

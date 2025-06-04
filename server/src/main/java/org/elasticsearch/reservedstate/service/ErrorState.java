@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import java.util.List;
 import java.util.Optional;
 
-import static org.elasticsearch.ExceptionsHelper.stackTrace;
+import static org.elasticsearch.exception.ExceptionsHelper.stackTrace;
 
 record ErrorState(
     Optional<ProjectId> projectId,

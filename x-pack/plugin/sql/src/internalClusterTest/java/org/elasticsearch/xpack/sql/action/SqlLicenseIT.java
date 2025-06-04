@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.network.NetworkModule;

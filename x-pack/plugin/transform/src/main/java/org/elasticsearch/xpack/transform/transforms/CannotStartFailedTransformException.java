@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 class CannotStartFailedTransformException extends ElasticsearchException {
     CannotStartFailedTransformException(String msg) {

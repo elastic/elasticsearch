@@ -176,10 +176,10 @@ public class IngestRestartIT extends ESIntegTestCase {
                 "pipeline with id ["
                     + pipelineIdWithScript
                     + "] could not be loaded, caused by "
-                    + "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id ["
+                    + "[org.elasticsearch.exception.ElasticsearchParseException: Error updating pipeline with id ["
                     + pipelineIdWithScript
                     + "]; "
-                    + "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; "
+                    + "org.elasticsearch.exception.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; "
                     + "java.lang.IllegalArgumentException: cannot execute [inline] scripts]"
             )
         );

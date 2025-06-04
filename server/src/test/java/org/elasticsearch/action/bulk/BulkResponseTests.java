@@ -9,8 +9,8 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
+import static org.elasticsearch.exception.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
 import static org.elasticsearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;

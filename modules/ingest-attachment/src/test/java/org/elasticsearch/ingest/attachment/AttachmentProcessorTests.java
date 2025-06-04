@@ -10,7 +10,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;

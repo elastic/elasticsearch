@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 
 public class JobManagerHolder {
 

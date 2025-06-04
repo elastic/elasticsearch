@@ -9,8 +9,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;

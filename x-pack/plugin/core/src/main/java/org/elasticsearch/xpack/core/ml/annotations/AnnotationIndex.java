@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.exception.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.SortedMap;
 
 import static java.lang.Thread.currentThread;
-import static org.elasticsearch.ExceptionsHelper.formatStackTrace;
+import static org.elasticsearch.exception.ExceptionsHelper.formatStackTrace;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;

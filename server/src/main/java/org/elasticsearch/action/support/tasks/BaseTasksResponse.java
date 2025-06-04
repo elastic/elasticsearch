@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -27,7 +27,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
+import static org.elasticsearch.exception.ExceptionsHelper.rethrowAndSuppress;
 
 /**
  * Base class for responses of task-related operations

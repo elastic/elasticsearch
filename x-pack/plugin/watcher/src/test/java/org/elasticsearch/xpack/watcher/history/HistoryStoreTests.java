@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;

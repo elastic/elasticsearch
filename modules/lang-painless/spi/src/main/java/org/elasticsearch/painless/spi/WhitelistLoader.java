@@ -9,7 +9,7 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 
 import java.io.InputStream;

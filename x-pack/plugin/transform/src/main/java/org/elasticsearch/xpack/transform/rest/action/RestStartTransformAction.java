@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.time.DateMathParser;

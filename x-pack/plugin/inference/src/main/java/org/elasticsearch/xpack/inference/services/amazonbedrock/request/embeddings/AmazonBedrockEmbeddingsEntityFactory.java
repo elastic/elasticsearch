@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.inference.common.Truncator;

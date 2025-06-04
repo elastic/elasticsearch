@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectPath;

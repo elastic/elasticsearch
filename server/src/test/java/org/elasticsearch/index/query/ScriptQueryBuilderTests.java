@@ -10,7 +10,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;

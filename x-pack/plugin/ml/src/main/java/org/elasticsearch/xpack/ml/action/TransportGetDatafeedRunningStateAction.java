@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
@@ -67,12 +68,12 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
-        org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
+        ExceptionsHelper.rethrowAndSuppress(
             taskOperationFailures.stream()
-                .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
+                .map(t -> ExceptionsHelper.convertToElastic(t.getCause()))
                 .collect(Collectors.toList())
         );
-        org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
+        ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
         return Response.fromResponses(tasks);
     }
 

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.ScriptService;

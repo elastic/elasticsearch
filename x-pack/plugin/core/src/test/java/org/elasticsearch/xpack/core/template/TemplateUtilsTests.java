@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;

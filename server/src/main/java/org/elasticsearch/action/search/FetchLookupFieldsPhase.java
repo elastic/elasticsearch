@@ -10,7 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;

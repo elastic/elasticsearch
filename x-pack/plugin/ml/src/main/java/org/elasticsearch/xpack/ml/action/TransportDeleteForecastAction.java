@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.exception.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchStatusException;
+import org.elasticsearch.exception.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -207,7 +207,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
 
         for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
-            RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
+            RestStatus failureStatus = org.elasticsearch.exception.ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;
                 reason = failure.getReason();

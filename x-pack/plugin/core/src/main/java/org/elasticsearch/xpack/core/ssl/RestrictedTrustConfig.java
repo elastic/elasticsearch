@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;

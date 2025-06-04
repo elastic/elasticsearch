@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -57,7 +57,7 @@ public class SecurityContext {
     }
 
     /**
-     * Returns the current user information, or throws {@link org.elasticsearch.ElasticsearchSecurityException}
+     * Returns the current user information, or throws {@link org.elasticsearch.exception.ElasticsearchSecurityException}
      * if the current request has no authentication information.
      */
     public User requireUser() {

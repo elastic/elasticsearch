@@ -7,7 +7,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;

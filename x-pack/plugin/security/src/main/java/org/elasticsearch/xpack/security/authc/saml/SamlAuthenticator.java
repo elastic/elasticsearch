@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -58,7 +58,7 @@ class SamlAuthenticator extends SamlResponseHandler {
     /**
      * Processes the provided SAML response within the provided token and, if valid, extracts the relevant attributes from it.
      *
-     * @throws org.elasticsearch.ElasticsearchSecurityException If the SAML is invalid for this realm/configuration
+     * @throws org.elasticsearch.exception.ElasticsearchSecurityException If the SAML is invalid for this realm/configuration
      */
     SamlAttributes authenticate(SamlToken token) {
         final Element root = parseSamlMessage(token.getContent());

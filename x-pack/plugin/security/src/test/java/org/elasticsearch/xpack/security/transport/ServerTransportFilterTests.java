@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockIndicesRequest;

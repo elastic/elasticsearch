@@ -9,7 +9,7 @@
 package org.elasticsearch.versioning;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.exception.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;

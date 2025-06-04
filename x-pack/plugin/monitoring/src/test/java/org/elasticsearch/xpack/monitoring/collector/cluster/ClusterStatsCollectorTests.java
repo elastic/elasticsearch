@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.exception.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;

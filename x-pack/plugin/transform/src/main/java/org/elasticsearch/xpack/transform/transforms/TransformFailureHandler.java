@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;

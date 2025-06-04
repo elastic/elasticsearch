@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;

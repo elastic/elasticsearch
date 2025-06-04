@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.exception.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;

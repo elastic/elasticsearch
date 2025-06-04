@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.idp.saml.support;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.exception.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnResponse;

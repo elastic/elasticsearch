@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.ElasticsearchCorruptionException;
+import org.elasticsearch.exception.ElasticsearchCorruptionException;
 
 /**
  * This exception is thrown when Elasticsearch detects

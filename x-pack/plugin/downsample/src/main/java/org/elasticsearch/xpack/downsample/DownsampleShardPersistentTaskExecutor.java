@@ -250,7 +250,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     // This is needed for FLS/DLS to work correctly. The _indices_permissions in the thread local aren't set if an searcher is acquired
     // directly from this persistent task executor. By delegating to this action (with a request that implements IndicesRequest) the
     // security thread local will be setup correctly so that we avoid this error:
-    // org.elasticsearch.ElasticsearchSecurityException: no indices permissions found
+    // org.elasticsearch.exception.ElasticsearchSecurityException: no indices permissions found
     public static class DelegatingAction extends ActionType<ActionResponse.Empty> {
 
         public static final DelegatingAction INSTANCE = new DelegatingAction();

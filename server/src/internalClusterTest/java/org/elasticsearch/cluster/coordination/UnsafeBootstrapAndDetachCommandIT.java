@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.exception.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;

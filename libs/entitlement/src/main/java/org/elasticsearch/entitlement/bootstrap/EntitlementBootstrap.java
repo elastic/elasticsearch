@@ -90,11 +90,7 @@ public class EntitlementBootstrap {
             settingResolver
         );
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            serverPolicyPatch,
-            pluginPolicies,
-            scopeResolver,
             pathLookup,
-            pluginSourcePaths,
             suppressFailureLogPackages,
             createPolicyManager(
                 pluginPolicies,

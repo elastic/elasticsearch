@@ -47,11 +47,7 @@ public class TestEntitlementBootstrap {
         TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
         policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            null,
-            Map.of(),
-            c -> { throw new IllegalStateException("Not yet implemented"); },
             pathLookup,
-            Map.of(),
             Set.of(),
             policyManager
         );

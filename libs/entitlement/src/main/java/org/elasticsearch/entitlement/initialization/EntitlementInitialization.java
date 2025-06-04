@@ -10,11 +10,9 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
-import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -22,10 +20,7 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Path;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
@@ -77,28 +72,19 @@ public class EntitlementInitialization {
      * Arguments to {@link #initialize}. Since that's called in a static context from the agent,
      * we have no way to pass arguments directly, so we stuff them in here.
      *
-     * @param serverPolicyPatch
-     * @param pluginPolicies
-     * @param scopeResolver
      * @param pathLookup
-     * @param sourcePaths
      * @param suppressFailureLogPackages
+     * @param policyManager
      */
     public record InitializeArgs(
-        @Nullable Policy serverPolicyPatch,
-        Map<String, Policy> pluginPolicies,
-        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         PathLookup pathLookup,
-        Map<String, Iterable<Path>> sourcePaths,
         Set<Package> suppressFailureLogPackages,
         PolicyManager policyManager
     ) {
         public InitializeArgs {
-            requireNonNull(pluginPolicies);
-            requireNonNull(scopeResolver);
             requireNonNull(pathLookup);
-            requireNonNull(sourcePaths);
             requireNonNull(suppressFailureLogPackages);
+            requireNonNull(policyManager);
         }
     }
 

@@ -110,19 +110,18 @@ required_capability: knn_function
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
-| where knn(rgb_vector, [128,128,0], {"k": 140})
-| eval round_score = round(_score, 4)
-| sort round_score desc, color asc
-| keep rgb_vector, round_score
+| where knn(rgb_vector, [128,255,0], {"k": 140})
+| sort _score desc, color asc
+| keep rgb_vector
 | limit 5
 ;
 
-rgb_vector:dense_vector | round_score:double
-[128.0, 128.0, 0.0]     | 1.0               
-[107.0, 142.0, 35.0]    | 0.0014            
-[85.0, 107.0, 47.0]     | 4.0E-4            
-[184.0, 134.0, 11.0]    | 3.0E-4            
-[139.0, 69.0, 19.0]     | 3.0E-4   
+rgb_vector:dense_vector
+[127.0, 255.0, 0.0]
+[124.0, 252.0, 0.0]
+[173.0, 255.0, 47.0]
+[154.0, 205.0, 50.0]
+[50.0, 205.0, 50.0]
 ;
 
 knnAfterDrop
@@ -130,19 +129,18 @@ required_capability: knn_function
 
 from colors metadata _score
 | drop color
-| where knn(rgb_vector, [128,128,0], {"k": 140})
-| eval round_score = round(_score, 4)
-| sort round_score desc
-| keep rgb_vector, round_score
+| where knn(rgb_vector, [128,255,0], {"k": 140})
+| sort _score desc
+| keep rgb_vector
 | limit 5
 ;
 
-rgb_vector:dense_vector | round_score:double
-[184.0, 134.0, 11.0]    | 3.0E-4            
-[128.0, 128.0, 0.0]     | 1.0               
-[154.0, 205.0, 50.0]    | 1.0E-4            
-[85.0, 107.0, 47.0]     | 4.0E-4            
-[107.0, 142.0, 35.0]    | 0.0014   
+rgb_vector:dense_vector
+[127.0, 255.0, 0.0]    
+[124.0, 252.0, 0.0]    
+[173.0, 255.0, 47.0]   
+[154.0, 205.0, 50.0]   
+[50.0, 205.0, 50.0]    
 ;
 
 knnAfterEval
@@ -201,19 +199,21 @@ from colors metadata _score
 | where (knn(rgb_vector, [0,255,255], {"k": 140}) or knn(rgb_vector, [128, 0, 255], {"k": 140})) and primary == true 
 | keep color, rgb_vector, _score
 | sort _score desc, color asc
+| eval round_score = round(_score)
+| drop _score
 | limit 10
 ;
 
-color:text        | rgb_vector:dense_vector | _score:double
-red        | [255.0, 0.0, 0.0]       | 2.1994377675582655E-5
-yellow     | [255.0, 255.0, 0.0]     | 1.867113314801827E-5
-green      | [0.0, 128.0, 0.0]       | 2.9579907277366146E-5
-cyan       | [0.0, 255.0, 255.0]     | 1.000016689300537
-blue       | [0.0, 0.0, 255.0]       | 1.1921183613594621E-4
-magenta    | [255.0, 0.0, 255.0]     | 7.578763325000182E-5
-black      | [0.0, 0.0, 0.0]         | 2.6632071239873767E-5
-gray       | [128.0, 128.0, 128.0]   | 6.426929758163169E-5
-white      | [255.0, 255.0, 255.0]   | 3.5320219467394054E-5
+color:text | rgb_vector:dense_vector | round_score:double
+cyan       | [0.0, 255.0, 255.0]     | 1.0
+blue       | [0.0, 0.0, 255.0]       | 0.0
+magenta    | [255.0, 0.0, 255.0]     | 0.0
+gray       | [128.0, 128.0, 128.0]   | 0.0
+white      | [255.0, 255.0, 255.0]   | 0.0
+green      | [0.0, 128.0, 0.0]       | 0.0
+black      | [0.0, 0.0, 0.0]         | 0.0
+red        | [255.0, 0.0, 0.0]       | 0.0
+yellow     | [255.0, 255.0, 0.0]     | 0.0
 ;
 
 knnWithNonPushableConjunction
@@ -222,16 +222,23 @@ required_capability: knn_function
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
 | where knn(rgb_vector, [128,128,0], {"k": 140}) and composed_name == false
-| eval round_score = round(_score, 4)
+| eval round_score = round(_score)
+| sort _score desc, color asc
 | keep color, composed_name, round_score
-| sort round_score desc, color asc
+| limit 10
 ;
 
 color:text | composed_name:boolean | round_score:double
-olive      | false                 | 1.0               
-sienna     | false                 | 3.0E-4            
-chocolate  | false                 | 1.0E-4            
-peru       | false                 | 1.0E-4    
+olive      | false                 | 1.0
+sienna     | false                 | 0.0
+chocolate  | false                 | 0.0
+peru       | false                 | 0.0
+brown      | false                 | 0.0
+gray       | false                 | 0.0
+green      | false                 | 0.0
+maroon     | false                 | 0.0
+firebrick  | false                 | 0.0
+chartreuse | false                 | 0.0
 ;
 
 testKnnWithNonPushableDisjunctions

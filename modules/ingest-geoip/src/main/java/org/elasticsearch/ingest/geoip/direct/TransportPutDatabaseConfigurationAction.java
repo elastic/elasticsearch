@@ -160,9 +160,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             }
 
             return ClusterState.builder(currentState)
-                .putProjectMetadata(
-                    ProjectMetadata.builder(project).putCustom(IngestGeoIpMetadata.TYPE, new IngestGeoIpMetadata(databases))
-                )
+                .putProjectMetadata(ProjectMetadata.builder(project).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
                 .build();
         }
 

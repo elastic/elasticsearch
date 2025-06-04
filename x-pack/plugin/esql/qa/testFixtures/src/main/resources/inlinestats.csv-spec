@@ -325,7 +325,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 afterStats
-required_capability: join_planning_v8
+required_capability: inlinestats_v8
 
 FROM airports
 | STATS count=COUNT(*) BY country

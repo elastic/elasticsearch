@@ -1,0 +1,7 @@
+pr: 128750
+summary: Fix conversion of a Lucene wildcard pattern to a regexp
+area: ES|QL
+type: bug
+issues:
+ - 128677
+ - 128676

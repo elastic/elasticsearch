@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -25,51 +28,51 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     public void testParseAllFields() throws IOException {
         String requestJson = """
             {
-                "model": "gpt-4o",
                 "messages": [
                   {
-                    "role": "user",
                     "content": [
                         {
                           "text": "some text",
                           "type": "string"
                         }
                     ],
+                    "role": "user",
                     "tool_call_id": "100",
                     "tool_calls": [
                         {
                             "id": "call_62136354",
-                            "type": "function",
                             "function": {
                                 "arguments": "{'order_id': 'order_12345'}",
                                 "name": "get_delivery_date"
-                            }
+                            },
+                            "type": "function"
                         }
                     ]
                   }
                 ],
-                "max_completion_tokens": 100,
                 "stop": ["stop"],
                 "temperature": 0.1,
-                "tools": [
-                  {
-                    "type": "function",
-                    "function": {
-                      "name": "get_current_weather",
-                      "description": "Get the current weather in a given location",
-                      "parameters": {
-                        "type": "object"
-                      }
-                    }
-                  }
-                ],
                 "tool_choice": {
                   "type": "function",
                   "function": {
                     "name": "some function"
                   }
                 },
-                "top_p": 0.2
+                "tools": [
+                  {
+                    "type": "function",
+                    "function": {
+                      "description": "Get the current weather in a given location",
+                      "name": "get_current_weather",
+                      "parameters": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                ],
+                "top_p": 0.2,
+                "max_completion_tokens": 100,
+                "model": "gpt-4o"
             }
             """;
 
@@ -115,6 +118,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             );
 
             assertThat(request, is(expected));
+            assertThat(
+                Strings.toString(request, UnifiedCompletionRequest.withMaxCompletionTokensTokens("gpt-4o", ToXContent.EMPTY_PARAMS)),
+                is(XContentHelper.stripWhitespace(requestJson))
+            );
         }
     }
 

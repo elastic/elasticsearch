@@ -1,0 +1,6 @@
+pr: 128393
+summary: Pushdown constructs doing case-insensitive regexes
+area: ES|QL
+type: enhancement
+issues:
+ - 127479

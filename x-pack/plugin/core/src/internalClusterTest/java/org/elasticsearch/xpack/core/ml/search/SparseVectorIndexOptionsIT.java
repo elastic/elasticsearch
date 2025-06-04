@@ -244,7 +244,7 @@ public class SparseVectorIndexOptionsIT extends ESIntegTestCase {
 
     private static final List<String> EXPECTED_DOC_IDS_WITHOUT_PRUNING = List.of("1", "3", "2");
 
-    private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of();
+    private static final List<String> EXPECTED_DOC_IDS_WITH_PRUNING = List.of("3");
 
     private static final List<String> EXPECTED_DOC_IDS_WITH_DEFAULT_PRUNING = List.of("2");
 

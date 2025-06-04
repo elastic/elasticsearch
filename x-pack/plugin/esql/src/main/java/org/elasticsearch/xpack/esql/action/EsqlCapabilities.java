@@ -1141,6 +1141,11 @@ public class EsqlCapabilities {
         ROUND_TO,
 
         /**
+         * Support for the {@code COPY_SIGN} function.
+         */
+        COPY_SIGN,
+
+        /**
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
@@ -1164,7 +1169,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for index aliases in lookup joins
          */
-        ENABLE_LOOKUP_JOIN_ON_ALIASES(JOIN_LOOKUP_V12.isEnabled());
+        ENABLE_LOOKUP_JOIN_ON_ALIASES;
 
         private final boolean enabled;
 

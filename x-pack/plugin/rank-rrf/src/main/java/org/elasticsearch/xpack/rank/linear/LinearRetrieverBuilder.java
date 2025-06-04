@@ -106,12 +106,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
-        this(
-            innerRetrievers,
-            rankWindowSize,
-            getDefaultWeight(innerRetrievers.size()),
-            getDefaultNormalizers(innerRetrievers.size())
-        );
+        this(innerRetrievers, rankWindowSize, getDefaultWeight(innerRetrievers.size()), getDefaultNormalizers(innerRetrievers.size()));
     }
 
     public LinearRetrieverBuilder(

@@ -36,6 +36,8 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
@@ -78,14 +80,26 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
             : "writeBuffer should only be used in the prewarm thread pool but used in " + Thread.currentThread().getName();
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
+    public static final String SHARD_TOOK_DURATION_HISTOGRAM_NAME = "es.online_prewarming.shard_took_durations.histogram";
+    public static final String SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME =
+        "es.online_prewarming.segment_execution_waiting_time.histogram";
 
     private final ThreadPool threadPool;
 
     private final boolean enabled;
     private final StatelessSharedBlobCacheService cacheService;
     private final ThrottledTaskRunner throttledTaskRunner;
+    // histogram to record the duration of the prewarming for an entire shard
+    private final LongHistogram shardTookDurationMillisHistogram;
+    // histogram to record the time it took for a prewarming task for a segment to start executing
+    private final LongHistogram segmentExecutionWaitTimeMillisHistogram;
 
-    public StatelessOnlinePrewarmingService(Settings settings, ThreadPool threadPool, StatelessSharedBlobCacheService cacheService) {
+    public StatelessOnlinePrewarmingService(
+        Settings settings,
+        ThreadPool threadPool,
+        StatelessSharedBlobCacheService cacheService,
+        MeterRegistry meterRegistry
+    ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         this.enabled = STATELESS_ONLINE_PREWARMING_ENABLED.get(settings);
@@ -94,6 +108,17 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
             "online-prewarming",
             threadPool.info(PREWARM_THREAD_POOL).getMax() / 2 + 1,
             threadPool.executor(PREWARM_THREAD_POOL)
+        );
+        shardTookDurationMillisHistogram = meterRegistry.registerLongHistogram(
+            SHARD_TOOK_DURATION_HISTOGRAM_NAME,
+            "The prewarming for an entire shard duration in milliseconds, expressed as a histogram",
+            "millis"
+        );
+
+        segmentExecutionWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
+            SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME,
+            "The time it took for a prewarming task for a segment to start executing in milliseconds, expressed as a histogram",
+            "millis"
         );
     }
 
@@ -123,15 +148,16 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
             return;
         }
 
-        final long started = threadPool.relativeTimeInNanos();
+        final long started = threadPool.relativeTimeInMillis();
         AtomicInteger bytesCopiedForShard = new AtomicInteger(0);
         ActionListener<Void> prewarmShardListener = ActionListener.runBefore(listener, () -> {
-            final long durationNanos = threadPool.relativeTimeInNanos() - started;
+            final long durationMillis = threadPool.relativeTimeInMillis() - started;
+            shardTookDurationMillisHistogram.record(durationMillis);
             logger.log(
-                durationNanos >= 5_000_000 ? INFO : DEBUG,
-                "shard {} online prewarming warming completed in [{}]NS for [{}] bytes",
+                durationMillis >= 5_000 ? INFO : DEBUG,
+                "shard {} online prewarming completed in [{}]ms for [{}] bytes",
                 indexShard.shardId(),
-                durationNanos,
+                durationMillis,
                 bytesCopiedForShard.get()
             );
         }).delegateResponse((l, e) -> {
@@ -179,7 +205,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                     var lengthToRead = Math.min(cacheService.getRegionSize(), blobLength - offset);
                     var range = cacheBlobReader.getRange(offset, Math.toIntExact(lengthToRead), blobLength - offset);
                     logger.trace("online prewarming for key [{}] and region [{}] triggered", cacheKey, i);
-                    long segmentWarmingTriggered = threadPool.relativeTimeInNanos();
+                    long segmentWarmingTriggeredMillis = threadPool.relativeTimeInMillis();
                     cacheService.maybeFetchRange(
                         cacheKey,
                         i,
@@ -200,15 +226,17 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                             @Override
                             public void onResponse(Releasable releasable) {
                                 try (releasable) {
-                                    long segmentWarmingStarted = threadPool.relativeTimeInNanos();
+                                    long segmentWarmingStartedMillis = threadPool.relativeTimeInMillis();
                                     fetchRangeRunnable.run();
-                                    long segmentWarmingComplete = threadPool.relativeTimeInNanos();
+                                    long segmentWarmingCompleteMillis = threadPool.relativeTimeInMillis();
+                                    long segmentTaskWaitTimeMillis = segmentWarmingStartedMillis - segmentWarmingTriggeredMillis;
+                                    segmentExecutionWaitTimeMillisHistogram.record(segmentTaskWaitTimeMillis);
                                     logger.trace(
-                                        "online prewarming for key [{}], offset [{}], complete in [{}]NS.wait to process time was [{}]NS",
+                                        "online prewarming for key [{}], offset [{}], complete in [{}]ms.wait to process time was [{}]ms",
                                         cacheKey,
                                         offset,
-                                        segmentWarmingComplete - segmentWarmingTriggered,
-                                        segmentWarmingStarted - segmentWarmingTriggered
+                                        segmentWarmingCompleteMillis - segmentWarmingTriggeredMillis,
+                                        segmentTaskWaitTimeMillis
                                     );
                                 }
                             }

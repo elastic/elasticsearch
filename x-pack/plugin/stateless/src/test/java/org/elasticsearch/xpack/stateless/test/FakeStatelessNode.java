@@ -276,7 +276,12 @@ public class FakeStatelessNode implements Closeable {
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
             warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, nodeSettings);
-            onlinePrewarmingService = new StatelessOnlinePrewarmingService(nodeSettings, threadPool, sharedCacheService);
+            onlinePrewarmingService = new StatelessOnlinePrewarmingService(
+                nodeSettings,
+                threadPool,
+                sharedCacheService,
+                telemetryProvider.getMeterRegistry()
+            );
             commitService = createCommitService();
             commitService.start();
             commitService.register(shardId, getPrimaryTerm(), () -> false, (checkpoint, gcpListener, timeout) -> {

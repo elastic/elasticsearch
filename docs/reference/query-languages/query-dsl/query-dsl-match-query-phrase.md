@@ -29,6 +29,10 @@ GET /_search
 `analyzer`
 :   (Optional, string) [Analyzer](docs-content://manage-data/data-store/text-analysis.md) used to convert the text in the `query` value into tokens. Defaults to the [index-time analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-analyzer) mapped for the `<field>`. If no analyzer is mapped, the index’s default analyzer is used.
 
+`boost`
+:   (Optional, float) Floating point number used to decrease or increase the [relevance scores](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) of the query. Defaults to `1.0`.
+Boost values are relative to the default value of `1.0`. A boost value between `0` and `1.0` decreases the relevance score. A value greater than `1.0` increases the relevance score.
+
 `slop`
 :   (Optional, integer) Maximum number of positions allowed between matching tokens. Defaults to `0`. Transposed terms have a slop of `2`.
 

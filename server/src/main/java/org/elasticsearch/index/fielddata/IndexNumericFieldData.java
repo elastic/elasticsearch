@@ -34,6 +34,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
 
+import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
+
 /**
  * Base class for numeric field data.
  */
@@ -144,12 +146,18 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean reverse
     ) {
         SortField sortField = sortField(missingValue, sortMode, nested, reverse);
-        if (indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE) || getNumericType().sortFieldType != SortField.Type.INT) {
+        // we introduced INT sort type in 8.19 and from 9.1
+        if (getNumericType().sortFieldType != SortField.Type.INT
+            || indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            || indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0)) {
             return sortField;
         }
         if ((sortField instanceof SortedNumericSortField) == false) {
             return sortField;
         }
+        // if the index was created before 8.19, or in 9.0
+        // we need to rewrite the sort field to use LONG sort type
+
         // Rewrite INT sort to LONG sort.
         // Before indices used TYPE.LONG for index sorting on integer field,
         // and this is stored in their index writer config on disk and can't be modified.

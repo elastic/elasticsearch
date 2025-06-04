@@ -479,5 +479,4 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.lucene.search;
 }

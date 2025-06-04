@@ -16,7 +16,9 @@ import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -25,6 +27,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -46,8 +49,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
-import org.elasticsearch.lucene.document.NumericField;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -157,7 +158,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         Query[] expectedIntegerQueries = new Query[] {
-            NumericField.newExactIntQuery("field", 42),
+            IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
             SortedNumericDocValuesField.newSlowExactQuery("field", 42) };
         List<TermQueryTestCase> testCases = List.of(
@@ -167,7 +168,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             new TermQueryTestCase(
                 NumberType.LONG,
                 new Query[] {
-                    NumericField.newExactLongQuery("field", 42),
+                    LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
                     SortedNumericDocValuesField.newSlowExactQuery("field", 42) }
             ),
@@ -866,8 +867,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 context,
                 isIndexed
             );
-            assertThat(query, instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class));
-            Query fallbackQuery = ((XIndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+            assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
+            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
 
             if (isIndexed) {
                 assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));

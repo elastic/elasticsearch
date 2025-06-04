@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,7 +31,6 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.lucene.document.NumericField;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,7 +48,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         );
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
-        assertEquals(NumericField.newExactLongQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
+        assertEquals(LongField.newExactQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
 
         MappedFieldType ft2 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100, false);
         ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));

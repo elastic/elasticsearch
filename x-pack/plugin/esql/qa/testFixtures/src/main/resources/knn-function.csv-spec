@@ -283,7 +283,6 @@ c: long
 59      
 ;
 
-
 testKnnInStatsPushableAndNonPushable
 required_capability: knn_function
 required_capability: full_text_functions_in_stats_where
@@ -297,6 +296,9 @@ c:long
 ;
 
 testKnnInStatsWithGrouping
+required_capability: knn_function
+required_capability: full_text_functions_in_stats_where
+
 from colors 
 | where length(color) < 10 
 | stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 140}) by primary

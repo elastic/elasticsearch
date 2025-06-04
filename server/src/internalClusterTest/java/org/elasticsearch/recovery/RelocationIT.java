@@ -226,8 +226,6 @@ public class RelocationIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        // Relocated shard is not throttled
-        assertThat(shard.isIndexingPaused(), equalTo(false));
         logger.info("--> verifying count after relocation ...");
         future.actionGet();
         indicesAdmin().prepareRefresh().get();

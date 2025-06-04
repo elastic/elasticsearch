@@ -2774,7 +2774,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (AlreadyClosedException ex) {
             // ignore
         }
-
     }
 
     public void resumeThrottling() {

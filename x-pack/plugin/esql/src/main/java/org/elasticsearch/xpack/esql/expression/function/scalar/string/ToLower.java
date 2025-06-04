@@ -33,8 +33,7 @@ public class ToLower extends ChangeCase {
 
     public ToLower(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
         String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression.
-        """)
-    Expression field, Configuration configuration) {
+        """) Expression field, Configuration configuration) {
         super(source, field, configuration, Case.LOWER);
     }
 

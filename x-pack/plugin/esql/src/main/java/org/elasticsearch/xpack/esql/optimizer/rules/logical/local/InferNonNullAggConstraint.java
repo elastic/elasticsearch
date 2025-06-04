@@ -53,12 +53,11 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
         for (var agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
                 Expression field = af.field();
-                // TODO: fix
                 // ignore literals (e.g. COUNT(1))
                 // make sure the field exists at the source and is indexed (not runtime)
                 if (field.foldable() == false
                     && field instanceof FieldAttribute fa
-                    && stats.isIndexed(new FieldAttribute.FieldName(fa.name()))) {
+                    && stats.isIndexed(fa.fieldName())) {
                     nonNullAggFields.add(field);
                 } else {
                     // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out

@@ -36,7 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 /**
@@ -203,17 +203,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 }
                 return builder.endObject(); // NodeAndPath
             }),
-            chunk(
-                (builder, p) -> builder.endArray() // end "reserved_sizes"
-                    .startObject("heap_usage")
-            ),
-            Iterators.map(nodesHeapUsage.entrySet().iterator(), c -> (builder, p) -> {
-                builder.startObject(c.getKey());
-                c.getValue().toShortXContent(builder);
-                builder.endObject();
-                return builder;
-            }),
-            endObject() // end "heap_usage"
+            endArray() // end "reserved_sizes"
         );
     }
 
@@ -334,8 +324,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     // exposed for tests, computed here rather than exposing all the collections separately
     int getChunkCount() {
-        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size()
-            + nodesHeapUsage.size() + 7;
+        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size() + 6;
     }
 
     public record NodeAndShard(String nodeId, ShardId shardId) implements Writeable {

@@ -39,6 +39,26 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
         );
     }
 
+    public void testXContentSerializationWhenProcessedFileCountEqualsIncrementalFileCount() throws IOException {
+        final var instance = createTestInstance();
+        final var incrementalSameAsProcessed = new SnapshotStats(
+            instance.getStartTime(),
+            instance.getTime(),
+            instance.getIncrementalFileCount(),
+            instance.getTotalFileCount(),
+            instance.getIncrementalFileCount(), // processedFileCount
+            instance.getIncrementalSize(),
+            instance.getTotalSize(),
+            instance.getIncrementalSize() // processedSize
+        );
+        // toXContent() omits the "processed" sub-object in this case, make sure the processed values are set as expected in fromXContent().
+        testFromXContent(() -> incrementalSameAsProcessed);
+    }
+
+    public void testXContentSerializationForEmptyStats() throws IOException {
+        testFromXContent(SnapshotStats::new);
+    }
+
     @Override
     protected SnapshotStats doParseInstance(XContentParser parser) throws IOException {
         return SnapshotStats.fromXContent(parser);

@@ -14,6 +14,8 @@ apply plugin: 'com.gradleup.shadow'
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 def patched = Attribute.of('patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
+
 configurations {
   hdfs2 {
     attributes {
@@ -25,7 +27,26 @@ configurations {
       attribute(patched, true)
     }
   }
-  consumable("shadowedHdfs2")
+  consumable("shadowedHdfs2") {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, Integer.parseInt(buildParams.minimumRuntimeVersion.getMajorVersion()))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
+  consumable("shadowedHdfs3") {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, Integer.parseInt(buildParams.minimumRuntimeVersion.getMajorVersion()))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
 }
 
 dependencies {
@@ -154,4 +175,5 @@ tasks.withType(ShadowJar).configureEach {
 
 artifacts {
   shadowedHdfs2(hdfs2Jar)
+  shadowedHdfs3(tasks.named("shadowJar"))
 }

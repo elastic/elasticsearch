@@ -138,7 +138,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.

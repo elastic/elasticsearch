@@ -734,6 +734,6 @@
     "FROM books\n| WHERE MATCH(author, \"Faulkner\")",
     "FROM books\n| WHERE MATCH(title, \"Hobbit Back Again\", {\"operator\": \"AND\"})\n| KEEP title;"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

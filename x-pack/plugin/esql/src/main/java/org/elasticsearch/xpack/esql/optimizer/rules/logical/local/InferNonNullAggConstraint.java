@@ -55,9 +55,7 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                 Expression field = af.field();
                 // ignore literals (e.g. COUNT(1))
                 // make sure the field exists at the source and is indexed (not runtime)
-                if (field.foldable() == false
-                    && field instanceof FieldAttribute fa
-                    && stats.isIndexed(fa.fieldName())) {
+                if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
                     nonNullAggFields.add(field);
                 } else {
                     // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out

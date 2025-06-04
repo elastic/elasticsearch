@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
-  method: testTaskCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/128009
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
@@ -504,15 +501,6 @@ tests:
 - class: org.elasticsearch.index.store.DirectIOIT
   method: testDirectIOUsed
   issue: https://github.com/elastic/elasticsearch/issues/128829
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/128861
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/128862
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/128863
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120

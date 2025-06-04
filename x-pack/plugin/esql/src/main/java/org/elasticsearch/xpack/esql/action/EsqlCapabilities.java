@@ -1024,7 +1024,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V5(Build.current().isSnapshot()),
+        FORK_V6(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1164,7 +1164,12 @@ public class EsqlCapabilities {
         /**
          * Enable support for index aliases in lookup joins
          */
-        ENABLE_LOOKUP_JOIN_ON_ALIASES;
+        ENABLE_LOOKUP_JOIN_ON_ALIASES,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

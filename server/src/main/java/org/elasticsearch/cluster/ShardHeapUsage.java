@@ -22,6 +22,8 @@ public record ShardHeapUsage(String nodeId, String nodeName, long totalBytes, lo
 
     public ShardHeapUsage {
         assert estimatedUsageBytes <= totalBytes;
+        assert totalBytes >= 0;
+        assert estimatedUsageBytes >= 0;
     }
 
     public ShardHeapUsage(StreamInput in) throws IOException {

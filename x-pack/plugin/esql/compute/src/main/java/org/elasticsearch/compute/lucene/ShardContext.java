@@ -49,8 +49,6 @@ public interface ShardContext {
      */
     SourceLoader newSourceLoader();
 
-    // TODO: the next 2 methods
-
     /**
      * Returns something to load values from this field into a {@link Block}.
      */

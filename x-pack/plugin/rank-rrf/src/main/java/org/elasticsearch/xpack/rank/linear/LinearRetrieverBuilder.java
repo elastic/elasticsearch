@@ -55,7 +55,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
-    private final Float minScore;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -64,7 +63,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         args -> {
             List<LinearRetrieverComponent> retrieverComponents = (List<LinearRetrieverComponent>) args[0];
             int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
-            Float minScore = (Float) args[2];
             List<RetrieverSource> innerRetrievers = new ArrayList<>();
             float[] weights = new float[retrieverComponents.size()];
             ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
@@ -75,14 +73,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 normalizers[index] = component.normalizer;
                 index++;
             }
-            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers, minScore);
+            return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
         }
     );
 
     static {
         PARSER.declareObjectArray(constructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -113,8 +110,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             innerRetrievers,
             rankWindowSize,
             getDefaultWeight(innerRetrievers.size()),
-            getDefaultNormalizers(innerRetrievers.size()),
-            null
+            getDefaultNormalizers(innerRetrievers.size())
         );
     }
 
@@ -122,8 +118,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         List<RetrieverSource> innerRetrievers,
         int rankWindowSize,
         float[] weights,
-        ScoreNormalizer[] normalizers,
-        Float minScore
+        ScoreNormalizer[] normalizers
     ) {
         super(innerRetrievers, rankWindowSize);
         if (weights.length != innerRetrievers.size()) {
@@ -132,19 +127,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (normalizers.length != innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
-        if (minScore != null && minScore < 0.0f) {
-            throw new IllegalArgumentException(
-                "[" + MIN_SCORE_FIELD.getPreferredName() + "] must be greater than or equal to 0, was: " + minScore
-            );
-        }
         this.weights = weights;
         this.normalizers = normalizers;
-        this.minScore = minScore;
     }
 
     @Override
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers, minScore);
+        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
         return clone;
@@ -194,6 +183,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         Arrays.sort(sortedResults);
 
         final LinearRankDoc[] resultsToConsider;
+        Float minScore = minScore();
         if (minScore != null) { // Check if minScore was actually set
             List<LinearRankDoc> filteredList = new ArrayList<>(sortedResults.length);
             for (LinearRankDoc doc : sortedResults) {
@@ -235,6 +225,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        Float minScore = minScore();
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }

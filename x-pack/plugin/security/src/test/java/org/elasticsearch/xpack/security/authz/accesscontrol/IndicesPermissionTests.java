@@ -1101,19 +1101,11 @@ public class IndicesPermissionTests extends ESTestCase {
             "my-index"
         ).build();
 
-        StringBuilder pattern = new StringBuilder("/");
-        for (int i = 0; i < 2048; i++) {
-            if (i > 0) {
-                pattern.append("|");
-            }
-            pattern.append(randomAlphaOfLength(64));
-        }
-        pattern.append("/");
         var ex = expectThrows(
             IllegalArgumentException.class,
-            () -> permission.checkResourcePrivileges(Set.of(pattern.toString()), false, Set.of("read"), null)
+            () -> permission.checkResourcePrivileges(Set.of("****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*"), false, Set.of("read"), null)
         );
-        assertThat(ex.getMessage(), containsString("index pattern [/"));
+        assertThat(ex.getMessage(), containsString("index pattern [****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*]"));
         assertThat(ex.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 

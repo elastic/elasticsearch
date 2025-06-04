@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -56,6 +58,8 @@ import static java.util.Collections.unmodifiableMap;
  * on specific indices
  */
 public final class IndicesPermission {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
@@ -343,6 +347,7 @@ public final class IndicesPermission {
                     return automaton;
                 } catch (TooComplexToDeterminizeException e) {
                     final String text = pattern.length() > 260 ? Strings.cleanTruncate(pattern, 256) + "..." : pattern;
+                    logger.info("refusing to check privileges against complex index pattern [{}]", text);
                     throw new IllegalArgumentException("the provided index pattern [" + text + "] is too complex to be evaluated", e);
                 }
             }));

@@ -52,13 +52,13 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
             final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
-            final ShardHeapUsage diskUsage = new ShardHeapUsage(
+            final ShardHeapUsage shardHeapUsage = new ShardHeapUsage(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 totalBytes,
                 randomIntBetween(0, totalBytes)
             );
-            nodeHeapUsage.put(key, diskUsage);
+            nodeHeapUsage.put(key, shardHeapUsage);
         }
         return nodeHeapUsage;
     }

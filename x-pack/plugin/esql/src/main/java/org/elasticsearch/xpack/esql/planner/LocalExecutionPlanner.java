@@ -739,6 +739,7 @@ public class LocalExecutionPlanner {
                 matchConfig.channel(),
                 ctx -> lookupFromIndexService,
                 matchConfig.type(),
+                localSourceExec.indexPattern(),
                 indexName,
                 matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
@@ -818,7 +819,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+        final Integer rowSize = limit.estimatedRowSize();
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
+        int pageSize = context.pageSize(rowSize);
+        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx), pageSize), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

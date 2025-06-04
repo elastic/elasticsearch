@@ -504,12 +504,10 @@ public class AzureBlobStore implements BlobStore {
                     .collect(Collectors.toList())
                     .flatMap(blockIds -> {
                         logger.debug("{}: all {} parts uploaded, now committing", blobName, multiParts.size());
-                        var response = asyncClient.commitBlockList(
+                        return asyncClient.commitBlockList(
                             multiParts.stream().map(MultiPart::blockId).toList(),
                             failIfAlreadyExists == false
-                        );
-                        logger.debug("{}: all {} parts committed", blobName, multiParts.size());
-                        return response;
+                        ).doOnSuccess(unused -> logger.debug("{}: all {} parts committed", blobName, multiParts.size()));
                     })
                     .block();
             }
@@ -535,8 +533,9 @@ public class AzureBlobStore implements BlobStore {
             return List.of(new MultiPart(0, makeMultipartBlockId(), 0L, totalSize, true));
         }
 
-        long lastPartSize = totalSize % partSize;
-        int parts = Math.toIntExact(totalSize / partSize) + (0L < lastPartSize ? 1 : 0);
+        long remaining = totalSize % partSize;
+        int parts = Math.toIntExact(totalSize / partSize) + (0L < remaining ? 1 : 0);
+        long lastPartSize = 0L < remaining ? remaining : partSize;
 
         long blockOffset = 0L;
         var list = new ArrayList<MultiPart>(parts);

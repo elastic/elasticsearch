@@ -68,16 +68,16 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         int[] assignments = centroidAssignments.assignments();
         int[] soarAssignments = centroidAssignments.soarAssignments();
 
-        int[][] clustersForMetrics = null;
+        IntArrayList[] clustersForMetrics = null;
         if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-            clustersForMetrics = new int[centroidSupplier.size()][];
+            clustersForMetrics = new IntArrayList[centroidSupplier.size()];
         }
 
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             binarizedByteVectorValues.centroid = centroid;
 
-            // TODO: add back in sorting
+            // TODO: add back in sorting vectors by distance to centroid
             IntArrayList cluster = new IntArrayList(vectorPerCluster);
             for (int j = 0; j < assignments.length; j++) {
                 if (assignments[j] == c) {
@@ -101,6 +101,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), cluster.size(), postingsOutput);
             writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
+
+            if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
+                clustersForMetrics[c] = cluster;
+            }
         }
 
         if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
@@ -110,23 +114,23 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return offsets;
     }
 
-    private static void printClusterQualityStatistics(int[][] clusters, InfoStream infoStream) {
+    private static void printClusterQualityStatistics(IntArrayList[] clusters, InfoStream infoStream) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
         float mean = 0;
         float m2 = 0;
         // iteratively compute the variance & mean
         int count = 0;
-        for (int[] cluster : clusters) {
+        for (IntArrayList cluster : clusters) {
             count += 1;
             if (cluster == null) {
                 continue;
             }
-            float delta = cluster.length - mean;
+            float delta = cluster.size() - mean;
             mean += delta / count;
-            m2 += delta * (cluster.length - mean);
-            min = Math.min(min, cluster.length);
-            max = Math.max(max, cluster.length);
+            m2 += delta * (cluster.size() - mean);
+            min = Math.min(min, cluster.size());
+            max = Math.max(max, cluster.size());
         }
         float variance = m2 / (clusters.length - 1);
         infoStream.message(
@@ -205,7 +209,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         byte[] quantizedScratch = new byte[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
-        // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned; do sorting prior to this w assignments?
+        // TODO: sort centroids by global centroid (was doing so previously here)
+        // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
         for (float[] centroid : centroids) {
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
             OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(

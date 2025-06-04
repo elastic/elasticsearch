@@ -49,7 +49,7 @@ public class EntitlementBootstrap {
      * @param libDir         the lib directory for Elasticsearch
      * @param modulesDir     the directory where Elasticsearch modules are
      * @param pluginsDir     the directory where plugins are installed for Elasticsearch
-     * @param sourcePaths    a map holding the path to each plugin or module jars, by plugin (or module) name.
+     * @param pluginSourcePaths    a map holding the path to each plugin or module jars, by plugin (or module) name.
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
@@ -66,7 +66,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
-        Map<String, Path> sourcePaths,
+        Map<String, Path> pluginSourcePaths,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -94,14 +94,14 @@ public class EntitlementBootstrap {
             pluginPolicies,
             scopeResolver,
             pathLookup,
-            sourcePaths,
+            pluginSourcePaths,
             suppressFailureLogPackages,
             createPolicyManager(
                 pluginPolicies,
                 pathLookup,
                 serverPolicyPatch,
                 scopeResolver,
-                sourcePaths
+                pluginSourcePaths
             )
         );
         exportInitializationToAgent();
@@ -160,7 +160,7 @@ public class EntitlementBootstrap {
         }
     }
 
-    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Path> sourcePaths) {
+    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Path> pluginSourcePaths) {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         return new PolicyManager(
@@ -168,7 +168,7 @@ public class EntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            sourcePaths,
+            pluginSourcePaths,
             pathLookup
         );
     }

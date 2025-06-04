@@ -499,15 +499,24 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface WithoutEntitlements {
     }
 
+    /**
+     * Marks a test suite or a test method that enforce entitlements on the test code itself.
+     * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target( ElementType.TYPE )
+    public @interface WithEntitlementsOnTestCode {
+    }
+
     @BeforeClass
     public static void setupEntitlementsForClass() {
-        boolean isActive = false == getTestClass().isAnnotationPresent(WithoutEntitlements.class);
-        TestEntitlementBootstrap.setIsActive(isActive);
+        TestEntitlementBootstrap.setActive(false == getTestClass().isAnnotationPresent(WithoutEntitlements.class));
+        TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class));
     }
 
     @AfterClass
-    public static void enableEntitlements() {
-        TestEntitlementBootstrap.restoreDefaultIsActive();
+    public static void resetEntitlements() {
+        TestEntitlementBootstrap.reset();
     }
 
     // setup mock filesystems for this test run. we change PathUtils

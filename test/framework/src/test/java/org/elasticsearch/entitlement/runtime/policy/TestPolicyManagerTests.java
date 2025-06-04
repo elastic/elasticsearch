@@ -15,7 +15,6 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
@@ -32,9 +31,9 @@ public class TestPolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> new PolicyScope(PLUGIN, "example-plugin" + scopeCounter.incrementAndGet(), "org.example.module"),
             Map.of(),
-            new TestPathLookup(),
-            new AtomicBoolean(true)
+            new TestPathLookup(List.of())
         );
+        policyManager.setActive(true);
     }
 
     public void testReset() {

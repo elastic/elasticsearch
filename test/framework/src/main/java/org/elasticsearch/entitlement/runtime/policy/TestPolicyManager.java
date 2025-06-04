@@ -10,34 +10,44 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 public class TestPolicyManager extends PolicyManager {
-    final AtomicBoolean isActive;
+    boolean isActive;
+    boolean isTriviallyAllowingTestCode;
 
     public TestPolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Path> sourcePaths,
-        PathLookup pathLookup,
-        AtomicBoolean isActive
+        Map<String, Path> pluginSourcePaths,
+        PathLookup pathLookup
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, sourcePaths, pathLookup);
-        this.isActive = isActive;
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        reset();
+    }
+
+    public void setActive(boolean newValue) {
+        this.isActive = newValue;
+    }
+
+    public void setTriviallyAllowingTestCode(boolean newValue) {
+        this.isTriviallyAllowingTestCode = newValue;
     }
 
     /**
      * Called between tests so each test is not affected by prior tests
      */
-    public void reset() {
+    public final void reset() {
         super.moduleEntitlementsMap.clear();
+        isActive = false;
+        isTriviallyAllowingTestCode = true;
     }
 
     @Override
@@ -48,7 +58,10 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     boolean isTriviallyAllowed(Class<?> requestingClass) {
-        if (isActive.get() == false) {
+        if (isActive == false) {
+            return true;
+        }
+        if (isTriviallyAllowingTestCode && isTestCaseClass(requestingClass)) {
             return true;
         }
         if (isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass)) {
@@ -72,10 +85,22 @@ public class TestPolicyManager extends PolicyManager {
         return false;
     }
 
+    private boolean isTestCaseClass(Class<?> requestingClass) {
+        for (Class<?> candidate = requestingClass; candidate != null; candidate = candidate.getDeclaringClass()) {
+            if (ESTestCase.class.isAssignableFrom(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
         "com.carrotsearch.randomizedtesting",
+        "com.sun.tools.javac",
         "org.apache.lucene.tests",
         "org.gradle",
         "org.junit",
+        "org.mockito",
+        "net.bytebuddy", // Mockito uses this
     };
 }

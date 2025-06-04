@@ -17,7 +17,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
 import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
@@ -28,28 +27,25 @@ import org.elasticsearch.plugins.PluginDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
-    /**
-     * This is the state of entitlements between tests.
-     */
-    public static final boolean DEFAULT_IS_ACTIVE = false;
-    private static final AtomicBoolean isActive = new AtomicBoolean(DEFAULT_IS_ACTIVE);
+    private static TestPolicyManager policyManager;
 
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap() throws IOException {
-        TestPathLookup pathLookup = new TestPathLookup();
+    public static void bootstrap(Path tempDir) throws IOException {
+        TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
+        policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             null,
             Map.of(),
@@ -57,22 +53,25 @@ public class TestEntitlementBootstrap {
             pathLookup,
             Map.of(),
             Set.of(),
-            createPolicyManager(pathLookup)
+            policyManager
         );
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
-    public static void setIsActive(boolean newValue) {
-        isActive.set(newValue);
+    public static void setActive(boolean newValue) {
+        policyManager.setActive(newValue);
     }
 
-    public static void restoreDefaultIsActive() {
-        isActive.set(DEFAULT_IS_ACTIVE);
+    public static void setTriviallyAllowingTestCode(boolean newValue) {
+        policyManager.setTriviallyAllowingTestCode(newValue);
     }
 
-    private static PolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
+    public static void reset() {
+        policyManager.reset();
+    }
 
+    private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
         var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo);
@@ -92,8 +91,7 @@ public class TestEntitlementBootstrap {
             pluginPolicies,
             scopeResolver,
             Map.of(),
-            pathLookup,
-            isActive
+            pathLookup
         );
     }
 

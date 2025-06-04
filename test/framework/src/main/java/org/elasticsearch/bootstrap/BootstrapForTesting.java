@@ -75,7 +75,7 @@ public class BootstrapForTesting {
 
         // Fire up entitlements
         try {
-            TestEntitlementBootstrap.bootstrap();
+            TestEntitlementBootstrap.bootstrap(javaTmpDir);
         } catch (IOException e) {
             throw new IllegalStateException(e.getClass().getSimpleName() + " while initializing entitlements for tests", e);
         }

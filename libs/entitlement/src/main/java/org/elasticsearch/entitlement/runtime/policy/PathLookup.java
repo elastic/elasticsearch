@@ -32,5 +32,9 @@ public interface PathLookup {
 
     Stream<Path> getBaseDirPaths(BaseDir baseDir);
 
+    /**
+     * @return all paths obtained by resolving all values of the given setting under all
+     * paths of the given {@code baseDir}.
+     */
     Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName);
 }

@@ -247,7 +247,7 @@ class Elasticsearch {
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
         var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
-        Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+        Map<String, Path> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
             .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,
@@ -260,7 +260,7 @@ class Elasticsearch {
             nodeEnv.libDir(),
             nodeEnv.modulesDir(),
             nodeEnv.pluginsDir(),
-            sourcePaths,
+            pluginSourcePaths,
             nodeEnv.logsDir(),
             nodeEnv.tmpDir(),
             args.pidFile(),

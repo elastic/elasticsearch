@@ -203,7 +203,7 @@ public class PolicyManager {
         .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
         .collect(Collectors.toUnmodifiableSet());
 
-    private final Map<String, Path> sourcePaths;
+    private final Map<String, Path> pluginSourcePaths;
 
     /**
      * Paths that are only allowed for a single module. Used to generate
@@ -217,7 +217,7 @@ public class PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Path> sourcePaths,
+        Map<String, Path> pluginSourcePaths,
         PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -226,7 +226,7 @@ public class PolicyManager {
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.scopeResolver = scopeResolver;
-        this.sourcePaths = sourcePaths;
+        this.pluginSourcePaths = pluginSourcePaths;
         this.pathLookup = requireNonNull(pathLookup);
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
@@ -321,9 +321,9 @@ public class PolicyManager {
                 assert policyScope.kind() == PLUGIN;
                 var pluginEntitlements = pluginsEntitlements.get(componentName);
                 if (pluginEntitlements == null) {
-                    return defaultEntitlements(componentName, sourcePaths.get(componentName), moduleName);
+                    return defaultEntitlements(componentName, pluginSourcePaths.get(componentName), moduleName);
                 } else {
-                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, sourcePaths.get(componentName));
+                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, pluginSourcePaths.get(componentName));
                 }
             }
         }

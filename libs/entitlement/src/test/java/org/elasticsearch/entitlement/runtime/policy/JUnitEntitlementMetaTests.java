@@ -17,8 +17,8 @@ import java.nio.file.Path;
 /**
  * Ensures that unit tests are subject to entitlement checks.
  */
+@ESTestCase.WithEntitlementsOnTestCode
 public class JUnitEntitlementMetaTests extends ESTestCase {
-
     public void testForbiddenActionThrows() {
         assertThrows(NotEntitledException.class, ()-> Path.of(".").toRealPath());
     }

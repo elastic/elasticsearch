@@ -7,9 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.text;
+package org.elasticsearch.xcontent;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -17,7 +16,8 @@ import java.nio.charset.StandardCharsets;
 public class TextTests extends ESTestCase {
     public void testConvertToBytes() {
         String value = randomUnicodeOfLength(randomInt(128));
-        var encoded = new BytesArray(value);
+        byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
+        var encoded = new XContentString.EncodedBytes(encodedArr);
 
         var text = new Text(value);
         assertTrue(text.hasString());
@@ -38,7 +38,8 @@ public class TextTests extends ESTestCase {
 
     public void testConvertToString() {
         String value = randomUnicodeOfLength(randomInt(128));
-        var encoded = new BytesArray(value);
+        byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
+        var encoded = new XContentString.EncodedBytes(encodedArr);
 
         var text = new Text(encoded);
         assertFalse(text.hasString());
@@ -47,7 +48,7 @@ public class TextTests extends ESTestCase {
         assertEquals(value, text.string());
         assertEquals(encoded, text.bytes());
 
-        assertFalse(text.hasString());
+        assertTrue(text.hasString());
         assertTrue(text.hasBytes());
 
         // Ensure the conversion didn't mess up subsequent calls
@@ -57,9 +58,37 @@ public class TextTests extends ESTestCase {
         assertSame(encoded, text.bytes());
     }
 
+    public void testStringLength() {
+        int stringLength = randomInt(128);
+        String value = randomUnicodeOfLength(stringLength);
+        byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
+        var encoded = new XContentString.EncodedBytes(encodedArr);
+
+        {
+            var text = new Text(value);
+            assertTrue(text.hasString());
+            assertEquals(stringLength, text.stringLength());
+        }
+
+        {
+            var text = new Text(encoded);
+            assertFalse(text.hasString());
+            assertEquals(stringLength, text.stringLength());
+            assertTrue(text.hasString());
+        }
+
+        {
+            var text = new Text(encoded, stringLength);
+            assertFalse(text.hasString());
+            assertEquals(stringLength, text.stringLength());
+            assertFalse(text.hasString());
+        }
+    }
+
     public void testEquals() {
         String value = randomUnicodeOfLength(randomInt(128));
-        var encoded = new BytesArray(value);
+        byte[] encodedArr = value.getBytes(StandardCharsets.UTF_8);
+        var encoded = new XContentString.EncodedBytes(encodedArr);
 
         {
             var text1 = new Text(value);
@@ -82,7 +111,8 @@ public class TextTests extends ESTestCase {
 
     public void testCompareTo() {
         String value1 = randomUnicodeOfLength(randomInt(128));
-        var encoded1 = new BytesArray(value1);
+        byte[] encodedArr1 = value1.getBytes(StandardCharsets.UTF_8);
+        var encoded1 = new XContentString.EncodedBytes(encodedArr1);
 
         {
             var text1 = new Text(value1);
@@ -103,7 +133,8 @@ public class TextTests extends ESTestCase {
         }
 
         String value2 = randomUnicodeOfLength(randomInt(128));
-        var encoded2 = new BytesArray(value2);
+        byte[] encodedArr2 = value2.getBytes(StandardCharsets.UTF_8);
+        var encoded2 = new XContentString.EncodedBytes(encodedArr2);
 
         int compSign = (int) Math.signum(encoded1.compareTo(encoded2));
 

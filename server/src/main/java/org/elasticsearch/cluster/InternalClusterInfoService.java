@@ -214,6 +214,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for nodes", e);
+                    shardHeapUsages = Map.of();
                 }
             }, fetchRefs.acquire()));
         }

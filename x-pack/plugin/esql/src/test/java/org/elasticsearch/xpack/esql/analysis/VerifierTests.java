@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -1229,6 +1230,10 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
+        }
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
@@ -1355,6 +1360,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
         }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        }
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1386,6 +1394,9 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
         }
     }
 
@@ -1444,6 +1455,9 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
+        }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
         }
     }
 
@@ -1508,6 +1522,9 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionTargetsExistingField("title : \"Meditation\"");
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("match_phrase(title, \"Meditation\")");
         }
     }
 
@@ -2027,6 +2044,9 @@ public class VerifierTests extends ESTestCase {
     public void testFullTextFunctionOptions() {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
+        }
     }
 
     /**
@@ -2084,6 +2104,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
         }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("match_phrase(title, \"Meditation\")");
+        }
     }
 
     private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
@@ -2102,6 +2125,10 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
+            checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
+        }
     }
 
     private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
@@ -2118,6 +2145,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
         }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("match_phrase(title, tags)", "second");
+        }
     }
 
     private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
@@ -2132,6 +2162,9 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsInStats("title : \"Meditation\"");
         checkFullTextFunctionsInStats("qstr(\"title: Meditation\")");
         checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
+        }
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -25,7 +26,10 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -48,6 +52,9 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -320,5 +327,83 @@ public abstract class FullTextFunction extends Function
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+    }
+
+    protected static void populateOptionsMap(
+        final MapExpression options,
+        final Map<String, Object> optionsMap,
+        final TypeResolutions.ParamOrdinal paramOrdinal,
+        final String sourceText,
+        final Map<String, DataType> allowedOptions
+    ) throws InvalidArgumentException {
+        for (EntryExpression entry : options.entryExpressions()) {
+            Expression optionExpr = entry.key();
+            Expression valueExpr = entry.value();
+            TypeResolution resolution = isFoldable(optionExpr, sourceText, paramOrdinal).and(
+                isFoldable(valueExpr, sourceText, paramOrdinal)
+            );
+            if (resolution.unresolved()) {
+                throw new InvalidArgumentException(resolution.message());
+            }
+            Object optionExprLiteral = ((Literal) optionExpr).value();
+            Object valueExprLiteral = ((Literal) valueExpr).value();
+            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
+            // validate the optionExpr is supported
+            DataType dataType = allowedOptions.get(optionName);
+            if (dataType == null) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText, allowedOptions.keySet())
+                );
+            }
+            try {
+                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+            } catch (InvalidArgumentException e) {
+                throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
+            }
+        }
+    }
+
+    protected TypeResolution resolveOptions(Expression options, TypeResolutions.ParamOrdinal paramOrdinal) {
+        if (options != null) {
+            TypeResolution resolution = isNotNull(options, sourceText(), paramOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            // MapExpression does not have a DataType associated with it
+            resolution = isMapExpression(options, sourceText(), paramOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            try {
+                resolvedOptions();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    protected Map<String, Object> resolvedOptions() throws InvalidArgumentException {
+        return Map.of();
+    }
+
+    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
+        String fieldName = fieldAttribute.name();
+        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+            fieldName = multiTypeEsField.getName();
+        }
+        return fieldName;
+    }
+
+    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
+        Expression fieldExpression = field;
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
     }
 }

@@ -29,6 +29,10 @@ public class FullTextWritables {
             entries.add(Term.ENTRY);
         }
 
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            entries.add(MatchPhrase.ENTRY);
+        }
+
         return Collections.unmodifiableList(entries);
     }
 }

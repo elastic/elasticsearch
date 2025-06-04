@@ -52,6 +52,9 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             params.add(new Object[] { "term(content, \"fox\")" });
         }
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "match_phrase(content, \"fox\")" });
+        }
         return params;
     }
 

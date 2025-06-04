@@ -32,6 +32,6 @@
   "examples" : [
     "ROW geotile = 1152921508901814277\n| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

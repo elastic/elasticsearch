@@ -2,5 +2,5 @@
 
 **Description**
 
-Use `MULTI_MATCH` to perform a [multi-match query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-multi-match-query) on the specified field. The multi_match query builds on the match query to allow multi-field queries.
+Use `MULTI_MATCH` to perform a [multi-match query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-multi-match-query) on the specified field.This query builds on the match query to allow multi-field queries.
 

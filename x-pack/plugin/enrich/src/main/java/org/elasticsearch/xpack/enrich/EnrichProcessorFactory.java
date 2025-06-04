@@ -139,6 +139,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
                 getEnrichIndexKey(project, indexAlias),
+                project.id(),
                 value,
                 maxMatches,
                 (searchResponseActionListener) -> originClient.execute(

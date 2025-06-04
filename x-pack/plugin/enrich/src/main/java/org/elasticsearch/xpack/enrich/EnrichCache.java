@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -90,9 +91,9 @@ public final class EnrichCache {
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
      * @param listener A listener to be notified of the value in the cache
      */
-    @FixForMultiProject(description = "The enrich cache will currently leak data between projects. We need to either disable or fix it.")
     public void computeIfAbsent(
         String enrichIndex,
+        ProjectId projectId,
         Object lookupValue,
         int maxMatches,
         Consumer<ActionListener<SearchResponse>> searchResponseFetcher,
@@ -100,7 +101,7 @@ public final class EnrichCache {
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
-        var cacheKey = new CacheKey(enrichIndex, lookupValue, maxMatches);
+        var cacheKey = new CacheKey(enrichIndex, projectId, lookupValue, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
@@ -204,7 +205,7 @@ public final class EnrichCache {
      * should thus be included in the cache key
      */
     // Visibility for testing
-    record CacheKey(String enrichIndex, Object lookupValue, int maxMatches) {
+    record CacheKey(String enrichIndex, ProjectId projectId, Object lookupValue, int maxMatches) {
         /**
          * In reality, the size in bytes of the cache key is a function of the {@link CacheKey#lookupValue} field plus some constant for
          * the object itself, the string reference for the enrich index (but not the string itself because it's taken from the metadata),

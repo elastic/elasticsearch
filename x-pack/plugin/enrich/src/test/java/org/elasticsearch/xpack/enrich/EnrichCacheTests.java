@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -38,10 +39,11 @@ public class EnrichCacheTests extends ESTestCase {
     public void testCaching() {
         // Emulated search requests that an enrich processor could generate:
         // (two unique searches for two enrich policies)
-        var cacheKey1 = new EnrichCache.CacheKey("policy1-1", "1", 1);
-        var cacheKey2 = new EnrichCache.CacheKey("policy1-1", "2", 1);
-        var cacheKey3 = new EnrichCache.CacheKey("policy2-1", "1", 1);
-        var cacheKey4 = new EnrichCache.CacheKey("policy2-1", "2", 1);
+        var projectId = randomProjectIdOrDefault();
+        var cacheKey1 = new EnrichCache.CacheKey("policy1-1", projectId, "1", 1);
+        var cacheKey2 = new EnrichCache.CacheKey("policy1-1", projectId, "2", 1);
+        var cacheKey3 = new EnrichCache.CacheKey("policy2-1", projectId, "1", 1);
+        var cacheKey4 = new EnrichCache.CacheKey("policy2-1", projectId, "2", 1);
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
         EnrichCache.CacheValue searchResponse = new EnrichCache.CacheValue(List.of(Map.of("test", "entry")), 1L);
 
@@ -75,10 +77,10 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.evictions(), equalTo(1L));
         assertThat(cacheStats.cacheSizeInBytes(), equalTo(3L));
 
-        cacheKey1 = new EnrichCache.CacheKey("policy1-2", "1", 1);
-        cacheKey2 = new EnrichCache.CacheKey("policy1-2", "2", 1);
-        cacheKey3 = new EnrichCache.CacheKey("policy2-2", "1", 1);
-        cacheKey4 = new EnrichCache.CacheKey("policy2-2", "2", 1);
+        cacheKey1 = new EnrichCache.CacheKey("policy1-2", projectId, "1", 1);
+        cacheKey2 = new EnrichCache.CacheKey("policy1-2", projectId, "2", 1);
+        cacheKey3 = new EnrichCache.CacheKey("policy2-2", projectId, "1", 1);
+        cacheKey4 = new EnrichCache.CacheKey("policy2-2", projectId, "2", 1);
 
         // Because enrich index has changed, cache can't serve cached entries
         assertThat(enrichCache.get(cacheKey1), nullValue());
@@ -115,10 +117,13 @@ public class EnrichCacheTests extends ESTestCase {
         // We use a relative time provider that increments 1ms every time it is called. So each operation appears to take 1ms
         EnrichCache enrichCache = new EnrichCache(3, () -> testNanoTime.addAndGet(TimeValue.timeValueMillis(1).getNanos()));
 
+        ProjectId projectId = randomProjectIdOrDefault();
+        long expectedMisses = 0L;
         {
+            // Do initial computeIfAbsent, assert that it is a cache miss and the search is performed:
             CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
-            enrichCache.computeIfAbsent("policy1-1", "1", 1, (searchResponseActionListener) -> {
+            enrichCache.computeIfAbsent("policy1-1", projectId, "1", 1, (searchResponseActionListener) -> {
                 SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
                 searchResponseActionListener.onResponse(searchResponse);
                 searchResponse.decRef();
@@ -132,25 +137,102 @@ public class EnrichCacheTests extends ESTestCase {
             EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
             assertThat(cacheStats.count(), equalTo(1L));
             assertThat(cacheStats.hits(), equalTo(0L));
-            assertThat(cacheStats.misses(), equalTo(1L));
+            assertThat(cacheStats.misses(), equalTo(++expectedMisses));
             assertThat(cacheStats.evictions(), equalTo(0L));
             assertThat(cacheStats.hitsTimeInMillis(), equalTo(0L));
             assertThat(cacheStats.missesTimeInMillis(), equalTo(2L)); // cache query and enrich query + cache put
         }
 
         {
+            // Do the same call, assert that it is a cache hit and no search is performed:
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
-            enrichCache.computeIfAbsent("policy1-1", "1", 1, (searchResponseActionListener) -> {
+            enrichCache.computeIfAbsent("policy1-1", projectId, "1", 1, (searchResponseActionListener) -> {
                 fail("Expected no call to the database because item should have been in the cache");
             }, assertNoFailureListener(r -> notifiedOfResultLatch.countDown()));
             assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
             EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
             assertThat(cacheStats.count(), equalTo(1L));
             assertThat(cacheStats.hits(), equalTo(1L));
-            assertThat(cacheStats.misses(), equalTo(1L));
+            assertThat(cacheStats.misses(), equalTo(expectedMisses));
             assertThat(cacheStats.evictions(), equalTo(0L));
             assertThat(cacheStats.hitsTimeInMillis(), equalTo(1L));
             assertThat(cacheStats.missesTimeInMillis(), equalTo(2L));
+        }
+
+        {
+            // Do a computeIfAbsent with a different index, assert that it is a cache miss and the search is performed:
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent("policy1-2", projectId, "1", 1, (searchResponseActionListener) -> {
+                SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
+                searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                assertThat(response, equalTo(searchResponseMap));
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
+            assertThat(cacheStats.misses(), equalTo(++expectedMisses));
+        }
+
+        {
+            // Do a computeIfAbsent with a different project, assert that it is a cache miss and the search is performed:
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent("policy1-1", randomUniqueProjectId(), "1", 1, (searchResponseActionListener) -> {
+                SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
+                searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                assertThat(response, equalTo(searchResponseMap));
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
+            assertThat(cacheStats.misses(), equalTo(++expectedMisses));
+        }
+
+        {
+            // Do a computeIfAbsent with a different lookup value, assert that it is a cache miss and the search is performed:
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent("policy1-1", projectId, "2", 1, (searchResponseActionListener) -> {
+                SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
+                searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                assertThat(response, equalTo(searchResponseMap));
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
+            assertThat(cacheStats.misses(), equalTo(++expectedMisses));
+        }
+
+        {
+            // Do a computeIfAbsent with a different max matches, assert that it is a cache miss and the search is performed:
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent("policy1-1", projectId, "1", 3, (searchResponseActionListener) -> {
+                SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
+                searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                assertThat(response, equalTo(searchResponseMap));
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
+            assertThat(cacheStats.misses(), equalTo(++expectedMisses));
         }
     }
 

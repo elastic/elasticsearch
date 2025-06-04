@@ -17,11 +17,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
@@ -35,8 +35,8 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         test.accept((ESUTF8StreamJsonParser) parser);
     }
 
-    private void assertTextRef(ByteBuffer textRef, String expectedValue) {
-        assertThat(textRef, Matchers.equalTo(StandardCharsets.UTF_8.encode(expectedValue)));
+    private void assertTextRef(XContentString.UTF8Bytes textRef, String expectedValue) {
+        assertThat(textRef, Matchers.equalTo(new XContentString.UTF8Bytes(expectedValue.getBytes(StandardCharsets.UTF_8))));
     }
 
     public void testGetValueAsText() throws IOException {
@@ -45,10 +45,10 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-            ByteBuffer textRef = parser.getValueAsText().bytes();
+            var textRef = parser.getValueAsText().bytes();
             assertThat(textRef, Matchers.notNullValue());
-            assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(9));
-            assertThat(textRef.limit(), Matchers.equalTo(12));
+            assertThat(textRef.offset(), Matchers.equalTo(9));
+            assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(12));
             assertTextRef(textRef, "bar");
 
             assertThat(parser.getValueAsString(), Matchers.equalTo("bar"));
@@ -82,28 +82,28 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
-                ByteBuffer textRef = parser.getValueAsText().bytes();
+                var textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(10));
-                assertThat(textRef.limit(), Matchers.equalTo(15));
+                assertThat(textRef.offset(), Matchers.equalTo(10));
+                assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(15));
                 assertTextRef(textRef, "lorem");
             }
 
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
-                ByteBuffer textRef = parser.getValueAsText().bytes();
+                var textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(19));
-                assertThat(textRef.limit(), Matchers.equalTo(24));
+                assertThat(textRef.offset(), Matchers.equalTo(19));
+                assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(24));
                 assertTextRef(textRef, "ipsum");
             }
 
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
-                ByteBuffer textRef = parser.getValueAsText().bytes();
+                var textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.arrayOffset() + textRef.position(), Matchers.equalTo(28));
-                assertThat(textRef.limit(), Matchers.equalTo(33));
+                assertThat(textRef.offset(), Matchers.equalTo(28));
+                assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(33));
                 assertTextRef(textRef, "dolor");
             }
 

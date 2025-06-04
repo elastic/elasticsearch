@@ -34,7 +34,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1153,7 +1152,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), BytesReference.fromByteBuffer(value.bytes()).toBytesRef()));
+                var utfBytes = value.bytes();
+                var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                context.doc().add(new StoredField(originalName(), bytesRef));
             }
             return false;
         }
@@ -1163,7 +1164,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             value = new Text(normalizedString);
         }
 
-        var binaryValue = BytesReference.fromByteBuffer(value.bytes()).toBytesRef();
+        var utfBytes = value.bytes();
+        var binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
         if (fieldType().isDimension()) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }

@@ -396,7 +396,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testOptimizedText() throws Exception {
-        final var random = ByteBuffer.wrap(randomBytes());
+        final var random = new XContentString.UTF8Bytes(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {

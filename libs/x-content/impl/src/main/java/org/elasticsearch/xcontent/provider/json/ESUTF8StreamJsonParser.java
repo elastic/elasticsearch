@@ -17,10 +17,10 @@ import com.fasterxml.jackson.core.json.UTF8StreamJsonParser;
 import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
 
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 
 public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
     protected int stringEnd = -1;
@@ -49,9 +49,9 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             if (stringEnd > 0) {
                 final int len = stringEnd - 1 - _inputPtr;
-                // For now, we can use `len` for `charCount` because we only support ascii-encoded unescaped strings,
+                // For now, we can use `len` for `stringLength` because we only support ascii-encoded unescaped strings,
                 // which means each character uses exactly 1 byte.
-                return new Text(ByteBuffer.wrap(_inputBuffer, _inputPtr, len), len);
+                return new Text(new XContentString.UTF8Bytes(_inputBuffer, _inputPtr, len), len);
             }
             return _finishAndReturnText();
         }
@@ -75,9 +75,9 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                 if (c == INT_QUOTE) {
                     stringEnd = ptr + 1;
                     final int len = ptr - startPtr;
-                    // For now, we can use `len` for `charCount` because we only support ascii-encoded unescaped strings,
+                    // For now, we can use `len` for `stringLength` because we only support ascii-encoded unescaped strings,
                     // which means each character uses exactly 1 byte.
-                    return new Text(ByteBuffer.wrap(inputBuffer, startPtr, len), len);
+                    return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, len), len);
                 }
                 return null;
             }

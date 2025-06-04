@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -2407,9 +2408,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
         }
         final var project = currentState.metadata().getDefaultProject();
-        final var updatedMetadata = RepositoriesMetadata.get(project)
-            .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId());
-        return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(RepositoriesMetadata.TYPE, updatedMetadata));
+        return ClusterState.builder(currentState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(project)
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        RepositoriesMetadata.get(project)
+                            .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
+                    )
+            )
+            .build();
     }
 
     /**
@@ -2926,7 +2934,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         ? withGenerations
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
                     final ClusterState newClusterState = stateFilter.apply(
-                        currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(RepositoriesMetadata.TYPE, withUuid))
+                        ClusterState.builder(currentState)
+                            .putProjectMetadata(ProjectMetadata.builder(project).putCustom(RepositoriesMetadata.TYPE, withUuid))
+                            .build()
                     );
                     return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);
                 }

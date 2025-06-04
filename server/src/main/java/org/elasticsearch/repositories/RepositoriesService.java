@@ -453,10 +453,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         return currentState;
                     } else {
                         final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
-                        return currentState.copyAndUpdateProject(
-                            project.id(),
-                            builder -> builder.putCustom(RepositoriesMetadata.TYPE, newReposMetadata)
-                        );
+                        return ClusterState.builder(currentState)
+                            .putProjectMetadata(ProjectMetadata.builder(project).putCustom(RepositoriesMetadata.TYPE, newReposMetadata))
+                            .build();
                     }
                 }
 

@@ -207,8 +207,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchNodesHeapUsage() {
             shardHeapUsageSupplier.getClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, ShardHeapUsage> stringHeapUsageMap) {
-                    shardHeapUsages = stringHeapUsageMap;
+                public void onResponse(Map<String, ShardHeapUsage> currentShardHeapUsages) {
+                    shardHeapUsages = currentShardHeapUsages;
                 }
 
                 @Override

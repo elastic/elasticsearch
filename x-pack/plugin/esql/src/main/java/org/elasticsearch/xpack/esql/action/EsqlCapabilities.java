@@ -1030,7 +1030,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V5(Build.current().isSnapshot()),
+        FORK_V6(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1142,6 +1142,11 @@ public class EsqlCapabilities {
         ROUND_TO,
 
         /**
+         * Support for the {@code COPY_SIGN} function.
+         */
+        COPY_SIGN,
+
+        /**
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
@@ -1165,7 +1170,12 @@ public class EsqlCapabilities {
         /**
          * Enable support for index aliases in lookup joins
          */
-        ENABLE_LOOKUP_JOIN_ON_ALIASES(JOIN_LOOKUP_V12.isEnabled());
+        ENABLE_LOOKUP_JOIN_ON_ALIASES,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

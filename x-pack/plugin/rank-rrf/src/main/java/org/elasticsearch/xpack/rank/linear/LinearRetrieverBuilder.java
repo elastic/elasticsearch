@@ -35,13 +35,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
-
-// TODO: Add toEquals method
 
 /**
  * The {@code LinearRetrieverBuilder} supports the combination of different retrievers through a weighted linear combination.
@@ -367,5 +366,21 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         }
 
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        LinearRetrieverBuilder that = (LinearRetrieverBuilder) o;
+        return super.doEquals(o)
+            && Arrays.equals(weights, that.weights)
+            && Arrays.equals(normalizers, that.normalizers)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(query, that.query)
+            && Objects.equals(normalizer, that.normalizer);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(super.doHashCode(), Arrays.hashCode(weights), Arrays.hashCode(normalizers), fields, query, normalizer);
     }
 }

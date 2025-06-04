@@ -20,7 +20,9 @@ public enum FeatureFlag {
     SUB_OBJECTS_AUTO_ENABLED("es.sub_objects_auto_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
     DOC_VALUES_SKIPPER("es.doc_values_skipper_feature_flag_enabled=true", Version.fromString("8.18.1"), null),
     USE_LUCENE101_POSTINGS_FORMAT("es.use_lucene101_postings_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
-    USE_LUCENE1013POSTINGS_FORMAT("es.use_lucene103_postings_format_feature_flag_enabled=true", Version.fromString("9.2.0"), null);
+    USE_LUCENE1013POSTINGS_FORMAT("es.use_lucene103_postings_format_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
+    INFERENCE_CUSTOM_SERVICE_ENABLED("es.inference_custom_service_feature_flag_enabled=true", Version.fromString("8.19.0"), null),
+    IVF_FORMAT("es.ivf_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null);
 
     public final String systemProperty;
     public final Version from;

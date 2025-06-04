@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Secrets that are stored in project state as a {@link Metadata.ProjectCustom}
@@ -53,6 +54,10 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
 
     public SecureSettings getSettings() {
         return new SecureClusterStateSettings(settings);
+    }
+
+    public Set<String> getSettingNames() {
+        return Collections.unmodifiableSet(settings.getSettingNames());
     }
 
     @Override

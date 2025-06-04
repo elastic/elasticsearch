@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -227,17 +228,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return rawVectorsReader.getByteVectorValues(field);
     }
 
-    protected float[] getGlobalCentroid(FieldInfo info) {
-        if (info == null || info.getVectorEncoding().equals(VectorEncoding.BYTE)) {
-            return null;
-        }
-        FieldEntry entry = fields.get(info.number);
-        if (entry == null) {
-            return null;
-        }
-        return entry.globalCentroid();
-    }
-
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -262,12 +252,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             return visitedDocs.getAndSet(docId) == false;
         };
-        final int nProbe;
+        int nProbe = DYNAMIC_NPROBE;
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             nProbe = ivfSearchStrategy.getNProbe();
-        } else {
-            // TODO calculate nProbe given the number of centroids vs. number of vectors for given `k`
-            nProbe = 10;
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
@@ -278,17 +265,27 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             target,
             ivfClusters
         );
+        if (nProbe == DYNAMIC_NPROBE) {
+            // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
+            // scaling by the number of centroids vs. the nearest neighbors requested
+            // not perfect, but a comparative heuristic.
+            // we might want to utilize the total vector count as well, but this is a good start
+            nProbe = (int) Math.round(Math.log10(centroidQueryScorer.size()) * Math.sqrt(knnCollector.k()));
+            // clip to be between 1 and the number of centroids
+            nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
+        }
         final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
         PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
         int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
-        while (centroidQueue.size() > 0 && centroidsVisited < nProbe) {
+        while (centroidQueue.size() > 0 && centroidsVisited < nProbe && actualDocs < knnCollector.k()) {
             ++centroidsVisited;
             // todo do we actually need to know the score???
             int centroidOrdinal = centroidQueue.pop();
-            // todo do we need direct access to the raw centroid???
+            // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
+            // is enough?
             expectedDocs += scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
             actualDocs += scorer.visit(knnCollector);
         }

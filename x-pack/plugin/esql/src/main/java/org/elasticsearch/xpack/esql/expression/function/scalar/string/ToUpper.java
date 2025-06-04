@@ -30,17 +30,19 @@ public class ToUpper extends ChangeCase {
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to upper case.",
-        examples = @Example(file = "string", tag = "to_upper"),
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                version = "9.1.0",
-                description = "Support for multivalued parameters is only available from 9.1.0"
-            ) }
+        examples = @Example(file = "string", tag = "to_upper")
     )
-    public ToUpper(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
+    public ToUpper(Source source, @Param(name = "str",
+        type = { "keyword", "text" },
+        description = """
         String expression. If `null`, the function returns `null`.
-        The input can be a single- or multi-valued column or an expression.""") Expression field, Configuration configuration) {
+
+        The input can be:
+
+        - a single-valued column or expression
+
+        - a multi-valued column or expression {applies_to}`stack: coming`""")
+        Expression field, Configuration configuration) {
         super(source, field, configuration, Case.UPPER);
     }
 

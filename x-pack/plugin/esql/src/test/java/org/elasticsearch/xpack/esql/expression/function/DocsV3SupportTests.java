@@ -312,7 +312,7 @@ public class DocsV3SupportTests extends ESTestCase {
 
             ## `COUNT` [esql-count]
             ```{applies_to}
-            stack: coming 9.1.0
+            stack: coming
             ```
 
             **Syntax**
@@ -417,8 +417,7 @@ public class DocsV3SupportTests extends ESTestCase {
                 ) },
             appliesTo = {
                 @FunctionAppliesTo(
-                    lifeCycle = FunctionAppliesToLifecycle.COMING,
-                    version = "9.1.0"
+                    lifeCycle = FunctionAppliesToLifecycle.COMING
                 ) }
         )
         public TestClass(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """

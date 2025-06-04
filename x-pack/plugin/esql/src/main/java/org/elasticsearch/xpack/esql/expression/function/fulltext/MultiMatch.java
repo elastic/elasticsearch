@@ -250,7 +250,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                         + "See <<multi-match-types,multi_match types>>."
                 ), },
             description = "(Optional) Additional options for MultiMatch, "
-                + "passed as <<esql-function-named-params,function named parameters>>.{applies_to}`stack: ga 9.1`\"\n"
+                + "passed as <<esql-function-named-params,function named parameters>>.{applies_to}`stack: coming`\"\n"
                 + " See <<query-dsl-multi-match-query,multi-match query>> for more information.",
             optional = true
         ) Expression options

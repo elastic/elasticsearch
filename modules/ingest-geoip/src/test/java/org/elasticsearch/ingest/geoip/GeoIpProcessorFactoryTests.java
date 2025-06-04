@@ -461,8 +461,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             Runnable::run,
             clusterService
         );
-        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class),
-            TestProjectResolvers.singleProjectOnly(projectId));
+        databaseNodeService.initialize(
+            "nodeId",
+            resourceWatcherService,
+            mock(IngestService.class),
+            TestProjectResolvers.singleProjectOnly(projectId)
+        );
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.getConfigDatabases().values()) {
             assertNull(lazyLoader.databaseReader.get());

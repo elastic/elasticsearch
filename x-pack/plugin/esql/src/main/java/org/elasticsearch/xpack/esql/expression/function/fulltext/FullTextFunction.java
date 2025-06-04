@@ -143,7 +143,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryBuilder);
+        return Objects.hash(super.hashCode(), query, queryBuilder);
     }
 
     @Override
@@ -331,7 +331,7 @@ public abstract class FullTextFunction extends Function
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
     }
 
-    public static void populateOptionsMap(
+    protected static void populateOptionsMap(
         final MapExpression options,
         final Map<String, Object> optionsMap,
         final TypeResolutions.ParamOrdinal paramOrdinal,

@@ -1,6 +1,0 @@
-pr: 128900
-summary: Fix `IndexSortUpgradeIT` test
-area: Search
-type: bug
-issues:
- - 128861

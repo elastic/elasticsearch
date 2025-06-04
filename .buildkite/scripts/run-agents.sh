@@ -28,4 +28,5 @@ grep 'token=' "$BUILDKITE_CONFIG_PATH" >> "$CONFIG_FILE"
 
 unset ${!BUILDKITE_*}
 
-buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE"
+# buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE"
+buildkite-agent start --config "$CONFIG_FILE"

@@ -105,7 +105,9 @@ public record DriverCompletionInfo(
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
         out.writeCollection(driverProfiles);
-        out.writeCollection(planProfiles);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+            out.writeCollection(planProfiles);
+        }
     }
 
     public static class Accumulator {

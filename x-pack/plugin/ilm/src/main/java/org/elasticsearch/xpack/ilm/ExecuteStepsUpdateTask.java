@@ -127,14 +127,18 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                         return state;
                     } else {
                         logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
-                        state = IndexLifecycleTransition.moveClusterStateToStep(
-                            index,
-                            state,
-                            nextStepKey,
-                            nowSupplier,
-                            policyStepsRegistry,
-                            false
-                        );
+                        state = ClusterState.builder(state)
+                            .putProjectMetadata(
+                                IndexLifecycleTransition.moveIndexToStep(
+                                    index,
+                                    state.metadata().getProject(),
+                                    nextStepKey,
+                                    nowSupplier,
+                                    policyStepsRegistry,
+                                    false
+                                )
+                            )
+                            .build();
                     }
                 } else {
                     // cluster state wait step so evaluate the
@@ -170,14 +174,18 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                         if (nextStepKey == null) {
                             return state;
                         } else {
-                            state = IndexLifecycleTransition.moveClusterStateToStep(
-                                index,
-                                state,
-                                nextStepKey,
-                                nowSupplier,
-                                policyStepsRegistry,
-                                false
-                            );
+                            state = ClusterState.builder(state)
+                                .putProjectMetadata(
+                                    IndexLifecycleTransition.moveIndexToStep(
+                                        index,
+                                        state.metadata().getProject(),
+                                        nextStepKey,
+                                        nowSupplier,
+                                        policyStepsRegistry,
+                                        false
+                                    )
+                                )
+                                .build();
                         }
                     } else {
                         final ToXContentObject stepInfo = result.informationContext();

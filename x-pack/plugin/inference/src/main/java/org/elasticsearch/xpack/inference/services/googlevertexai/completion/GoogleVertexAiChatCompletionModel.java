@@ -30,6 +30,9 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
+
+    private final URI streamingURI;
+
     public GoogleVertexAiChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -63,7 +66,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            this.streamingURI = buildUriStreaming(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            this.nonStreamingUri = buildUriNonStreaming(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -114,7 +118,28 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         return (GoogleVertexAiSecretSettings) super.getSecretSettings();
     }
 
-    public static URI buildUri(String location, String projectId, String model) throws URISyntaxException {
+    public URI streamingURI() {
+        return this.streamingURI;
+    }
+
+    public static URI buildUriNonStreaming(String location, String projectId, String model) throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+            .setPathSegments(
+                GoogleVertexAiUtils.V1,
+                GoogleVertexAiUtils.PROJECTS,
+                projectId,
+                GoogleVertexAiUtils.LOCATIONS,
+                GoogleVertexAiUtils.GLOBAL,
+                GoogleVertexAiUtils.PUBLISHERS,
+                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
+                GoogleVertexAiUtils.MODELS,
+                format("%s:%s", model, GoogleVertexAiUtils.GENERATE_CONTENT)
+            )
+            .build();
+    }
+
+    public static URI buildUriStreaming(String location, String projectId, String model) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
             .setPathSegments(

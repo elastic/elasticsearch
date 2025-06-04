@@ -33,7 +33,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
     @Override
     public HttpRequest createHttpRequest() {
-        var uri = unifiedChatInput.stream() ? model.uri() : model.nonStreamingUri();
+        var uri = unifiedChatInput.stream() ? model.streamingURI() : model.nonStreamingUri();
         HttpPost httpPost = new HttpPost(uri);
 
         var requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
@@ -53,7 +53,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
     @Override
     public URI getURI() {
-        return model.uri();
+        return model.nonStreamingUri();
     }
 
     @Override

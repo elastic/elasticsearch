@@ -65,7 +65,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.projectId());
+            this.nonStreamingUri = buildUri(serviceSettings.projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -87,7 +87,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = new URI(uri);
+            this.nonStreamingUri = new URI(uri);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

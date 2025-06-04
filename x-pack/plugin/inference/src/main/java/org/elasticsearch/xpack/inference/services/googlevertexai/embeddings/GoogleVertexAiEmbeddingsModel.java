@@ -81,7 +81,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            this.nonStreamingUri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -103,7 +103,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = new URI(uri);
+            this.nonStreamingUri = new URI(uri);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

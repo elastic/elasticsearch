@@ -2919,7 +2919,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 + "]"
                         );
                     }
-                    final var project = currentState.metadata().getProject();
+                    final var project = currentState.metadata().getDefaultProject();
                     final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(project)
                         .withUpdatedGeneration(metadata.name(), newGen, newGen);
                     final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())

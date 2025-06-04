@@ -346,9 +346,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             if (found == false) {
                 repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
             }
+            repositories = new RepositoriesMetadata(repositoriesMetadata);
             changed = true;
-            var updatedRepositories = new RepositoriesMetadata(repositoriesMetadata);
-            return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(RepositoriesMetadata.TYPE, updatedRepositories));
+            return ClusterState.builder(currentState)
+                .putProjectMetadata(ProjectMetadata.builder(project).putCustom(RepositoriesMetadata.TYPE, repositories))
+                .build();
         }
     }
 
@@ -443,7 +445,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final var project = currentState.metadata().getProject();
+                    final var project = currentState.metadata().getDefaultProject();
                     final RepositoriesMetadata currentReposMetadata = RepositoriesMetadata.get(project);
 
                     final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
@@ -535,11 +537,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     }
                 }
                 if (changed) {
-                    final var updatedRepositories = new RepositoriesMetadata(repositoriesMetadata);
-                    return currentState.copyAndUpdateProject(
-                        project.id(),
-                        builder -> builder.putCustom(RepositoriesMetadata.TYPE, updatedRepositories)
-                    );
+                    repositories = new RepositoriesMetadata(repositoriesMetadata);
+                    return ClusterState.builder(currentState)
+                        .putProjectMetadata(ProjectMetadata.builder(project).putCustom(RepositoriesMetadata.TYPE, repositories))
+                        .build();
                 }
             }
             if (Regex.isMatchAllPattern(request.name())) { // we use a wildcard so we don't barf if it's not present.

@@ -319,6 +319,11 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
+         * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
+         */
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+
+        /**
          * Support for named or positional parameters in EsqlQueryRequest.
          */
         NAMED_POSITIONAL_PARAMETER,
@@ -591,6 +596,12 @@ public class EsqlCapabilities {
          * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
          */
         FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
+
+        /**
+         * Support for date nanos in lookup join. Done in #127962
+         */
+        DATE_NANOS_LOOKUP_JOIN,
+
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -1024,7 +1035,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V5(Build.current().isSnapshot()),
+        FORK_V6(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1169,7 +1180,13 @@ public class EsqlCapabilities {
         /**
          * Allows RLIKE to correctly handle the "empty language" flag, `#`.
          */
-        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN;
+        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
+
 
         private final boolean enabled;
 

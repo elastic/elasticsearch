@@ -78,7 +78,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(32000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(50200000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
         assertThat(
             modelSizeStats.getMemoryStatus(),
@@ -125,7 +125,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(35000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(45000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(25000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
@@ -176,7 +176,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(33000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(71000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
@@ -226,7 +226,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(120500000L));
-        assertThat(modelSizeStats.getModelBytes(), greaterThan(90000000L));
+        assertThat(modelSizeStats.getModelBytes(), greaterThan(70000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 

@@ -588,9 +588,27 @@ teardown:
           {"index": { "_id": "1" }}
           {"content_embedding":{"cheese": 2.671405,"is": 0.11809908,"comet": 0.26088917}}
           {"index": { "_id": "2" }}
-          {"content_embedding":{"planet": 2.3438394,"is": 0.54600334,"astronomy": 0.36015007,"moon": 0.20022368}}
+          {"content_embedding":{"planet": 2.3438394,"is": 0.14600334,"astronomy": 0.36015007,"moon": 0.20022368}}
           {"index": { "_id": "3" }}
-          {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+          {"content_embedding":{"is": 0.1891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
+          {"index": { "_id": "4" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "5" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "6" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "7" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "8" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "9" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "10" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "11" }}
+          {"content_embedding":{"is": 0.1891394}}
+          {"index": { "_id": "12" }}
+          {"content_embedding":{"is": 0.1891394}}
 
   - do:
       search:
@@ -600,13 +618,8 @@ teardown:
             sparse_vector:
               field: content_embedding
               query_vector:
-                cheese: 0.5
-                comet: 0.5
-                globe: 0.484035
-                ocean: 0.080102935
-                underground: 0.053516876
-                is: 0.54600334
+                pugs: 0.5
+                cats: 0.5
+                is: 0.04600334
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "3" }
+  - match: { hits.total.value: 0 }

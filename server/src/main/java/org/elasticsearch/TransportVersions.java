@@ -284,7 +284,6 @@ public class TransportVersions {
     public static final TransportVersion JOIN_ON_ALIASES = def(9_088_0_00);
     public static final TransportVersion ILM_ADD_SKIP_SETTING = def(9_089_0_00);
     public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED = def(9_090_0_00);
-    public static final TransportVersion ML_AD_SYSTEM_MEMORY_USAGE = def(9_091_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

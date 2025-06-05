@@ -1,5 +1,5 @@
 pr: 126256
-summary: Handle new `actual_memory_usage_bytes` field in model size stats
+summary: Adjust REST test code to accommodate changes to calculation of "model bytes" and "peak mode bytes" values.
 area: Machine Learning
 type: enhancement
 issues: []

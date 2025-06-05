@@ -1590,18 +1590,6 @@ public class JobResultsProvider {
                     handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
                     return;
                 }
-                case SYSTEM_MEMORY_BYTES -> {
-                    Long storedSystemMemoryBytes = latestModelSizeStats.getSystemMemoryBytes();
-                    handler.accept((storedSystemMemoryBytes != null) ? storedSystemMemoryBytes : latestModelSizeStats.getModelBytes());
-                    return;
-                }
-                case MAX_SYSTEM_MEMORY_BYTES -> {
-                    Long storedMaxSystemMemoryBytes = latestModelSizeStats.getMaxSystemMemoryBytes();
-                    handler.accept(
-                        (storedMaxSystemMemoryBytes != null) ? storedMaxSystemMemoryBytes : latestModelSizeStats.getModelBytes()
-                    );
-                    return;
-                }
             }
         }
 

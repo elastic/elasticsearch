@@ -617,7 +617,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression prompt = p.prompt();
 
             if (targetField instanceof UnresolvedAttribute ua) {
-                targetField = new ReferenceAttribute(ua.source(), ua.name(), TEXT);
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), KEYWORD);
             }
 
             if (prompt.resolved() == false) {
@@ -1052,12 +1052,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
                         resolved = childOutput;
-                        priority = 2;
+                        priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         resolved = resolveAgainstList(up, childOutput);
-                        priority = 1;
+                        priority = 3;
+                    } else if (proj instanceof UnsupportedAttribute) {
+                        resolved = List.of(proj.toAttribute());
+                        priority = 2;
                     } else if (proj instanceof UnresolvedAttribute ua) {
                         resolved = resolveAgainstList(ua, childOutput);
+                        priority = 1;
+                    } else if (proj.resolved()) {
+                        resolved = List.of(proj.toAttribute());
                         priority = 0;
                     } else {
                         throw new EsqlIllegalArgumentException("unexpected projection: " + proj);

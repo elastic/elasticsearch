@@ -10,18 +10,24 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -34,11 +40,12 @@ public class EntitlementInitialization {
 
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
-    private static ElasticsearchEntitlementChecker manager;
+    public static InitializeArgs initializeArgs;
+    private static ElasticsearchEntitlementChecker checker;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
-        return manager;
+        return checker;
     }
 
     /**
@@ -61,36 +68,61 @@ public class EntitlementInitialization {
      * @param inst the JVM instrumentation class instance
      */
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = initChecker();
+        // the checker _MUST_ be set before _any_ instrumentation is done
+        checker = initChecker(createPolicyManager());
+        initInstrumentation(inst);
+    }
 
-        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
-        if (verifyBytecode) {
-            ensureClassesSensitiveToVerificationAreInitialized();
+    /**
+     * Arguments to {@link #initialize}. Since that's called in a static context from the agent,
+     * we have no way to pass arguments directly, so we stuff them in here.
+     *
+     * @param serverPolicyPatch
+     * @param pluginPolicies
+     * @param scopeResolver
+     * @param pathLookup
+     * @param sourcePaths
+     * @param suppressFailureLogPackages
+     */
+    public record InitializeArgs(
+        @Nullable Policy serverPolicyPatch,
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        PathLookup pathLookup,
+        Map<String, Path> sourcePaths,
+        Set<Package> suppressFailureLogPackages
+    ) {
+        public InitializeArgs {
+            requireNonNull(pluginPolicies);
+            requireNonNull(scopeResolver);
+            requireNonNull(pathLookup);
+            requireNonNull(sourcePaths);
+            requireNonNull(suppressFailureLogPackages);
         }
+    }
 
-        DynamicInstrumentation.initialize(
-            inst,
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
-            verifyBytecode
+    private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
+        return new PolicyCheckerImpl(
+            initializeArgs.suppressFailureLogPackages(),
+            ENTITLEMENTS_MODULE,
+            policyManager,
+            initializeArgs.pathLookup()
         );
     }
 
     private static PolicyManager createPolicyManager() {
-        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
-        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        PathLookup pathLookup = bootstrapArgs.pathLookup();
+        Map<String, Policy> pluginPolicies = initializeArgs.pluginPolicies();
+        PathLookup pathLookup = initializeArgs.pathLookup();
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         return new PolicyManager(
-            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), bootstrapArgs.serverPolicyPatch()),
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), initializeArgs.serverPolicyPatch()),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
-            EntitlementBootstrap.bootstrapArgs().scopeResolver(),
-            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
-            ENTITLEMENTS_MODULE,
-            pathLookup,
-            bootstrapArgs.suppressFailureLogPackages()
+            initializeArgs.scopeResolver(),
+            initializeArgs.sourcePaths(),
+            pathLookup
         );
     }
 
@@ -102,7 +134,11 @@ public class EntitlementInitialization {
      * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
      */
     private static void ensureClassesSensitiveToVerificationAreInitialized() {
-        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        var classesToInitialize = Set.of(
+            "sun.net.www.protocol.http.HttpURLConnection",
+            "sun.nio.ch.DatagramChannelImpl",
+            "sun.nio.ch.ServerSocketChannelImpl"
+        );
         for (String className : classesToInitialize) {
             try {
                 Class.forName(className);
@@ -112,9 +148,8 @@ public class EntitlementInitialization {
         }
     }
 
-    private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyManager policyManager = createPolicyManager();
-
+    static ElasticsearchEntitlementChecker initChecker(PolicyManager policyManager) {
+        final PolicyChecker policyChecker = createPolicyChecker(policyManager);
         final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
             ElasticsearchEntitlementChecker.class,
             Runtime.version().feature()
@@ -122,14 +157,32 @@ public class EntitlementInitialization {
 
         Constructor<?> constructor;
         try {
-            constructor = clazz.getConstructor(PolicyManager.class);
+            constructor = clazz.getConstructor(PolicyChecker.class);
         } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+            throw new AssertionError("entitlement impl is missing required constructor: [" + clazz.getName() + "]", e);
         }
+
+        ElasticsearchEntitlementChecker checker;
         try {
-            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+            checker = (ElasticsearchEntitlementChecker) constructor.newInstance(policyChecker);
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new AssertionError(e);
         }
+
+        return checker;
+    }
+
+    static void initInstrumentation(Instrumentation instrumentation) throws Exception {
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
+
+        DynamicInstrumentation.initialize(
+            instrumentation,
+            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
+            verifyBytecode
+        );
+
     }
 }

@@ -101,7 +101,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         newLifecycleState.setAction(action);
         newLifecycleState.setStep(step);
 
-        return projectState.withProject(
+        return projectState.updateProject(
             projectState.metadata().withLifecycleState(targetIndexMetadata.getIndex(), newLifecycleState.build())
         );
     }

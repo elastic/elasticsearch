@@ -95,7 +95,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             newLifecycleState.setSnapshotName(snapshotName);
         }
 
-        return projectState.withProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
+        return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
     @Override

@@ -49,7 +49,7 @@ public class DownsamplePrepareLifeCycleStateStep extends ClusterStateActionStep 
         final String downsampleIndexName = generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, indexMetadata, fixedInterval);
         newLifecycleState.setDownsampleIndexName(downsampleIndexName);
 
-        return projectState.withProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
+        return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
     @Override

@@ -86,7 +86,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         }
         lifecycleStateSetter.apply(generatedIndexName, newLifecycleState);
 
-        return projectState.withProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
+        return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
     @Override

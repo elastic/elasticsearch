@@ -63,7 +63,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         if (parsedOriginationDate == null) {
             // we don't need to update the LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, so we can use the fast path
-            return projectState.withProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState));
+            return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState));
         } else {
             // we do need to update the LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, so we can't use the fast path
             IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
@@ -75,7 +75,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                         .build()
                 );
             builder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap());
-            return projectState.withProject(ProjectMetadata.builder(projectState.metadata()).put(builder).build());
+            return projectState.updateProject(ProjectMetadata.builder(projectState.metadata()).put(builder).build());
         }
     }
 

@@ -79,7 +79,7 @@ public final class ProjectState {
     /**
      * Build a new {@link ProjectState} with the updated {@code project}.
      */
-    public ProjectState withProject(ProjectMetadata updatedProject) {
+    public ProjectState updateProject(ProjectMetadata updatedProject) {
         // No need to build a new object if the project is unchanged.
         if (metadata() == updatedProject) {
             return this;

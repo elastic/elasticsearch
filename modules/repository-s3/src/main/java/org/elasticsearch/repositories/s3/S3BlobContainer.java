@@ -982,7 +982,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(buildKey(key));
             S3BlobStore.configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
             final var getObjectRequest = getObjectRequestBuilder.build();
-            try (var clientReference = blobStore.clientReference(); var s3Object = clientReference.client().getObject(getObjectRequest);) {
+            try (var clientReference = blobStore.clientReference(); var s3Object = clientReference.client().getObject(getObjectRequest)) {
                 return OptionalBytesReference.of(getRegisterUsingConsistentRead(s3Object, keyPath, key));
             } catch (Exception e) {
                 logger.trace(() -> Strings.format("[%s]: getRegister failed", key), e);

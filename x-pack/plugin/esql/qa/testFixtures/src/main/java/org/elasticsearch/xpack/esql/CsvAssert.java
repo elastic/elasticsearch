@@ -327,7 +327,7 @@ public final class CsvAssert {
         if (values.size() > rows) {
             result.append("...").append(System.lineSeparator());
         }
-        return result.toString();
+        return result.toString().replaceAll("\\s+" + System.lineSeparator(), System.lineSeparator());
     }
 
     private static String header(String name, Type type) {

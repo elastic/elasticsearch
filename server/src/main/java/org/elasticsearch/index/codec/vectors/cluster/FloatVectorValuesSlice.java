@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.index.FloatVectorValues;
 
 import java.io.IOException;
-import java.util.stream.IntStream;
 
 class FloatVectorValuesSlice extends FloatVectorValues {
 
@@ -27,10 +26,6 @@ class FloatVectorValuesSlice extends FloatVectorValues {
         } else {
             this.slice = slice;
         }
-    }
-
-    FloatVectorValuesSlice(FloatVectorValues allValues) {
-        this(allValues, null);
     }
 
     @Override
@@ -56,11 +51,12 @@ class FloatVectorValuesSlice extends FloatVectorValues {
         }
     }
 
-    public int[] slice() {
+    @Override
+    public int ordToDoc(int ord) {
         if (this.slice == null) {
-            return IntStream.range(0, allValues.size()).toArray();
+            return ord;
         } else {
-            return this.slice;
+            return this.slice[ord];
         }
     }
 

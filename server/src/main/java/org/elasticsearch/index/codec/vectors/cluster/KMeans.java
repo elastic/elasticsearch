@@ -114,17 +114,17 @@ class KMeans {
      * cluster using a lloyd k-means algorithm
      *
      * @param vectors the vectors to cluster
-     * @param kMeansResult the output object to populate which minimally includes centroids,
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
      *                     but may include assignments and soar assignments as well; care should be taken in
      *                     passing in a valid output object with a centroids array that is the size of centroids expected
      * @throws IOException is thrown if vectors is inaccessible
      */
-    void cluster(FloatVectorValues vectors, KMeansResult kMeansResult) throws IOException {
-        cluster(vectors, kMeansResult, new ClusteringAugment());
+    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
+        cluster(vectors, kMeansIntermediate, new ClusteringAugment());
     }
 
-    void cluster(FloatVectorValues vectors, KMeansResult kMeansResult, ClusteringAugment augment) throws IOException {
-        float[][] centroids = kMeansResult.centroids();
+    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, ClusteringAugment augment) throws IOException {
+        float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();
 
@@ -143,7 +143,7 @@ class KMeans {
     }
 
     /**
-     * helper that calls {@link KMeans#cluster(FloatVectorValues, KMeansResult)} given a set of initialized centroids
+     * helper that calls {@link KMeans#cluster(FloatVectorValues, KMeansIntermediate)} given a set of initialized centroids
      *
      * @param vectors the vectors to cluster
      * @param centroids the initialized centroids to be shifted using k-means
@@ -151,9 +151,9 @@ class KMeans {
      * @param maxIterations the max iterations to shift centroids
      */
     public static void cluster(FloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations) throws IOException {
-        KMeansResult kMeansResult = new KMeansResult(centroids);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids);
         KMeans kMeans = new KMeans(sampleSize, maxIterations);
-        kMeans.cluster(vectors, kMeansResult);
+        kMeans.cluster(vectors, kMeansIntermediate);
     }
 
     /**

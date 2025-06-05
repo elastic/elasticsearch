@@ -56,41 +56,19 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
         InfoStream infoStream,
-        CentroidAssignments centroidAssignments
+        IntArrayList[] assignmentsByCluster
     ) throws IOException {
-
         // write the posting lists
         final long[] offsets = new long[centroidSupplier.size()];
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         BinarizedFloatVectorValues binarizedByteVectorValues = new BinarizedFloatVectorValues(floatVectorValues, quantizer);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
 
-        int[] assignments = centroidAssignments.assignments();
-        int[] soarAssignments = centroidAssignments.soarAssignments();
-
-        IntArrayList[] clustersForMetrics = null;
-        if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-            clustersForMetrics = new IntArrayList[centroidSupplier.size()];
-        }
-
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             binarizedByteVectorValues.centroid = centroid;
-
             // TODO: add back in sorting vectors by distance to centroid
-            IntArrayList cluster = new IntArrayList(vectorPerCluster);
-            for (int j = 0; j < assignments.length; j++) {
-                if (assignments[j] == c) {
-                    cluster.add(j);
-                }
-            }
-
-            for (int j = 0; j < soarAssignments.length; j++) {
-                if (soarAssignments[j] == c) {
-                    cluster.add(j);
-                }
-            }
-
+            IntArrayList cluster = assignmentsByCluster[c];
             // TODO align???
             offsets[c] = postingsOutput.getFilePointer();
             int size = cluster.size();
@@ -99,16 +77,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), cluster.size(), postingsOutput);
+            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), size, postingsOutput);
             writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
-
-            if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-                clustersForMetrics[c] = cluster;
-            }
         }
 
         if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-            printClusterQualityStatistics(clustersForMetrics, infoStream);
+            printClusterQualityStatistics(assignmentsByCluster, infoStream);
         }
 
         return offsets;
@@ -302,10 +276,28 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             infoStream.message(IVF_VECTOR_COMPONENT, "final centroid count: " + centroids.length);
         }
 
+        IntArrayList[] assignmentsByCluster = new IntArrayList[centroids.length];
+        for (int c = 0; c < centroids.length; c++) {
+            IntArrayList cluster = new IntArrayList(vectorPerCluster);
+            for (int j = 0; j < assignments.length; j++) {
+                if (assignments[j] == c) {
+                    cluster.add(j);
+                }
+            }
+
+            for (int j = 0; j < soarAssignments.length; j++) {
+                if (soarAssignments[j] == c) {
+                    cluster.add(j);
+                }
+            }
+
+            assignmentsByCluster[c] = cluster;
+        }
+
         if (cacheCentroids) {
-            return new CentroidAssignments(centroids, assignments, soarAssignments);
+            return new CentroidAssignments(centroids, assignmentsByCluster);
         } else {
-            return new CentroidAssignments(centroids.length, assignments, soarAssignments);
+            return new CentroidAssignments(centroids.length, assignmentsByCluster);
         }
     }
 

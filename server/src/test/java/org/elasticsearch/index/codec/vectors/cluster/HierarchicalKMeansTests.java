@@ -30,7 +30,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int targetSize = (int) ((float) nVectors / (float) nClusters);
         HierarchicalKMeans hkmeans = new HierarchicalKMeans(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
 
-        KMeansResult result = hkmeans.cluster(vectors, targetSize);
+        KMeansIntermediate result = hkmeans.cluster(vectors, targetSize);
 
         float[][] centroids = result.centroids();
         int[] assignments = result.assignments();

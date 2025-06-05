@@ -15,41 +15,22 @@ package org.elasticsearch.index.codec.vectors.cluster;
 public class KMeansResult {
     private float[][] centroids;
     private final int[] assignments;
-    private final int[] assignmentOrds;
     private int[] soarAssignments;
 
-    KMeansResult(float[][] centroids, int[] assignments, int[] assignmentOrds, int[] soarAssignments) {
+    KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {
         assert centroids != null;
         assert assignments != null;
-        assert assignmentOrds != null;
         assert soarAssignments != null;
         this.centroids = centroids;
         this.assignments = assignments;
-        this.assignmentOrds = assignmentOrds;
         this.soarAssignments = soarAssignments;
-    }
-
-    KMeansResult(float[][] centroids, int[] assignments, int[] assignmentOrdinals) {
-        this(centroids, assignments, assignmentOrdinals, new int[0]);
-    }
-
-    KMeansResult() {
-        this(new float[0][0], new int[0], new int[0], new int[0]);
-    }
-
-    KMeansResult(float[][] centroids) {
-        this(centroids, new int[0], new int[0], new int[0]);
-    }
-
-    KMeansResult(float[][] centroids, int[] assignments) {
-        this(centroids, assignments, new int[0], new int[0]);
     }
 
     public float[][] centroids() {
         return centroids;
     }
 
-    public void setCentroids(float[][] centroids) {
+    void setCentroids(float[][] centroids) {
         this.centroids = centroids;
     }
 
@@ -57,16 +38,11 @@ public class KMeansResult {
         return assignments;
     }
 
-    public int[] assignmentOrds() {
-        return assignmentOrds;
+    void setSoarAssignments(int[] soarAssignments) {
+        this.soarAssignments = soarAssignments;
     }
 
     public int[] soarAssignments() {
         return soarAssignments;
     }
-
-    public void setSoarAssignments(int[] soarAssignments) {
-        this.soarAssignments = soarAssignments;
-    }
-
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -144,7 +145,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
         InfoStream infoStream,
-        CentroidAssignments centroidAssignments
+        IntArrayList[] assignmentsByCluster
     ) throws IOException;
 
     abstract CentroidSupplier createCentroidSupplier(
@@ -181,7 +182,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 floatVectorValues,
                 ivfClusters,
                 segmentWriteState.infoStream,
-                centroidAssignments
+                centroidAssignments.assignmentsByCluster()
             );
             // write posting lists
             writeMeta(fieldWriter.fieldInfo, centroidOffset, centroidLength, offsets, globalCentroid);
@@ -324,7 +325,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                             floatVectorValues,
                             ivfClusters,
                             mergeState.infoStream,
-                            centroidAssignments
+                            centroidAssignments.assignmentsByCluster()
                         );
                         assert offsets.length == centroidSupplier.size();
                         writeMeta(fieldInfo, centroidOffset, centroidLength, offsets, calculatedGlobalCentroid);

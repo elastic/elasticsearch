@@ -48,12 +48,12 @@ public class KMeansLocalTests extends ESTestCase {
             assignmentOrdinals[i] = i;
         }
 
-        KMeansResult kMeansResult = new KMeansResult(centroids, assignments, assignmentOrdinals);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
         KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations, clustersPerNeighborhood, soarLambda);
-        kMeansLocal.cluster(vectors, kMeansResult);
+        kMeansLocal.cluster(vectors, kMeansIntermediate);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansResult.soarAssignments());
+        assertNotNull(kMeansIntermediate.soarAssignments());
     }
 
     public void testKMeansLocalAllZero() throws IOException {
@@ -89,12 +89,12 @@ public class KMeansLocalTests extends ESTestCase {
             assignmentOrdinals[i] = i;
         }
 
-        KMeansResult kMeansResult = new KMeansResult(centroids, assignments, assignmentOrdinals);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
         KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations, clustersPerNeighborhood, soarLambda);
-        kMeansLocal.cluster(fvv, kMeansResult);
+        kMeansLocal.cluster(fvv, kMeansIntermediate);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansResult.soarAssignments());
+        assertNotNull(kMeansIntermediate.soarAssignments());
         for (float[] centroid : centroids) {
             for (float v : centroid) {
                 if (v > 0.0000001f) {

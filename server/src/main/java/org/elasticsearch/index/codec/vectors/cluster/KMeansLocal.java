@@ -146,16 +146,16 @@ class KMeansLocal extends KMeans {
      * this also is used to generate the neighborhood aware additional (SOAR) assignments
      *
      * @param vectors the vectors to cluster
-     * @param kMeansResult the output object to populate which minimally includes centroids,
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
      *                     the prior assignments of the given vectors; care should be taken in
      *                     passing in a valid output object with a centroids array that is the size of centroids expected
      *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
      * @throws IOException is thrown if vectors is inaccessible
      */
     @Override
-    void cluster(FloatVectorValues vectors, KMeansResult kMeansResult) throws IOException {
-        float[][] centroids = kMeansResult.centroids();
-        int[] assignments = kMeansResult.assignments();
+    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
+        float[][] centroids = kMeansIntermediate.centroids();
+        int[] assignments = kMeansIntermediate.assignments();
 
         assert assignments != null;
         assert assignments.length == vectors.size();
@@ -167,8 +167,8 @@ class KMeansLocal extends KMeans {
         }
         computeNeighborhoods(centroids, neighborhoods, clustersPerNeighborhood);
         ClusteringAugment augment = new NeighborsClusteringAugment(assignments, neighborhoods);
-        super.cluster(vectors, kMeansResult, augment);
-        kMeansResult.setSoarAssignments(assignSpilled(vectors, neighborhoods, centroids, assignments));
+        super.cluster(vectors, kMeansIntermediate, augment);
+        kMeansIntermediate.setSoarAssignments(assignSpilled(vectors, neighborhoods, centroids, assignments));
     }
 
     static class NeighborsClusteringAugment extends ClusteringAugment {

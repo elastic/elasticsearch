@@ -51,34 +51,34 @@ public class HierarchicalKMeans {
      * @return the centroids and the vectors assignments and SOAR (spilled from nearby neighborhoods) assignments
      * @throws IOException is thrown if vectors is inaccessible
      */
-    public KMeansResult cluster(FloatVectorValues vectors, int targetSize) throws IOException {
+    public KMeansIntermediate cluster(FloatVectorValues vectors, int targetSize) throws IOException {
 
         if (vectors.size() == 0) {
-            return new KMeansResult();
+            return new KMeansIntermediate();
         }
 
         // if we have a small number of vectors pick one and output that as the centroid
         if (vectors.size() < targetSize) {
             float[] centroid = new float[dimension];
             System.arraycopy(vectors.vectorValue(0), 0, centroid, 0, dimension);
-            return new KMeansResult(new float[][] { centroid }, new int[vectors.size()]);
+            return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()]);
         }
 
         // partition the space
-        KMeansResult kMeansResult = cluster(new FloatVectorValuesSlice(vectors), targetSize);
-        if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
             int localSampleSize = (int) (f * vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
-            kMeansLocal.cluster(vectors, kMeansResult);
+            kMeansLocal.cluster(vectors, kMeansIntermediate);
         }
 
-        return kMeansResult;
+        return kMeansIntermediate;
     }
 
-    KMeansResult cluster(final FloatVectorValuesSlice vectors, final int targetSize) throws IOException {
+    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
         if (vectors.size() <= targetSize) {
-            return new KMeansResult();
+            return new KMeansIntermediate();
         }
 
         int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
@@ -89,8 +89,8 @@ public class HierarchicalKMeans {
 
         KMeans kmeans = new KMeans(m, maxIterations);
         float[][] centroids = KMeans.pickInitialCentroids(vectors, k);
-        KMeansResult kMeansResult = new KMeansResult(centroids);
-        kmeans.cluster(vectors, kMeansResult);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids);
+        kmeans.cluster(vectors, kMeansIntermediate);
 
         int[] clusterSizes = new int[centroids.length];
 
@@ -134,30 +134,29 @@ public class HierarchicalKMeans {
             }
         }
 
-        int[] assignmentOrdinals = vectors.slice();
-        kMeansResult = new KMeansResult(centroids, assignments, assignmentOrdinals);
+        kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
 
         if (effectiveK == 1) {
-            return kMeansResult;
+            return kMeansIntermediate;
         }
 
         for (int c = 0; c < clusterSizes.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
             if (100 * clusterSizes[c] > 134 * targetSize) {
-                FloatVectorValuesSlice sample = createClusterSlice(clusterSizes[c], c, vectors, assignments);
+                FloatVectorValues sample = createClusterSlice(clusterSizes[c], c, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansResult, c, cluster(sample, targetSize));
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, c, clusterAndSplit(sample, targetSize));
             }
         }
 
-        return kMeansResult;
+        return kMeansIntermediate;
     }
 
-    static FloatVectorValuesSlice createClusterSlice(int clusterSize, int cluster, FloatVectorValuesSlice vectors, int[] assignments) {
+    static FloatVectorValues createClusterSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {
         int[] slice = new int[clusterSize];
         int idx = 0;
         for (int i = 0; i < assignments.length; i++) {
@@ -170,7 +169,7 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
-    void updateAssignmentsWithRecursiveSplit(KMeansResult current, int cluster, KMeansResult subPartitions) {
+    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
         int orgCentroidsSize = current.centroids().length;
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
@@ -191,7 +190,7 @@ public class HierarchicalKMeans {
             for (int i = 0; i < subPartitions.assignments().length; i++) {
                 // this is a new centroid that was added, and so we'll need to remap it
                 if (subPartitions.assignments()[i] != origCentroidOrd) {
-                    int parentOrd = subPartitions.assignmentOrds()[i];
+                    int parentOrd = subPartitions.ordToDoc(i);
                     assert current.assignments()[parentOrd] == cluster;
                     current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
                 }

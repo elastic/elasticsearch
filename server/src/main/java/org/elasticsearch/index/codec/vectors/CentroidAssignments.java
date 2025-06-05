@@ -9,26 +9,26 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
+
 final class CentroidAssignments {
 
     private final int numCentroids;
     private final float[][] cachedCentroids;
-    private final int[] assignments;
-    private final int[] soarAssignments;
+    private final IntArrayList[] assignmentsByCluster;
 
-    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, int[] assignments, int[] soarAssignments) {
+    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, IntArrayList[] assignmentsByCluster) {
         this.numCentroids = numCentroids;
         this.cachedCentroids = cachedCentroids;
-        this.assignments = assignments;
-        this.soarAssignments = soarAssignments;
+        this.assignmentsByCluster = assignmentsByCluster;
     }
 
-    CentroidAssignments(float[][] centroids, int[] assignments, int[] soarAssignments) {
-        this(centroids.length, centroids, assignments, soarAssignments);
+    CentroidAssignments(float[][] centroids, IntArrayList[] assignmentsByCluster) {
+        this(centroids.length, centroids, assignmentsByCluster);
     }
 
-    CentroidAssignments(int numCentroids, int[] assignments, int[] soarAssignments) {
-        this(numCentroids, null, assignments, soarAssignments);
+    CentroidAssignments(int numCentroids, IntArrayList[] assignmentsByCluster) {
+        this(numCentroids, null, assignmentsByCluster);
     }
 
     // Getters and setters
@@ -40,11 +40,7 @@ final class CentroidAssignments {
         return cachedCentroids;
     }
 
-    public int[] assignments() {
-        return assignments;
-    }
-
-    public int[] soarAssignments() {
-        return soarAssignments;
+    public IntArrayList[] assignmentsByCluster() {
+        return assignmentsByCluster;
     }
 }

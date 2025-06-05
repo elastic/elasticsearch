@@ -2236,7 +2236,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "regexp": {
                             "first_name": {
                                 "value": "foo*",
-                                "flags_value": 65791,
+                                "flags_value": 255,
                                 "case_insensitive": true,
                                 "max_determinized_states": 10000,
                                 "boost": 0.0
@@ -2261,7 +2261,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "regexp": {
                             "first_name": {
                                 "value": "FOO*",
-                                "flags_value": 65791,
+                                "flags_value": 255,
                                 "case_insensitive": true,
                                 "max_determinized_states": 10000,
                                 "boost": 0.0

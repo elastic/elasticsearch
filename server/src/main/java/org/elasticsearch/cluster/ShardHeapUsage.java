@@ -41,4 +41,12 @@ public record ShardHeapUsage(String nodeId, String nodeName, long totalBytes, lo
     public long estimatedFreeBytes() {
         return totalBytes - estimatedUsageBytes;
     }
+
+    public double estimatedFreeBytesAsPercentage() {
+        return 100.0 - estimatedUsageAsPercentage();
+    }
+
+    public double estimatedUsageAsPercentage() {
+        return 100.0 * estimatedUsageBytes / (double) totalBytes;
+    }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizationResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.inference.WeightedToken;
 
 import java.util.ArrayList;
 import java.util.List;

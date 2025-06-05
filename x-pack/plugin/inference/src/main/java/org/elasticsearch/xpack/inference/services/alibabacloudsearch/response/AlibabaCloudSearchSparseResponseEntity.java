@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.response;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 

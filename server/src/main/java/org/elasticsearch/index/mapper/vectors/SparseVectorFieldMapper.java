@@ -36,6 +36,8 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.inference.WeightedTokensUtils;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -147,6 +149,18 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
             }
             return super.existsQuery(context);
+        }
+
+        public Query finalizeQuery(
+            SearchExecutionContext context,
+            String fieldName,
+            List<WeightedToken> queryVectors,
+            boolean shouldPruneTokens,
+            TokenPruningConfig tokenPruningConfig
+        ) throws IOException {
+            return (shouldPruneTokens)
+                   ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, this, context)
+                   : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, this, context);
         }
 
         private static String indexedValueForSearch(Object value) {

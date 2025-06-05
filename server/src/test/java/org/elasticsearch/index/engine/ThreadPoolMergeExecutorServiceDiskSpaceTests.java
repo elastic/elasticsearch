@@ -77,11 +77,11 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         // some tests hold one merge thread blocked, and need at least one other runnable
         mergeExecutorThreadCount = randomIntBetween(2, 8);
         Settings.Builder settingsBuilder = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), path)
-                .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
-                // the default of "5s" slows down testing
-                .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
-                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount);
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            // the default of "5s" slows down testing
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount);
         if (randomBoolean()) {
             settingsBuilder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
         }
@@ -585,15 +585,10 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 expectedAvailableBudget.set(expectedAvailableBudget.get() + completedMergeTask.estimatedRemainingMergeSize());
             }
             // let the test finish cleanly
-            assertBusy(
-                () -> {
-                    assertThat(
-                            threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
-                            is(aHasMoreSpace ? 112_500L : 103_000L)
-                    );
-                    assertThat(threadPoolMergeExecutorService.allDone(), is(true));
-                }
-            );
+            assertBusy(() -> {
+                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
+                assertThat(threadPoolMergeExecutorService.allDone(), is(true));
+            });
         }
     }
 }

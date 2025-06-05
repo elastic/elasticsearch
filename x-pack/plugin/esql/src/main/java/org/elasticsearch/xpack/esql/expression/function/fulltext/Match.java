@@ -138,6 +138,12 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
 
+    private static final Set<String> MULTIMATCH_SPECIFIC_OPTIONS = Set.of(
+        SLOP_FIELD.getPreferredName(),
+        TIE_BREAKER_FIELD.getPreferredName(),
+        TYPE_FIELD.getPreferredName()
+    );
+
     // TODO: update descriptions and comments.
     @FunctionInfo(
         returnType = "boolean",
@@ -511,13 +517,13 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             fieldsWithBoost.put(fieldName, 1.0f);
         }
 
-        // TODO: check if we have multi_match specific options, like "type".
-        if (fieldsWithBoost.size() == 1) {
-            // Translate to Match when having exactly one field.
-            return new MatchQuery(source(), fieldsWithBoost.keySet().stream().findFirst().get(), queryAsObject(), matchQueryOptions());
+        var options = matchQueryOptions();
+        if (fieldsWithBoost.size() != 1 || options.keySet().stream().anyMatch(MULTIMATCH_SPECIFIC_OPTIONS::contains)) {
+            // For 0 or 2+ fields, or with multimatch-specific options, translate to multi_match.
+            return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, options);
         } else {
-            // For 0 or 2+ fields, translate to multi_match.
-            return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, matchQueryOptions());
+            // Translate to Match when having exactly one field.
+            return new MatchQuery(source(), fieldsWithBoost.keySet().stream().findFirst().get(), queryAsObject(), options);
         }
     }
 

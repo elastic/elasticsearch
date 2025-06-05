@@ -98,6 +98,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -425,6 +426,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertNotNull(context.getFieldType("runtime"));
         assertEquals(3, context.getMatchingFieldNames("runtime*").size());
         assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtimedog", "runtime"));
 
         context.setAllowedFields(s -> true);
         assertNotNull(context.getFieldType("pig"));
@@ -439,6 +441,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(context.isFieldMapped("runtime"));
         assertEquals(3, context.getMatchingFieldNames("runtime*").size());
         assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtimedog", "runtime"));
 
         context.setAllowedFields(s -> s.equals("cat"));
         assertNull(context.getFieldType("pig"));
@@ -453,6 +456,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertFalse(context.isFieldMapped("runtime"));
         assertEquals(0, context.getMatchingFieldNames("runtime*").size());
         assertEquals(1, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("cat"));
 
         context.setAllowedFields(s -> s.contains("dog") == false);
         assertNotNull(context.getFieldType("pig"));
@@ -467,6 +471,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(context.isFieldMapped("runtime"));
         assertEquals(2, context.getMatchingFieldNames("runtime*").size());
         assertEquals(2, context.getMatchingFieldNames("*cat").size());
+        assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
     }
 
     private static List<String> getFieldNames(Iterable<Map.Entry<String, MappedFieldType>> fields) {

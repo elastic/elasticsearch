@@ -564,11 +564,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         protected String contentType() {
             return "shingle";
         }
-
-        @Override
-        public String toString() {
-            return fieldType().name();
-        }
     }
 
     /**
@@ -764,17 +759,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> sourcePathUsedBy() {
         return subfieldsAndMultifieldsIterator();
-    }
-
-    @Override
-    public List<Mapper> getSourceMappers() {
-        List<Mapper> fields = new ArrayList<>();
-        fields.add(this);
-        for (Iterator<Mapper> it = subfieldsAndMultifieldsIterator(); it.hasNext();) {
-            Mapper mapper = it.next();
-            fields.addAll(mapper.getSourceMappers());
-        }
-        return fields;
     }
 
     /**

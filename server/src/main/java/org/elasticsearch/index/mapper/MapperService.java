@@ -281,10 +281,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
-    /**
-     * Returns a Map of all metadata mappers
-     */
-    public Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
         final MappingParserContext mappingParserContext = parserContext();
         final DocumentMapper existingMapper = mapper;
         final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(

@@ -210,7 +210,7 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicTemplates.value();
     }
 
-    public Collection<RuntimeField> runtimeFields() {
+    Collection<RuntimeField> runtimeFields() {
         return runtimeFields.values();
     }
 

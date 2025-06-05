@@ -153,11 +153,44 @@ public interface BlobContainer {
         return false;
     }
 
+    /**
+     * Provides an {@link InputStream} to read a part of the blob content.
+     */
+    @FunctionalInterface
+    interface BlobMultiPartInputStreamProvider extends CheckedBiFunction<Long, Long, InputStream, IOException> {
+        /**
+         * Provides an {@link InputStream} to read a part of the blob content.
+         *
+         * @param offset        the offset in the blob content to start reading bytes from
+         * @param length        the number of bytes to read
+         * @return              an {@link InputStream} to read a part of the blob content.
+         * @throws IOException  if something goes wrong opening the input stream
+         */
+        @Override
+        InputStream apply(Long offset, Long length) throws IOException;
+    }
+
+    /**
+     * Reads the blob's content by calling an input stream provider multiple times, in order to split the blob's content into multiple
+     * parts that can be written to the container concurrently before being assembled into the final blob, using an atomic write operation
+     * if the implementation supports it. The number and the size of the parts depends of the implementation.
+     *
+     * Note: the method {link {@link #supportsConcurrentMultipartUploads()}} must be checked before calling this method.
+     *
+     * @param purpose             The purpose of the operation
+     * @param blobName            The name of the blob to write the contents of the input stream to.
+     * @param provider            The input stream provider that is used to read the blob content
+     * @param blobSize            The size of the blob to be written, in bytes. Must be the amount of bytes in the input stream. It is
+     *                            implementation dependent whether this value is used in writing the blob to the repository.
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
+     */
     default void writeBlobAtomic(
         OperationPurpose purpose,
         String blobName,
         long blobSize,
-        CheckedBiFunction<Long, Long, InputStream, IOException> provider,
+        BlobMultiPartInputStreamProvider provider,
         boolean failIfAlreadyExists
     ) throws IOException {
         throw new UnsupportedOperationException();

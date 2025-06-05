@@ -9,16 +9,13 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.apache.lucene.index.FieldInfos;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.PassThroughObjectMapper;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,11 +31,9 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -166,142 +161,68 @@ class FieldCapabilitiesFetcher {
         boolean includeEmptyFields
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
+
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
+        var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-
-        // populate with all types of mappers
-        RootObjectMapper rootObjectMapper = context.getMappingLookup().getMapping().getRoot();
-        List<Mapper> allMappers = new ArrayList<>();
-        allMappers.addAll(rootObjectMapper.getSourceMappers());
-        allMappers.addAll(context.getMetadataFields());
-
-        for (Mapper mapper : allMappers) {
-            if (mapper instanceof PassThroughObjectMapper) {
-                // Handles PassThroughObjectMapper by processing its immediate child fields.
-                for (Mapper childMapper : mapper.getSourceMappers()) {
-                    addFieldToFieldCaps(
-                        childMapper.leafName(),
-                        context.getFieldType(childMapper.fullPath()),
-                        fieldNameFilter,
-                        fieldPredicate,
-                        filter,
-                        context,
-                        indexShard.getFieldInfos(),
-                        includeEmptyFields,
-                        isTimeSeriesIndex,
-                        includeParentObjects,
-                        responseMap
-                    );
-                }
-            } else {
-                addFieldToFieldCaps(
-                    mapper.fullPath(),
-                    context.getFieldType(mapper.fullPath()),
-                    fieldNameFilter,
-                    fieldPredicate,
-                    filter,
-                    context,
-                    indexShard.getFieldInfos(),
-                    includeEmptyFields,
-                    isTimeSeriesIndex,
-                    includeParentObjects,
-                    responseMap
+        for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
+            final String field = entry.getKey();
+            if (fieldNameFilter.test(field) == false) {
+                continue;
+            }
+            MappedFieldType ft = entry.getValue();
+            if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
+                && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
+                && (filter == null || filter.test(ft))) {
+                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                    field,
+                    ft.familyTypeName(),
+                    context.isMetadataField(field),
+                    ft.isSearchable(),
+                    ft.isAggregatable(),
+                    isTimeSeriesIndex ? ft.isDimension() : false,
+                    isTimeSeriesIndex ? ft.getMetricType() : null,
+                    ft.meta()
                 );
+                responseMap.put(field, fieldCap);
+            } else {
+                continue;
+            }
+
+            // Check the ancestor of the field to find nested and object fields.
+            // Runtime fields are excluded since they can override any path.
+            // TODO find a way to do this that does not require an instanceof check
+            if (ft instanceof RuntimeField == false && includeParentObjects) {
+                int dotIndex = ft.name().lastIndexOf('.');
+                while (dotIndex > -1) {
+                    String parentField = ft.name().substring(0, dotIndex);
+                    if (responseMap.containsKey(parentField)) {
+                        // we added this path on another field already
+                        break;
+                    }
+                    // checks if the parent field contains sub-fields
+                    if (context.getFieldType(parentField) == null) {
+                        // no field type, it must be an object field
+                        String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                            parentField,
+                            type,
+                            false,
+                            false,
+                            false,
+                            false,
+                            null,
+                            Map.of()
+                        );
+                        responseMap.put(parentField, fieldCap);
+                    }
+                    dotIndex = parentField.lastIndexOf('.');
+                }
             }
         }
-
-        // populate runtime fields
-        Collection<RuntimeField> runtimeFields = rootObjectMapper.runtimeFields();
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>(RuntimeField.collectFieldTypes(runtimeFields));
-        runtimeFieldTypes.putAll(context.getRuntimeMappings());
-
-        for (Map.Entry<String, MappedFieldType> entry : runtimeFieldTypes.entrySet()) {
-            addFieldToFieldCaps(
-                entry.getKey(),
-                entry.getValue(),
-                fieldNameFilter,
-                fieldPredicate,
-                filter,
-                context,
-                indexShard.getFieldInfos(),
-                includeEmptyFields,
-                isTimeSeriesIndex,
-                includeParentObjects,
-                responseMap
-            );
-        }
-
         return responseMap;
-    }
-
-    private static void addFieldToFieldCaps(
-        String fieldName,
-        MappedFieldType fieldType,
-        Predicate<String> fieldNameFilter,
-        FieldPredicate fieldPredicate,
-        Predicate<MappedFieldType> filter,
-        SearchExecutionContext context,
-        FieldInfos fieldInfos,
-        boolean includeEmptyFields,
-        boolean isTimeSeriesIndex,
-        boolean includeParentObjects,
-        Map<String, IndexFieldCapabilities> responseMap
-    ) {
-        if (fieldNameFilter.test(fieldName) == false || fieldType == null) {
-            return;
-        }
-
-        if ((includeEmptyFields || fieldType.fieldHasValue(fieldInfos))
-            && (fieldPredicate.test(fieldType.name()) || context.isMetadataField(fieldType.name()))
-            && (filter == null || filter.test(fieldType))) {
-
-            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                fieldName,
-                fieldType.familyTypeName(),
-                context.isMetadataField(fieldName),
-                fieldType.isSearchable(),
-                fieldType.isAggregatable(),
-                isTimeSeriesIndex ? fieldType.isDimension() : false,
-                isTimeSeriesIndex ? fieldType.getMetricType() : null,
-                fieldType.meta()
-            );
-            responseMap.put(fieldName, fieldCap);
-
-            // Add parent object/nested fields if needed
-            // Runtime fields are excluded since they can override any path
-            if (fieldType instanceof RuntimeField == false && includeParentObjects) {
-                addParentFieldsToFieldCaps(fieldType.name(), context, responseMap);
-            }
-        }
-    }
-
-    private static void addParentFieldsToFieldCaps(
-        String fieldName,
-        SearchExecutionContext context,
-        Map<String, IndexFieldCapabilities> responseMap
-    ) {
-        int dotIndex = fieldName.lastIndexOf('.');
-        while (dotIndex > -1) {
-            String parentField = fieldName.substring(0, dotIndex);
-
-            if (responseMap.containsKey(parentField)) {
-                // We already added this parent field
-                break;
-            }
-
-            // Check if the parent field contains sub-fields
-            if (context.getFieldType(parentField) == null) {
-                // No field type, it must be an object field
-                String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
-
-                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type, false, false, false, false, null, Map.of());
-                responseMap.put(parentField, fieldCap);
-            }
-
-            dotIndex = parentField.lastIndexOf('.');
-        }
     }
 
     private static boolean checkIncludeParents(String[] filters) {
@@ -337,6 +258,13 @@ class FieldCapabilitiesFetcher {
             Set<String> acceptedTypes = Set.of(fieldTypes);
             fcf = ft -> acceptedTypes.contains(ft.familyTypeName());
         }
+
+        Collection<InferenceFieldMetadata> inferenceFields = context.getMappingLookup().inferenceFields().values();
+        for (InferenceFieldMetadata inferenceField : inferenceFields) {
+            Predicate<MappedFieldType> next = ft -> ft.name().startsWith(inferenceField.getName() + ".inference") == false;
+            fcf = fcf == null ? next : fcf.and(next);
+        }
+
         for (String filter : filters) {
             if ("parent".equals(filter) || "-parent".equals(filter)) {
                 continue;

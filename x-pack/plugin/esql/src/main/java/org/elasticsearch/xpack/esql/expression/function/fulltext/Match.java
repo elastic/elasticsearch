@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -509,7 +510,15 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             String fieldName = getNameFromFieldAttribute(fieldAttribute);
             fieldsWithBoost.put(fieldName, 1.0f);
         }
-        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, matchQueryOptions());
+
+        // TODO: check if we have multi_match specific options, like "type".
+        if (fieldsWithBoost.size() == 1) {
+            // Translate to Match when having exactly one field.
+            return new MatchQuery(source(), fieldsWithBoost.keySet().stream().findFirst().get(), queryAsObject(), matchQueryOptions());
+        } else {
+            // For 0 or 2+ fields, translate to multi_match.
+            return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, matchQueryOptions());
+        }
     }
 
     private static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {

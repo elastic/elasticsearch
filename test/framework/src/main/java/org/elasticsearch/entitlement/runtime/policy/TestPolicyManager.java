@@ -12,14 +12,20 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URL;
 import java.nio.file.Path;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import static java.util.Objects.requireNonNull;
+
 public class TestPolicyManager extends PolicyManager {
+    public static final Path TEST_LOCATION_SUFFIX = Path.of("classes", "java", "test");
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
 
@@ -95,10 +101,20 @@ public class TestPolicyManager extends PolicyManager {
     }
 
     private boolean isTestCaseClass(Class<?> requestingClass) {
-        for (Class<?> candidate = requestingClass; candidate != null; candidate = candidate.getDeclaringClass()) {
+        for (Class<?> candidate = requireNonNull(requestingClass); candidate != null; candidate = candidate.getDeclaringClass()) {
             if (ESTestCase.class.isAssignableFrom(candidate)) {
                 return true;
             }
+        }
+        ProtectionDomain protectionDomain = requestingClass.getProtectionDomain();
+        CodeSource codeSource = protectionDomain.getCodeSource();
+        if (codeSource == null) {
+            // This can happen for JDK classes
+            return false;
+        }
+        URL location = codeSource.getLocation();
+        if (location.getProtocol().equals("file") && Path.of(location.getPath()).endsWith(TEST_LOCATION_SUFFIX)) {
+            return true;
         }
         return false;
     }

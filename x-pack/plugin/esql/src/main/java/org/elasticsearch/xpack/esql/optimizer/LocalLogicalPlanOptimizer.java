@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
@@ -33,19 +34,17 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    private static final List<Batch<LogicalPlan>> RULES = replaceRules(
-        arrayAsArrayList(
-            new Batch<>(
-                "Local rewrite",
-                Limiter.ONCE,
-                new ReplaceTopNWithLimitAndSort(),
-                new ReplaceFieldWithConstantOrNull(),
-                new InferIsNotNull(),
-                new InferNonNullAggConstraint()
-            ),
-            operators(),
-            cleanup()
-        )
+    private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
+        new Batch<>(
+            "Local rewrite",
+            Limiter.ONCE,
+            new ReplaceTopNWithLimitAndSort(),
+            new ReplaceFieldWithConstantOrNull(),
+            new InferIsNotNull(),
+            new InferNonNullAggConstraint()
+        ),
+        localOperators(),
+        cleanup()
     );
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
@@ -58,27 +57,26 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Batch<LogicalPlan>> replaceRules(List<Batch<LogicalPlan>> listOfRules) {
-        List<Batch<LogicalPlan>> newBatches = new ArrayList<>(listOfRules.size());
-        for (var batch : listOfRules) {
-            var rules = batch.rules();
-            List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
-            boolean updated = false;
-            for (var r : rules) {
-                if (r instanceof PropagateEmptyRelation) {
-                    newRules.add(new LocalPropagateEmptyRelation());
-                    updated = true;
-                } else if (r instanceof ReplaceStatsFilteredAggWithEval) {
-                    // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
-                    updated = true;
-                } else {
-                    newRules.add(r);
-                }
+    private static Batch<LogicalPlan> localOperators() {
+        var operators = operators();
+        var rules = operators().rules();
+        List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
+
+        // apply updates to existing rules that have different applicability locally
+        for (var r : rules) {
+            if (r instanceof PropagateEmptyRelation ignoredPropagate) {
+                newRules.add(new LocalPropagateEmptyRelation());
+            } else if (r instanceof ReplaceStatsFilteredAggWithEval) {
+                // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
+            } else {
+                newRules.add(r);
             }
-            batch = updated ? batch.with(newRules.toArray(Rule[]::new)) : batch;
-            newBatches.add(batch);
         }
-        return newBatches;
+
+        // add rule that should only apply locally
+        newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
+
+        return operators.with(newRules.toArray(Rule[]::new));
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {

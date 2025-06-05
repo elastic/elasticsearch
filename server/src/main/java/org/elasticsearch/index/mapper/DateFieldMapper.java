@@ -473,18 +473,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
-            this(
-                name,
-                isIndexed,
-                isIndexed,
-                false,
-                true,
-                DEFAULT_DATE_TIME_FORMATTER,
-                resolution,
-                null,
-                null,
-                Collections.emptyMap()
-            );
+            this(name, isIndexed, isIndexed, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, boolean isIndexed) {

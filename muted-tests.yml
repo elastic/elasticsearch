@@ -501,6 +501,15 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test073RunEsAsDifferentUserAndGroupWithoutBindMounting
   issue: https://github.com/elastic/elasticsearch/issues/128996
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {union_types.MultiIndexWhereIpStringLikeTsLong ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129010
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {union_types.MultiIndexWhereIpStringLikeTsLong ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129010
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {union_types.MultiIndexWhereIpStringLikeTsLongStats}
+  issue: https://github.com/elastic/elasticsearch/issues/129010
 
 # Examples:
 #

@@ -15,27 +15,30 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Test;
 
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
 
@@ -43,7 +46,7 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class, MetricsDBPlugin.class);
+        return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class, MetricsDBPlugin.class, EsqlPlugin.class);
     }
 
     @Override
@@ -60,45 +63,20 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
         return false;
     }
 
-
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        var mappingTemplate = """
-            {
-              "_doc":{
-                "properties": {
-                  "@timestamp" : {
-                    "type": "date"
-                  },
-                  "dummy": {
-                    "type": "keyword",
-                    "time_series_dimension": true
-                  }
-                }
-              }
-            }""";
-
-        var request = new TransportPutComposableIndexTemplateAction.Request("id");
-        request.indexTemplate(
-            ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("metricsdb"))
-                .template(
-                    new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent(mappingTemplate), null)
-                )
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
-                .priority(500L)
-                .build()
-        );
-        var res = client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-        assertThat(res.isAcknowledged(), is(true));
-
         OtlpHttpMetricExporter exporter = OtlpHttpMetricExporter.builder()
             .setEndpoint("http://localhost:" + getHttpPort() + "/_otlp/v1/metrics")
             .build();
 
         meterProvider = SdkMeterProvider.builder()
-            .registerMetricReader(PeriodicMetricReader.builder(exporter).build())
+            .registerMetricReader(
+                PeriodicMetricReader.builder(exporter)
+                    .setExecutor(Executors.newScheduledThreadPool(0))
+                    .setInterval(Duration.ofNanos(Long.MAX_VALUE))
+                    .build()
+            )
             .build();
     }
 
@@ -132,13 +110,19 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
         assertThat(result.isSuccess(), is(true));
 
         admin().indices().prepareRefresh().execute().actionGet();
-        long hits = client().prepareSearch("metricsdb")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .execute()
-            .actionGet()
-            .getHits()
-            .getTotalHits()
-            .value();
-        assertThat(hits, greaterThan(0L));
+        String[] indices = admin().indices().prepareGetIndex(TimeValue.timeValueSeconds(1)).setIndices("metrics*").get().indices();
+        assertThat(indices, not(emptyArray()));
+
+        try (EsqlQueryResponse resp = query("""
+            FROM metrics*
+             | STATS avg(value_double) WHERE metric_name == "jvm.memory.total"
+            """)) {
+            double avgJvmMemoryTotal = (double) resp.column(0).next();
+            assertThat(avgJvmMemoryTotal, greaterThan(0.0));
+        }
+    }
+
+    protected EsqlQueryResponse query(String esql) {
+        return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(esql).execute().actionGet();
     }
 }

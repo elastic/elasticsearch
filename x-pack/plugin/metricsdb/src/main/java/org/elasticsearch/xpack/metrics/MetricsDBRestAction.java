@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.metrics;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 
 import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.MessageLite;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -57,18 +58,17 @@ public class MetricsDBRestAction extends BaseRestHandler {
                 ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(MetricsDBTransportAction.MetricsResponse r) throws Exception {
-                        return successResponse();
+                        return successResponse(r.getResponse());
                     }
                 })
             );
         }
 
         // according to spec empty requests are successful
-        return channel -> channel.sendResponse(successResponse());
+        return channel -> channel.sendResponse(successResponse(ExportMetricsServiceResponse.newBuilder().build()));
     }
 
-    private RestResponse successResponse() throws IOException {
-        var response = ExportMetricsServiceResponse.newBuilder().build();
+    private RestResponse successResponse(MessageLite response) throws IOException {
         var responseBytes = ByteBuffer.allocate(response.getSerializedSize());
         response.writeTo(CodedOutputStream.newInstance(responseBytes));
 

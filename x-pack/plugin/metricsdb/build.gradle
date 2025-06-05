@@ -21,7 +21,8 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation project(':modules:data-streams')
-
+  testImplementation project(':x-pack:plugin:esql')
+  testImplementation project(':x-pack:plugin:esql-core')
 
   def otelVersion = "1.48.0"
   implementation "io.opentelemetry:opentelemetry-api:$otelVersion"

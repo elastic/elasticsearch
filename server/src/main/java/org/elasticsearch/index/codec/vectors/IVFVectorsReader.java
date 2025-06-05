@@ -286,7 +286,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidQueue.size() > 0 && centroidsVisited < nProbe && knnCollectorImpl.numCollected() < knnCollector.k()) {
+        while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             ++centroidsVisited;
             // todo do we actually need to know the score???
             int centroidOrdinal = centroidQueue.pop();

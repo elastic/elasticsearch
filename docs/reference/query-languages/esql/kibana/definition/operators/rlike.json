@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "RLIKE",
   "name" : "rlike",
-  "description" : "Use `RLIKE` to filter data based on string patterns using using\n<<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on\nthe left-hand side of the operator, but it can also act on a constant (literal)\nexpression. The right-hand side of the operator represents the pattern.",
+  "description" : "Use `RLIKE` to filter data based on string patterns using using\nregular expressions. `RLIKE` usually acts on a field placed on\nthe left-hand side of the operator, but it can also act on a constant (literal)\nexpression. The right-hand side of the operator represents the pattern.",
   "signatures" : [
     {
       "params" : [

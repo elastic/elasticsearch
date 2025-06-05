@@ -35,6 +35,7 @@ import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.AggregatorImplementer.capitalize;
+import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
 import static org.elasticsearch.compute.gen.Methods.requireArgs;
@@ -50,10 +51,12 @@ import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
+import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_EVALUATOR_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
-import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_ARRAY_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_BIG_ARRAY_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
@@ -75,6 +78,8 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  * and break-point-able as possible.
  */
 public class GroupingAggregatorImplementer {
+    private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
+
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
@@ -82,7 +87,7 @@ public class GroupingAggregatorImplementer {
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
-    private final boolean includeTimestampVector;
+    private final boolean timseries;
 
     private final AggregationState aggState;
     private final AggregationParameter aggParam;
@@ -92,7 +97,7 @@ public class GroupingAggregatorImplementer {
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions,
-        boolean includeTimestampVector
+        boolean timseries
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
@@ -109,7 +114,7 @@ public class GroupingAggregatorImplementer {
             declarationType,
             aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
             requireName("combine"),
-            combineArgs(aggState, includeTimestampVector)
+            combineArgs(aggState, timseries)
         );
         // TODO support multiple parameters
         this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
@@ -128,7 +133,7 @@ public class GroupingAggregatorImplementer {
         this.intermediateState = Arrays.stream(interStateAnno)
             .map(AggregatorImplementer.IntermediateStateDesc::newIntermediateStateDesc)
             .toList();
-        this.includeTimestampVector = includeTimestampVector;
+        this.timseries = timseries;
     }
 
     private static Methods.ArgumentMatcher combineArgs(AggregationState aggState, boolean includeTimestampVector) {
@@ -195,10 +200,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessPage());
-        builder.addMethod(addRawInputLoop(INT_VECTOR, blockType(aggParam.type())));
-        builder.addMethod(addRawInputLoop(INT_VECTOR, vectorType(aggParam.type())));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, blockType(aggParam.type())));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, vectorType(aggParam.type())));
+        for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
+            builder.addMethod(addRawInputLoop(groupIdClass, blockType(aggParam.type())));
+            builder.addMethod(addRawInputLoop(groupIdClass, vectorType(aggParam.type())));
+        }
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
@@ -318,7 +323,7 @@ public class GroupingAggregatorImplementer {
 
         builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", blockType(aggParam.type()));
         builder.addStatement("$T valuesVector = valuesBlock.asVector()", vectorType(aggParam.type()));
-        if (includeTimestampVector) {
+        if (timseries) {
             builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
             builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);
 
@@ -327,15 +332,37 @@ public class GroupingAggregatorImplementer {
             builder.endControlFlow();
         }
         builder.beginControlFlow("if (valuesVector == null)");
-        String extra = includeTimestampVector ? ", timestampsVector" : "";
+        String extra = timseries ? ", timestampsVector" : "";
         {
             builder.beginControlFlow("if (valuesBlock.mayHaveNulls())");
             builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
             builder.endControlFlow();
-            builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra)));
+            if (shouldWrapAddInput(blockType(aggParam.type()))) {
+                builder.addStatement(
+                    "var addInput = $L",
+                    addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra))
+                );
+                builder.addStatement("return $T.wrapAddInput(addInput, state, valuesBlock)", declarationType);
+            } else {
+                builder.addStatement(
+                    "return $L",
+                    addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesBlock$L)", extra))
+                );
+            }
         }
         builder.endControlFlow();
-        builder.addStatement("return $L", addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra)));
+        if (shouldWrapAddInput(vectorType(aggParam.type()))) {
+            builder.addStatement(
+                "var addInput = $L",
+                addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra))
+            );
+            builder.addStatement("return $T.wrapAddInput(addInput, state, valuesVector)", declarationType);
+        } else {
+            builder.addStatement(
+                "return $L",
+                addInput(b -> b.addStatement("addRawInput(positionOffset, groupIds, valuesVector$L)", extra))
+            );
+        }
         return builder.build();
     }
 
@@ -346,15 +373,12 @@ public class GroupingAggregatorImplementer {
         TypeSpec.Builder builder = TypeSpec.anonymousClassBuilder("");
         builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
 
-        MethodSpec.Builder block = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        block.addParameter(TypeName.INT, "positionOffset").addParameter(INT_BLOCK, "groupIds");
-        addBlock.accept(block);
-        builder.addMethod(block.build());
-
-        MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        vector.addParameter(TypeName.INT, "positionOffset").addParameter(INT_VECTOR, "groupIds");
-        addBlock.accept(vector);
-        builder.addMethod(vector.build());
+        for (ClassName groupIdsType : GROUP_IDS_CLASSES) {
+            MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+            vector.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
+            addBlock.accept(vector);
+            builder.addMethod(vector.build());
+        }
 
         MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addMethod(close.build());
@@ -373,7 +397,7 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups").addParameter(valuesType, "values");
-        if (includeTimestampVector) {
+        if (timseries) {
             builder.addParameter(LONG_VECTOR, "timestamps");
         }
         if (aggParam.isBytesRef()) {
@@ -456,7 +480,7 @@ public class GroupingAggregatorImplementer {
 
     private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
         // scratch is a BytesRef var that must have been defined before the iteration starts
-        if (includeTimestampVector) {
+        if (timseries) {
             if (offsetVariable.contains(" + ")) {
                 builder.addStatement("var valuePosition = $L", offsetVariable);
                 offsetVariable = "valuePosition";
@@ -474,7 +498,7 @@ public class GroupingAggregatorImplementer {
     }
 
     private void combineRawInputForPrimitive(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        if (includeTimestampVector) {
+        if (timseries) {
             if (offsetVariable.contains(" + ")) {
                 builder.addStatement("var valuePosition = $L", offsetVariable);
                 offsetVariable = "valuePosition";
@@ -498,7 +522,7 @@ public class GroupingAggregatorImplementer {
     }
 
     private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        if (includeTimestampVector) {
+        if (timseries) {
             if (offsetVariable.contains(" + ")) {
                 builder.addStatement("var valuePosition = $L", offsetVariable);
                 offsetVariable = "valuePosition";
@@ -523,6 +547,15 @@ public class GroupingAggregatorImplementer {
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
         warningsBlock(builder, () -> builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable));
+    }
+
+    private boolean shouldWrapAddInput(TypeName valuesType) {
+        return optionalStaticMethod(
+            declarationType,
+            requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT),
+            requireName("wrapAddInput"),
+            requireArgs(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType()), requireType(valuesType))
+        ) != null;
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {
@@ -683,10 +716,22 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected")
-            .addParameter(DRIVER_CONTEXT, "driverContext");
+            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluatorContext");
 
         if (aggState.declaredType().isPrimitive()) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, driverContext)");
+            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, evaluatorContext.driverContext())");
+        } else if (timseries) {
+            requireStaticMethod(
+                declarationType,
+                requireType(BLOCK),
+                requireName("evaluateFinal"),
+                requireArgs(
+                    requireType(aggState.declaredType()),
+                    requireType(INT_VECTOR),
+                    requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
+                )
+            );
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, evaluatorContext)", declarationType);
         } else {
             requireStaticMethod(
                 declarationType,
@@ -694,7 +739,7 @@ public class GroupingAggregatorImplementer {
                 requireName("evaluateFinal"),
                 requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(DRIVER_CONTEXT))
             );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, driverContext)", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, evaluatorContext.driverContext())", declarationType);
         }
         return builder.build();
     }

@@ -4,115 +4,17 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.testclusters.TestClusterValueSource
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.testclusters.TestClustersRegistry
-import org.elasticsearch.gradle.util.GradleUtils
-
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(xpackModule('ccr'))
-  testImplementation project(':x-pack:plugin:ccr:qa')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ccr')), 'javaRestTest'))
+  javaRestTestImplementation project(xpackModule('ccr'))
 }
 
-def clusterPath = getPath()
-def leaderCluster = testClusters.register('leader-cluster') {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-  setting 'path.repo', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/leader-cluster"
+tasks.named("javaRestTest") {
+  usesDefaultDistribution("uses _xpack usage api")
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
+  buildParams.withFipsEnabledOnly(it)
 }
-
-def middleCluster = testClusters.register('middle-cluster') {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }
-  def leaderUris = leaderInfo.map { it.getAllTransportPortURI() }
-  setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
-}
-
-tasks.register("leader-cluster", RestIntegTestTask) {
-  mustRunAfter("precommit")
-  systemProperty 'tests.target_cluster', 'leader'
-  systemProperty 'tests.leader_cluster_repository_path', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/leader-cluster"
-}
-
-tasks.register("middle-cluster", RestIntegTestTask) {
-  dependsOn "leader-cluster"
-  useCluster testClusters.named("leader-cluster")
-  systemProperty 'tests.target_cluster', 'middle'
-  systemProperty 'tests.leader_cluster_repository_path', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/leader-cluster"
-
-  def leaderUri = getClusterInfo('leader-cluster').map { it.allHttpSocketURI.get(0) }
-  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
-}
-
-tasks.register('follow-cluster', RestIntegTestTask) {
-  dependsOn "leader-cluster", "middle-cluster"
-  useCluster leaderCluster
-  useCluster middleCluster
-  systemProperty 'tests.target_cluster', 'follow'
-  systemProperty 'tests.leader_cluster_repository_path', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/leader-cluster"
-
-  def leaderUri = getClusterInfo('leader-cluster').map { it.allHttpSocketURI.get(0) }
-  def middleUri = getClusterInfo('middle-cluster').map { it.allHttpSocketURI.get(0) }
-  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
-  nonInputProperties.systemProperty 'tests.middle_host', middleUri
-}
-
-testClusters.matching { it.name == "follow-cluster" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-  def leaderUris = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.getAllTransportPortURI() }
-
-  def middleUris = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("middle-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.getAllTransportPortURI() }
-
-  setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
-  setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${middleUris.get().join(",")}\"" }, IGNORE_VALUE
-}
-
-
-testClusters.configureEach {
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-}
-
-tasks.named("check").configure { dependsOn "follow-cluster" }

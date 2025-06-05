@@ -13,10 +13,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;

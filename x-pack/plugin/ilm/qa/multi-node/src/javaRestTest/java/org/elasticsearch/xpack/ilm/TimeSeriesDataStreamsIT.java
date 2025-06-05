@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -82,11 +84,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertBusy(() -> {
             final var backingIndices = getDataStreamBackingIndexNames(dataStream);
             assertEquals(2, backingIndices.size());
-            assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
-        });
-        assertBusy(() -> {
-            final var backingIndices = getDataStreamBackingIndexNames(dataStream);
-            assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
+            try {
+                assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
+                assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
+            } catch (ResponseException e) {
+                // These API calls may hit different nodes and they might see slightly different versions of the cluster state,
+                // potentially resulting in a 404 which means we just need to try again.
+                if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                    fail(e);
+                } else {
+                    throw e;
+                }
+            }
         });
     }
 
@@ -145,7 +154,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         );
 
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), backingIndexName);
-        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        awaitIndexExists(shrunkenIndex, TimeValue.timeValueSeconds(30));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertBusy(() -> assertThat("the original index must've been deleted", indexExists(backingIndexName), is(false)));
     }
@@ -174,8 +183,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
-        assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
+        awaitIndexExists(restoredIndexName);
+        awaitIndexDoesNotExist(backingIndexName, TimeValue.timeValueSeconds(60));
         assertBusy(
             () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
             30,
@@ -203,15 +212,13 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(
-            () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
-        assertThat(
-            getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
-            equalTo("true")
-        );
+        assertBusy(() -> {
+            assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(
+                getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
+                equalTo("true")
+            );
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testFreezeAction() throws Exception {
@@ -235,10 +242,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
                     containsString("The freeze action in ILM is deprecated and will be removed in a future version")
                 );
             }
+            Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
+            assertNull(settings.get("index.frozen"));
         }, 30, TimeUnit.SECONDS);
 
-        Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
-        assertNull(settings.get("index.frozen"));
     }
 
     public void checkForceMergeAction(String codec) throws Exception {

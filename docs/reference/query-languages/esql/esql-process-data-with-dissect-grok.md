@@ -1,10 +1,10 @@
 ---
-navigation_title: "Data processing with DISSECT and GROK"
+navigation_title: "Extract data with DISSECT and GROK"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-process-data-with-dissect-and-grok.html
 ---
 
-# Data processing with DISSECT and GROK [esql-process-data-with-dissect-and-grok]
+# Extract data from unstructured text with `DISSECT` and `GROK`[esql-process-data-with-dissect-and-grok]
 
 
 Your data may contain unstructured strings that you want to structure. This makes it easier to analyze the data. For example, log messages may contain IP addresses that you want to extract so you can find the most active IP addresses.
@@ -13,7 +13,7 @@ Your data may contain unstructured strings that you want to structure. This make
 :alt: unstructured data
 :::
 
-{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/enrich-processor/dissect-processor.md) and [Grok](/reference/enrich-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash://reference/plugins-filters-dissect.md) and [Grok](logstash://reference/plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/esql-commands.md#esql-dissect) and [`GROK`](/reference/query-languages/esql/esql-commands.md#esql-grok) commands.
+{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/enrich-processor/dissect-processor.md) and [Grok](/reference/enrich-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash-docs-md://lsr//plugins-filters-dissect.md) and [Grok](logstash-docs-md://lsr//plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/commands/processing-commands.md#esql-dissect) and [`GROK`](/reference/query-languages/esql/commands/processing-commands.md#esql-grok) commands.
 
 ## `DISSECT` or `GROK`? Or both? [esql-grok-or-dissect]
 
@@ -24,7 +24,7 @@ You can use both `DISSECT` and `GROK` for hybrid use cases. For example when a s
 
 ## Process data with `DISSECT` [esql-process-data-with-dissect]
 
-The [`DISSECT`](/reference/query-languages/esql/esql-commands.md#esql-dissect) processing command matches a string against a delimiter-based pattern, and extracts the specified keys as columns.
+The [`DISSECT`](/reference/query-languages/esql/commands/processing-commands.md#esql-dissect) processing command matches a string against a delimiter-based pattern, and extracts the specified keys as columns.
 
 For example, the following pattern:
 
@@ -50,7 +50,7 @@ A dissect pattern is defined by the parts of the string that will be discarded. 
 
 An empty key (`%{}`) or [named skip key](#esql-named-skip-key) can be used to match values, but exclude the value from the output.
 
-All matched values are output as keyword string data types. Use the [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions) to convert to another data type.
+All matched values are output as keyword string data types. Use the [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) to convert to another data type.
 
 Dissect also supports [key modifiers](#esql-dissect-key-modifiers) that can change dissect’s default behavior. For example, you can instruct dissect to ignore certain fields, append fields, skip over padding, etc.
 
@@ -91,7 +91,7 @@ ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
 | --- | --- | --- |
 | 2023-01-23T12:15:00.000Z | some text | 127.0.0.1 |
 
-By default, `DISSECT` outputs keyword string columns. To convert to another type, use [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions):
+By default, `DISSECT` outputs keyword string columns. To convert to another type, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
 ```esql
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
@@ -120,9 +120,9 @@ $$$esql-dissect-key-modifiers-table$$$
 
 #### Right padding modifier (`->`) [esql-dissect-modifier-skip-right-padding]
 
-The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
+The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
 
-The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
+The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
 
 Use the right padding modifier to allow for repetition of the characters after a `%{keyname->}`.
 
@@ -206,7 +206,7 @@ The `DISSECT` command does not support reference keys.
 
 ## Process data with `GROK` [esql-process-data-with-grok]
 
-The [`GROK`](/reference/query-languages/esql/esql-commands.md#esql-grok) processing command matches a string against a pattern based on regular expressions, and extracts the specified keys as columns.
+The [`GROK`](/reference/query-languages/esql/commands/processing-commands.md#esql-grok) processing command matches a string against a pattern based on regular expressions, and extracts the specified keys as columns.
 
 For example, the following pattern:
 
@@ -265,7 +265,7 @@ The `SYNTAX` is the name of the pattern that matches your text. For example, `3.
 
 The `SEMANTIC` is the identifier you give to the piece of text being matched. For example, `3.44` could be the duration of an event, so you could call it simply `duration`. Further, a string `55.3.244.1` might identify the `client` making a request.
 
-By default, matched values are output as keyword string data types. To convert a semantic’s data type, suffix it with the target data type. For example `%{NUMBER:num:int}`, which converts the `num` semantic from a string to an integer. Currently the only supported conversions are `int` and `float`. For other types, use the [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).
+By default, matched values are output as keyword string data types. To convert a semantic’s data type, suffix it with the target data type. For example `%{NUMBER:num:int}`, which converts the `num` semantic from a string to an integer. Currently the only supported conversions are `int` and `float`. For other types, use the [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
 
 For an overview of the available patterns, refer to [GitHub](https://github.com/elastic/elasticsearch//blob/master/libs/grok/src/main/resources/patterns). You can also retrieve a list of all patterns using a [REST API](/reference/enrich-processor/grok-processor.md#grok-processor-rest-get).
 
@@ -316,7 +316,7 @@ ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
 | --- | --- | --- | --- |
 | 2023-01-23T12:15:00.000Z | 127.0.0.1 | `some.email@foo.com` | 42 |
 
-For other type conversions, use [Type conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions):
+For other type conversions, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
 ```esql
 ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"

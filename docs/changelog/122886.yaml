@@ -1,6 +1,0 @@
-pr: 122886
-summary: Add support to VALUES aggregation for spatial types
-area: ES|QL
-type: bug
-issues:
- - 122413

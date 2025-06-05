@@ -39,6 +39,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -429,6 +430,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
 
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
+            EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
+            for (String cluster : clusters) {
+                esqlExecutionInfo.swapCluster(cluster, (k, v) -> new EsqlExecutionInfo.Cluster(cluster, "*"));
+            }
             if (randomBoolean()) {
                 unresolvedPolicies = new ArrayList<>(unresolvedPolicies);
                 for (Enrich.Mode mode : Enrich.Mode.values()) {
@@ -442,7 +447,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            super.resolvePolicies(clusters, unresolvedPolicies, future);
+            super.resolvePolicies(unresolvedPolicies, esqlExecutionInfo, future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 

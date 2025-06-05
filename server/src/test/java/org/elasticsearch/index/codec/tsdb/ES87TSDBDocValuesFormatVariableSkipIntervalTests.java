@@ -32,7 +32,7 @@ public class ES87TSDBDocValuesFormatVariableSkipIntervalTests extends BaseDocVal
     @Override
     protected Codec getCodec() {
         // small interval size to test with many intervals
-        return TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat(random().nextInt(4, 16)));
+        return TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat(random().nextInt(4, 16)));
     }
 
     public void testSkipIndexIntervalSize() {

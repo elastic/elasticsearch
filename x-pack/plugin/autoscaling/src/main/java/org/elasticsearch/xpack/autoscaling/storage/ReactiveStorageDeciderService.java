@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -714,8 +716,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             public void applyMetadata(Metadata.Builder metadataBuilder) {
-                additionalIndices.keySet().forEach(imd -> metadataBuilder.put(imd, false));
-                metadataBuilder.put(updatedDataStream);
+                @FixForMultiProject
+                final ProjectId projectId = ProjectId.DEFAULT;
+                ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(projectId);
+                if (projectBuilder == null) {
+                    projectBuilder = ProjectMetadata.builder(projectId);
+                    metadataBuilder.put(projectBuilder);
+                }
+                applyProjectMetadata(projectBuilder);
+            }
+
+            public void applyProjectMetadata(ProjectMetadata.Builder projectBuilder) {
+                additionalIndices.keySet().forEach(imd -> projectBuilder.put(imd, false));
+                projectBuilder.put(updatedDataStream);
             }
 
             public void applySize(Map<String, Long> builder, RoutingTable updatedRoutingTable) {
@@ -895,9 +908,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private static Metadata removeNodeLockFilters(Metadata metadata) {
-            Metadata.Builder builder = Metadata.builder(metadata);
-            metadata.getProject()
-                .stream()
+            @FixForMultiProject
+            final ProjectMetadata updatedProject = removeNodeLockFilters(metadata.getProject());
+            return Metadata.builder(metadata).put(updatedProject).build();
+        }
+
+        private static ProjectMetadata removeNodeLockFilters(ProjectMetadata project) {
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+            project.stream()
                 .filter(AllocationState::isNodeLocked)
                 .map(AllocationState::removeNodeLockFilters)
                 .forEach(imd -> builder.put(imd, false));

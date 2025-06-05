@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -23,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class FleetSystemIndicesIT extends ESRestTestCase {
+public class FleetSystemIndicesIT extends AbstractFleetIT {
 
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",

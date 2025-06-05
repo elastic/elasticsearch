@@ -302,6 +302,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
                 final DataStream parentDataStream = indexAbstraction.getParentDataStream();
                 return parentDataStream != null
                     && parentDataStream.isSystem() == false
+                    && parentDataStream.isFailureStoreIndex(indexAbstraction.getName()) == false
                     && Regex.simpleMatch(leaderIndexExclusionPatterns, indexAbstraction.getParentDataStream().getName()) == false
                     && Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getParentDataStream().getName());
             }

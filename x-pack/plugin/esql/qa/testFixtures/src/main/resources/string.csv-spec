@@ -1133,9 +1133,9 @@ left
 FROM employees
 | KEEP last_name
 | EVAL left = LEFT(last_name, 3)
+// end::left[]
 | SORT last_name ASC
 | LIMIT 5
-// end::left[]
 ;
 
 // tag::left-result[]
@@ -1153,9 +1153,9 @@ right
 FROM employees
 | KEEP last_name
 | EVAL right = RIGHT(last_name, 3)
+// end::right[]
 | SORT last_name ASC
 | LIMIT 5
-// end::right[]
 ;
 
 // tag::right-result[]
@@ -2307,4 +2307,66 @@ ROW message = "foo ( bar"
 message:keyword
 foo ( bar
 // end::rlikeEscapingTripleQuotes-result[]
+;
+
+mvStringEquals
+FROM mv_text
+| WHERE message == "Connected to 10.1.0.1"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == \"Connected to 10.1.0.1\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;
+
+mvStringEqualsLongString
+FROM mv_text
+| WHERE message == "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == \"More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEquals
+FROM mv_text
+| WHERE message != "Connected to 10.1.0.2"
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+warning:Line 2:9: evaluation of [message != \"Connected to 10.1.0.2\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEqualsFound
+FROM mv_text
+| WHERE message != "Connected to 10.1.0.1"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != \"Connected to 10.1.0.1\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEqualsLong
+FROM mv_text
+| WHERE message != "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != \"More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
 ;

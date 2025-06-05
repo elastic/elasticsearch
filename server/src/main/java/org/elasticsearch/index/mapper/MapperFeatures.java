@@ -15,6 +15,8 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
 
 /**
  * Spec for mapper-related features.
@@ -38,6 +40,8 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE = new NodeFeature(
         "mapper.unknown_field_mapping_update_error_message"
     );
+    static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
+    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -61,7 +65,12 @@ public class MapperFeatures implements FeatureSpecification {
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
             UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
             DOC_VALUES_SKIPPER,
-            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            DateFieldMapper.INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            IVF_FORMAT_CLUSTER_FEATURE
         );
     }
 }

@@ -2,16 +2,29 @@
 // TODO: re-enable the commented tests once the Join functionality stabilizes
 //
 
+allFieldsReturned
+required_capability: inlinestats_v7
+
+FROM hosts METADATA _index
+| INLINESTATS c = COUNT(*) BY host_group
+| SORT c
+| LIMIT 1
+;
+
+  card:keyword | description:text  | host:keyword  |                                     ip0:ip                                      |        ip1:ip           |_index:keyword |     c:long    |  host_group:text
+eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|hosts          |1              |null
+;
+
 maxOfInt
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 // tag::max-languages[]
 FROM employees
 | KEEP emp_no, languages
 | INLINESTATS max_lang = MAX(languages) 
 | WHERE max_lang == languages
+// end::max-languages[]
 | SORT emp_no ASC
 | LIMIT 5
-// end::max-languages[]
 ;
 
 // tag::max-languages-result[]
@@ -25,7 +38,7 @@ emp_no:integer | languages:integer | max_lang:integer
 ;
 
 maxOfIntByKeyword
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -43,7 +56,7 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
 ;
 
 maxOfLongByKeyword
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -58,7 +71,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | gender:
 ;
 
 maxOfLong
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -71,16 +84,16 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLongByCalculatedKeyword
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 // tag::longest-tenured-by-first[]
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
 | WHERE max_avg_worked_seconds == avg_worked_seconds
+// end::longest-tenured-by-first[]
 | SORT last_name ASC
 | LIMIT 5
-// end::longest-tenured-by-first[]
 ;
 
 // tag::longest-tenured-by-first-result[]
@@ -94,7 +107,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByCalculatedNamedKeyword
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
@@ -113,7 +126,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByCalculatedDroppedKeyword
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
@@ -132,7 +145,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByEvaledKeyword
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
@@ -152,7 +165,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | l:keywo
 ;
 
 maxOfLongByInt
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
@@ -170,7 +183,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languag
 ;
 
 maxOfLongByIntDouble
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
@@ -205,8 +218,8 @@ emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | 
          10007 |                 4 |               393084805 | F              | 2.863684210555556E8           | 5
 ;
 
-byMultivaluedSimple-Ignore
-required_capability: join_planning_v1
+byMultivaluedSimple
+required_capability: inlinestats_v7
 
 // tag::mv-group[]
 FROM airports
@@ -223,8 +236,8 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 // end::mv-group-result[]
 ;
 
-byMultivaluedMvExpand-Ignore
-required_capability: join_planning_v1
+byMultivaluedMvExpand
+required_capability: inlinestats_v7
 
 // tag::mv-expand[]
 FROM airports
@@ -237,14 +250,14 @@ FROM airports
 ;
 
 // tag::mv-expand-result[]
-abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
-           GWL |          mid | 9                 | 2
-           GWL |     military | 9                 | 4
+abbrev:keyword | scalerank:integer | min_scalerank:integer | type:keyword 
+GWL            |9                  |2                      |mid            
+GWL            |9                  |4                      |military
 // end::mv-expand-result[]
 ;
 
 byMvExpand
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 // tag::extreme-airports[]
 FROM airports
@@ -308,7 +321,7 @@ count:long | country:keyword | avg:double
 ;
 
 afterWhere
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM airports
 | WHERE country != "United States"
@@ -346,8 +359,10 @@ abbrev:keyword | scalerank:keyword
            ACA |              four
 ;
 
-afterEnrich-Ignore
+afterEnrich
 required_capability: join_planning_v1
+required_capability: inlinestats_v7
+required_capability: enrich_load
 
 FROM airports
 | KEEP abbrev, city
@@ -360,14 +375,14 @@ FROM airports
 | LIMIT 3
 ;
 
-abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long 
-           ALA |       Almaty |     Жетісу ауданы | 2
-           BXJ |       Almaty |     Жетісу ауданы | 2
-           FUK |      Fukuoka |             中央区 | 2
+abbrev:keyword | city:keyword | "COUNT(*)":long |       region:text 
+           ALA |       Almaty | 2               |     Жетісу ауданы
+           BXJ |       Almaty | 2               |     Жетісу ауданы
+           FUK |      Fukuoka | 2               |             中央区
 ;
 
 beforeStats
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM airports
 | EVAL lat = ST_Y(location)
@@ -380,7 +395,7 @@ northern:long | southern:long
 ;
 
 beforeKeepSort
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -394,8 +409,8 @@ emp_no:integer | languages:integer | max_salary:integer
          10003 |                 4 | 74572
 ;
 
-beforeKeepWhere-Ignore
-required_capability: join_planning_v1
+beforeKeepWhere
+required_capability: inlinestats_v7
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -407,8 +422,10 @@ emp_no:integer | languages:integer | max_salary:integer
          10003 |                 4 | 74572
 ;
 
-beforeEnrich-Ignore
+beforeEnrich
 required_capability: join_planning_v1
+required_capability: inlinestats_v7
+required_capability: enrich_load
 
 FROM airports
 | KEEP abbrev, type, city
@@ -419,14 +436,15 @@ FROM airports
 | LIMIT 3
 ;
 
-abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:text
-           ABJ |          mid |            Abidjan |             499 | Abidjan
-           ABV |        major |              Abuja |             385 | Municipal Area Council
-           ACA |        major | Acapulco de Juárez |             385 | Acapulco de Juárez
+abbrev:keyword |city:keyword      |"COUNT(*)":long|type:keyword   | region:text
+ABJ            |Abidjan           |499            |mid            |Abidjan               
+ABV            |Abuja             |385            |major          |Municipal Area Council
+ACA            |Acapulco de Juárez|385            |major          |Acapulco de Juárez
 ;
 
 beforeAndAfterEnrich-Ignore
 required_capability: join_planning_v1
+// does not fail, but it returns null for all values of count_region
 
 FROM airports
 | KEEP abbrev, type, city
@@ -438,12 +456,11 @@ FROM airports
 | LIMIT 3
 ;
 
-abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:text            | count_region:long
-           ABJ |          mid |            Abidjan |             499 | Abidjan                | 1
-           ABV |        major |              Abuja |             385 | Municipal Area Council | 1
-           ACA |        major | Acapulco de Juárez |             385 | Acapulco de Juárez     | 1
+abbrev:keyword |   city:keyword   |"COUNT(*)":long |  type:keyword | count_region:long |        region:text        
+ABJ            |Abidjan           |499             |mid            | 1                 |Abidjan               
+ABV            |Abuja             |385             |major          | 1                 |Municipal Area Council
+ACA            |Acapulco de Juárez|385             |major          | 1                 |Acapulco de Juárez
 ;
-
 
 shadowing-Ignore
 required_capability: join_planning_v1
@@ -501,7 +518,7 @@ Zürich       | Zürich
 ;
 
 byConstant
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages
@@ -520,7 +537,7 @@ emp_no:integer | languages:integer | max_lang:integer | y:integer
 ;
 
 aggConstant
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no
@@ -538,7 +555,7 @@ one:integer | emp_no:integer
 ;
 
 percentile
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, salary
@@ -557,7 +574,7 @@ emp_no:integer | salary:integer | ninety_fifth_salary:double
 ;
 
 byTwoCalculated
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -642,7 +659,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 groupShadowsField
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
   FROM employees
 | KEEP emp_no, salary, hire_date
@@ -661,7 +678,7 @@ emp_no:integer | salary:integer | avg_salary:double |  hire_date:datetime
 ;
 
 groupByExpression_And_ExistentField
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 FROM employees
 | KEEP emp_no, languages, gender
 | EVAL x = "ABC"
@@ -679,7 +696,7 @@ emp_no:integer | languages:integer | x:keyword | max_lang:integer | y:keyword | 
 ;
 
 groupByRenamedColumn
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 FROM employees
 | KEEP emp_no, languages, gender
 | INLINESTATS max_lang = MAX(languages) BY y = gender
@@ -787,7 +804,7 @@ emp_no:integer | languages:integer | gender:keyword|max_lang:integer|  y:keyword
 ;
 
 twoAggregatesGroupedBy_AField_And_AnExpression
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages, gender, last_name
@@ -809,7 +826,7 @@ emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:in
 ;
 
 groupByMultipleRenamedColumns_InversedOrder
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages, still_hired, gender
@@ -827,7 +844,7 @@ emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|max_lang:i
 ;
 
 groupByMultipleRenamedColumns_InversedOrder_ComplexEval
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages, still_hired, gender
@@ -846,7 +863,7 @@ emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|multilingu
 ;
 
 groupByMultipleRenamedColumns_AndComplexEval
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages, still_hired, gender
@@ -888,7 +905,7 @@ emp_no:integer |languages:integer|gender:keyword |first_name:keyword  |   x:keyw
 ;
 
 groupByRenamedExpression
-required_capability: inlinestats_v5
+required_capability: inlinestats_v7
 
 FROM employees
 | KEEP emp_no, languages, gender, last_name
@@ -908,4 +925,79 @@ emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:in
 10049          |5                |Tramer           |5               |5               |T              |F              
 10028          |null             |Tempesti         |1               |1               |T              |M            
 ;
+
+doubleFilterOnLeftAndRight_InlineStats_Sides
+required_capability: inlinestats_v7
   
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE salary > 65000 and languages > 2
+| SORT emp_no
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer   
+10007          |4                |74572          |74572             |27215          
+10030          |3                |67492          |74970             |26436          
+10045          |3                |74970          |74970             |26436          
+10054          |4                |65367          |74572             |27215          
+10062          |3                |65030          |74970             |26436          
+10094          |5                |66817          |66817             |25324          
+10097          |3                |71165          |74970             |26436          
+10100          |4                |68431          |74572             |27215          
+;
+
+filterOnInlineStatsAggs
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE min_salary > 27000 or max_salary < 70000
+| sort salary desc
+| limit 5
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
+10029          |null             |74999          |74999             |28336          
+10007          |4                |74572          |74572             |27215          
+10027          |null             |73851          |74999             |28336          
+10099          |2                |73578          |73578             |29175          
+10078          |2                |69904          |73578             |29175          
+;
+
+filterOnInlineStatsAggsValues_And_Groupings
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE (min_salary > 27000 or max_salary < 70000) and languages > 3
+| sort salary
+| limit 5
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
+10015          |5                |25324          |66817             |25324          
+10035          |5                |25945          |66817             |25324          
+10057          |4                |27215          |74572             |27215          
+10011          |5                |31120          |66817             |25324          
+10066          |5                |31897          |66817             |25324          
+;
+
+// Fails with (in json format only; for format=txt it returns empty result)
+// line 1:101: Plan [FieldExtractExec[description{f}#274, host{f}#272, ip0{f}#273, _index..]<[],[]>] optimized incorrectly due to duplicate output attribute ip1{r}#267
+// line 1:101: Plan [TopNExec[[Order[ip1{r}#267,ASC,LAST]],1[INTEGER],null]] optimized incorrectly due to duplicate output attribute ip1{r}#267
+// line 1:44: Plan [HashJoinExec[[host_group{f}#271, card{f}#276],[host_group{f}#271, card{f}#276],[host_group{r}#271, card{r}#276],[ip1{r}#267]]] optimized incorrectly due to duplicate output attribute ip1{r}#267
+inlineStatsOverrideEVALed_FieldWithSameName-Ignore
+
+FROM hosts METADATA _index
+| EVAL x = ip1
+| INLINESTATS ip1 = COUNT(*) BY host_group, card
+| SORT ip1
+| LIMIT 1
+;
+
+  description:text |  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long | host_group:text | card:keyword
+alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1         |DB servers       |eth0
+;

@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.elasticsearch.test.ESTestCase;
 
 public class EvalBenchmarkTests extends ESTestCase {
-    public void testSelfTest() {
+    public void test() {
         EvalBenchmark.selfTest();
     }
 }

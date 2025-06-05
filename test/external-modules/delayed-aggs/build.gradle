@@ -7,11 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-
-tasks.named('yamlRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
-}
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description = 'A test module that allows to delay aggregations on shards with a configurable time'
@@ -22,4 +18,9 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'search'
   }
+}
+
+tasks.named('yamlRestTest') {
+  def isSnapshot = buildParams.snapshotBuild
+  it.onlyIf("snapshot build") { isSnapshot }
 }

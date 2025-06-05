@@ -265,6 +265,23 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_INDEX_ALIAS).privileges("all").build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX, ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS)
+                    .privileges(
+                        "create_index",
+                        "read",
+                        "write",
+                        "view_index_metadata",
+                        "maintenance",
+                        RolloverAction.NAME,
+                        TransportIndicesAliasesAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name()
+                    )
+                    .build(),
+                // "Alerts as data" public index alias used in Security Solution
+                // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS).privileges("all").build(),
                 // "Alerts as data" internal backing indices used in Security Solution
                 // Kibana system user creates these indices; reads / writes to them via the
@@ -345,7 +362,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 // ingested by Fleet integrations
                 // in order to provide support for response actions related to malicious events
                 // for such agents.
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs-sentinel_one.*", "logs-crowdstrike.*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-sentinel_one.*", "logs-crowdstrike.*", "logs-microsoft_defender_endpoint.*", "logs-m365_defender.*")
+                    .privileges("read")
+                    .build(),
                 // For ILM policy for APM, Endpoint, & Synthetics packages that have delete
                 // action
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -475,11 +495,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-aws.securityhub_findings-*",
                         "logs-aws.securityhub_findings_full_posture-*",
                         "logs-aws.inspector-*",
+                        "logs-aws.config-*",
                         "logs-amazon_security_lake.findings-*",
                         "logs-qualys_vmdr.asset_host_detection-*",
                         "logs-tenable_sc.vulnerability-*",
                         "logs-tenable_io.vulnerability-*",
                         "logs-rapid7_insightvm.vulnerability-*",
+                        "logs-rapid7_insightvm.asset_vulnerability-*",
                         "logs-carbon_black_cloud.asset_vulnerability_summary-*"
                     )
                     .privileges("read", "view_index_metadata")
@@ -489,7 +511,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     // manage privilege required by the index alias
                     .indices("security_solution-*.vulnerability_latest", "security_solution-*.misconfiguration_latest")
-                    .privileges("manage", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
+                    .privileges("manage", "read", TransportIndicesAliasesAction.NAME, TransportUpdateSettingsAction.TYPE.name())
                     .build(),
                 // For destination indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform
@@ -507,7 +529,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // security entity analytics indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("entity_analytics.*").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entity_analytics.*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")

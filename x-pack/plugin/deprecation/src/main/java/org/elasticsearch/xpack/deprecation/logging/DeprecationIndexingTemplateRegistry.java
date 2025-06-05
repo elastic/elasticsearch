@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation.logging;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,13 +34,15 @@ import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
-    public static final int INDEX_TEMPLATE_VERSION = 1;
+    // version 2: deprecated old name and renamed index pattern
+    public static final int INDEX_TEMPLATE_VERSION = 2;
 
     public static final String DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE = "xpack.deprecation.indexing.template.version";
 
     public static final String DEPRECATION_INDEXING_MAPPINGS_NAME = ".deprecation-indexing-mappings";
     public static final String DEPRECATION_INDEXING_SETTINGS_NAME = ".deprecation-indexing-settings";
-    public static final String DEPRECATION_INDEXING_TEMPLATE_NAME = ".deprecation-indexing-template";
+    public static final String DEPRECATION_INDEXING_TEMPLATE_NAME_OLD = ".deprecation-indexing-template";
+    public static final String DEPRECATION_INDEXING_TEMPLATE_NAME = ".deprecation-indexing-template-9";
     public static final String DEPRECATION_INDEXING_POLICY_NAME = ".deprecation-indexing-ilm-policy";
 
     public DeprecationIndexingTemplateRegistry(
@@ -47,9 +50,10 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
@@ -89,7 +93,25 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
             DEPRECATION_INDEXING_TEMPLATE_NAME,
             "/deprecation/deprecation-indexing-template.json",
             INDEX_TEMPLATE_VERSION,
-            DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
+            DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE,
+            Map.of(
+                "xpack.deprecation.indexing.template.deprecated",
+                "false",
+                "xpack.deprecation.indexing.template.pattern",
+                ".logs-elasticsearch.deprecation-*"
+            )
+        ),
+        new IndexTemplateConfig(
+            DEPRECATION_INDEXING_TEMPLATE_NAME_OLD,
+            "/deprecation/deprecation-indexing-template.json",
+            INDEX_TEMPLATE_VERSION,
+            DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE,
+            Map.of(
+                "xpack.deprecation.indexing.template.deprecated",
+                "true",
+                "xpack.deprecation.indexing.template.pattern",
+                ".logs-deprecation.*"
+            )
         )
     );
 

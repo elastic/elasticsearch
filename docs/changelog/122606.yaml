@@ -1,5 +1,0 @@
-pr: 122606
-summary: Avoid serializing empty `_source` fields in mappings
-area: Mapping
-type: bug
-issues: []

@@ -44,7 +44,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -61,6 +60,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.xcontent.Text;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -80,9 +80,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
-        // the upper bound is higher than 2048 so that in some cases we time out after the first batch of bulk scoring, but before
+        // the upper bound is higher than 4096 so that in some cases we time out after the first batch of bulk scoring, but before
         // getting to the end of the first segment
-        numDocs = scaledRandomIntBetween(500, 2500);
+        numDocs = scaledRandomIntBetween(500, 4500);
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             doc.add(new StringField("field", Integer.toString(i), Field.Store.NO));
@@ -309,9 +309,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                // See CancellableBulkScorer#INITIAL_INTERVAL for the source of 2048: we always score the first
-                // batch of up to 2048 docs, and only then raise the timeout
-                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
+                // See CancellableBulkScorer#INITIAL_INTERVAL for the source of 4096: we always score the first
+                // batch of up to 4096 docs, and only then raise the timeout
+                assertEquals(Math.min(4096, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }

@@ -78,7 +78,7 @@
     }
   ],
   "examples" : [
-    "FROM books\n| WHERE TERM(author, \"gabriel\")\n| KEEP book_no, title\n| LIMIT 3"
+    "FROM books\n| WHERE TERM(author, \"gabriel\")"
   ],
   "preview" : true,
   "snapshot_only" : true

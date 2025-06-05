@@ -721,4 +721,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         }
         return new GeoDistanceSortBuilder(this).setNestedSort(rewrite);
     }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        // Disable parallel collection for sort by field.
+        // It is supported but not optimized on the Lucene side to share info across collectors, and can cause regressions.
+        return false;
+    }
 }

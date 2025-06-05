@@ -200,7 +200,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         // allow only exact FieldAttributes (no expressions) for sorting
         BiFunction<Expression, LucenePushdownPredicates, Boolean> isSortableAttribute = (exp, lpp) -> lpp.isPushableFieldAttribute(exp)
             // TODO: https://github.com/elastic/elasticsearch/issues/120219
-            || (exp instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name()));
+            || MetadataAttribute.isScoreAttribute(exp);
         return orders.stream().allMatch(o -> isSortableAttribute.apply(o.child(), lucenePushdownPredicates));
     }
 
@@ -209,7 +209,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         for (Order o : orders) {
             if (o.child() instanceof FieldAttribute fa) {
                 sorts.add(new EsQueryExec.FieldSort(fa.exactAttribute(), o.direction(), o.nullsPosition()));
-            } else if (o.child() instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name())) {
+            } else if (MetadataAttribute.isScoreAttribute(o.child())) {
                 sorts.add(new EsQueryExec.ScoreSort(o.direction()));
             } else {
                 assert false : "unexpected ordering on expression type " + o.child().getClass();

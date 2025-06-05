@@ -33,7 +33,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -152,7 +151,8 @@ public class DateFieldMapperTests extends MapperTestCase {
         return List.of(
             exampleMalformedValue("2016-03-99").mapping(mappingWithFormat("strict_date_optional_time||epoch_millis"))
                 .errorMatches("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"),
-            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow"),
+            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("too far in the past"),
+            exampleMalformedValue("522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("too far in the future"),
             exampleMalformedValue("2020").mapping(mappingWithFormat("strict_date"))
                 .errorMatches("failed to parse date field [2020] with format [strict_date]"),
             exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
@@ -594,15 +594,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 if (randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
 
-                    return new SyntheticSourceExample(
-                        v.input,
-                        v.output,
-                        resolution.convert(Instant.from(formatter.parse(v.output))),
-                        this::mapping
-                    );
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
 
                 List<Value> values = randomList(1, maxValues, this::generateValue);
@@ -624,11 +619,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outputFromDocValues.stream()
-                    .map(v -> resolution.convert(Instant.from(formatter.parse(v))))
-                    .toList();
-                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
             private record Value(Object input, String output, Object malformedOutput) {}
@@ -724,22 +715,6 @@ public class DateFieldMapperTests extends MapperTestCase {
                 };
             }
         };
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> asJacksonNumberOutput(((Number) v).longValue());
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // If a long value fits in int, Jackson will write it as int in NumberOutput.outputLong()
-        // and we hit this during serialization of expected values.
-        // Code below mimics that behaviour in order for matching to work.
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
-        }
     }
 
     public void testLegacyField() throws Exception {

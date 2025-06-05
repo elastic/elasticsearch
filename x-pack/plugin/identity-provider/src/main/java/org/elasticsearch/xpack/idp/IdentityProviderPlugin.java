@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.idp;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -86,7 +84,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         indexTemplateRegistry.initialize();
 
@@ -125,16 +124,16 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         if (enabled == false) {
             return List.of();
         }
         return List.of(
-            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
-            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
-            new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
-            new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
-            new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
+            new ActionHandler(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
+            new ActionHandler(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
+            new ActionHandler(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
+            new ActionHandler(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
+            new ActionHandler(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
         );
     }
 

@@ -65,7 +65,8 @@ PUT /my-index-000001/_block/write
 `<block>`
 :   (Required, string) Block type to add to the index.
 
-    ::::{dropdown} Valid values for `<block>`
+    **Valid values**:
+
     `metadata`
     :   Disable metadata changes, such as closing the index.
 

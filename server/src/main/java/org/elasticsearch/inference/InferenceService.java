@@ -28,6 +28,14 @@ public interface InferenceService extends Closeable {
     String name();
 
     /**
+     * The aliases that map to {@link #name()}. {@link InferenceServiceRegistry} allows users to create and use inference services by one
+     * of their aliases.
+     */
+    default List<String> aliases() {
+        return List.of();
+    }
+
+    /**
      * Parse model configuration from the {@code config map} from a request and return
      * the parsed {@link Model}. This requires that both the secrets and service settings be contained in the
      * {@code service_settings} field.
@@ -91,18 +99,22 @@ public interface InferenceService extends Closeable {
     /**
      * Perform inference on the model.
      *
-     * @param model        The model
-     * @param query        Inference query, mainly for re-ranking
-     * @param input        Inference input
-     * @param stream       Stream inference results
-     * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType    For search, ingest etc
-     * @param timeout      The timeout for the request
-     * @param listener     Inference result listener
+     * @param model           The model
+     * @param query           Inference query, mainly for re-ranking
+     * @param returnDocuments For re-ranking task type, whether to return documents
+     * @param topN            For re-ranking task type, how many docs to return
+     * @param input           Inference input
+     * @param stream          Stream inference results
+     * @param taskSettings    Settings in the request to override the model's defaults
+     * @param inputType       For search, ingest etc
+     * @param timeout         The timeout for the request
+     * @param listener        Inference result listener
      */
     void infer(
         Model model,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -129,18 +141,18 @@ public interface InferenceService extends Closeable {
     /**
      * Chunk long text.
      *
-     * @param model           The model
-     * @param query           Inference query, mainly for re-ranking
-     * @param input           Inference input
-     * @param taskSettings    Settings in the request to override the model's defaults
-     * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request
-     * @param listener        Chunked Inference result listener
+     * @param model            The model
+     * @param query            Inference query, mainly for re-ranking
+     * @param input            Inference input
+     * @param taskSettings     Settings in the request to override the model's defaults
+     * @param inputType        For search, ingest etc
+     * @param timeout          The timeout for the request
+     * @param listener         Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -158,23 +170,12 @@ public interface InferenceService extends Closeable {
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param unparsedModel The unparsed model configuration
+     * @param model The model configuration
      * @param listener The listener
      */
-    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
+    default void stop(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
-
-    /**
-     * Optionally test the new model configuration in the inference service.
-     * This function should be called when the model is first created, the
-     * default action is to do nothing.
-     * @param model The new model
-     * @param listener The listener
-     */
-    default void checkModelConfig(Model model, ActionListener<Model> listener) {
-        listener.onResponse(model);
-    };
 
     /**
      * Update a text embedding model's dimensions based on a provided embedding

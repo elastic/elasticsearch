@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : ":",
   "name" : "match_operator",
-  "description" : "Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.\nUsing `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.\n\nThe match operator is equivalent to the <<esql-match,match function>>.\n\nFor using the function syntax, or adding <<match-field-params,match query parameters>>, you can use the\n<<esql-match,match function>>.\n\n`:` returns true if the provided query matches the row.",
+  "description" : "Use the match operator (`:`) to perform a match query on the specified field.\nUsing `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.\n\nThe match operator is equivalent to the match function.\n\nFor using the function syntax, or adding match query parameters, you can use the\nmatch function.\n\n`:` returns true if the provided query matches the row.",
   "signatures" : [
     {
       "params" : [
@@ -529,7 +529,7 @@
     }
   ],
   "examples" : [
-    "FROM books\n| WHERE MATCH(author, \"Faulkner\")\n| KEEP book_no, author\n| SORT book_no\n| LIMIT 5"
+    "FROM books\n| WHERE author:\"Faulkner\""
   ],
   "preview" : true,
   "snapshot_only" : false

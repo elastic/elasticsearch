@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -82,7 +83,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting index templates updates
@@ -353,9 +354,14 @@ public class MetadataIndexTemplateService {
                         tempProjectWithComponentTemplateAdded,
                         composableTemplateName,
                         composableTemplate,
-                        globalRetentionSettings.get()
+                        globalRetentionSettings.get(false)
                     );
-                    validateDataStreamOptions(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
+                    validateDataStreamOptions(
+                        tempProjectWithComponentTemplateAdded,
+                        composableTemplateName,
+                        composableTemplate,
+                        globalRetentionSettings.get(true)
+                    );
                     validateIndexTemplateV2(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -382,7 +388,7 @@ public class MetadataIndexTemplateService {
             finalComponentTemplate.template()
                 .lifecycle()
                 .toDataStreamLifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -742,8 +748,8 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
-        validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get());
-        validateDataStreamOptions(projectMetadata, name, templateToValidate);
+        validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get(false));
+        validateDataStreamOptions(projectMetadata, name, templateToValidate, globalRetentionSettings.get(true));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, projectMetadata.componentTemplates());
@@ -838,7 +844,12 @@ public class MetadataIndexTemplateService {
     }
 
     // Visible for testing
-    static void validateDataStreamOptions(ProjectMetadata projectMetadata, String indexTemplateName, ComposableIndexTemplate template) {
+    static void validateDataStreamOptions(
+        ProjectMetadata projectMetadata,
+        String indexTemplateName,
+        ComposableIndexTemplate template,
+        DataStreamGlobalRetention globalRetention
+    ) {
         DataStreamOptions.Builder dataStreamOptionsBuilder = resolveDataStreamOptions(template, projectMetadata.componentTemplates());
         if (dataStreamOptionsBuilder != null) {
             if (template.getDataStreamTemplate() == null) {
@@ -847,6 +858,17 @@ public class MetadataIndexTemplateService {
                         + indexTemplateName
                         + "] specifies data stream options that can only be used in combination with a data stream"
                 );
+            }
+            if (globalRetention != null) {
+                // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
+                // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
+                boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
+                DataStreamOptions dataStreamOptions = dataStreamOptionsBuilder.build();
+                if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+                    dataStreamOptions.failureStore()
+                        .lifecycle()
+                        .addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+                }
             }
         }
     }
@@ -862,7 +884,12 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final Set<String> dataStreams = project.dataStreams().keySet();
+        final Set<String> dataStreams = project.dataStreams()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isSystem() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
 
         Function<ProjectMetadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();
@@ -919,12 +946,15 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+        // Determinization is avoided because it can fail or become very costly due to state explosion.
+        Automaton v2automaton = Regex.simpleMatchToNonDeterminizedAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateMetadata> cursor : project.templates().entrySet()) {
             String name = cursor.getKey();
             IndexTemplateMetadata template = cursor.getValue();
-            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
+            // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+            Automaton v1automaton = Regex.simpleMatchToNonDeterminizedAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
                     "composable template {} and legacy template {} would overlap: {} <=> {}",
@@ -1087,9 +1117,8 @@ public class MetadataIndexTemplateService {
             .map(templateName -> projectMetadata.templatesV2().get(templateName))
             .filter(Objects::nonNull)
             .map(ComposableIndexTemplate::indexPatterns)
-            .map(Set::copyOf)
-            .reduce(Sets::union)
-            .orElse(Set.of());
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
 
         return projectMetadata.dataStreams()
             .values()
@@ -1099,9 +1128,10 @@ public class MetadataIndexTemplateService {
             .filter(ds -> {
                 // Retrieve the templates that match the data stream name ordered by priority
                 List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
-                    projectMetadata,
+                    projectMetadata.templatesV2().entrySet(),
                     ds.getName(),
-                    ds.isHidden()
+                    ds.isHidden(),
+                    false
                 );
                 if (candidates.isEmpty()) {
                     throw new IllegalStateException("Data stream " + ds.getName() + " did not match any composable index templates.");
@@ -1110,13 +1140,10 @@ public class MetadataIndexTemplateService {
                 // Limit data streams that can ONLY use any of the specified templates, we do this by filtering
                 // the matching templates that are others than the ones requested and could be a valid template to use.
                 return candidates.stream()
-                    .filter(
+                    .noneMatch(
                         template -> templateNames.contains(template.v1()) == false
                             && isGlobalAndHasIndexHiddenSetting(projectMetadata, template.v2(), template.v1()) == false
-                    )
-                    .map(Tuple::v1)
-                    .toList()
-                    .isEmpty();
+                    );
             })
             .map(DataStream::getName)
             .collect(Collectors.toSet());
@@ -1357,7 +1384,41 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static String findV2Template(ProjectMetadata projectMetadata, String indexName, boolean isHidden) {
-        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(projectMetadata, indexName, isHidden);
+        return findV2Template(projectMetadata, projectMetadata.templatesV2().entrySet(), indexName, isHidden, false);
+    }
+
+    /**
+     * Return the name (id) of the highest matching index template out of the provided templates (that <i>need</i> to be sorted descending
+     * on priority beforehand), or the given index name. In the event that no templates are matched, {@code null} is returned.
+     */
+    @Nullable
+    public static String findV2TemplateFromSortedList(
+        ProjectMetadata projectMetadata,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
+        String indexName,
+        boolean isHidden
+    ) {
+        return findV2Template(projectMetadata, templates, indexName, isHidden, true);
+    }
+
+    /**
+     * Return the name (id) of the highest matching index template, out of the provided templates, for the given index name. In
+     * the event that no templates are matched, {@code null} is returned.
+     */
+    @Nullable
+    private static String findV2Template(
+        ProjectMetadata projectMetadata,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
+        String indexName,
+        boolean isHidden,
+        boolean exitOnFirstMatch
+    ) {
+        final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
+            templates,
+            indexName,
+            isHidden,
+            exitOnFirstMatch
+        );
         if (candidates.isEmpty()) {
             return null;
         }
@@ -1386,16 +1447,25 @@ public class MetadataIndexTemplateService {
      * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
      * one is the winner template that is applied to this index. In the event that no templates are matched,
      * an empty list is returned.
+     * @param templates a list of template entries (name, template) - needs to be sorted when {@code exitOnFirstMatch} is {@code true}
+     * @param indexName the index (or data stream) name that should be used for matching the index patterns on the templates
+     * @param isHidden whether {@code indexName} belongs to a hidden index - this option is redundant for data streams, as backing indices
+     *                 of data streams will always be returned, regardless of whether the data stream is hidden or not
+     * @param exitOnFirstMatch if true, we return immediately after finding a match. That means that the <code>templates</code>
+     *                         parameter needs to be sorted based on priority (descending) for this method to return a sensible result,
+     *                         otherwise this method would just return the first template that matches the name, in an unspecified order
      */
-    static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
-        ProjectMetadata projectMetadata,
+    private static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
         String indexName,
-        boolean isHidden
+        boolean isHidden,
+        boolean exitOnFirstMatch
     ) {
+        assert exitOnFirstMatch == false || areTemplatesSorted(templates) : "Expected templates to be sorted";
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : projectMetadata.templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : templates) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
             /*
@@ -1403,22 +1473,30 @@ public class MetadataIndexTemplateService {
              * and we do want to return even match-all templates for those. Not doing so can result in a situation where a data stream is
              * built with a template that none of its indices match.
              */
-            if (isHidden == false || template.getDataStreamTemplate() != null) {
-                if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
-                    candidates.add(Tuple.tuple(name, template));
-                }
-            } else {
-                final boolean isNotMatchAllTemplate = noneMatch(template.indexPatterns(), Regex::isMatchAllPattern);
-                if (isNotMatchAllTemplate) {
-                    if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
-                        candidates.add(Tuple.tuple(name, template));
-                    }
+            if (anyMatch(template.indexPatterns(), Regex::isMatchAllPattern) && isHidden && template.getDataStreamTemplate() == null) {
+                continue;
+            }
+            if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
+                candidates.add(Tuple.tuple(name, template));
+                if (exitOnFirstMatch) {
+                    return candidates;
                 }
             }
         }
 
         CollectionUtil.timSort(candidates, Comparator.comparing(candidate -> candidate.v2().priorityOrZero(), Comparator.reverseOrder()));
         return candidates;
+    }
+
+    private static boolean areTemplatesSorted(Collection<Map.Entry<String, ComposableIndexTemplate>> templates) {
+        ComposableIndexTemplate previousTemplate = null;
+        for (Map.Entry<String, ComposableIndexTemplate> template : templates) {
+            if (previousTemplate != null && template.getValue().priorityOrZero() > previousTemplate.priorityOrZero()) {
+                return false;
+            }
+            previousTemplate = template.getValue();
+        }
+        return true;
     }
 
     // Checks if a global template specifies the `index.hidden` setting. This check is important because a global
@@ -1865,8 +1943,7 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
-        throws Exception {
+    static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService) throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {

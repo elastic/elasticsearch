@@ -676,7 +676,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
             try {
-                shard.resetEngineToGlobalCheckpoint();
+                shard.rollbackEngineToGlobalCheckpoint();
             } finally {
                 r.close();
                 engineResetLatch.countDown();

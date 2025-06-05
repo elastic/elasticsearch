@@ -376,6 +376,54 @@ grouping stats on aggregate_metric_double:
   - match: {values.1.4: "B"}
 
 ---
+sorting with aggregate_metric_double with partial submetrics:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_sorting]
+      reason: "Support for sorting when aggregate_metric_double present"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | SORT @timestamp | KEEP @timestamp, agg_metric'
+
+  - length: {values: 4}
+  - length: {values.0: 2}
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "agg_metric"}
+  - match: {columns.1.type: "aggregate_metric_double"}
+  - match: {values.0.0: "2021-04-28T19:50:04.467Z"}
+  - match: {values.1.0: "2021-04-28T19:50:24.467Z"}
+  - match: {values.2.0: "2021-04-28T19:50:44.467Z"}
+  - match: {values.3.0: "2021-04-28T19:51:04.467Z"}
+  - match: {values.0.1: '{"min":-3.0,"max":1.0}'}
+  - match: {values.1.1: '{"min":3.0,"max":10.0}'}
+  - match: {values.2.1: '{"min":2.0,"max":17.0}'}
+  - match: {values.3.1: null}
+
+---
+aggregate_metric_double unsortable:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_sorting]
+      reason: "Support for sorting when aggregate_metric_double present"
+  - do:
+      catch: /cannot sort on aggregate_metric_double/
+      esql.query:
+        body:
+          query: 'FROM test2 | sort agg_metric'
+
+---
 stats on aggregate_metric_double with partial submetrics:
   - requires:
       test_runner_features: [capabilities]

@@ -1,7 +1,7 @@
 [versions]
 asm = "9.7.1"
 jackson = "2.15.0"
-junit5 = "5.8.1"
+junit5 = "5.12.1"
 spock = "2.1-groovy-3.0"
 
 [libraries]
@@ -16,8 +16,8 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commmons-io = "commons-io:commons-io:2.2"
 docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.17.5"
 forbiddenApis = "de.thetaphi:forbiddenapis:3.8"
-gradle-enterprise = "com.gradle:develocity-gradle-plugin:3.19.2"
-hamcrest = "org.hamcrest:hamcrest:2.1"
+gradle-enterprise = "com.gradle:develocity-gradle-plugin:4.0.1"
+hamcrest = "org.hamcrest:hamcrest:3.0"
 httpcore5 = "org.apache.httpcomponents.core5:httpcore5:5.3.3"
 httpclient5 = "org.apache.httpcomponents.client5:httpclient5:5.4.2"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
@@ -48,4 +48,4 @@ wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
-ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.1" }
+ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.2" }

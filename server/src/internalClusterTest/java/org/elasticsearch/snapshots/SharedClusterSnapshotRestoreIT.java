@@ -748,7 +748,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for the index to appear");
         // that would mean that recovery process started and failing
-        waitForIndex("test-idx", TimeValue.timeValueSeconds(10));
+        awaitIndexExists("test-idx");
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -1484,7 +1484,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 indexShard.failShard("simulated", new ElasticsearchException("simulated"));
                 safeAwait(
                     ClusterServiceUtils.addTemporaryStateListener(
-                        internalCluster().getInstance(ClusterService.class),
                         cs -> cs.metadata().getProject().index(indexName).primaryTerm(0) > primaryTerm
                     )
                 );
@@ -1618,14 +1617,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for restore to finish");
         restoreFut.get();
-    }
-
-    private void waitForIndex(final String index, TimeValue timeout) throws Exception {
-        assertBusy(
-            () -> assertTrue("Expected index [" + index + "] to exist", indexExists(index)),
-            timeout.millis(),
-            TimeUnit.MILLISECONDS
-        );
     }
 
     public void testSnapshotName() throws Exception {

@@ -82,7 +82,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet generated = new AttributeSet(asAttributes(fields));
+        AttributeSet generated = AttributeSet.of(asAttributes(fields));
         return Expressions.references(fields).subtract(generated);
     }
 

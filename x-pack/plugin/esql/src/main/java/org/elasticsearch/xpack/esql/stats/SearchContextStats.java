@@ -80,11 +80,6 @@ public class SearchContextStats implements SearchStats {
         assert contexts != null && contexts.isEmpty() == false;
     }
 
-    public boolean exists(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.exists;
-    }
-
     private FieldStats makeFieldStats(String field) {
         var stat = new FieldStats();
         stat.config = makeFieldConfig(field);
@@ -100,19 +95,18 @@ public class SearchContextStats implements SearchStats {
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
-                exists = exists || true;
-                MappedFieldType type = context.getFieldType(field);
-                indexed = indexed && type.isIndexed();
-                hasDocValues = hasDocValues && type.hasDocValues();
-                if (type instanceof TextFieldMapper.TextFieldType t) {
-                    hasExactSubfield = hasExactSubfield && t.canUseSyntheticSourceDelegateForQuerying();
-                } else {
-                    hasExactSubfield = false;
-                }
+                var type = context.getFieldType(field);
+                exists |= true;
+                indexed &= type.isIndexed();
+                hasDocValues &= type.hasDocValues();
+                hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {
                 indexed = false;
                 hasDocValues = false;
                 hasExactSubfield = false;
+            }
+            if (exists && indexed == false && hasDocValues == false && hasExactSubfield == false) {
+                break;
             }
         }
         if (exists == false) {
@@ -123,19 +117,30 @@ public class SearchContextStats implements SearchStats {
         }
     }
 
+    private boolean fastNoCacheFieldExists(String field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.isFieldMapped(field)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean exists(String field) {
+        var stat = cache.get(field);
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field);
+    }
+
     public boolean isIndexed(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.indexed;
+        return cache.computeIfAbsent(field, this::makeFieldStats).config.indexed;
     }
 
     public boolean hasDocValues(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasDocValues;
+        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasDocValues;
     }
 
     public boolean hasExactSubfield(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasExactSubfield;
+        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasExactSubfield;
     }
 
     public long count() {
@@ -218,7 +223,7 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
-            if (exists(field) == false) {
+            if (stat.config.exists == false) {
                 stat.singleValue = true;
             } else {
                 // fields are MV per default
@@ -285,6 +290,59 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name);
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public String constantValue(String name) {
+        String val = null;
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType f = ctx.getFieldType(name);
+            if (f == null) {
+                return null;
+            }
+            if (f instanceof ConstantFieldType cf) {
+                var fetcher = cf.valueFetcher(ctx, null);
+                String thisVal = null;
+                try {
+                    // since the value is a constant, the doc _should_ be irrelevant
+                    List<Object> vals = fetcher.fetchValues(null, -1, null);
+                    Object objVal = vals.size() == 1 ? vals.get(0) : null;
+                    // we are considering only string values for now, since this can return "strange" things,
+                    // see IndexModeFieldType
+                    thisVal = objVal instanceof String ? (String) objVal : null;
+                } catch (IOException iox) {}
+
+                if (thisVal == null) {
+                    // Value not yet set
+                    return null;
+                }
+                if (val == null) {
+                    val = thisVal;
+                } else if (thisVal.equals(val) == false) {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+        return val;
     }
 
     private interface DocCountTester {

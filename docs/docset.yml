@@ -1,4 +1,7 @@
 project: 'Elasticsearch'
+products:
+  - id: elasticsearch
+max_toc_depth: 2
 exclude:
   - README.md
   - internal/*
@@ -21,19 +24,13 @@ cross_links:
   - go-elasticsearch
   - kibana
   - logstash
+  - logstash-docs-md
 toc:
-  - toc: reference/elasticsearch
-  - toc: reference/community-contributed
-  - toc: reference/enrich-processor
-  - toc: reference/search-connectors
-  - toc: reference/elasticsearch-plugins
-  - toc: reference/query-languages
-  - toc: reference/scripting-languages
-  - toc: reference/text-analysis
-  - toc: reference/aggregations
+  - toc: reference
   - toc: release-notes
   - toc: extend
 subs:
+  version: 9.0.0
   api-request-title:   "Request"
   api-prereq-title:   "Prerequisites"
   api-description-title:   "Description"
@@ -46,6 +43,8 @@ subs:
   ece:   "Elastic Cloud Enterprise"
   eck:   "Elastic Cloud on Kubernetes"
   ech:   "Elastic Cloud Hosted"
+  es-apis: https://www.elastic.co/docs/api/doc/elasticsearch/
+  es-serverless-apis: https://www.elastic.co/docs/api/doc/elasticsearch-serverless/
   es-issue:   "https://github.com/elastic/elasticsearch/issues/"
   serverless-full:   "Elastic Cloud Serverless"
   serverless-short:   "Serverless"
@@ -100,8 +99,8 @@ subs:
   transforms-cap:   "Transforms"
   dfanalytics-cap:   "Data frame analytics"
   dfanalytics:   "data frame analytics"
-  dfanalytics-job:   "'{dataframe} analytics job'"
-  dfanalytics-jobs:   "'{dataframe} analytics jobs'"
+  dfanalytics-job:   "data frame analytics job"
+  dfanalytics-jobs:   "data frame analytics jobs"
   ctransforms:   "continuous transforms"
   regression:   "regression"
   regression-cap:   "Regression"

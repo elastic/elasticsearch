@@ -7,33 +7,47 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.apache.lucene.search.ScoreMode.COMPLETE;
 import static org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+import static org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy.DOC;
+import static org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+import static org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy.SHARD;
 
 /**
  * Source operator that incrementally runs Lucene searches
  */
 public class LuceneSourceOperator extends LuceneOperator {
+    private static final Logger log = LogManager.getLogger(LuceneSourceOperator.class);
 
     private int currentPagePos = 0;
     private int remainingDocs;
@@ -51,14 +65,23 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         public Factory(
             List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean scoring
+            boolean needsScore
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, scoring ? COMPLETE : COMPLETE_NO_SCORES);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy(limit),
+                taskConcurrency,
+                limit,
+                needsScore,
+                needsScore ? COMPLETE : COMPLETE_NO_SCORES
+            );
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
@@ -66,7 +89,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, scoreMode);
+            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
         }
 
         public int maxPageSize() {
@@ -81,9 +104,113 @@ public class LuceneSourceOperator extends LuceneOperator {
                 + maxPageSize
                 + ", limit = "
                 + limit
-                + ", scoreMode = "
-                + scoreMode
+                + ", needsScore = "
+                + needsScore
                 + "]";
+        }
+
+        /**
+         * Pick a strategy for the {@link DataPartitioning#AUTO} partitioning.
+         */
+        public static Function<Query, PartitioningStrategy> autoStrategy(int limit) {
+            return limit == NO_LIMIT ? Factory::highSpeedAutoStrategy : Factory::lowOverheadAutoStrategy;
+        }
+
+        /**
+         * Use the {@link PartitioningStrategy#SHARD} strategy because
+         * it has the lowest overhead. Used when there is a {@code limit} on the operator
+         * because that's for cases like {@code FROM foo | LIMIT 10} or
+         * {@code FROM foo | WHERE a == 1 | LIMIT 10} when the {@code WHERE} can be pushed
+         * to Lucene. In those cases we're better off with the lowest overhead we can
+         * manage - and that's {@link PartitioningStrategy#SHARD}.
+         */
+        private static PartitioningStrategy lowOverheadAutoStrategy(Query query) {
+            return SHARD;
+        }
+
+        /**
+         * Select the {@link PartitioningStrategy} based on the {@link Query}.
+         * <ul>
+         *     <li>
+         *         If the {@linkplain Query} matches <strong>no</strong> documents then this will
+         *         use the {@link PartitioningStrategy#SHARD} strategy so we minimize the overhead
+         *         of finding nothing.
+         *     </li>
+         *     <li>
+         *         If the {@linkplain Query} matches <strong>all</strong> documents then this will
+         *         use the {@link PartitioningStrategy#DOC} strategy because the overhead of using
+         *         that strategy for {@link MatchAllDocsQuery} is very low, and we need as many CPUs
+         *         as we can get to process all the documents.
+         *     </li>
+         *     <li>
+         *         Otherwise use the {@link PartitioningStrategy#SEGMENT} strategy because it's
+         *         overhead is generally low.
+         *     </li>
+         * </ul>
+         */
+        private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
+            Query unwrapped = unwrap(query);
+            log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
+            return switch (unwrapped) {
+                case BooleanQuery q -> highSpeedAutoStrategyForBoolean(q);
+                case MatchAllDocsQuery q -> DOC;
+                case MatchNoDocsQuery q -> SHARD;
+                default -> SEGMENT;
+            };
+        }
+
+        private static Query unwrap(Query query) {
+            while (true) {
+                switch (query) {
+                    case BoostQuery q: {
+                        query = q.getQuery();
+                        break;
+                    }
+                    case ConstantScoreQuery q: {
+                        query = q.getQuery();
+                        break;
+                    }
+                    default:
+                        return query;
+                }
+            }
+        }
+
+        /**
+         * Select the {@link PartitioningStrategy} for a {@link BooleanQuery}.
+         * <ul>
+         *     <li>
+         *         If the query can't match anything, returns {@link PartitioningStrategy#SEGMENT}.
+         *     </li>
+         *
+         * </ul>
+         */
+        private static PartitioningStrategy highSpeedAutoStrategyForBoolean(BooleanQuery query) {
+            List<PartitioningStrategy> clauses = new ArrayList<>(query.clauses().size());
+            boolean allRequired = true;
+            for (BooleanClause c : query) {
+                Query clauseQuery = unwrap(c.query());
+                log.trace("highSpeedAutoStrategyForBooleanClause {} {}", c.occur(), clauseQuery);
+                if ((c.isProhibited() && clauseQuery instanceof MatchAllDocsQuery)
+                    || (c.isRequired() && clauseQuery instanceof MatchNoDocsQuery)) {
+                    // Can't match anything
+                    return SHARD;
+                }
+                allRequired &= c.isRequired();
+                clauses.add(highSpeedAutoStrategy(clauseQuery));
+            }
+            log.trace("highSpeedAutoStrategyForBooleanClause {} {}", allRequired, clauses);
+            if (allRequired == false) {
+                return SEGMENT;
+            }
+            if (clauses.stream().anyMatch(s -> s == SHARD)) {
+                return SHARD;
+            }
+            if (clauses.stream().anyMatch(s -> s == SEGMENT)) {
+                return SEGMENT;
+            }
+            assert clauses.stream().allMatch(s -> s == DOC);
+            return DOC;
         }
     }
 
@@ -94,7 +221,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        ScoreMode scoreMode
+        boolean needsScore
     ) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
@@ -104,7 +231,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         boolean success = false;
         try {
             this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-            if (scoreMode.needsScores()) {
+            if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
                 this.leafCollector = new ScoringCollector();
             } else {
@@ -194,28 +321,29 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntVector shard = null;
                 IntVector leaf = null;
                 IntVector docs = null;
-                DoubleVector scores = null;
-                DocBlock docBlock = null;
+                Block[] blocks = new Block[1 + (scoreBuilder == null ? 0 : 1) + scorer.tags().size()];
                 currentPagePos -= discardedDocs;
                 try {
                     shard = blockFactory.newConstantIntVector(scorer.shardContext().index(), currentPagePos);
                     leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    docBlock = new DocVector(shard, leaf, docs, true).asBlock();
+                    int b = 0;
+                    blocks[b++] = new DocVector(shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;
-                    if (scoreBuilder == null) {
-                        page = new Page(currentPagePos, docBlock);
-                    } else {
-                        scores = buildScoresVector(currentPagePos);
+                    if (scoreBuilder != null) {
+                        blocks[b++] = buildScoresVector(currentPagePos).asBlock();
                         scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                        page = new Page(currentPagePos, docBlock, scores.asBlock());
                     }
+                    for (Object e : scorer.tags()) {
+                        blocks[b++] = BlockUtils.constantBlock(blockFactory, e, currentPagePos);
+                    }
+                    page = new Page(currentPagePos, blocks);
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(shard, leaf, docs, docBlock, scores);
+                        Releasables.closeExpectNoException(shard, leaf, docs, Releasables.wrap(blocks));
                     }
                 }
                 currentPagePos = 0;

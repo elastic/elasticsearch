@@ -16,12 +16,12 @@ import static org.hamcrest.Matchers.isA;
 
 public class ModelValidatorBuilderTests extends ESTestCase {
     public void testBuildModelValidator_NullTaskType() {
-        assertThrows(IllegalArgumentException.class, () -> { ModelValidatorBuilder.buildModelValidator(null); });
+        assertThrows(IllegalArgumentException.class, () -> { ModelValidatorBuilder.buildModelValidator(null, false); });
     }
 
     public void testBuildModelValidator_ValidTaskType() {
         taskTypeToModelValidatorClassMap().forEach((taskType, modelValidatorClass) -> {
-            assertThat(ModelValidatorBuilder.buildModelValidator(taskType), isA(modelValidatorClass));
+            assertThat(ModelValidatorBuilder.buildModelValidator(taskType, false), isA(modelValidatorClass));
         });
     }
 

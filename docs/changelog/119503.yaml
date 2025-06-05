@@ -1,6 +1,0 @@
-pr: 119503
-summary: Support indices created in ESv6 and updated in ESV7 using different LuceneCodecs as archive in current version.
-area: Search
-type: bug
-issues:
- - 117042

@@ -17,7 +17,9 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -73,6 +75,8 @@ public class ThreadPoolMergeExecutorService {
     private final int concurrentMergesFloorLimitForThrottling;
     private final int concurrentMergesCeilLimitForThrottling;
 
+    private final List<MergeEventListener> mergeEventListeners = new CopyOnWriteArrayList<>();
+
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
         Settings settings
@@ -87,8 +91,10 @@ public class ThreadPoolMergeExecutorService {
     private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
-        this.concurrentMergesFloorLimitForThrottling = maxConcurrentMerges * 2;
-        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 4;
+        // the intent here is to throttle down whenever we submit a task and no other task is running
+        this.concurrentMergesFloorLimitForThrottling = 2;
+        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 2;
+        assert concurrentMergesFloorLimitForThrottling <= concurrentMergesCeilLimitForThrottling;
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -125,13 +131,21 @@ public class ThreadPoolMergeExecutorService {
                 );
             }
             // then enqueue the merge task proper
-            queuedMergeTasks.add(mergeTask);
+            enqueueMergeTask(mergeTask);
             return true;
         }
     }
 
     void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
-        queuedMergeTasks.add(mergeTask);
+        enqueueMergeTask(mergeTask);
+    }
+
+    private void enqueueMergeTask(MergeTask mergeTask) {
+        // To ensure that for a given merge onMergeQueued is called before onMergeAborted or onMergeCompleted, we call onMergeQueued
+        // before adding the merge task to the queue. Adding to the queue should not fail.
+        mergeEventListeners.forEach(l -> l.onMergeQueued(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes()));
+        boolean added = queuedMergeTasks.add(mergeTask);
+        assert added;
     }
 
     public boolean allDone() {
@@ -199,6 +213,7 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
+            mergeEventListeners.forEach(l -> l.onMergeCompleted(mergeTask.getOnGoingMerge()));
         }
     }
 
@@ -211,6 +226,7 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
+            mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
         }
     }
 
@@ -230,10 +246,10 @@ public class ThreadPoolMergeExecutorService {
             );
         } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
             && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
-                // increase target IO rate by 10% (capped)
+                // increase target IO rate by 20% (capped)
                 newTargetIORateBytesPerSec = Math.min(
                     MAX_IO_RATE.getBytes(),
-                    currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 10L
+                    currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 5L
                 );
             } else {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
@@ -272,6 +288,14 @@ public class ThreadPoolMergeExecutorService {
         }
     }
 
+    public boolean usingMaxTargetIORateBytesPerSec() {
+        return MAX_IO_RATE.getBytes() == targetIORateBytesPerSec.get();
+    }
+
+    public void registerMergeEventListener(MergeEventListener consumer) {
+        mergeEventListeners.add(consumer);
+    }
+
     // exposed for tests
     Set<MergeTask> getRunningMergeTasks() {
         return runningMergeTasks;
@@ -290,15 +314,5 @@ public class ThreadPoolMergeExecutorService {
     // exposed for tests
     int getMaxConcurrentMerges() {
         return maxConcurrentMerges;
-    }
-
-    // exposed for tests
-    int getConcurrentMergesFloorLimitForThrottling() {
-        return concurrentMergesFloorLimitForThrottling;
-    }
-
-    // exposed for tests
-    int getConcurrentMergesCeilLimitForThrottling() {
-        return concurrentMergesCeilLimitForThrottling;
     }
 }

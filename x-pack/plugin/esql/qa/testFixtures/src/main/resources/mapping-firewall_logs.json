@@ -1,0 +1,24 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "source": {
+      "properties": {
+        "IP": {
+          "type": "ip"
+        }
+      }
+    },
+    "destination": {
+      "properties": {
+        "IP": {
+          "type": "ip"
+        }
+      }
+    },
+    "message": {
+      "type": "keyword"
+    }
+  }
+}

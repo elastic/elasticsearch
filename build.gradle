@@ -295,7 +295,17 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    resolveJavaToolChain = true
+    if(project.path == ':') {
+      resolveJavaToolChain = true
+
+      // ensure we have best possible caching of bwc builds
+      dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
+    }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
@@ -306,6 +316,7 @@ allprojects {
       // ensure we resolve p2 dependencies for the spotless eclipse formatter
       dependsOn "spotlessJavaCheck"
     }
+
   }
 
   ext.withReleaseBuild = { Closure config ->
@@ -420,6 +431,10 @@ tasks.named("updateDaemonJvm") {
     ),
     BuildPlatformFactory.of(
       org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
       org.gradle.platform.OperatingSystem.WINDOWS
     ),
     // anyone still using x86 osx?

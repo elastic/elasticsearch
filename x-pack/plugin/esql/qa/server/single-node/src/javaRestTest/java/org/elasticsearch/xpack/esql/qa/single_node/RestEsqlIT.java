@@ -27,6 +27,8 @@ import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
 import org.hamcrest.Matchers;
@@ -40,11 +42,15 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -111,7 +117,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             request.setJsonEntity("{\"f\":" + i + "}");
             assertOK(client().performRequest(request));
         }
-        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f");
+        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f").allowPartialResults(false);
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
@@ -299,7 +305,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Map<String, Object> result = runEsql(builder);
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
             equalTo(List.of(List.of(499.5d)))
         );
@@ -502,7 +508,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
@@ -605,7 +611,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
                 .item(matchesMap().entry("name", "MAX(value)").entry("type", "long"))
                 .item(matchesMap().entry("name", "MIN(value)").entry("type", "long"))
@@ -648,7 +654,130 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    private MapMatcher commonProfile() {
+    public void testSuggestedCast() throws IOException {
+        // TODO: Figure out how best to make sure we don't leave out new types
+        Map<DataType, String> typesAndValues = Map.ofEntries(
+            Map.entry(DataType.BOOLEAN, "\"true\""),
+            Map.entry(DataType.LONG, "-1234567890234567"),
+            Map.entry(DataType.INTEGER, "123"),
+            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+            Map.entry(DataType.DOUBLE, "12.4"),
+            Map.entry(DataType.KEYWORD, "\"keyword\""),
+            Map.entry(DataType.TEXT, "\"some text\""),
+            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+            Map.entry(DataType.IP, "\"192.168.30.1\""),
+            Map.entry(DataType.VERSION, "\"8.19.0\""),
+            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+            Map.entry(DataType.GEO_SHAPE, """
+                {
+                  "type": "Point",
+                  "coordinates": [-77.03653, 38.897676]
+                }
+                """)
+        );
+        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()) {
+            typesAndValues = new HashMap<>(typesAndValues);
+            typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
+                {
+                  "max": 14983.1
+                }
+                """);
+        }
+        Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
+        shouldBeSupported.remove(DataType.CARTESIAN_POINT);
+        shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
+        shouldBeSupported.remove(DataType.NULL);
+        shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
+        shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
+        shouldBeSupported.remove(DataType.DENSE_VECTOR);
+        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
+        }
+        for (DataType type : shouldBeSupported) {
+            assertTrue(typesAndValues.containsKey(type));
+        }
+        assertThat(typesAndValues.size(), equalTo(shouldBeSupported.size()));
+
+        for (DataType type : typesAndValues.keySet()) {
+            String additionalProperties = "";
+            if (type == DataType.AGGREGATE_METRIC_DOUBLE) {
+                additionalProperties += """
+                        ,
+                        "metrics": ["max"],
+                        "default_metric": "max"
+                    """;
+            }
+            createIndex("index-" + type.esType(), null, String.format(Locale.ROOT, """
+                 "properties": {
+                   "my_field": {
+                     "type": "%s" %s
+                   }
+                 }
+                """, type.esType(), additionalProperties));
+            Request doc = new Request("PUT", "index-" + type.esType() + "/_doc/1");
+            doc.setJsonEntity("{\"my_field\": " + typesAndValues.get(type) + "}");
+            client().performRequest(doc);
+        }
+
+        List<DataType> listOfTypes = new ArrayList<>(typesAndValues.keySet());
+        listOfTypes.sort(Comparator.comparing(DataType::typeName));
+
+        for (int i = 0; i < listOfTypes.size(); i++) {
+            for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String query = String.format(Locale.ROOT, """
+                    {
+                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                    }
+                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                Request request = new Request("POST", "/_query");
+                request.setJsonEntity(query);
+                Response resp = client().performRequest(request);
+                Map<String, Object> results = entityAsMap(resp);
+                List<?> columns = (List<?>) results.get("columns");
+                DataType suggestedCast = DataType.suggestedCast(Set.of(listOfTypes.get(i), listOfTypes.get(j)));
+                assertThat(
+                    columns,
+                    equalTo(
+                        List.of(
+                            Map.ofEntries(
+                                Map.entry("name", "my_field"),
+                                Map.entry("type", "unsupported"),
+                                Map.entry("original_types", List.of(listOfTypes.get(i).typeName(), listOfTypes.get(j).typeName())),
+                                Map.entry("suggested_cast", suggestedCast.typeName())
+                            )
+                        )
+                    )
+                );
+
+                String castedQuery = String.format(
+                    Locale.ROOT,
+                    """
+                        {
+                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+                        }
+                        """,
+                    listOfTypes.get(i).esType(),
+                    listOfTypes.get(j).esType(),
+                    suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
+                );
+                Request castedRequest = new Request("POST", "/_query");
+                castedRequest.setJsonEntity(castedQuery);
+                Response castedResponse = client().performRequest(castedRequest);
+                Map<String, Object> castedResults = entityAsMap(castedResponse);
+                List<?> castedColumns = (List<?>) castedResults.get("columns");
+                assertThat(
+                    castedColumns,
+                    equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", suggestedCast.typeName()))))
+                );
+            }
+        }
+        for (DataType type : typesAndValues.keySet()) {
+            deleteIndex("index-" + type.esType());
+        }
+    }
+
+    static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
             .entry("cluster_name", any(String.class))
@@ -659,7 +788,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("cpu_nanos", greaterThan(0L))
             .entry("took_nanos", greaterThan(0L))
             .entry("operators", instanceOf(List.class))
-            .entry("sleeps", matchesMap().extraOk());
+            .entry("sleeps", matchesMap().extraOk())
+            .entry("documents_found", greaterThanOrEqualTo(0))
+            .entry("values_loaded", greaterThanOrEqualTo(0));
     }
 
     /**
@@ -667,7 +798,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * come back as integers and sometimes longs. This just promotes
      * them to long every time.
      */
-    private void fixTypesOnProfile(Map<String, Object> profile) {
+    static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
@@ -687,8 +818,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"));
-            case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
+                .entry("processed_queries", List.of("*:*"))
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+            case "ValuesSourceReaderOperator" -> basicProfile().entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [join_lookup_v12, join_lookup_skip_mv_warnings]
+          capabilities: [join_lookup_v12]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -68,18 +68,18 @@ setup:
               color:
                 type: keyword
   - do:
-      indices.update_aliases:
+      indices.create:
+        index: test-lookup-no-key
         body:
-          actions:
-            - add:
-                index: test-lookup-1
-                alias: test-lookup-alias
-            - add:
-                index: test-lookup-*
-                alias: test-lookup-alias-pattern-multiple
-            - add:
-                index: test-lookup-1*
-                alias: test-lookup-alias-pattern-single
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              no-key:
+                type: long
+              color:
+                type: keyword
   - do:
       bulk:
         index: "test"
@@ -120,6 +120,15 @@ setup:
           - { "key": 2, "color": "yellow" }
           - { "index": { } }
           - { "key": [0, 1, 2], "color": "green" }
+  - do:
+      bulk:
+        index: "test-lookup-no-key"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "no-key": 1, "color": "cyan" }
+          - { "index": { } }
+          - { "no-key": 2, "color": "yellow" }
 
 ---
 basic:
@@ -145,84 +154,6 @@ non-lookup index:
 
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Found 1 problem\nline 1:45: invalid [test] resolution in lookup mode to an index in [standard] mode" }
-
----
-
-"Alias as lookup index":
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
-
----
-alias-repeated-alias:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test-lookup-alias | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
-
----
-alias-repeated-index:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test-lookup-1 | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
-
----
-alias-pattern-multiple:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test-lookup-1 | LOOKUP JOIN test-lookup-alias-pattern-multiple ON key'
-      catch: "bad_request"
-
-  - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [2] indices" }
-
----
-alias-pattern-single:
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-alias-pattern-single ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
 
 ---
 pattern-multiple:
@@ -281,3 +212,14 @@ mv-on-query:
   - match: {values.0: [[0, 1, 2], null]}
   - match: {values.1: [1, "cyan"]}
   - match: {values.2: [2, "yellow"]}
+
+---
+lookup-no-key:
+  - do:
+      esql.query:
+          body:
+            query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key, color'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Unknown column [key] in right side of join" }

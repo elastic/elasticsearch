@@ -1,0 +1,6 @@
+pr: 125239
+summary: Adding common rerank options to Perform Inference API
+area: Machine Learning
+type: enhancement
+issues:
+ - 111273

@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.lucene.document.NumericField;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,7 +48,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         );
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
-        assertEquals(LongPoint.newExactQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
+        assertEquals(NumericField.newExactLongQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
 
         MappedFieldType ft2 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100, false);
         ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
@@ -222,14 +223,14 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false, null).scalingFactor(100)
+        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, null, null).scalingFactor(100)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
         assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
-        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null).scalingFactor(100)
+        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false, null, null, null).scalingFactor(100)
             .nullValue(2.71)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();

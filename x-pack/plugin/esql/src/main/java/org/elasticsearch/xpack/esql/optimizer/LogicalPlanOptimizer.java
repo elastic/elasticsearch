@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplySampleCorrections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -38,6 +39,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSample;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
@@ -58,16 +61,16 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMapp
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSurrogates;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.util.List;
-
-import static java.util.Arrays.asList;
 
 /**
  * <p>This class is part of the planner</p>
@@ -93,6 +96,14 @@ import static java.util.Arrays.asList;
  */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
+    private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
+        substitutions(),
+        operators(),
+        new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
+        cleanup(),
+        new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
+    );
+
     private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
@@ -112,20 +123,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     @Override
     protected List<Batch<LogicalPlan>> batches() {
-        return rules();
-    }
-
-    protected static List<Batch<LogicalPlan>> rules() {
-        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
-
-        return asList(substitutions(), operators(), skip, cleanup(), label);
+        return RULES;
     }
 
     protected static Batch<LogicalPlan> substitutions() {
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new ApplySampleCorrections(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
@@ -137,10 +142,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
-            new SubstituteSurrogates(),
+            new SubstituteSurrogateAggregations(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
-            new TranslateMetricsAggregate(),
+            new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),
+            // after translating metric aggregates, we need to replace surrogate substitutions and nested expressions again.
+            new SubstituteSurrogateAggregations(),
             new ReplaceAggregateNestedExpressionWithEval(),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
@@ -149,7 +156,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new SubstituteSpatialSurrogates(),
+            new SubstituteSurrogateExpressions(),
             new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
@@ -188,12 +195,15 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
+            new PushDownAndCombineSample(),
+            new PushDownCompletion(),
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneRedundantOrderBy(),
-            new PruneRedundantSortClauses()
+            new PruneRedundantSortClauses(),
+            new PruneLeftJoinOnNullMatchingField()
         );
     }
 

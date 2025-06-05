@@ -68,8 +68,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;

@@ -1,6 +1,0 @@
-pr: 124732
-summary: Prevent rare starvation bug when using scaling `EsThreadPoolExecutor` with empty core pool size.
-area: Infra/Core
-type: bug
-issues:
-  - 124667

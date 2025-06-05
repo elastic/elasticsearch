@@ -17,12 +17,12 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.license.License;
 import org.elasticsearch.test.hamcrest.RectangleMatcher;
 import org.elasticsearch.test.hamcrest.WellKnownBinaryBytesRefMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.IncludingAltitude;
@@ -33,9 +33,13 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 @FunctionName("st_extent_agg")
-public class SpatialExtentTests extends AbstractAggregationTestCase {
+public class SpatialExtentTests extends SpatialAggregationTestCase {
     public SpatialExtentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return SpatialAggregationTestCase.licenseRequirement(fieldTypes);
     }
 
     @ParametersFactory

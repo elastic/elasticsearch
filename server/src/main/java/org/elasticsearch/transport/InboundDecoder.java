@@ -121,9 +121,7 @@ public class InboundDecoder implements Releasable {
                 bytesConsumedThisDecode += maxBytesToConsume;
                 bytesConsumed += maxBytesToConsume;
                 if (maxBytesToConsume == remainingToConsume) {
-                    try (ReleasableBytesReference retained = reference.retainedSlice(0, maxBytesToConsume)) {
-                        fragmentConsumer.accept(retained);
-                    }
+                    fragmentConsumer.accept(reference.slice(0, maxBytesToConsume));
                 } else {
                     fragmentConsumer.accept(reference);
                 }

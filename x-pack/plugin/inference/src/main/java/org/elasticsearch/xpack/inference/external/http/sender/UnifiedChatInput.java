@@ -49,7 +49,7 @@ public class UnifiedChatInput extends InferenceInputs {
         return request;
     }
 
-    public int inputSize() {
-        return request.messages().size();
+    public boolean isSingleInput() {
+        return request.messages().size() == 1;
     }
 }

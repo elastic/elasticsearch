@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -255,7 +256,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -274,7 +275,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -293,7 +294,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
 
@@ -313,7 +314,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -782,6 +783,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -803,184 +806,6 @@ public class JinaAIServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
-    }
-
-    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = JinaAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "jina-clip-v2",
-                JinaAIEmbeddingType.FLOAT
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    JinaAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "jina-clip-v2",
-                        JinaAIEmbeddingType.FLOAT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = JinaAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "jina-clip-v2",
-                null,
-                JinaAIEmbeddingType.FLOAT
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    JinaAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "jina-clip-v2",
-                        SimilarityMeasure.DOT_PRODUCT,
-                        JinaAIEmbeddingType.FLOAT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = JinaAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "jina-clip-v2",
-                SimilarityMeasure.COSINE,
-                JinaAIEmbeddingType.FLOAT
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    JinaAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "jina-clip-v2",
-                        SimilarityMeasure.COSINE,
-                        JinaAIEmbeddingType.FLOAT
-                    )
-                )
-            );
-        }
     }
 
     public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
@@ -1044,6 +869,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
@@ -1076,6 +903,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2"),
                 false,
                 new HashMap<>(),
@@ -1131,6 +960,8 @@ public class JinaAIServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1201,6 +1032,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 false,
                 new HashMap<>(),
@@ -1253,6 +1086,8 @@ public class JinaAIServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1320,7 +1155,18 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingType.FLOAT
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), false, new HashMap<>(), null, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1371,6 +1217,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3"),
                 false,
                 new HashMap<>(),
@@ -1454,6 +1302,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                 false,
                 new HashMap<>(),
@@ -1549,6 +1399,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3"),
                 false,
                 new HashMap<>(),
@@ -1630,6 +1482,8 @@ public class JinaAIServiceTests extends ESTestCase {
             service.infer(
                 model,
                 "query",
+                null,
+                null,
                 List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                 false,
                 new HashMap<>(),
@@ -1723,6 +1577,8 @@ public class JinaAIServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1819,7 +1675,7 @@ public class JinaAIServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("a", "bb"),
+                List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,

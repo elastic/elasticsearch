@@ -3,7 +3,7 @@
 //
 
 simpleFork
-required_capability: fork
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE emp_no == 10001 )
@@ -18,7 +18,7 @@ emp_no:integer | _fork:keyword
 ;
 
 forkWithWhereSortAndLimit
-required_capability: fork
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
@@ -38,7 +38,7 @@ emp_no:integer | first_name:keyword | _fork:keyword
 ;
 
 fiveFork
-required_capability: fork
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE emp_no == 10005 )
@@ -59,7 +59,7 @@ fork5         | 10001
 ;
 
 forkWithWhereSortDescAndLimit
-required_capability: fork
+required_capability: fork_v6
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
@@ -76,7 +76,7 @@ fork2         | 10087          | Xinglin
 ;
 
 forkWithCommonPrefilter
-required_capability: fork
+required_capability: fork_v6
 
 FROM employees
 | WHERE emp_no > 10050
@@ -91,4 +91,184 @@ fork1         | 10051
 fork1         | 10052
 fork2         | 10099
 fork2         | 10100
+;
+
+forkWithSemanticSearchAndScore
+required_capability: fork_v6
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM semantic_text METADATA _id, _score
+| FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
+       ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
+| EVAL _score = round(_score, 4)
+| SORT _fork, _score, _id
+| KEEP _fork, _score, _id, semantic_text_field
+;
+
+_fork:keyword | _score:double         | _id:keyword | semantic_text_field:text
+fork1         | 2.156063961865257E18  | 3           | be excellent to each other
+fork1         | 5.603396578413904E18  | 2           | all we have to decide is what to do with the time that is given to us
+fork2         | 2.3447541759648727E18 | 3           | be excellent to each other
+fork2         | 6.093784261960139E18  | 2           | all we have to decide is what to do with the time that is given to us
+;
+
+forkWithEvals
+required_capability: fork_v6
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = "abc" | EVAL y = 1)
+       (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL x = "def" | EVAL z = 2)
+| KEEP _fork, emp_no, x, y, z
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:keyword | y:integer | z:integer
+fork1         | 10048          | abc       | 1         | null
+fork1         | 10081          | abc       | 1         | null
+fork2         | 10081          | def       | null      | 2
+fork2         | 10087          | def       | null      | 2
+;
+
+forkWithStats
+required_capability: fork_v6
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+       (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no))
+       (STATS x = COUNT(*), y = MIN(emp_no))
+| KEEP _fork, emp_no, x, y, z
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:long | y:integer | z:integer
+fork1         | 10048          | null   | null      | null
+fork1         | 10081          | null   | null      | null
+fork2         | 10081          | null   | null      | null
+fork2         | 10087          | null   | null      | null
+fork3         | null           | 100    | 10100     | 10001
+fork4         | null           | 100    | 10001     | null
+;
+
+forkWithDissect
+required_capability: fork_v6
+
+FROM employees
+| WHERE emp_no == 10048 OR emp_no == 10081
+| FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+        | DISSECT a "%{x} %{y} %{z}" )
+       (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+        | DISSECT b "%{x} %{y} %{w}" )
+| KEEP _fork, emp_no, x, y, z, w
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:keyword | y:keyword | z:keyword | w:keyword
+fork1         | 10048          | Florian   | 10048     | Syrotiuk  | null
+fork1         | 10081          | Zhongwei  | 10081     | Rosen     | null
+fork2         | 10048          | Syrotiuk  | 10048     | null      | Florian
+fork2         | 10081          | Rosen     | 10081     | null      | Zhongwei
+;
+
+forkWithMixOfCommands
+required_capability: fork_v6
+
+FROM employees
+| WHERE emp_no == 10048 OR emp_no == 10081
+| FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+        | DISSECT a "%{x} %{y} %{z}"
+        | EVAL y = y::keyword )
+       ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+       ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+       ( EVAL x = "abc" | EVAL y = "aaa" )
+| KEEP _fork, emp_no, x, y, z, a
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:keyword | y:keyword | z:keyword | a:keyword
+fork1         | 10048          | Florian   | 10048     | Syrotiuk  | Florian 10048 Syrotiuk
+fork1         | 10081          | Zhongwei  | 10081     | Rosen     | Zhongwei 10081 Rosen
+fork2         | null           | 2         | 10081     | 10048     | null
+fork3         | 10048          | Syrotiuk  | null      | null      | null
+fork3         | 10081          | Rosen     | null      | null      | null
+fork4         | 10048          | abc       | aaa       | null      | null
+fork4         | 10081          | abc       | aaa       | null      | null
+;
+
+forkWithFiltersOnConstantValues
+required_capability: fork_v6
+
+FROM employees
+| EVAL z = 1
+| WHERE z == 1
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | WHERE z - 1 == 0)
+       (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL a = "x" )
+       (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no) | EVAL a = "y" )
+       (STATS x = COUNT(*), y = MIN(emp_no))
+| WHERE _fork == "fork2" OR a == "y"
+| KEEP _fork, emp_no, x, y, z
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:long | y:integer | z:integer
+fork2         | 10081          | null   | null      | 1
+fork2         | 10087          | null   | null      | 1
+fork3         | null           | 100    | 10100     | 10001
+;
+
+forkWithUnsupportedAttributes
+required_capability: fork_v6
+
+FROM heights
+| FORK (SORT description DESC | LIMIT 1 | EVAL x = length(description) )
+       (SORT description ASC | LIMIT 1)
+| SORT _fork
+;
+
+description:keyword | height_range:unsupported | x:integer | _fork:keyword
+Very Tall           | null                     | 9         | fork1
+Medium Height       | null                     | null      | fork2
+;
+
+forkAfterLookupJoin
+required_capability: fork_v6
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+       (WHERE emp_no == 10081 | EVAL language_name = "Klingon")
+| KEEP _fork, emp_no, language_code, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_code:integer | language_name:keyword
+fork1         | 10048          | 3                     | Spanish
+fork1         | 10081          | 2                     | French
+fork2         | 10081          | 2                     | French
+fork2         | 10087          | 5                     | null
+fork3         | 10081          | 2                     | Klingon
+;
+
+forkBeforeLookupJoin
+required_capability: fork_v6
+
+FROM employees
+| EVAL language_code = languages
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+       (WHERE emp_no == 10081 | EVAL language_name = "Klingon")
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP _fork, emp_no, language_code, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_code:integer | language_name:keyword
+fork1         | 10048          | 3                     | Spanish
+fork1         | 10081          | 2                     | French
+fork2         | 10081          | 2                     | French
+fork2         | 10087          | 5                     | null
+fork3         | 10081          | 2                     | French
 ;

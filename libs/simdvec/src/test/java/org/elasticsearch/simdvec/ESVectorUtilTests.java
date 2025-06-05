@@ -9,11 +9,11 @@
 
 package org.elasticsearch.simdvec;
 
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.util.Arrays;
-import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -25,30 +25,44 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
 
     public void testIpByteBit() {
-        byte[] q = new byte[16];
-        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        byte[] d = new byte[random().nextInt(128)];
+        byte[] q = new byte[d.length * 8];
+        random().nextBytes(d);
         random().nextBytes(q);
-        int expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
-        assertEquals(expected, ESVectorUtil.ipByteBit(q, d));
+
+        int sum = 0;
+        for (int i = 0; i < q.length; i++) {
+            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[i];
+            }
+        }
+
+        assertEquals(sum, ESVectorUtil.ipByteBit(q, d));
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipByteBit(q, d));
+        assertEquals(sum, defOrPanamaProvider.getVectorUtilSupport().ipByteBit(q, d));
     }
 
     public void testIpFloatBit() {
-        float[] q = new float[16];
-        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        byte[] d = new byte[random().nextInt(128)];
+        float[] q = new float[d.length * 8];
+        random().nextBytes(d);
+
+        float sum = 0;
         for (int i = 0; i < q.length; i++) {
             q[i] = random().nextFloat();
+            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[i];
+            }
         }
-        float expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
-        assertEquals(expected, ESVectorUtil.ipFloatBit(q, d), 1e-6);
+
+        double delta = 1e-5 * q.length;
+
+        assertEquals(sum, ESVectorUtil.ipFloatBit(q, d), delta);
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
+        assertEquals(sum, defOrPanamaProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
     }
 
     public void testIpFloatByte() {
-        testIpFloatByteImpl(ESVectorUtil::ipFloatByte);
-        testIpFloatByteImpl(defaultedProvider.getVectorUtilSupport()::ipFloatByte);
-        testIpFloatByteImpl(defOrPanamaProvider.getVectorUtilSupport()::ipFloatByte);
-    }
-
-    private void testIpFloatByteImpl(ToDoubleBiFunction<float[], byte[]> impl) {
         int vectorSize = randomIntBetween(1, 1024);
         // scale the delta according to the vector size
         double delta = 1e-5 * vectorSize;
@@ -64,7 +78,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < q.length; i++) {
             expected += q[i] * d[i];
         }
-        assertThat(impl.applyAsDouble(q, d), closeTo(expected, delta));
+        assertThat((double) ESVectorUtil.ipFloatByte(q, d), closeTo(expected, delta));
+        assertThat((double) defaultedProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
+        assertThat((double) defOrPanamaProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
     }
 
     public void testBitAndCount() {
@@ -144,6 +160,128 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         testIpByteBinImpl(ESVectorUtil::ipByteBinByte);
         testIpByteBinImpl(defaultedProvider.getVectorUtilSupport()::ipByteBinByte);
         testIpByteBinImpl(defOrPanamaProvider.getVectorUtilSupport()::ipByteBinByte);
+    }
+
+    public void testCenterAndCalculateOSQStatsDp() {
+        int size = random().nextInt(128, 512);
+        float delta = 1e-3f * size;
+        var vector = new float[size];
+        var centroid = new float[size];
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+            centroid[i] = random().nextFloat();
+        }
+        var centeredLucene = new float[size];
+        var statsLucene = new float[6];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredLucene, statsLucene);
+        var centeredPanama = new float[size];
+        var statsPanama = new float[6];
+        defOrPanamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredPanama, statsPanama);
+        assertArrayEquals(centeredLucene, centeredPanama, delta);
+        assertArrayEquals(statsLucene, statsPanama, delta);
+    }
+
+    public void testCenterAndCalculateOSQStatsEuclidean() {
+        int size = random().nextInt(128, 512);
+        float delta = 1e-3f * size;
+        var vector = new float[size];
+        var centroid = new float[size];
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+            centroid[i] = random().nextFloat();
+        }
+        var centeredLucene = new float[size];
+        var statsLucene = new float[5];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredLucene, statsLucene);
+        var centeredPanama = new float[size];
+        var statsPanama = new float[5];
+        defOrPanamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredPanama, statsPanama);
+        assertArrayEquals(centeredLucene, centeredPanama, delta);
+        assertArrayEquals(statsLucene, statsPanama, delta);
+    }
+
+    public void testOsqLoss() {
+        int size = random().nextInt(128, 512);
+        float deltaEps = 1e-5f * size;
+        var vector = new float[size];
+        var min = Float.MAX_VALUE;
+        var max = -Float.MAX_VALUE;
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+            min = Math.min(min, vector[i]);
+            max = Math.max(max, vector[i]);
+            float delta = vector[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = vector[i] - vecMean;
+            vecVar += delta * delta2;
+            norm2 += vector[i] * vector[i];
+        }
+        vecVar /= size;
+        float vecStd = (float) Math.sqrt(vecVar);
+
+        for (byte bits : new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }) {
+            int points = 1 << bits;
+            float[] initInterval = new float[2];
+            OptimizedScalarQuantizer.initInterval(bits, vecStd, vecMean, min, max, initInterval);
+            float step = ((initInterval[1] - initInterval[0]) / (points - 1f));
+            float stepInv = 1f / step;
+            float expected = defaultedProvider.getVectorUtilSupport().calculateOSQLoss(vector, initInterval, step, stepInv, norm2, 0.1f);
+            float result = defOrPanamaProvider.getVectorUtilSupport().calculateOSQLoss(vector, initInterval, step, stepInv, norm2, 0.1f);
+            assertEquals(expected, result, deltaEps);
+        }
+    }
+
+    public void testOsqGridPoints() {
+        int size = random().nextInt(128, 512);
+        float deltaEps = 1e-5f * size;
+        var vector = new float[size];
+        var min = Float.MAX_VALUE;
+        var max = -Float.MAX_VALUE;
+        float vecMean = 0;
+        float vecVar = 0;
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+            min = Math.min(min, vector[i]);
+            max = Math.max(max, vector[i]);
+            float delta = vector[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = vector[i] - vecMean;
+            vecVar += delta * delta2;
+        }
+        vecVar /= size;
+        float vecStd = (float) Math.sqrt(vecVar);
+        for (byte bits : new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }) {
+            int points = 1 << bits;
+            float[] initInterval = new float[2];
+            OptimizedScalarQuantizer.initInterval(bits, vecStd, vecMean, min, max, initInterval);
+            float step = ((initInterval[1] - initInterval[0]) / (points - 1f));
+            float stepInv = 1f / step;
+            float[] expected = new float[5];
+            defaultedProvider.getVectorUtilSupport().calculateOSQGridPoints(vector, initInterval, points, stepInv, expected);
+
+            float[] result = new float[5];
+            defOrPanamaProvider.getVectorUtilSupport().calculateOSQGridPoints(vector, initInterval, points, stepInv, result);
+            assertArrayEquals(expected, result, deltaEps);
+        }
+    }
+
+    public void testSoarOverspillScore() {
+        int size = random().nextInt(128, 512);
+        float deltaEps = 1e-5f * size;
+        var vector = new float[size];
+        var centroid = new float[size];
+        var preResidual = new float[size];
+        for (int i = 0; i < size; ++i) {
+            vector[i] = random().nextFloat();
+            centroid[i] = random().nextFloat();
+            preResidual[i] = random().nextFloat();
+        }
+        var expected = defaultedProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
+        var result = defOrPanamaProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
+        assertEquals(expected, result, deltaEps);
     }
 
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {

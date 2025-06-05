@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -47,7 +48,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeRunAs() {
         final String action = "cluster:monitor/foo";
-        final TransportRequest request = new TransportRequest() {
+        final TransportRequest request = new AbstractTransportRequest() {
         };
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
         // unauthorized
@@ -181,7 +182,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     private RequestInfo getRequestInfo() {
         final String action = "cluster:monitor/foo";
-        final TransportRequest request = new TransportRequest() {
+        final TransportRequest request = new AbstractTransportRequest() {
         };
         final Authentication authentication = Authentication.newRealmAuthentication(
             new User("joe", "custom_superuser"),

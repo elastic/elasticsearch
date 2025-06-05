@@ -15,11 +15,17 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -54,6 +60,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
@@ -70,13 +77,15 @@ import org.mockito.stubbing.Answer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toMap;
@@ -129,14 +138,16 @@ import static org.mockito.Mockito.when;
 public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStarted() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index("replicated-index", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
                 index("unreplicated-index", new ShardAllocation(randomNodeId(), AVAILABLE))
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -153,13 +164,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeYellowWhenReplicaIsInitializing() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index("replicated-index", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), INITIALIZING))
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -189,11 +202,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeRedWhenPrimaryIsInitializing() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("unreplicated-index", new ShardAllocation(randomNodeId(), INITIALIZING))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         HealthIndicatorResult calculate = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(
@@ -224,11 +239,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeGreenWhenAllPrimariesAreCreating() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("unreplicated-index", new ShardAllocation(randomNodeId(), CREATING))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -248,7 +265,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var availableReplicas = randomList(0, 5, () -> new ShardAllocation(randomNodeId(), AVAILABLE));
         var unavailableReplicas = randomList(1, 5, () -> new ShardAllocation(randomNodeId(), UNAVAILABLE));
 
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index(
                     "yellow-index",
@@ -258,7 +277,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -294,11 +313,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicas() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -326,7 +347,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testAllReplicasUnassigned() {
         {
-            ClusterState clusterState = createClusterStateWith(
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(
+                projectId,
                 List.of(
                     index(
                         "myindex",
@@ -337,7 +360,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -349,7 +372,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
         {
-            ClusterState clusterState = createClusterStateWith(
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(
+                projectId,
                 List.of(
                     index(
                         "myindex",
@@ -360,7 +385,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -372,7 +397,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
         {
-            ClusterState clusterState = createClusterStateWith(
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(
+                projectId,
                 List.of(
                     index(
                         "myindex",
@@ -383,7 +410,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -395,7 +422,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
         {
-            ClusterState clusterState = createClusterStateWith(
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(
+                projectId,
                 List.of(
                     indexWithTwoPrimaryOneReplicaShard(
                         "myindex",
@@ -408,7 +437,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 List.of()
             );
 
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -420,7 +449,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
         }
         {
-            ClusterState clusterState = createClusterStateWith(
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(
+                projectId,
                 List.of(
                     indexNewlyCreated(
                         "myindex",
@@ -445,7 +476,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -474,8 +505,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 new ShardAllocation(randomNodeId(), AVAILABLE), // Primary 2
                 new ShardAllocation(randomNodeId(), UNAVAILABLE) // Replica 2
             );
-            ClusterState clusterState = createClusterStateWith(List.of(routingTable), List.of());
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(projectId, List.of(routingTable), List.of());
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -485,10 +517,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 timeValueSeconds(0)
             );
             var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertTrue(service.areAllShardsOfThisTypeUnavailable(shardRouting, clusterState));
+            assertTrue(service.areAllShardsOfThisTypeUnavailable(projectId, shardRouting, clusterState));
         }
         {
-            ClusterState clusterState = createClusterStateWith(
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(
+                projectId,
                 List.of(
                     index(
                         "myindex",
@@ -499,7 +533,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ),
                 List.of()
             );
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
             ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
             ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
                 status,
@@ -508,14 +542,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 randomBoolean(),
                 timeValueSeconds(0)
             );
-            var shardRouting = clusterState.routingTable().index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertFalse(service.areAllShardsOfThisTypeUnavailable(shardRouting, clusterState));
+            var shardRouting = clusterState.routingTable(projectId).index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
+            assertFalse(service.areAllShardsOfThisTypeUnavailable(projectId, shardRouting, clusterState));
         }
     }
 
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndNoReplicas() {
-        var clusterState = createClusterStateWith(List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE))), List.of());
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        ProjectId projectId = randomProjectIdOrDefault();
+        var clusterState = createClusterStateWith(
+            projectId,
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE))),
+            List.of()
+        );
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -542,11 +581,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnSameIndex() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
@@ -568,7 +609,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         List<IndexMetadata> indexMetadataList = createIndexMetadataForIndexNameToPriorityMap(
             Map.of("red-index", 3, "yellow-index-1", 5, "yellow-index-2", 8)
         );
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             indexMetadataList,
             List.of(
                 index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
@@ -578,7 +621,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
@@ -616,7 +659,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         List<IndexMetadata> indexMetadataList = createIndexMetadataForIndexNameToPriorityMap(
             Map.of("index-3", lowPriority, "index-1", lowPriority, "index-2", highPriority)
         );
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             indexMetadataList,
             List.of(
                 index("index-3", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
@@ -626,7 +671,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         // index-2 has the higher priority so it ought to be listed first, followed by index-1 then index-3 which have the same priority:
@@ -646,7 +691,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeGreenWhenThereAreRestartingReplicas() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index(
                     "restarting-index",
@@ -656,7 +703,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -673,11 +720,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeGreenWhenThereAreNoReplicasExpected() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("primaries-only-index", new ShardAllocation(randomNodeId(), AVAILABLE))),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -694,7 +743,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeYellowWhenRestartingReplicasReachedAllocationDelay() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index(
                     "restarting-index",
@@ -704,7 +755,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -735,11 +786,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeGreenWhenThereAreInitializingPrimariesAndReplicas() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("restarting-index", new ShardAllocation("node-0", CREATING), new ShardAllocation("node-1", CREATING))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -756,11 +809,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeGreenWhenThereAreRestartingPrimaries() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.nanoTime()))),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -777,7 +832,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeRedWhenRestartingPrimariesReachedAllocationDelayAndNoReplicas() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index(
                     "restarting-index",
@@ -786,7 +843,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -824,14 +881,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .build();
 
         // Cluster state with index, but its only shard is unassigned because there is no shard copy
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(indexMetadata),
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy()))),
             List.of(),
             List.of()
         );
 
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         assertThat(
             service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO),
@@ -854,6 +913,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseRestoreIndexAfterDataLoss() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -867,7 +927,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
         );
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
         List<Diagnosis.Definition> definitions = service.diagnoseUnassignedShardRouting(shardRouting, ClusterState.EMPTY_STATE);
 
         assertThat(definitions, hasSize(1));
@@ -878,7 +938,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         // this test adds a mix of regular and system indices and data streams
         // we'll test the `shards_availability` indicator correctly reports the
         // affected feature states and indices
-
+        ProjectId projectId = randomProjectIdOrDefault();
         IndexMetadata featureIndex = IndexMetadata.builder(".feature-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
@@ -913,6 +973,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(featureIndex, regularIndex, backingIndex),
             List.of(
                 IndexRoutingTable.builder(featureIndex.getIndex()).addShard(featureIndexRouting).build(),
@@ -922,17 +983,17 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(),
             List.of()
         );
-
         // add the data stream to the cluster state
-        Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata())
+        var projectBuilder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())));
-        ClusterState state = ClusterState.builder(clusterState).metadata(mdBuilder).build();
+        ClusterState state = ClusterState.builder(clusterState).putProjectMetadata(projectBuilder).build();
 
         var service = createAllocationHealthIndicatorService(
             Settings.EMPTY,
             state,
             Map.of(),
-            getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*")
+            getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
+            TestProjectResolvers.singleProjectOnly(projectId)
         );
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -952,6 +1013,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGetRestoreFromSnapshotAffectedResources() {
+        ProjectId projectId = randomProjectIdOrDefault();
         String featureDataStreamName = ".test-ds-feature";
         IndexMetadata backingIndex = createBackingIndex(featureDataStreamName, 1).build();
 
@@ -974,15 +1036,23 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         for (IndexMetadata indexMetadata : indexMetadataList) {
             indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata);
         }
-        metadataBuilder.indices(indexMetadataMap);
-        metadataBuilder.put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())));
-        Metadata metadata = metadataBuilder.build();
+
+        Metadata metadata = metadataBuilder.put(
+            ProjectMetadata.builder(projectId)
+                .indices(indexMetadataMap)
+                .put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())))
+        ).build();
         {
             List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
                 metadata,
                 getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
-                Set.of(backingIndex.getIndex().getName(), ".feature-index", "regular-index"),
-                10
+                Set.of(
+                    new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
+                    new ProjectIndexName(projectId, ".feature-index"),
+                    new ProjectIndexName(projectId, "regular-index")
+                ),
+                10,
+                false
             );
 
             assertThat(affectedResources.size(), is(2));
@@ -1000,8 +1070,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
                 metadata,
                 getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
-                Set.of(backingIndex.getIndex().getName(), ".feature-index", "regular-index"),
-                0
+                Set.of(
+                    new ProjectIndexName(projectId, backingIndex.getIndex().getName()),
+                    new ProjectIndexName(projectId, ".feature-index"),
+                    new ProjectIndexName(projectId, "regular-index")
+                ),
+                0,
+                false
             );
 
             assertThat(affectedResources.size(), is(2));
@@ -1018,6 +1093,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseUnknownAllocationDeciderIssue() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -1027,6 +1103,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Cluster state with index, but its only shard is unassigned (Either deciders said no, or a node left)
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(indexMetadata),
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, randomFrom(decidersNo(), nodeLeft())))),
             List.of(),
@@ -1058,10 +1135,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 MoveDecision.NOT_TAKEN
             )
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState, decisionMap);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState, decisionMap);
 
         // Get the list of user actions that are generated for this unassigned index shard
-        ShardRouting shardRouting = clusterState.getRoutingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
+        ShardRouting shardRouting = clusterState.routingTable(projectId).index(indexMetadata.getIndex()).shard(0).primaryShard();
         List<Diagnosis.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
 
         assertThat(actions, hasSize(1));
@@ -1069,6 +1146,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseEnableIndexAllocation() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, allocation is not allowed
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1081,7 +1159,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
@@ -1101,6 +1179,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testNodeAllocationResultWithNullDecision() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, allocation is not allowed
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1113,7 +1192,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
@@ -1132,6 +1211,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseEnableClusterAllocation() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -1141,6 +1221,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Disallow allocations in cluster settings
         var service = createShardsAvailabilityIndicatorService(
+            projectId,
             Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none").build(),
             ClusterState.EMPTY_STATE,
             Map.of()
@@ -1164,6 +1245,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseEnableRoutingAllocation() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, allocation is not allowed
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1178,6 +1260,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Disallow allocations in cluster settings
         var service = createShardsAvailabilityIndicatorService(
+            projectId,
             Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none").build(),
             ClusterState.EMPTY_STATE,
             Map.of()
@@ -1202,6 +1285,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseEnableDataTiers() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1214,7 +1298,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1258,7 +1342,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
         );
 
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(indexMetadata),
             List.of(
                 IndexRoutingTable.builder(index)
@@ -1273,7 +1359,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(),
             List.of(hotNode)
         );
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1317,7 +1403,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
         );
 
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(indexMetadata),
             List.of(
                 IndexRoutingTable.builder(index)
@@ -1335,6 +1423,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Configure at most 1 shard per node
         var service = createShardsAvailabilityIndicatorService(
+            projectId,
             Settings.builder().put(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build(),
             clusterState,
             Map.of()
@@ -1383,7 +1472,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.DATA_ROLE)
         );
 
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(indexMetadata),
             List.of(
                 IndexRoutingTable.builder(index)
@@ -1398,7 +1489,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(),
             List.of(dataNode)
         );
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1442,7 +1533,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.DATA_ROLE)
         );
 
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(indexMetadata),
             List.of(
                 IndexRoutingTable.builder(index)
@@ -1460,6 +1553,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Configure at most 1 shard per node
         var service = createShardsAvailabilityIndicatorService(
+            projectId,
             Settings.builder().put(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build(),
             clusterState,
             Map.of()
@@ -1486,6 +1580,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseMigrateDataRequiredToDataTiers() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, in the hot tier, with require attribute data:hot
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1499,7 +1594,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1523,6 +1618,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseMigrateDataIncludedToDataTiers() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, in the hot tier, with include attribute data:hot
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1536,7 +1632,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1560,6 +1656,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseOtherFilteringIssue() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1572,7 +1669,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1596,6 +1693,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseIncreaseTierCapacity() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1608,7 +1706,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1636,6 +1734,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testDiagnoseIncreaseNodeCapacity() {
+        ProjectId projectId = randomProjectIdOrDefault();
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -1648,7 +1747,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        var service = createShardsAvailabilityIndicatorService();
+        var service = createShardsAvailabilityIndicatorService(projectId);
 
         // Get the list of user actions that are generated for this unassigned index shard
         List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
@@ -1676,7 +1775,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testLimitNumberOfAffectedResources() {
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 index("red-index1", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
                 index("red-index2", new ShardAllocation(randomNodeId(), UNAVAILABLE)),
@@ -1686,7 +1787,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         {
             // assert the full result to check that details, impacts, and symptoms use the correct count of affected indices (5)
@@ -1748,7 +1849,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testShouldBeGreenWhenFrozenIndexIsUnassignedAndOriginalIsAvailable() {
         String originalIndex = "logs-2023.07.11-000024";
         String restoredIndex = "restored-logs-2023.07.11-000024";
+        ProjectId projectId = randomProjectIdOrDefault();
         var clusterState = createClusterStateWith(
+            projectId,
             List.of(
                 IndexMetadata.builder(restoredIndex)
                     .settings(
@@ -1775,7 +1878,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(clusterState);
+        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(
@@ -1817,8 +1920,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         routes.add(index(restoredIndex, new ShardAllocation(randomNodeId(), UNAVAILABLE)));
         // When original does not exist
         {
-            var clusterState = createClusterStateWith(indexMetadata, routes, List.of(), List.of());
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(projectId, indexMetadata, routes, List.of(), List.of());
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
             HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
             assertThat(
@@ -1857,8 +1961,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     .build()
             );
             routes.add(index(originalIndex, new ShardAllocation(randomNodeId(), UNAVAILABLE)));
-            var clusterState = createClusterStateWith(indexMetadata, routes, List.of(), List.of());
-            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ProjectId projectId = randomProjectIdOrDefault();
+            var clusterState = createClusterStateWith(projectId, indexMetadata, routes, List.of(), List.of());
+            var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
 
             HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
             assertThat(
@@ -1926,6 +2031,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                                 .build(),
                             Map.of(),
                             List.of("test"),
+                            "test",
                             new ExecutorNames(
                                 ThreadPool.Names.SYSTEM_CRITICAL_READ,
                                 ThreadPool.Names.SYSTEM_READ,
@@ -1992,7 +2098,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = new ShardsAvailabilityHealthIndicatorService(
             clusterService,
             mock(AllocationService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            DefaultProjectResolver.INSTANCE
         );
         for (String tier : List.of("data_content", "data_hot", "data_warm", "data_cold", "data_frozen")) {
             assertThat(
@@ -2023,7 +2130,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIsNewlyCreatedAndInitializingReplica() {
-
+        ProjectId projectId = randomProjectIdOrDefault();
         ShardId id = new ShardId("index", "uuid", 0);
         IndexMetadata idxMeta = IndexMetadata.builder("index")
             .numberOfShards(1)
@@ -2048,9 +2155,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             boolean primary = randomBoolean();
             ShardAllocation primaryAllocation = new ShardAllocation("node", AVAILABLE);
             ShardRouting shard = createShardRouting(id, primary, primaryAllocation);
-            state = createClusterStateWith(List.of(index("index", primaryAllocation)), List.of());
+            state = createClusterStateWith(projectId, List.of(index("index", primaryAllocation)), List.of());
             assertFalse(
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
+                    projectId,
                     shard,
                     state,
                     Instant.now().toEpochMilli() - replicaUnassignedThreshold.millis()
@@ -2061,9 +2169,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         {   // primary, but not active
             var primaryAllocation = new ShardAllocation("node", INITIALIZING);
             ShardRouting primary = createShardRouting(id, true, primaryAllocation);
-            state = createClusterStateWith(List.of(index("index", primaryAllocation)), List.of());
+            state = createClusterStateWith(projectId, List.of(index("index", primaryAllocation)), List.of());
             assertFalse(
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
+                    projectId,
                     primary,
                     state,
                     Instant.now().toEpochMilli() - replicaUnassignedThreshold.millis()
@@ -2082,6 +2191,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
             ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
             state = createClusterStateWith(
+                projectId,
                 List.of(idxMeta),
                 List.of(index(idxMeta, primaryAllocation, replicaAllocation)),
                 List.of(),
@@ -2089,6 +2199,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             );
             assertFalse(
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
+                    projectId,
                     unallocatedReplica,
                     state,
                     now - replicaUnassignedThreshold.millis()
@@ -2103,6 +2214,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
             ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
             state = createClusterStateWith(
+                projectId,
                 List.of(idxMeta),
                 List.of(index(idxMeta, primaryAllocation, replicaAllocation)),
                 List.of(),
@@ -2110,6 +2222,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             );
             assertTrue(
                 ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
+                    projectId,
                     unallocatedReplica,
                     state,
                     now - replicaUnassignedThreshold.millis()
@@ -2143,6 +2256,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 var primaryAllocation = new ShardAllocation("node", config.v1());
                 ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
                 state = createClusterStateWith(
+                    projectId,
                     List.of(idxMeta),
                     List.of(index(idxMeta, primaryAllocation, replicaAllocation)),
                     List.of(),
@@ -2150,6 +2264,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 );
                 assertFalse(
                     ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
+                        projectId,
                         unallocatedReplica,
                         state,
                         now - replicaUnassignedThreshold.millis()
@@ -2177,9 +2292,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
                 IndexRoutingTable index = index(idxMeta, primaryAllocation, replicaAllocation);
 
-                state = createClusterStateWith(List.of(idxMeta), List.of(index), List.of(), List.of());
+                state = createClusterStateWith(projectId, List.of(idxMeta), List.of(index), List.of(), List.of());
                 assertTrue(
                     ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
+                        projectId,
                         unallocatedReplica,
                         state,
                         now - replicaUnassignedThreshold.millis()
@@ -2187,6 +2303,66 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    public void testMultiProjectShouldDisplayProjectId() {
+        ProjectId projectId1 = randomUniqueProjectId();
+        ProjectId projectId2 = randomUniqueProjectId();
+        String index1 = "index-1";
+        String index2 = "index-2";
+
+        // 3 indices from 2 projects
+        var clusterState = createClusterStateWith(
+            Map.of(
+                projectId1,
+                List.of(
+                    index(index1, new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                    index(index2, new ShardAllocation(randomNodeId(), UNAVAILABLE))
+                ),
+                projectId2,
+                List.of(index(index1, new ShardAllocation(randomNodeId(), UNAVAILABLE)))
+            ),
+            List.of()
+        );
+
+        var service = createAllocationHealthIndicatorService(
+            Settings.EMPTY,
+            clusterState,
+            Collections.emptyMap(),
+            new SystemIndices(List.of()),
+            TestProjectResolvers.allProjects()
+        );
+
+        List<String> indexDisplayNames = Stream.of(
+            projectId1 + ProjectIndexName.DELIMITER + index1,
+            projectId1 + ProjectIndexName.DELIMITER + index2,
+            projectId2 + ProjectIndexName.DELIMITER + index1
+        ).sorted(Comparator.naturalOrder()).toList();
+
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 3 unavailable primary shards.",
+                    Map.of("unassigned_primaries", 3),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                            1,
+                            String.format(
+                                Locale.ROOT,
+                                "Cannot add data to 3 indices [%s]. Searches might return incomplete results.",
+                                String.join(", ", indexDisplayNames)
+                            ),
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
+                    ),
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, indexDisplayNames))))
+                )
+            )
+        );
     }
 
     private HealthIndicatorResult createExpectedResult(
@@ -2210,17 +2386,34 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         return new HealthIndicatorResult(NAME, status, symptom, HealthIndicatorDetails.EMPTY, impacts, emptyList());
     }
 
-    private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {
-        List<IndexMetadata> indices = indexRoutes.stream()
-            .map(
-                table -> IndexMetadata.builder(table.getIndex().getName())
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(table.size() - 1)
-                    .build()
-            )
-            .collect(Collectors.toList());
-        return createClusterStateWith(indices, indexRoutes, nodeShutdowns, List.of());
+    private static ClusterState createClusterStateWith(
+        ProjectId projectId,
+        List<IndexRoutingTable> indexRoutes,
+        List<NodeShutdown> nodeShutdowns
+    ) {
+        Map<ProjectId, List<IndexRoutingTable>> defaultProjectRoutes = Map.of(projectId, indexRoutes);
+        return createClusterStateWith(defaultProjectRoutes, nodeShutdowns);
+    }
+
+    private static ClusterState createClusterStateWith(
+        Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes,
+        List<NodeShutdown> nodeShutdowns
+    ) {
+        Map<ProjectId, List<IndexMetadata>> projectIndices = new HashMap<>();
+        for (var entry : projectIndexRoutes.entrySet()) {
+            List<IndexMetadata> indices = entry.getValue()
+                .stream()
+                .map(
+                    table -> IndexMetadata.builder(table.getIndex().getName())
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                        .numberOfShards(1)
+                        .numberOfReplicas(table.size() - 1)
+                        .build()
+                )
+                .toList();
+            projectIndices.put(entry.getKey(), indices);
+        }
+        return createClusterStateWith(projectIndices, projectIndexRoutes, nodeShutdowns, List.of());
     }
 
     private static List<IndexMetadata> createIndexMetadataForIndexNameToPriorityMap(Map<String, Integer> indexNameToPriorityMap) {
@@ -2241,14 +2434,48 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static ClusterState createClusterStateWith(
+        ProjectId projectId,
         List<IndexMetadata> indexMetadataList,
         List<IndexRoutingTable> indexRoutingTables,
         List<NodeShutdown> nodeShutdowns,
         List<DiscoveryNode> nodes
     ) {
-        var routingTableBuilder = RoutingTable.builder();
-        for (IndexRoutingTable indexRoutingTable : indexRoutingTables) {
-            routingTableBuilder.add(indexRoutingTable);
+        Map<ProjectId, List<IndexMetadata>> defaultProjectMetadata = Map.of(projectId, indexMetadataList);
+        Map<ProjectId, List<IndexRoutingTable>> defaultProjectRoutes = Map.of(projectId, indexRoutingTables);
+        return createClusterStateWith(defaultProjectMetadata, defaultProjectRoutes, nodeShutdowns, nodes);
+    }
+
+    private static ClusterState createClusterStateWith(
+        Map<ProjectId, List<IndexMetadata>> projectIndexMetadataList,
+        Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutingTables,
+        List<NodeShutdown> nodeShutdowns,
+        List<DiscoveryNode> nodes
+    ) {
+        // build routing tables
+        var globalRoutingTableBuilder = GlobalRoutingTable.builder();
+        for (var entries : projectIndexRoutingTables.entrySet()) {
+            ProjectId projectId = entries.getKey();
+            List<IndexRoutingTable> routingTables = entries.getValue();
+
+            var builder = RoutingTable.builder();
+            for (IndexRoutingTable indexRoutingTable : routingTables) {
+                builder.add(indexRoutingTable);
+            }
+
+            globalRoutingTableBuilder.put(projectId, builder.build());
+        }
+
+        // build Metadata
+        Metadata.Builder metadataBuilder = Metadata.builder();
+
+        for (var entries : projectIndexMetadataList.entrySet()) {
+            ProjectId projectId = entries.getKey();
+            List<IndexMetadata> indexMetadataList = entries.getValue();
+            Map<String, IndexMetadata> indexMetadataMap = indexMetadataList.stream()
+                .collect(toMap(indexMetadata -> indexMetadata.getIndex().getName(), indexMetadata -> indexMetadata));
+
+            ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).indices(indexMetadataMap).build();
+            metadataBuilder.put(projectMetadata);
         }
 
         var nodesShutdownMetadata = new NodesShutdownMetadata(
@@ -2268,19 +2495,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     )
                 )
         );
-        Metadata.Builder metadataBuilder = Metadata.builder();
-        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
-        for (IndexMetadata indexMetadata : indexMetadataList) {
-            indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata);
-        }
-        metadataBuilder.indices(indexMetadataMap);
         metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata);
 
+        // build nodes
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
         nodes.forEach(discoveryNodesBuilder::add);
 
         return ClusterState.builder(new ClusterName("test-cluster"))
-            .routingTable(routingTableBuilder.build())
+            .routingTable(globalRoutingTableBuilder.build())
             .nodes(discoveryNodesBuilder)
             .metadata(metadataBuilder.build())
             .build();
@@ -2531,34 +2753,52 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private record ShardRoutingKey(String index, int shard, boolean primary) {}
 
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService() {
-        return createShardsAvailabilityIndicatorService(ClusterState.EMPTY_STATE, Collections.emptyMap());
-    }
-
-    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(ClusterState clusterState) {
-        return createShardsAvailabilityIndicatorService(clusterState, Collections.emptyMap());
+    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(ProjectId projectId) {
+        return createShardsAvailabilityIndicatorService(projectId, ClusterState.EMPTY_STATE, Collections.emptyMap());
     }
 
     private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+        ProjectId projectId,
+        ClusterState clusterState
+    ) {
+        return createShardsAvailabilityIndicatorService(projectId, clusterState, Collections.emptyMap());
+    }
+
+    private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+        ProjectId projectId,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
     ) {
-        return createAllocationHealthIndicatorService(Settings.EMPTY, clusterState, decisions, new SystemIndices(List.of()));
+        return createAllocationHealthIndicatorService(
+            Settings.EMPTY,
+            clusterState,
+            decisions,
+            new SystemIndices(List.of()),
+            TestProjectResolvers.singleProjectOnly(projectId)
+        );
     }
 
     private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+        ProjectId projectId,
         Settings nodeSettings,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
     ) {
-        return createAllocationHealthIndicatorService(nodeSettings, clusterState, decisions, new SystemIndices(List.of()));
+        return createAllocationHealthIndicatorService(
+            nodeSettings,
+            clusterState,
+            decisions,
+            new SystemIndices(List.of()),
+            TestProjectResolvers.singleProjectOnly(projectId)
+        );
     }
 
     private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
         Settings nodeSettings,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver
     ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -2573,6 +2813,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
             }
         );
-        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
     }
 }

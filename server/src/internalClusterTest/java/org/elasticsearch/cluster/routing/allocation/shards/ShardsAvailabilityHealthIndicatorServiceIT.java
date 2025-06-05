@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,6 +23,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -133,8 +135,9 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         var allocationService = internalCluster().getCurrentMasterNodeInstance(AllocationService.class);
         var systemIndices = internalCluster().getCurrentMasterNodeInstance(SystemIndices.class);
+        var projectResolver = internalCluster().getCurrentMasterNodeInstance(ProjectResolver.class);
 
-        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
+        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
         var states = new ArrayList<RoutingNodesAndHealth>();
         var listener = new ClusterStateListener() {
             @Override
@@ -142,7 +145,16 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
                 states.add(
                     new RoutingNodesAndHealth(
                         event.state().getRoutingNodes(),
-                        service.calculate(false, 1, new HealthInfo(Map.of(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of()))
+                        service.calculate(
+                            false,
+                            1,
+                            new HealthInfo(
+                                Map.of(),
+                                DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+                                Map.of(),
+                                FileSettingsHealthInfo.INDETERMINATE
+                            )
+                        )
                     )
                 );
             }

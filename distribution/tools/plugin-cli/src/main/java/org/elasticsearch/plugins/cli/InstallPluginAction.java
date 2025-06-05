@@ -24,8 +24,6 @@ import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.bootstrap.PluginPolicyInfo;
-import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -36,9 +34,9 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.scanner.ClassReaders;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
@@ -924,7 +922,7 @@ public class InstallPluginAction implements Closeable {
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
 
-        Path legacyPolicyFile = tmpRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
+        Path legacyPolicyFile = tmpRoot.resolve("plugin-security.policy");
         if (Files.exists(legacyPolicyFile)) {
             terminal.errorPrintln(
                 "WARNING: this plugin contains a legacy Security Policy file. Starting with version 8.18, "
@@ -934,13 +932,10 @@ public class InstallPluginAction implements Closeable {
             );
         }
 
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpDir());
-            if (pluginPolicy != null) {
-                Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpDir());
-                PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
-            }
-        }
+        var pluginPolicy = PolicyUtils.parsePolicyIfExists(info.getName(), tmpRoot, true);
+
+        Set<String> entitlements = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        PluginSecurity.confirmPolicyExceptions(terminal, entitlements, batch);
 
         // Validate that the downloaded plugin's ID matches what we expect from the descriptor. The
         // exception is if we install a plugin via `InstallPluginCommand` by specifying a URL or

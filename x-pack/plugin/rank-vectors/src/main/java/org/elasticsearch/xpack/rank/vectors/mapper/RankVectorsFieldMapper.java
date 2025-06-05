@@ -89,7 +89,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
 
             return XContentMapValues.nodeIntegerValue(o);
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
+        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
             .addValidator(dims -> {
                 if (dims == null) {
@@ -180,7 +180,20 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
-                    return value;
+                    List<?> outerList = (List<?>) value;
+                    List<Object> vectors = new ArrayList<>(outerList.size());
+                    for (Object o : outerList) {
+                        if (o instanceof List<?> innerList) {
+                            float[] vector = new float[innerList.size()];
+                            for (int i = 0; i < vector.length; i++) {
+                                vector[i] = ((Number) innerList.get(i)).floatValue();
+                            }
+                            vectors.add(vector);
+                        } else {
+                            vectors.add(o);
+                        }
+                    }
+                    return vectors;
                 }
             };
         }

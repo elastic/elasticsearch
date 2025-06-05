@@ -1,0 +1,5 @@
+pr: 125816
+summary: Use `FallbackSyntheticSourceBlockLoader` for point and `geo_point`
+area: Mapping
+type: enhancement
+issues: []

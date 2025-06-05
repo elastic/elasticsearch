@@ -19,7 +19,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -46,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -71,6 +75,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
             .build();
     }
@@ -108,26 +113,27 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         for (int q = 0; q < numQueries; q++) {
             threads[q] = new Thread(() -> {
-                try {
-                    assertTrue(latch.await(1, TimeUnit.MINUTES));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 final var pragmas = Settings.builder();
                 if (randomBoolean() && canUseQueryPragmas()) {
                     pragmas.put(randomPragmas().getSettings())
                         .put("task_concurrency", between(1, 2))
                         .put("exchange_concurrent_clients", between(1, 2));
                 }
-                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build())).close();
-            });
+                try (var response = run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build()))) {
+                    // do nothing
+                } catch (Exception | AssertionError e) {
+                    logger.warn("Query failed with exception", e);
+                    throw e;
+                }
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();
         }
         latch.countDown();
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(10_000);
         }
     }
 
@@ -206,6 +212,34 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLimitCombineSmallerPages() {
+        QueryPragmas queryPragmas = randomPragmas();
+        if (canUseQueryPragmas()) {
+            Settings.Builder settings = Settings.builder().put(queryPragmas.getSettings());
+            settings.remove(QueryPragmas.NODE_LEVEL_REDUCTION.getKey());
+            settings.remove(QueryPragmas.PAGE_SIZE.getKey());
+            queryPragmas = new QueryPragmas(settings.build());
+        }
+        var request = new EsqlQueryRequest();
+        request.query("FROM test-* | KEEP user | LIMIT 100");
+        request.pragmas(queryPragmas);
+        request.profile(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            List<DriverProfile> nodeReduce = resp.profile().drivers().stream().filter(s -> s.description().equals("node_reduce")).toList();
+            for (DriverProfile driverProfile : nodeReduce) {
+                if (driverProfile.operators().size() == 2) {
+                    continue; // when the target node is also the coordinator node
+                }
+                assertThat(driverProfile.operators(), hasSize(3));
+                OperatorStatus exchangeSink = driverProfile.operators().get(2);
+                assertThat(exchangeSink.status(), instanceOf(ExchangeSinkOperator.Status.class));
+                ExchangeSinkOperator.Status exchangeStatus = (ExchangeSinkOperator.Status) exchangeSink.status();
+                assertThat(exchangeStatus.pagesReceived(), lessThanOrEqualTo(1));
+            }
+            assertThat(resp.pages(), hasSize(1));
+        }
+    }
+
     static class SearchContextCounter {
         private final int maxAllowed;
         private final AtomicInteger current = new AtomicInteger();
@@ -279,8 +313,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         query.query("from test-* | LIMIT 1");
         query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
 
-        try {
-            var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
+        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
             assertThat(Iterables.size(result.rows()), equalTo(1L));
             assertThat(exchanges.get(), lessThanOrEqualTo(2));
         } finally {

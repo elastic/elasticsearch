@@ -172,9 +172,4 @@ public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     public ScoreSortBuilder rewrite(QueryRewriteContext ctx) {
         return this;
     }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return true;
-    }
 }

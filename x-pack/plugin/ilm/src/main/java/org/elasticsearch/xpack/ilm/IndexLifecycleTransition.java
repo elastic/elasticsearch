@@ -15,9 +15,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -107,29 +108,29 @@ public final class IndexLifecycleTransition {
      * For this reason, it is reasonable to throw {@link IllegalArgumentException} when state is not as expected.
      *
      * @param index          The index whose step is to change
-     * @param state          The current {@link ClusterState}
+     * @param project        The current {@link ProjectMetadata}
      * @param newStepKey     The new step to move the index into
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
      * @param forcePhaseDefinitionRefresh Whether to force the phase JSON to be reread or not
      * @return The updated cluster state where the index moved to <code>newStepKey</code>
      */
-    static ClusterState moveClusterStateToStep(
+    static ProjectMetadata moveIndexToStep(
         Index index,
-        ClusterState state,
+        ProjectMetadata project,
         Step.StepKey newStepKey,
         LongSupplier nowSupplier,
         PolicyStepsRegistry stepRegistry,
         boolean forcePhaseDefinitionRefresh
     ) {
-        IndexMetadata idxMeta = state.getMetadata().getProject().index(index);
+        IndexMetadata idxMeta = project.index(index);
         Step.StepKey currentStepKey = Step.getCurrentStepKey(idxMeta.getLifecycleExecutionState());
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         String policyName = idxMeta.getLifecyclePolicyName();
         logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policyName);
 
-        IndexLifecycleMetadata ilmMeta = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata ilmMeta = project.custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         LifecycleExecutionState newLifecycleState = updateExecutionStateToStep(
@@ -141,7 +142,7 @@ public final class IndexLifecycleTransition {
             true
         );
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta.getIndex(), newLifecycleState);
+        return project.withLifecycleState(idxMeta.getIndex(), newLifecycleState);
     }
 
     /**
@@ -443,28 +444,44 @@ public final class IndexLifecycleTransition {
      * any lifecycle execution state that may be present in the index metadata
      */
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
-        Metadata.Builder newMetadata = Metadata.builder(currentState.getMetadata());
-        boolean clusterStateChanged = false;
+        final ProjectMetadata currentProject = currentState.metadata().getProject();
+        final ProjectMetadata.Builder updatedProject = removePolicyForIndexes(indices, currentProject, failedIndexes);
+
+        if (updatedProject == null) {
+            return currentState;
+        } else {
+            return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
+        }
+    }
+
+    /**
+     * @return If one or more policies were removed, then a new builder representing the changed project state.
+     *         Otherwise {@code null} (if no changes were made)
+     */
+    @Nullable
+    private static ProjectMetadata.Builder removePolicyForIndexes(
+        final Index[] indices,
+        ProjectMetadata currentProject,
+        List<String> failedIndexes
+    ) {
+        ProjectMetadata.Builder newProject = null;
         for (Index index : indices) {
-            IndexMetadata indexMetadata = currentState.getMetadata().getProject().index(index);
+            IndexMetadata indexMetadata = currentProject.index(index);
             if (indexMetadata == null) {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());
             } else {
                 IndexMetadata.Builder newIdxMetadata = removePolicyForIndex(indexMetadata);
                 if (newIdxMetadata != null) {
-                    newMetadata.put(newIdxMetadata);
-                    clusterStateChanged = true;
+                    if (newProject == null) {
+                        newProject = ProjectMetadata.builder(currentProject);
+                    }
+                    newProject.put(newIdxMetadata);
                 }
             }
         }
-        if (clusterStateChanged) {
-            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
-            newClusterState.metadata(newMetadata);
-            return newClusterState.build();
-        } else {
-            return currentState;
-        }
+
+        return newProject;
     }
 
     /**
@@ -477,6 +494,7 @@ public final class IndexLifecycleTransition {
 
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
         long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
 

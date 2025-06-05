@@ -20,7 +20,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -101,7 +99,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -209,6 +207,8 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -311,6 +311,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -916,12 +917,34 @@ public class Security extends Plugin
         this.realms.set(realms);
 
         systemIndices.getMainIndexManager().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
-
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
-        cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
-        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
+        ServiceAccountService serviceAccountService = createServiceAccountService(
+            components,
+            cacheInvalidatorRegistry,
+            extensionComponents,
+            () -> new IndexServiceAccountTokenStore(
+                settings,
+                threadPool,
+                getClock(),
+                client,
+                systemIndices.getMainIndexManager(),
+                clusterService,
+                cacheInvalidatorRegistry
+            ),
+            () -> new FileServiceAccountTokenStore(
+                environment,
+                resourceWatcherService,
+                threadPool,
+                clusterService,
+                cacheInvalidatorRegistry
+            )
+        );
+
+        components.add(serviceAccountService);
+
+        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(
             settings,
             client,
@@ -1004,33 +1027,6 @@ public class Security extends Plugin
             telemetryProvider.getMeterRegistry()
         );
         components.add(apiKeyService);
-
-        final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
-            settings,
-            threadPool,
-            getClock(),
-            client,
-            systemIndices.getMainIndexManager(),
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(indexServiceAccountTokenStore);
-
-        final FileServiceAccountTokenStore fileServiceAccountTokenStore = new FileServiceAccountTokenStore(
-            environment,
-            resourceWatcherService,
-            threadPool,
-            clusterService,
-            cacheInvalidatorRegistry
-        );
-        components.add(fileServiceAccountTokenStore);
-
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(
-            client,
-            fileServiceAccountTokenStore,
-            indexServiceAccountTokenStore
-        );
-        components.add(serviceAccountService);
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
@@ -1249,6 +1245,74 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private ServiceAccountService createServiceAccountService(
+        List<Object> components,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry,
+        SecurityExtension.SecurityComponents extensionComponents,
+        Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
+        Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
+    ) {
+        Map<String, ServiceAccountTokenStore> accountTokenStoreByExtension = new HashMap<>();
+
+        for (var extension : securityExtensions) {
+            var serviceAccountTokenStore = extension.getServiceAccountTokenStore(extensionComponents);
+            if (serviceAccountTokenStore != null) {
+                if (isInternalExtension(extension) == false) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom ServiceAccountTokenStore. This functionality is not available to "
+                            + "external extensions."
+                    );
+                }
+                accountTokenStoreByExtension.put(extension.extensionName(), serviceAccountTokenStore);
+            }
+        }
+
+        if (accountTokenStoreByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "More than one extension provided a ServiceAccountTokenStore override: " + accountTokenStoreByExtension.keySet()
+            );
+        }
+
+        if (accountTokenStoreByExtension.isEmpty()) {
+            var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
+            var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
+
+            components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
+            components.add(fileServiceAccountTokenStore);
+            components.add(indexServiceAccountTokenStore);
+            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+
+            return new ServiceAccountService(
+                client.get(),
+                new CompositeServiceAccountTokenStore(
+                    List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                    client.get().threadPool().getThreadContext()
+                ),
+                indexServiceAccountTokenStore
+            );
+        }
+        // Completely handover service account token management to the extension if provided,
+        // this will disable the index managed
+        // service account tokens managed through the service account token API
+        var extensionStore = accountTokenStoreByExtension.values().stream().findFirst();
+        components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, (token, listener) -> {
+            throw new IllegalStateException("Node local config not supported by [" + extensionStore.get().getClass() + "]");
+        }));
+        components.add(extensionStore);
+        logger.debug("Service account authentication handled by extension, disabling file and index token stores");
+        return new ServiceAccountService(client.get(), extensionStore.get());
+    }
+
+    private static boolean isInternalExtension(SecurityExtension extension) {
+        final String canonicalName = extension.getClass().getCanonicalName();
+        if (canonicalName == null) {
+            return false;
+        }
+        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     @FixForMultiProject
@@ -1582,80 +1646,80 @@ public class Security extends Plugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
+    public List<ActionHandler> getActions() {
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
 
         return Stream.of(
-            new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
-            new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
-            new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
-            new ActionHandler<>(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
-            new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
-            new ActionHandler<>(ActionTypes.QUERY_USER_ACTION, TransportQueryUserAction.class),
-            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
-            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
-            new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
-            new ActionHandler<>(ActionTypes.QUERY_ROLE_ACTION, TransportQueryRoleAction.class),
-            new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
-            new ActionHandler<>(ActionTypes.BULK_PUT_ROLES, TransportBulkPutRolesAction.class),
-            new ActionHandler<>(ActionTypes.BULK_DELETE_ROLES, TransportBulkDeleteRolesAction.class),
-            new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
-            new ActionHandler<>(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),
-            new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
-            new ActionHandler<>(TransportSetEnabledAction.TYPE, TransportSetEnabledAction.class),
-            new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-            new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
-            new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
-            new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
-            new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
-            new ActionHandler<>(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
-            new ActionHandler<>(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
-            new ActionHandler<>(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
-            new ActionHandler<>(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
-            new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
-            new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
-            new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
-            new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
-            new ActionHandler<>(TransportSamlCompleteLogoutAction.TYPE, TransportSamlCompleteLogoutAction.class),
-            new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
-            new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
-            new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
-            new ActionHandler<>(OpenIdConnectLogoutAction.INSTANCE, TransportOpenIdConnectLogoutAction.class),
-            new ActionHandler<>(GetBuiltinPrivilegesAction.INSTANCE, TransportGetBuiltinPrivilegesAction.class),
-            new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
-            new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
-            new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
-            new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
-            new ActionHandler<>(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
-            new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
-            new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
-            new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
-            new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
-            new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
-            new ActionHandler<>(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
-            new ActionHandler<>(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class),
-            new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
-            new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
-            new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
-            new ActionHandler<>(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
-            new ActionHandler<>(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
-            new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
-            new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
-            new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
-            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
-            new ActionHandler<>(GetProfilesAction.INSTANCE, TransportGetProfilesAction.class),
-            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
-            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
-            new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
-            new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
-            new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
-            new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
-            new ActionHandler<>(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
-            new ActionHandler<>(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
+            new ActionHandler(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
+            new ActionHandler(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
+            new ActionHandler(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
+            new ActionHandler(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
+            new ActionHandler(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
+            new ActionHandler(ActionTypes.QUERY_USER_ACTION, TransportQueryUserAction.class),
+            new ActionHandler(PutUserAction.INSTANCE, TransportPutUserAction.class),
+            new ActionHandler(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
+            new ActionHandler(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+            new ActionHandler(ActionTypes.QUERY_ROLE_ACTION, TransportQueryRoleAction.class),
+            new ActionHandler(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
+            new ActionHandler(ActionTypes.BULK_PUT_ROLES, TransportBulkPutRolesAction.class),
+            new ActionHandler(ActionTypes.BULK_DELETE_ROLES, TransportBulkDeleteRolesAction.class),
+            new ActionHandler(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
+            new ActionHandler(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),
+            new ActionHandler(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
+            new ActionHandler(TransportSetEnabledAction.TYPE, TransportSetEnabledAction.class),
+            new ActionHandler(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+            new ActionHandler(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
+            new ActionHandler(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
+            new ActionHandler(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
+            new ActionHandler(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
+            new ActionHandler(CreateTokenAction.INSTANCE, TransportCreateTokenAction.class),
+            new ActionHandler(InvalidateTokenAction.INSTANCE, TransportInvalidateTokenAction.class),
+            new ActionHandler(GetCertificateInfoAction.INSTANCE, TransportGetCertificateInfoAction.class),
+            new ActionHandler(RefreshTokenAction.INSTANCE, TransportRefreshTokenAction.class),
+            new ActionHandler(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
+            new ActionHandler(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
+            new ActionHandler(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
+            new ActionHandler(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+            new ActionHandler(TransportSamlCompleteLogoutAction.TYPE, TransportSamlCompleteLogoutAction.class),
+            new ActionHandler(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
+            new ActionHandler(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
+            new ActionHandler(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
+            new ActionHandler(OpenIdConnectLogoutAction.INSTANCE, TransportOpenIdConnectLogoutAction.class),
+            new ActionHandler(GetBuiltinPrivilegesAction.INSTANCE, TransportGetBuiltinPrivilegesAction.class),
+            new ActionHandler(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
+            new ActionHandler(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
+            new ActionHandler(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
+            new ActionHandler(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
+            new ActionHandler(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
+            new ActionHandler(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
+            new ActionHandler(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
+            new ActionHandler(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
+            new ActionHandler(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
+            new ActionHandler(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
+            new ActionHandler(BulkUpdateApiKeyAction.INSTANCE, TransportBulkUpdateApiKeyAction.class),
+            new ActionHandler(UpdateCrossClusterApiKeyAction.INSTANCE, TransportUpdateCrossClusterApiKeyAction.class),
+            new ActionHandler(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
+            new ActionHandler(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
+            new ActionHandler(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
+            new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
+            new ActionHandler(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
+            new ActionHandler(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
+            new ActionHandler(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
+            new ActionHandler(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
+            new ActionHandler(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
+            new ActionHandler(GetProfilesAction.INSTANCE, TransportGetProfilesAction.class),
+            new ActionHandler(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+            new ActionHandler(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+            new ActionHandler(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
+            new ActionHandler(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
+            new ActionHandler(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
+            new ActionHandler(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
+            new ActionHandler(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
+            new ActionHandler(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -2425,7 +2489,7 @@ public class Security extends Plugin
         return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
-    List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers() {
+    List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
             return Collections.emptyList();

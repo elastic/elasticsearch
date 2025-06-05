@@ -20,6 +20,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -31,6 +32,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -43,21 +46,28 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
@@ -76,6 +86,19 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public LocalExecutionPlannerTests(@Name("estimatedRowSizeIsHuge") boolean estimatedRowSizeIsHuge) {
         this.estimatedRowSizeIsHuge = estimatedRowSizeIsHuge;
+    }
+
+    @Override
+    protected Collection<Plugin> getPlugins() {
+        var plugin = new SpatialPlugin();
+        plugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return List.of();
+            }
+        });
+
+        return Collections.singletonList(plugin);
     }
 
     @After
@@ -184,6 +207,28 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(supplier.nodeName(), equalTo("node-1"));
     }
 
+    public void testParallel() throws Exception {
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            index().name(),
+            IndexMode.STANDARD,
+            index().indexNameWithModes(),
+            List.of(),
+            null,
+            null,
+            null,
+            between(1, 1000)
+        );
+        var limitExec = new LimitExec(
+            Source.EMPTY,
+            new ParallelExec(queryExec.source(), queryExec),
+            new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER),
+            randomEstimatedRowSize(estimatedRowSizeIsHuge)
+        );
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), limitExec);
+        assertThat(plan.driverFactories, hasSize(2));
+    }
+
     private int randomEstimatedRowSize(boolean huge) {
         int hugeBoundary = SourceOperator.MIN_TARGET_PAGE_SIZE * 10;
         return huge ? between(hugeBoundary, Integer.MAX_VALUE) : between(1, hugeBoundary);
@@ -213,6 +258,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null,
             esPhysicalOperationProviders(shardContexts),
             shardContexts
         );
@@ -236,7 +282,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null);
+        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, DataPartitioning.AUTO);
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {
@@ -251,11 +297,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         for (int i = 0; i < numShards; i++) {
             shardContexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher),
-                    AliasFilter.EMPTY
-                )
+                new EsPhysicalOperationProviders.DefaultShardContext(i, createSearchExecutionContext(createMapperService(mapping(b -> {
+                    b.startObject("point").field("type", "geo_point").endObject();
+                })), searcher), AliasFilter.EMPTY)
             );
         }
         releasables.add(searcher);

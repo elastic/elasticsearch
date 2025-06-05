@@ -20,6 +20,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
@@ -50,12 +53,16 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -136,35 +143,38 @@ public final class SearchPhaseController {
     }
 
     static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
-        if (results.isEmpty()) {
+        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
+        if (topDocsList.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.getFirst();
-        final TopDocs mergedTopDocs;
-        final int numShards = results.size();
+        final TopDocs topDocs = topDocsList.getFirst();
+        final int numShards = topDocsList.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
-            final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[0]);
+        }
+        final TopDocs mergedTopDocs;
+        if (topDocs instanceof TopFieldGroups firstTopDocs) {
+            final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+            TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[0]);
+            TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+            final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
-            final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
+            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;
     }
 
-    private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
+    private static Sort validateSameSortTypesAndMaybeRewrite(Collection<TopDocs> results, SortField[] firstSortFields) {
         Sort sort = new Sort(firstSortFields);
         if (results.size() < 2) return sort;
 
         SortField.Type[] firstTypes = null;
         boolean isFirstResult = true;
+        Set<Integer> fieldIdsWithMixedIntAndLongSorts = new HashSet<>();
         for (TopDocs topDocs : results) {
             // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
             if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
@@ -190,20 +200,53 @@ public final class SearchPhaseController {
                             // for custom types that we can't resolve, we can't do the check
                             return sort;
                         }
-                        throw new IllegalArgumentException(
-                            "Can't sort on field ["
-                                + curSortFields[i].getField()
-                                + "]; the field has incompatible sort types: ["
-                                + firstTypes[i]
-                                + "] and ["
-                                + curType
-                                + "] across shards!"
-                        );
+                        // Check if we are mixing INT and LONG sort types, which is allowed
+                        if ((firstTypes[i] == SortField.Type.INT && curType == SortField.Type.LONG)
+                            || (firstTypes[i] == SortField.Type.LONG && curType == SortField.Type.INT)) fieldIdsWithMixedIntAndLongSorts
+                                .add(i);
+                        else {
+                            throw new IllegalArgumentException(
+                                "Can't sort on field ["
+                                    + curSortFields[i].getField()
+                                    + "]; the field has incompatible sort types: ["
+                                    + firstTypes[i]
+                                    + "] and ["
+                                    + curType
+                                    + "] across shards!"
+                            );
+                        }
                     }
                 }
             }
         }
+        if (fieldIdsWithMixedIntAndLongSorts.size() > 0) {
+            sort = rewriteSortAndResultsToLong(sort, results, fieldIdsWithMixedIntAndLongSorts);
+        }
         return sort;
+    }
+
+    /**
+     * Rewrite Sort objects and shards results for long sort for mixed fields:
+     * convert Sort to Long sort and convert fields' values to Long values.
+     * This is necessary to enable comparison of fields' values across shards for merging.
+     */
+    private static Sort rewriteSortAndResultsToLong(Sort sort, Collection<TopDocs> results, Set<Integer> fieldIdsWithMixedIntAndLongSorts) {
+        SortField[] newSortFields = sort.getSort();
+        for (int fieldIdx : fieldIdsWithMixedIntAndLongSorts) {
+            for (TopDocs topDocs : results) {
+                if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) continue;
+                SortField[] sortFields = ((TopFieldDocs) topDocs).fields;
+                if (getType(sortFields[fieldIdx]) == SortField.Type.INT) {
+                    for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                        fieldDoc.fields[fieldIdx] = ((Number) fieldDoc.fields[fieldIdx]).longValue();
+                    }
+                } else { // SortField.Type.LONG
+                    newSortFields[fieldIdx] = sortFields[fieldIdx];
+                }
+            }
+        }
+        return new Sort(newSortFields);
     }
 
     private static SortField.Type getType(SortField sortField) {
@@ -273,26 +316,28 @@ public final class SearchPhaseController {
         if (reducedQueryPhase.isEmptyResult) {
             return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
-        ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
         try {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
-            return reducedQueryPhase.buildResponse(hits, fetchResults);
+            var res = reducedQueryPhase.buildResponse(hits, fetchResults);
+            hits = null;
+            return res;
         } finally {
-            hits.decRef();
+            if (hits != null) {
+                hits.decRef();
+            }
         }
     }
 
     private static void mergeSuggest(
         ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray,
-        SearchHits hits,
+        int currentOffset,
         ScoreDoc[] sortedDocs
     ) {
-        int currentOffset = hits.getHits().length;
         for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
             final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
             for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
@@ -685,7 +730,7 @@ public final class SearchPhaseController {
         );
     }
 
-    public static final class TopDocsStats {
+    public static final class TopDocsStats implements Writeable {
         final int trackTotalHitsUpTo;
         long totalHits;
         private TotalHits.Relation totalHitsRelation;
@@ -725,6 +770,29 @@ public final class SearchPhaseController {
             }
         }
 
+        void add(TopDocsStats other) {
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                totalHits += other.totalHits;
+                if (other.totalHitsRelation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                }
+            }
+            fetchHits += other.fetchHits;
+            if (Float.isNaN(other.maxScore) == false) {
+                maxScore = Math.max(maxScore, other.maxScore);
+            }
+            if (other.timedOut) {
+                this.timedOut = true;
+            }
+            if (other.terminatedEarly != null) {
+                if (this.terminatedEarly == null) {
+                    this.terminatedEarly = other.terminatedEarly;
+                } else if (terminatedEarly) {
+                    this.terminatedEarly = true;
+                }
+            }
+        }
+
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value();
@@ -746,6 +814,30 @@ public final class SearchPhaseController {
                     this.terminatedEarly = true;
                 }
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(trackTotalHitsUpTo);
+            out.writeFloat(maxScore);
+            Lucene.writeTotalHits(out, new TotalHits(totalHits, totalHitsRelation));
+            out.writeVLong(fetchHits);
+            out.writeFloat(maxScore);
+            out.writeBoolean(timedOut);
+            out.writeOptionalBoolean(terminatedEarly);
+        }
+
+        public static TopDocsStats readFrom(StreamInput in) throws IOException {
+            TopDocsStats res = new TopDocsStats(in.readVInt());
+            res.maxScore = in.readFloat();
+            TotalHits totalHits = Lucene.readTotalHits(in);
+            res.totalHits = totalHits.value();
+            res.totalHitsRelation = totalHits.relation();
+            res.fetchHits = in.readVLong();
+            res.maxScore = in.readFloat();
+            res.timedOut = in.readBoolean();
+            res.terminatedEarly = in.readOptionalBoolean();
+            return res;
         }
     }
 

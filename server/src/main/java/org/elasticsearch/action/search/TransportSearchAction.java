@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -62,7 +61,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -196,6 +194,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
         SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
+            searchTransportService,
+            searchService,
+            searchPhaseController,
+            namedWriteableRegistry
+        );
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
@@ -231,14 +235,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
             }
 
-            String[] aliases = indexNameExpressionResolver.indexAliases(
-                projectState.metadata(),
-                index,
-                Predicates.always(),
-                Predicates.always(),
-                true,
-                indicesAndAliases
-            );
+            String[] aliases = indexNameExpressionResolver.allIndexAliases(projectState.metadata(), index, indicesAndAliases);
             String[] finalIndices = Strings.EMPTY_ARRAY;
             if (aliases == null
                 || aliases.length == 0
@@ -1437,7 +1434,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         }
-        CollectionUtil.timSort(shards);
+        shards.sort(SearchShardIterator::compareTo);
         return shards;
     }
 
@@ -1483,7 +1480,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
                 boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
-                new CanMatchPreFilterSearchPhase(
+                CanMatchPreFilterSearchPhase.execute(
                     logger,
                     searchTransportService,
                     connectionLookup,
@@ -1495,24 +1492,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider,
                     task,
                     requireAtLeastOneMatch,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.delegateFailureAndWrap((l, iters) -> {
-                        runNewSearchPhase(
-                            task,
-                            searchRequest,
-                            executor,
-                            iters,
-                            timeProvider,
-                            connectionLookup,
-                            clusterState,
-                            aliasFilter,
-                            concreteIndexBoosts,
-                            false,
-                            threadPool,
-                            clusters
-                        );
-                    })
-                ).start();
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                )
+                    .addListener(
+                        listener.delegateFailureAndWrap(
+                            (l, iters) -> runNewSearchPhase(
+                                task,
+                                searchRequest,
+                                executor,
+                                iters,
+                                timeProvider,
+                                connectionLookup,
+                                clusterState,
+                                aliasFilter,
+                                concreteIndexBoosts,
+                                false,
+                                threadPool,
+                                clusters
+                            )
+                        )
+                    );
                 return;
             }
             // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
@@ -1572,7 +1571,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        client
+                        client,
+                        searchService.batchQueryPhase()
                     );
                 }
                 success = true;

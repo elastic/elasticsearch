@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} time spans [esql-time-spans]
 
-
 Time spans represent intervals between two datetime values. There are currently two supported types of time spans:
 
 * `DATE_PERIOD` specifies intervals in years, quarters, months, weeks and days
@@ -14,7 +13,13 @@ Time spans represent intervals between two datetime values. There are currently 
 
 A time span requires two elements: an integer value and a temporal unit.
 
-Time spans work with grouping functions such as [BUCKET](/reference/query-languages/esql/esql-functions-operators.md#esql-bucket), scalar functions such as [DATE_TRUNC](/reference/query-languages/esql/esql-functions-operators.md#esql-date_trunc) and arithmetic operators such as [`+`](/reference/query-languages/esql/esql-functions-operators.md#esql-add) and [`-`](/reference/query-languages/esql/esql-functions-operators.md#esql-sub). Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/esql/esql-functions-operators.md#esql-to_dateperiod), [TO_TIMEDURATION](/reference/query-languages/esql/esql-functions-operators.md#esql-to_timeduration), or the cast operators `::DATE_PERIOD`, `::TIME_DURATION`.
+Time spans work with grouping functions such as [BUCKET](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket),
+scalar functions such as [DATE_TRUNC](/reference/query-languages/esql/functions-operators/date-time-functions.md#esql-date_trunc)
+and arithmetic operators such as [`+`](/reference/query-languages/esql/functions-operators/operators.md#esql-add)
+and [`-`](/reference/query-languages/esql/functions-operators/operators.md#esql-sub).
+Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dateperiod),
+[TO_TIMEDURATION](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_timeduration),
+or the [cast operators](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator) `::DATE_PERIOD`, `::TIME_DURATION`.
 
 
 ## Examples of using time spans in {{esql}} [esql-time-spans-examples]

@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -43,11 +42,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            return Set.of("return-404-on-missing-target", "lazy-rollover-failure-store", "index-expression-selectors");
-        } else {
-            return Set.of("return-404-on-missing-target");
-        }
+        return Set.of("return-404-on-missing-target", "index_expression_selectors");
     }
 
     @Override

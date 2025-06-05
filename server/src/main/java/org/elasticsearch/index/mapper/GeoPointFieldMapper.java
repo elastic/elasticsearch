@@ -67,6 +67,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+
 /**
  * Field Mapper for geo_point types.
  *
@@ -224,7 +226,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 scriptValues(),
                 meta.get(),
                 metric.get(),
-                indexMode
+                indexMode,
+                context.isSourceSynthetic()
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.get();
@@ -313,7 +316,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     /**
      * Parser that pretends to be the main document parser, but exposes the provided geohash regardless of how the geopoint was provided
-     * in the incoming document. We rely on the fact that consumers are only ever call {@link XContentParser#textOrNull()} and never
+     * in the incoming document. We rely on the fact that consumers only ever read text from the parser and never
      * advance tokens, which is explicitly disallowed by this parser.
      */
     static class GeoHashMultiFieldParser extends FilterXContentParserWrapper {
@@ -326,6 +329,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public String textOrNull() throws IOException {
+            return value;
+        }
+
+        @Override
+        public String text() throws IOException {
             return value;
         }
 
@@ -370,6 +378,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         private final FieldValues<GeoPoint> scriptValues;
         private final IndexMode indexMode;
+        private final boolean isSyntheticSource;
 
         private GeoPointFieldType(
             String name,
@@ -381,17 +390,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta,
             TimeSeriesParams.MetricType metricType,
-            IndexMode indexMode
+            IndexMode indexMode,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         // only used in test
         public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
-            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode);
+            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode, false);
         }
 
         // only used in test
@@ -523,6 +534,29 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+
+            // There are two scenarios possible once we arrive here:
+            //
+            // * Stored source - we'll just use blockLoaderFromSource
+            // * Synthetic source. However, because of the fieldExtractPreference() check above it is still possible that doc_values are
+            // present here.
+            // So we have two subcases:
+            // - doc_values are enabled - _ignored_source field does not exist since we have doc_values. We will use
+            // blockLoaderFromSource which reads "native" synthetic source.
+            // - doc_values are disabled - we know that _ignored_source field is present and use a special block loader unless it's a multi
+            // field.
+            if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
         }
     }
 

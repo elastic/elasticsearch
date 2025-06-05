@@ -34,6 +34,10 @@ public record IndexComponentSelectorPredicate(Set<String> names, Predicate<Index
         "failures",
         IndexComponentSelector.FAILURES::equals
     );
+    public static final IndexComponentSelectorPredicate DATA_AND_FAILURES = new IndexComponentSelectorPredicate(
+        Set.of("data", "failures"),
+        DATA.predicate.or(FAILURES.predicate)
+    );
 
     @Override
     public boolean test(IndexComponentSelector selector) {

@@ -1,0 +1,5 @@
+pr: 125930
+summary: Infer the score mode to use from the Lucene collector
+area: "ES|QL"
+type: enhancement
+issues: []

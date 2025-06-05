@@ -59,7 +59,8 @@ public class BaseResponseHandlerTests extends ESTestCase {
             mock(ThrottlerManager.class),
             mock(Logger.class),
             request,
-            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
+            true
         );
     }
 
@@ -85,7 +86,8 @@ public class BaseResponseHandlerTests extends ESTestCase {
                 mock(ThrottlerManager.class),
                 mock(Logger.class),
                 request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
+                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
+                true
             )
         );
 
@@ -119,7 +121,8 @@ public class BaseResponseHandlerTests extends ESTestCase {
                 mock(ThrottlerManager.class),
                 mock(Logger.class),
                 request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
+                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
+                true
             )
         );
 
@@ -127,6 +130,32 @@ public class BaseResponseHandlerTests extends ESTestCase {
         assertThat(
             exception.getCause().getMessage(),
             is("Received an error response for request from inference entity id [abc] status [200]. Error message: [a message]")
+        );
+    }
+
+    public void testValidateResponse_DoesNot_ThrowErrorWhenWellFormedErrorObjectExists_WhenCheckForErrorIsFalse() {
+        var handler = getBaseResponseHandler();
+
+        String responseJson = """
+            {
+              "error": {
+                "type": "not_found_error",
+                "message": "a message"
+              }
+            }
+            """;
+
+        var response = mock200Response();
+
+        var request = mock(Request.class);
+        when(request.getInferenceEntityId()).thenReturn("abc");
+
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
+            false
         );
     }
 

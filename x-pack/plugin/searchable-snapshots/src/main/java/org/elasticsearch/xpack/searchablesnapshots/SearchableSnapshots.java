@@ -10,8 +10,6 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
@@ -325,12 +323,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
-                nodeEnvironment,
+            final BlobCacheMetrics blobCacheMetrics = new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry());
+            final SharedBlobCacheService<CacheKey> sharedBlobCacheService = createSharedBlobCacheService(
                 settings,
                 threadPool,
-                threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
-                new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
+                nodeEnvironment,
+                blobCacheMetrics
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);
@@ -367,6 +365,22 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             clusterService.addListener(new RepositoryUuidWatcher(services.rerouteService()));
         }
         return Collections.unmodifiableList(components);
+    }
+
+    // overridable for testing
+    protected SharedBlobCacheService<CacheKey> createSharedBlobCacheService(
+        final Settings settings,
+        final ThreadPool threadPool,
+        final NodeEnvironment nodeEnvironment,
+        final BlobCacheMetrics blobCacheMetrics
+    ) {
+        return new SharedBlobCacheService<>(
+            nodeEnvironment,
+            settings,
+            threadPool,
+            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+            blobCacheMetrics
+        );
     }
 
     @Override
@@ -482,17 +496,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
-            new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
-            new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class),
-            new ActionHandler<>(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class),
-            new ActionHandler<>(FrozenCacheInfoAction.INSTANCE, FrozenCacheInfoAction.TransportAction.class),
-            new ActionHandler<>(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class),
-            new ActionHandler<>(
+            new ActionHandler(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
+            new ActionHandler(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
+            new ActionHandler(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
+            new ActionHandler(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class),
+            new ActionHandler(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class),
+            new ActionHandler(FrozenCacheInfoAction.INSTANCE, FrozenCacheInfoAction.TransportAction.class),
+            new ActionHandler(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class),
+            new ActionHandler(
                 TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
                 TransportSearchableSnapshotsNodeCachesStatsAction.class
             )
@@ -737,7 +751,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().custom(RepositoriesMetadata.TYPE);
+            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().getProject().custom(RepositoriesMetadata.TYPE);
             if (repositoriesMetadata == null) {
                 knownUuids.clear();
                 return;

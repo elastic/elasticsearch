@@ -82,17 +82,29 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitField(EsqlBaseParser.FieldContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankField(EsqlBaseParser.RerankFieldContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#fromCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#timeSeriesCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
+  T visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
@@ -111,6 +123,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitClusterString(EsqlBaseParser.ClusterStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#selectorString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
@@ -382,6 +400,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

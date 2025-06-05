@@ -112,7 +112,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
-                parentDataStream.getLifecycle(),
+                parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex()),
                 errorStore.getError(state.projectId(), index)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
@@ -123,7 +123,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionSettings.get()
+                globalRetentionSettings.get(false),
+                globalRetentionSettings.get(true)
             )
         );
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -32,12 +33,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -56,6 +56,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
+
+    private static final Logger logger = LogManager.getLogger(ExchangeService.class);
+
     // TODO: Make this a child action of the data node transport to ensure that exchanges
     // are accessed only by the user initialized the session.
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
@@ -71,8 +74,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String INACTIVE_SINKS_INTERVAL_SETTING = "esql.exchange.sink_inactive_interval";
     public static final TimeValue INACTIVE_SINKS_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
 
-    private static final Logger LOGGER = LogManager.getLogger(ExchangeService.class);
-
     private final ThreadPool threadPool;
     private final Executor executor;
     private final BlockFactory blockFactory;
@@ -87,7 +88,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, INACTIVE_SINKS_INTERVAL_DEFAULT);
         // Run the reaper every half of the keep_alive interval
         this.threadPool.scheduleWithFixedDelay(
-            new InactiveSinksReaper(LOGGER, threadPool, inactiveInterval),
+            new InactiveSinksReaper(threadPool, inactiveInterval),
             TimeValue.timeValueMillis(Math.max(1, inactiveInterval.millis() / 2)),
             executor
         );
@@ -171,7 +172,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
+            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );
     }
 
@@ -201,7 +202,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class OpenExchangeRequest extends TransportRequest {
+    private static class OpenExchangeRequest extends AbstractTransportRequest {
         private final String sessionId;
         private final int exchangeBuffer;
 
@@ -228,7 +229,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
             createSinkHandler(request.sessionId, request.exchangeBuffer);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }
 
@@ -249,12 +250,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
-        private final Logger logger;
         private final TimeValue keepAlive;
         private final ThreadPool threadPool;
 
-        InactiveSinksReaper(Logger logger, ThreadPool threadPool, TimeValue keepAlive) {
-            this.logger = logger;
+        InactiveSinksReaper(ThreadPool threadPool, TimeValue keepAlive) {
             this.keepAlive = keepAlive;
             this.threadPool = threadPool;
         }

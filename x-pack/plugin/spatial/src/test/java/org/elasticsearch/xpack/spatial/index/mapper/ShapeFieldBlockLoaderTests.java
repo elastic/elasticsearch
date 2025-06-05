@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.datageneration.ShapeDataSourceHandler;
 
+import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,8 +36,13 @@ public class ShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
+    public void testBlockLoaderOfMultiField() throws IOException {
+        // Multi fields are noop for shape.
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         if (value instanceof List<?> == false) {
             return convert(value);
         }

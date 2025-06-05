@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,13 +19,17 @@ public class FullTextWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
-        entries.add(MultiMatchQueryPredicate.ENTRY);
         entries.add(QueryString.ENTRY);
         entries.add(Match.ENTRY);
+        entries.add(MultiMatch.ENTRY);
         entries.add(Kql.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
+        }
+
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
+            entries.add(MatchPhrase.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

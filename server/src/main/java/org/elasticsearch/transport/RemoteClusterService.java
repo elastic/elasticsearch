@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -185,6 +186,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
     /**
      * Group indices by cluster alias mapped to OriginalIndices for that cluster.
+     * @param remoteClusterNames Set of configured remote cluster names.
      * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
      * @param indices Multiple index expressions as string[].
      * @param returnLocalAll whether to support the _all functionality needed by _search
@@ -193,9 +195,30 @@ public final class RemoteClusterService extends RemoteClusterAware
      *        If false, an empty map is returned when no indices are specified.
      * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
      */
-    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
+    public Map<String, OriginalIndices> groupIndices(
+        Set<String> remoteClusterNames,
+        IndicesOptions indicesOptions,
+        String[] indices,
+        boolean returnLocalAll
+    ) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
+        final Map<String, List<String>> groupedIndices;
+        /*
+         * returnLocalAll is used to control whether we'd like to fallback to the local cluster.
+         * While this is acceptable in a few cases, there are cases where we should not fallback to the local
+         * cluster. Consider _resolve/cluster where the specified patterns do not match any remote clusters.
+         * Falling back to the local cluster and returning its details in such cases is not ok. This is why
+         * TransportResolveClusterAction sets returnLocalAll to false wherever it uses groupIndices().
+         *
+         * If such a fallback isn't allowed and the given indices match a pattern whose semantics mean that
+         * it's ok to return an empty result (denoted via ["*", "-*"]), empty groupIndices.
+         */
+        if (returnLocalAll == false && IndexNameExpressionResolver.isNoneExpression(indices)) {
+            groupedIndices = Map.of();
+        } else {
+            groupedIndices = groupClusterIndices(remoteClusterNames, indices);
+        }
+
         if (groupedIndices.isEmpty()) {
             if (returnLocalAll) {
                 // search on _all in the local cluster if neither local indices nor remote indices were specified
@@ -214,12 +237,26 @@ public final class RemoteClusterService extends RemoteClusterAware
     /**
      * If no indices are specified, then a Map with one entry for the local cluster with an empty index array is returned.
      * For details see {@code groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll)}
+     * @param remoteClusterNames Set of configured remote cluster names.
      * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
      * @param indices Multiple index expressions as string[].
      * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
      */
+    public Map<String, OriginalIndices> groupIndices(Set<String> remoteClusterNames, IndicesOptions indicesOptions, String[] indices) {
+        return groupIndices(remoteClusterNames, indicesOptions, indices, true);
+    }
+
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
+        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
+    }
+
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        return groupIndices(indicesOptions, indices, true);
+        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, true);
+    }
+
+    @Override
+    public Set<String> getConfiguredClusters() {
+        return getRemoteClusterNames();
     }
 
     /**

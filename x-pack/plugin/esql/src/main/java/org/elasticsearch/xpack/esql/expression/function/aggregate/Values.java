@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -49,7 +47,6 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
@@ -75,9 +72,15 @@ public class Values extends AggregateFunction implements ToAggregator {
             "long",
             "version" },
         preview = true,
-        description = "Returns all values in a group as a multivalued field. The order of the returned values isn’t guaranteed. "
-            + "If you need the values returned in order use <<esql-mv_sort>>.",
+        description = """
+            Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
+            If you need the values returned in order use
+            [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sort).""",
         appendix = """
+            ::::{tip}
+            Use [`TOP`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-top)
+            if you need to keep repeated values.
+            ::::
             ::::{warning}
             This can use a significant amount of memory and ES|QL doesn’t yet
             grow aggregations beyond memory. So this aggregation will work until
@@ -86,8 +89,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             a [Circuit Breaker Error](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
             ::::""",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "string", tag = "values-grouped"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) }
+        examples = @Example(file = "string", tag = "values-grouped")
     )
     public Values(
         Source source,

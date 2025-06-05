@@ -5,9 +5,6 @@
 ```esql
 FROM books
 | WHERE QSTR("author: Faulkner")
-| KEEP book_no, author
-| SORT book_no
-| LIMIT 5
 ```
 
 | book_no:keyword | author:text |
@@ -21,9 +18,6 @@ FROM books
 ```esql
 FROM books
 | WHERE QSTR("title: Hobbjt~", {"fuzziness": 2})
-| KEEP book_no, title
-| SORT book_no
-| LIMIT 5
 ```
 
 | book_no:keyword | title:text |

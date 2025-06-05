@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -41,13 +42,31 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
-        Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
+        AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
 
-        // This will require updating should we choose to have non-unary execution plans in the future.
         return plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }
+
+            // for non-unary execution plans, we apply the rule for each child
+            if (currentPlanNode instanceof MergeExec mergeExec) {
+                keepTraversing.set(FALSE);
+                List<PhysicalPlan> newChildren = new ArrayList<>();
+                boolean changed = false;
+
+                for (var child : mergeExec.children()) {
+                    var newChild = apply(child);
+
+                    if (newChild != child) {
+                        changed = true;
+                    }
+
+                    newChildren.add(newChild);
+                }
+                return changed ? new MergeExec(mergeExec.source(), newChildren, mergeExec.output()) : mergeExec;
+            }
+
             if (currentPlanNode instanceof ExchangeExec exec) {
                 keepTraversing.set(FALSE);
                 var child = exec.child();
@@ -57,7 +76,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
-                        List<Attribute> output = new ArrayList<>(requiredAttributes.get());
+                        List<Attribute> output = new ArrayList<>(requiredAttrBuilder.build());
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
@@ -79,9 +98,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     }
                 }
             } else {
-                AttributeSet childOutput = currentPlanNode.inputSet();
-                AttributeSet addedAttributes = currentPlanNode.outputSet().subtract(childOutput);
-                requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.references()));
+                AttributeSet.Builder addedAttrBuilder = currentPlanNode.outputSet().asBuilder();
+                addedAttrBuilder.removeIf(currentPlanNode.inputSet()::contains);
+                requiredAttrBuilder.removeIf(addedAttrBuilder::contains);
+                requiredAttrBuilder.addAll(currentPlanNode.references());
             }
             return currentPlanNode;
         });

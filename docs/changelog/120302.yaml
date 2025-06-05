@@ -1,0 +1,6 @@
+pr: 120302
+summary: "ESQL: Enhanced `DATE_TRUNC` with arbitrary intervals"
+area: ES|QL
+type: enhancement
+issues:
+  - 120094

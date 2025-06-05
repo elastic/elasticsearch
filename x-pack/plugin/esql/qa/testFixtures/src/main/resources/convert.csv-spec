@@ -453,3 +453,53 @@ emp_no:integer  | birth_date:datetime
 10097           | 1952-02-27T00:00:00.000Z
 10100           | 1953-04-21T00:00:00.000Z
 ;
+
+convertToAggregateMetricDouble
+required_capability: aggregate_metric_double_convert_to
+//tag::toAggregateMetricDouble[]
+ROW x = 3892095203
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+//end::toAggregateMetricDouble[]
+;
+
+//tag::toAggregateMetricDouble-result[]
+x:long     | agg_metric:aggregate_metric_double
+3892095203 | {"min":3892095203.0,"max":3892095203.0,"sum":3892095203.0,"value_count":1}
+//end::toAggregateMetricDouble-result[]
+;
+
+convertToAggregateMetricDoubleMv
+required_capability: aggregate_metric_double_convert_to
+//tag::toAggregateMetricDoubleMv[]
+ROW x = [5032, 11111, 40814]
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+//end::toAggregateMetricDoubleMv[]
+;
+
+//tag::toAggregateMetricDoubleMv-result[]
+x:integer            | agg_metric:aggregate_metric_double
+[5032, 11111, 40814] | {"min":5032.0,"max":40814.0,"sum":56957.0,"value_count":3}
+//end::toAggregateMetricDoubleMv-result[]
+;
+
+convertToAggregateMetricDoubleCastingOperatorFromDouble
+required_capability: suggested_cast
+required_capability: aggregate_metric_double_convert_to
+ROW x = 29384.1256
+| EVAL agg_metric = x::aggregate_metric_double
+;
+
+x:double   | agg_metric:aggregate_metric_double
+29384.1256 | {"min":29384.1256,"max":29384.1256,"sum":29384.1256,"value_count":1}
+;
+
+convertToAggregateMetricDoubleCastingOperatorFromInt
+required_capability: suggested_cast
+required_capability: aggregate_metric_double_convert_to
+ROW x = 55555
+| EVAL agg_metric = x::aggregate_metric_double
+;
+
+x:integer | agg_metric:aggregate_metric_double
+55555     | {"min":55555,"max":55555,"sum":55555,"value_count":1}
+;

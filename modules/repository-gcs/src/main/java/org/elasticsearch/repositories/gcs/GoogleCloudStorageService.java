@@ -19,17 +19,13 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
-import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -41,6 +37,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -57,21 +54,26 @@ public class GoogleCloudStorageService {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
-    private final boolean isStateless;
 
-    public GoogleCloudStorageService(Settings settings) {
-        this.isStateless = DiscoveryNode.isStateless(settings);
+    private final boolean isServerless;
+
+    public GoogleCloudStorageService() {
+        this.isServerless = false;
     }
 
-    private record ClientKey(OperationPurpose purpose, String repositoryName) {}
+    public GoogleCloudStorageService(boolean isServerless) {
+        this.isServerless = isServerless;
+    }
+
+    public boolean isServerless() {
+        return isServerless;
+    }
 
     /**
      * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings. Clients are cached by a composite OperationPurpose/repositoryName
-     * key.
-     * @see ClientKey
+     * latest settings. Clients are cached by a composite repositoryName key.
      */
-    private volatile Map<ClientKey, Storage> clientCache = emptyMap();
+    private volatile Map<String, MeteredStorage> clientCache = emptyMap();
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
@@ -94,26 +96,19 @@ public class GoogleCloudStorageService {
      *
      * @param clientName name of the client settings used to create the client
      * @param repositoryName name of the repository that would use the client
-     * @param operationPurpose the purpose for which the client will be used
-     * @param stats the stats collector used to gather information about the underlying SKD API calls.
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(
-        final String clientName,
-        final String repositoryName,
-        final OperationPurpose operationPurpose,
-        final GoogleCloudStorageOperationsStats stats
-    ) throws IOException {
-        ClientKey clientKey = new ClientKey(operationPurpose, repositoryName);
+    public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
+        throws IOException {
         {
-            final Storage storage = clientCache.get(clientKey);
+            final MeteredStorage storage = clientCache.get(repositoryName);
             if (storage != null) {
                 return storage;
             }
         }
         synchronized (this) {
-            final Storage existing = clientCache.get(clientKey);
+            final MeteredStorage existing = clientCache.get(repositoryName);
 
             if (existing != null) {
                 return existing;
@@ -131,20 +126,16 @@ public class GoogleCloudStorageService {
             }
 
             logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
-            final Storage storage = createClient(settings, stats, operationPurpose);
-            clientCache = Maps.copyMapWithAddedEntry(clientCache, clientKey, storage);
+            final MeteredStorage storage = createClient(settings, statsCollector);
+            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
         }
-    }
-
-    boolean isStateless() {
-        return isStateless;
     }
 
     synchronized void closeRepositoryClients(String repositoryName) {
         clientCache = clientCache.entrySet()
             .stream()
-            .filter(entry -> entry.getKey().repositoryName().equals(repositoryName) == false)
+            .filter(entry -> entry.getKey().equals(repositoryName) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -152,22 +143,19 @@ public class GoogleCloudStorageService {
      * Creates a client that can be used to manage Google Cloud Storage objects. The client is thread-safe.
      *
      * @param gcsClientSettings client settings to use, including secure settings
-     * @param stats the stats collector to use by the underlying SDK
-     * @param operationPurpose the purpose this client will be used for
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(
-        GoogleCloudStorageClientSettings gcsClientSettings,
-        GoogleCloudStorageOperationsStats stats,
-        OperationPurpose operationPurpose
-    ) throws IOException {
-        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
-            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // requires java.lang.RuntimePermission "setFactory"
-            // Pin the TLS trust certificates.
-            // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
-            // store format not compatible with FIPS mode.
+    private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
+        throws IOException {
+
+        final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+        // requires java.lang.RuntimePermission "setFactory"
+        // Pin the TLS trust certificates.
+        // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+        // store format not compatible with FIPS mode.
+        final HttpTransport httpTransport;
+        try {
             final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
             try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
                 SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
@@ -178,10 +166,12 @@ public class GoogleCloudStorageService {
                 builder.setProxy(proxy);
                 notifyProxyIsSet(proxy);
             }
-            return builder.build();
-        });
-
-        final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats, operationPurpose);
+            httpTransport = builder.build();
+        } catch (RuntimeException | IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
             HttpTransportOptions.newBuilder()
@@ -196,13 +186,13 @@ public class GoogleCloudStorageService {
 
                 return (httpRequest) -> {
                     if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-                    httpRequest.setResponseInterceptor(httpStatsCollector);
+                    httpRequest.setResponseInterceptor(GcsRepositoryStatsCollector.METERING_INTERCEPTOR);
                 };
             }
         };
 
         final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
-        return storageOptions.getService();
+        return new MeteredStorage(storageOptions.getService(), statsCollector);
     }
 
     StorageOptions createStorageOptions(
@@ -225,7 +215,7 @@ public class GoogleCloudStorageService {
         } else {
             String defaultProjectId = null;
             try {
-                defaultProjectId = SocketAccess.doPrivilegedIOException(ServiceOptions::getDefaultProjectId);
+                defaultProjectId = ServiceOptions.getDefaultProjectId();
                 if (defaultProjectId != null) {
                     storageOptionsBuilder.setProjectId(defaultProjectId);
                 }
@@ -236,12 +226,10 @@ public class GoogleCloudStorageService {
                 try {
                     // fallback to manually load project ID here as the above ServiceOptions method has the metadata endpoint hardcoded,
                     // which makes it impossible to test
-                    SocketAccess.doPrivilegedVoidIOException(() -> {
-                        final String projectId = getDefaultProjectId(gcsClientSettings.getProxy());
-                        if (projectId != null) {
-                            storageOptionsBuilder.setProjectId(projectId);
-                        }
-                    });
+                    final String projectId = getDefaultProjectId(gcsClientSettings.getProxy());
+                    if (projectId != null) {
+                        storageOptionsBuilder.setProjectId(projectId);
+                    }
                 } catch (Exception e) {
                     logger.warn("failed to load default project id fallback", e);
                 }
@@ -249,7 +237,7 @@ public class GoogleCloudStorageService {
         }
         if (gcsClientSettings.getCredential() == null) {
             try {
-                storageOptionsBuilder.setCredentials(SocketAccess.doPrivilegedIOException(GoogleCredentials::getApplicationDefault));
+                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
             } catch (Exception e) {
                 logger.warn("failed to load Application Default Credentials", e);
             }
@@ -273,6 +261,10 @@ public class GoogleCloudStorageService {
             (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
                 // Retry in the event of an unknown host exception
                 if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                    return true;
+                }
+                // Also retry on `SocketException`s
+                if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
                     return true;
                 }
                 return delegate.shouldRetry(prevThrowable, prevResponse);

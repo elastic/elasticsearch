@@ -9,19 +9,20 @@
 
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FileUtils;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir;
 import org.elasticsearch.entitlement.runtime.policy.Platform;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
@@ -30,18 +31,13 @@ import java.util.stream.Stream;
  */
 public record FilesEntitlement(List<FileData> filesData) implements Entitlement {
 
+    public static final String SEPARATOR = FileSystems.getDefault().getSeparator();
+
     public static final FilesEntitlement EMPTY = new FilesEntitlement(List.of());
 
     public enum Mode {
         READ,
         READ_WRITE
-    }
-
-    public enum BaseDir {
-        CONFIG,
-        DATA,
-        SHARED_REPO,
-        HOME
     }
 
     public sealed interface FileData {
@@ -58,8 +54,14 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         FileData withPlatform(Platform platform);
 
+        String description();
+
         static FileData ofPath(Path path, Mode mode) {
             return new AbsolutePathFileData(path, mode, null, false);
+        }
+
+        static FileData ofBaseDirPath(BaseDir baseDir, Mode mode) {
+            return new RelativePathFileData(Path.of(""), baseDir, mode, null, false);
         }
 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
@@ -71,45 +73,18 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private sealed interface RelativeFileData extends FileData {
-        BaseDir baseDir();
-
-        Stream<Path> resolveRelativePaths(PathLookup pathLookup);
-
-        @Override
-        default Stream<Path> resolvePaths(PathLookup pathLookup) {
-            Objects.requireNonNull(pathLookup);
-            var relativePaths = resolveRelativePaths(pathLookup);
-            switch (baseDir()) {
-                case CONFIG:
-                    return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
-                case DATA:
-                    return relativePathsCombination(pathLookup.dataDirs(), relativePaths);
-                case SHARED_REPO:
-                    return relativePathsCombination(pathLookup.sharedRepoDirs(), relativePaths);
-                case HOME:
-                    return relativePaths.map(relativePath -> pathLookup.homeDir().resolve(relativePath));
-                default:
-                    throw new IllegalArgumentException();
-            }
-        }
-    }
-
-    private static Stream<Path> relativePathsCombination(Path[] baseDirs, Stream<Path> relativePaths) {
-        // multiple base dirs are a pain...we need the combination of the base dirs and relative paths
-        List<Path> paths = new ArrayList<>();
-        for (var relativePath : relativePaths.toList()) {
-            for (var dataDir : baseDirs) {
-                paths.add(dataDir.resolve(relativePath));
-            }
-        }
-        return paths.stream();
-    }
-
     private record AbsolutePathFileData(Path path, Mode mode, Platform platform, boolean exclusive) implements FileData {
 
         @Override
         public AbsolutePathFileData withExclusive(boolean exclusive) {
+            return new AbsolutePathFileData(path, mode, platform, exclusive);
+        }
+
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
             return new AbsolutePathFileData(path, mode, platform, exclusive);
         }
 
@@ -119,18 +94,14 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
 
         @Override
-        public FileData withPlatform(Platform platform) {
-            if (platform == platform()) {
-                return this;
-            }
-            return new AbsolutePathFileData(path, mode, platform, exclusive);
+        public String description() {
+            return Strings.format("[%s] %s%s", mode, path.toAbsolutePath().normalize(), exclusive ? " (exclusive)" : "");
         }
     }
 
     private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
         implements
-            FileData,
-            RelativeFileData {
+            FileData {
 
         @Override
         public RelativePathFileData withExclusive(boolean exclusive) {
@@ -138,22 +109,27 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
 
         @Override
-        public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            return Stream.of(relativePath);
-        }
-
-        @Override
         public FileData withPlatform(Platform platform) {
             if (platform == platform()) {
                 return this;
             }
             return new RelativePathFileData(relativePath, baseDir, mode, platform, exclusive);
         }
+
+        @Override
+        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+            return pathLookup.resolveRelativePaths(baseDir, relativePath);
+        }
+
+        @Override
+        public String description() {
+            return Strings.format("[%s] <%s>%s%s%s", mode, baseDir, SEPARATOR, relativePath, exclusive ? " (exclusive)" : "");
+        }
     }
 
     private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
         implements
-            RelativeFileData {
+            FileData {
 
         @Override
         public PathSettingFileData withExclusive(boolean exclusive) {
@@ -161,20 +137,21 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
 
         @Override
-        public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            Stream<String> result = pathLookup.settingResolver()
-                .apply(setting)
-                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)
-                .distinct();
-            return result.map(Path::of);
-        }
-
-        @Override
         public FileData withPlatform(Platform platform) {
             if (platform == platform()) {
                 return this;
             }
             return new PathSettingFileData(setting, baseDir, mode, platform, exclusive);
+        }
+
+        @Override
+        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+            return pathLookup.resolveSettingPaths(baseDir, setting);
+        }
+
+        @Override
+        public String description() {
+            return Strings.format("[%s] <%s>%s<%s>%s", mode, baseDir, SEPARATOR, setting, exclusive ? " (exclusive)" : "");
         }
     }
 
@@ -204,8 +181,10 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         return switch (baseDir) {
             case "config" -> BaseDir.CONFIG;
             case "data" -> BaseDir.DATA;
-            case "home" -> BaseDir.HOME;
-            // NOTE: shared_repo is _not_ accessible to policy files, only internally
+            case "home" -> BaseDir.USER_HOME;
+            // it would be nice to limit this to just ES modules, but we don't have a way to plumb that through to here
+            // however, we still don't document in the error case below that shared_repo is valid
+            case "shared_repo" -> BaseDir.SHARED_REPO;
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
             );

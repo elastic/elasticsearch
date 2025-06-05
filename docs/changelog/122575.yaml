@@ -1,6 +1,0 @@
-pr: 122575
-summary: Return an empty suggestion when suggest phase times out
-area: Suggesters
-type: bug
-issues:
- - 122548

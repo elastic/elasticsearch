@@ -90,11 +90,11 @@ public class ProjectId implements Writeable, ToXContent {
     }
 
     public static ProjectId fromXContent(XContentParser parser) throws IOException {
-        return new ProjectId(parser.text());
+        return fromId(parser.text());
     }
 
     public static ProjectId ofNullable(@Nullable String id, @Nullable ProjectId fallback) {
-        return id == null ? fallback : new ProjectId(id);
+        return id == null ? fallback : fromId(id);
     }
 
     @Override

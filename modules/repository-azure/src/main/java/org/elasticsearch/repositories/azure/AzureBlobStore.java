@@ -223,8 +223,7 @@ public class AzureBlobStore implements BlobStore {
         final AtomicLong bytesDeleted = new AtomicLong(0);
 
         final BlobContainerAsyncClient blobContainerAsyncClient = asyncClient().getBlobContainerAsyncClient(container);
-        final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
-            .setDetails(new BlobListDetails().setRetrieveMetadata(true));
+        final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path).setDetails(new BlobListDetails().setRetrieveMetadata(true));
         try {
             blobContainerAsyncClient.listBlobs(options, null).flatMap(blobItem -> {
                 if (blobItem.isPrefix() != null && blobItem.isPrefix()) {

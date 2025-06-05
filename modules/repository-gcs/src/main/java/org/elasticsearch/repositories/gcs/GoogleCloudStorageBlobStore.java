@@ -157,34 +157,30 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobMetadata> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
-        client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
-            .iterateAll()
-            .forEach(blob -> {
-                assert blob.getName().startsWith(path);
-                if (blob.isDirectory() == false) {
-                    final String suffixName = blob.getName().substring(path.length());
-                    mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
-                }
-            });
+        client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
+            assert blob.getName().startsWith(path);
+            if (blob.isDirectory() == false) {
+                final String suffixName = blob.getName().substring(path.length());
+                mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
+            }
+        });
         return Map.copyOf(mapBuilder);
     }
 
     Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
         final Map<String, BlobContainer> mapBuilder = new HashMap<>();
-        client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
-            .iterateAll()
-            .forEach(blob -> {
-                if (blob.isDirectory()) {
-                    assert blob.getName().startsWith(pathStr);
-                    assert blob.getName().endsWith("/");
-                    // Strip path prefix and trailing slash
-                    final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
-                    if (suffixName.isEmpty() == false) {
-                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
-                    }
+        client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr)).iterateAll().forEach(blob -> {
+            if (blob.isDirectory()) {
+                assert blob.getName().startsWith(pathStr);
+                assert blob.getName().endsWith("/");
+                // Strip path prefix and trailing slash
+                final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
+                if (suffixName.isEmpty() == false) {
+                    mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
                 }
-            });
+            }
+        });
         return Map.copyOf(mapBuilder);
     }
 
@@ -613,10 +609,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     OptionalBytesReference getRegister(String blobName, String container, String key) throws IOException {
         final var blobId = BlobId.of(bucketName, blobName);
-        try (
-            var meteredReadChannel = client().reader(blobId);
-            var stream = Channels.newInputStream(meteredReadChannel)
-        ) {
+        try (var meteredReadChannel = client().reader(blobId); var stream = Channels.newInputStream(meteredReadChannel)) {
             return OptionalBytesReference.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
         } catch (Exception e) {
             final var serviceException = unwrapServiceException(e);
@@ -650,10 +643,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             generation = 0L;
         } else {
             generation = blob.getGeneration();
-            try (
-                var stream = Channels.newInputStream(
-                        client().reader(blobId, Storage.BlobSourceOption.generationMatch(generation)))
-            ) {
+            try (var stream = Channels.newInputStream(client().reader(blobId, Storage.BlobSourceOption.generationMatch(generation)))) {
                 final var witness = BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key);
                 if (witness.equals(expected) == false) {
                     return OptionalBytesReference.of(witness);
@@ -677,13 +667,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             .build();
         final var bytesRef = updated.toBytesRef();
         try {
-            client().create(
-                    blobInfo,
-                    bytesRef.bytes,
-                    bytesRef.offset,
-                    bytesRef.length,
-                    Storage.BlobTargetOption.generationMatch()
-                );
+            client().create(blobInfo, bytesRef.bytes, bytesRef.offset, bytesRef.length, Storage.BlobTargetOption.generationMatch());
         } catch (Exception e) {
             final var serviceException = unwrapServiceException(e);
             if (serviceException != null) {

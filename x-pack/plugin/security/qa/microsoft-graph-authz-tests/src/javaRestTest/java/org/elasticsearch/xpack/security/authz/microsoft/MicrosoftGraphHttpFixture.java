@@ -110,7 +110,12 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
     private void registerGetAccessTokenHandler() {
         server.createContext("/" + tenantId + "/oauth2/v2.0/token", exchange -> {
             logger.info("Received access token request");
-            loginCount.incrementAndGet();
+            final var callCount = loginCount.incrementAndGet();
+
+            if (callCount == 1) {
+                graphError(exchange, RestStatus.GATEWAY_TIMEOUT, "Gateway timed out");
+                return;
+            }
 
             if (exchange.getRequestMethod().equals("POST") == false) {
                 graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected POST request");
@@ -214,7 +219,12 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
 
         server.createContext("/v1.0/users/" + user.username() + "/transitiveMemberOf", exchange -> {
             logger.info("Received get user membership request [{}]", exchange.getRequestURI());
-            getGroupMembershipCount.incrementAndGet();
+            final var callCount = getGroupMembershipCount.incrementAndGet();
+
+            if (callCount == 1) {
+                graphError(exchange, RestStatus.GATEWAY_TIMEOUT, "Gateway timed out");
+                return;
+            }
 
             if (exchange.getRequestMethod().equals("GET") == false) {
                 graphError(exchange, RestStatus.METHOD_NOT_ALLOWED, "Expected GET request");

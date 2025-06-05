@@ -9,6 +9,10 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
+import com.azure.core.http.HttpClient;
+import com.azure.core.http.okhttp.OkHttpAsyncHttpClientBuilder;
+import com.azure.core.http.policy.RetryPolicy;
+import com.azure.core.util.HttpClientOptions;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
@@ -16,6 +20,10 @@ import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
+
+import com.microsoft.kiota.http.middleware.RetryHandler;
+
+import okhttp3.OkHttpClient;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -39,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -151,12 +160,21 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private static GraphServiceClient buildClient(RealmConfig config) {
         final var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
+        final var timeout = config.getSetting(MicrosoftGraphAuthzRealmSettings.HTTP_REQUEST_TIMEOUT);
+        final var httpClient = new OkHttpClient.Builder()
+            .callTimeout(Duration.ofSeconds(timeout.seconds()))
+            .addInterceptor(new RetryHandler())
+            .build();
+
         final var credentialProviderBuilder = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
         )
             .clientSecret(clientSecret.toString())
             .tenantId(config.getSetting(MicrosoftGraphAuthzRealmSettings.TENANT_ID))
-            .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST));
+            .authorityHost(config.getSetting(MicrosoftGraphAuthzRealmSettings.ACCESS_TOKEN_HOST))
+            .httpClient(new OkHttpAsyncHttpClientBuilder(httpClient).build())
+            .enableUnsafeSupportLogging()
+            .enableAccountIdentifierLogging();
 
         if (DISABLE_INSTANCE_DISCOVERY) {
             credentialProviderBuilder.disableInstanceDiscovery();
@@ -166,7 +184,8 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         return new GraphServiceClient(
             new BaseGraphRequestAdapter(
                 new AzureIdentityAuthenticationProvider(credentialProvider, Strings.EMPTY_ARRAY, "https://graph.microsoft.com/.default"),
-                config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST)
+                config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST),
+                httpClient
             )
         );
     }

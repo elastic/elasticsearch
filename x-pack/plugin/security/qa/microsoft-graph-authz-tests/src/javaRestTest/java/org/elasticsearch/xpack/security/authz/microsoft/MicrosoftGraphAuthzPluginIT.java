@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -181,6 +182,16 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         final String token = basicAuthHeaderValue("rest_test", new SecureString("rest_password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    @Override
+    protected void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        super.configureClient(builder, settings);
+
+        builder.setRequestConfigCallback(requestConfigBuilder -> {
+            requestConfigBuilder.setSocketTimeout(-1);
+            return requestConfigBuilder;
+        });
     }
 
     @Override

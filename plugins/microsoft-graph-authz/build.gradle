@@ -71,7 +71,7 @@ dependencies {
   runtimeOnly "com.squareup.okio:okio:3.4.0"
   runtimeOnly "com.squareup.okio:okio-jvm:3.4.0"
   runtimeOnly "io.github.std-uritemplate:std-uritemplate:2.0.0"
-  runtimeOnly "com.azure:azure-core-http-okhttp:1.12.10"
+  implementation "com.azure:azure-core-http-okhttp:1.12.10"
   implementation "com.google.code.gson:gson:2.10"
 
   testRuntimeOnly "net.minidev:json-smart:2.5.2"

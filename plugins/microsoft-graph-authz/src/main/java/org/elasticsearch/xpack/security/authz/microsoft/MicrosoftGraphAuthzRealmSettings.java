@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.security.authz.microsoft;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.ArrayList;
@@ -43,6 +44,12 @@ public class MicrosoftGraphAuthzRealmSettings {
         RealmSettings.realmSettingPrefix(REALM_TYPE),
         "graph_host",
         key -> Setting.simpleString(key, "https://graph.microsoft.com/v1.0", Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<TimeValue> HTTP_REQUEST_TIMEOUT = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(REALM_TYPE),
+        "http_request_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Setting.Property.NodeScope)
     );
 
     public static List<Setting<?>> getSettings() {

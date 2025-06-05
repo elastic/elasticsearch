@@ -9,10 +9,9 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
-import com.azure.core.http.HttpClient;
+import okhttp3.OkHttpClient;
+
 import com.azure.core.http.okhttp.OkHttpAsyncHttpClientBuilder;
-import com.azure.core.http.policy.RetryPolicy;
-import com.azure.core.util.HttpClientOptions;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.microsoft.graph.core.requests.BaseGraphRequestAdapter;
 import com.microsoft.graph.core.tasks.PageIterator;
@@ -20,10 +19,7 @@ import com.microsoft.graph.models.Group;
 import com.microsoft.graph.models.GroupCollectionResponse;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
-
 import com.microsoft.kiota.http.middleware.RetryHandler;
-
-import okhttp3.OkHttpClient;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -161,8 +157,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         final var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
         final var timeout = config.getSetting(MicrosoftGraphAuthzRealmSettings.HTTP_REQUEST_TIMEOUT);
-        final var httpClient = new OkHttpClient.Builder()
-            .callTimeout(Duration.ofSeconds(timeout.seconds()))
+        final var httpClient = new OkHttpClient.Builder().callTimeout(Duration.ofSeconds(timeout.seconds()))
             .addInterceptor(new RetryHandler())
             .build();
 

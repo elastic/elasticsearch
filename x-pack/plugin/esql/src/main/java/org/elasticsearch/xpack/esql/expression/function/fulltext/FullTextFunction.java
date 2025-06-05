@@ -220,7 +220,6 @@ public abstract class FullTextFunction extends Function
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else {
-            // TODO : improve this check, as this is not so nice :(
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> { plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); });
             plan.forEachExpression(FullTextFunction.class, ftf -> {

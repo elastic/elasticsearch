@@ -41,11 +41,6 @@ import static org.hamcrest.Matchers.equalTo;
 @FunctionName("match_phrase")
 public class MatchPhraseTests extends AbstractFunctionTestCase {
 
-    @Before
-    public void checkCapability() {
-        assumeTrue("MatchPhrase is not supported in this version of ESQL", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
-    }
-
     public MatchPhraseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

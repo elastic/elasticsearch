@@ -34,12 +34,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-    @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("match_phrase function capability not available", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
-        return super.run(request);
-    }
-
     public void testSimpleWhereMatchPhrase() {
         var query = """
             FROM test

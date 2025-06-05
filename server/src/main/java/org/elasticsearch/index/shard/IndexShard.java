@@ -2757,17 +2757,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public boolean isIndexingPaused() {
-        Engine engine = getEngineOrNull();
-        final boolean indexingPaused;
-        if (engine == null) {
-            indexingPaused = false;
-        } else {
-            indexingPaused = engine.isIndexingPaused();
-        }
-        return (indexingPaused);
-    }
-
     public void suspendThrottling() {
         try {
             getEngine().suspendThrottling();

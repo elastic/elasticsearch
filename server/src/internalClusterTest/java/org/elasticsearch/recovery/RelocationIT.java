@@ -203,7 +203,7 @@ public class RelocationIT extends ESIntegTestCase {
         IndexShard shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
         shard.activateThrottling();
         // Verify that indexing is paused for the throttled shard
-        assertThat(shard.isIndexingPaused(), equalTo(true));
+        assertThat(shard.getEngineOrNull().isIndexingPaused(), equalTo(true));
         // Try to index a document into the "test" index which is currently throttled
         logger.info("--> Try to index a doc while indexing is paused");
         IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(20)).setSource("field", "value" + 20);

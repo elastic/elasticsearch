@@ -10,7 +10,7 @@ cat << 'EOF' > "$HOME/git-wrapper/git"
 #!/bin/bash
 
 if [[ -z "${SKIP_GIT_WRAPPER:-}" ]]; then
-  if [[ "${1:-}" == "submodule" || "${1:-}" == "clone" || "${1:-}" == "clean" ]]; then exit 0; fi
+  if [[ "${1:-}" == "submodule" ]]; then exit 0; fi
 fi
 
 "$ES_ORIGINAL_GIT_BINARY" "${@}"

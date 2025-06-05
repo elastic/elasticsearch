@@ -80,18 +80,23 @@ public class IdentifierGenerator {
             index.insert(0, "-");
         }
 
+        boolean requiresQuote = false;
         var pattern = index.toString();
         if (pattern.contains("|")) {
-            pattern = quote(pattern);
+            requiresQuote = true;
         }
-        pattern = maybeQuote(pattern);
 
         if (canAdd(Features.CROSS_CLUSTER, features)) {
-            var cluster = maybeQuote(randomIdentifier());
-            pattern = maybeQuote(cluster + ":" + pattern);
+            var cluster = randomIdentifier();
+            pattern = cluster + ":" + pattern;
         } else if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && canAdd(Features.INDEX_SELECTOR, features)) {
-            pattern = maybeQuote(pattern + "::" + randomFrom(IndexComponentSelector.values()).getKey());
+            pattern = pattern + "::" + randomFrom(IndexComponentSelector.values()).getKey();
         }
+
+        if (requiresQuote) {
+            pattern = quote(pattern);
+        }
+
         return pattern;
     }
 

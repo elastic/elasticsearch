@@ -44,7 +44,7 @@ abstract class AbstractHnswGraphSearcher {
      * @param graph the HNSWGraph
      * @param acceptOrds the ordinals to accept for the results
      */
-    abstract void searchLevel(KnnCollector results, RandomVectorScorer scorer, int level, final int[] eps, HnswGraph graph, Bits acceptOrds)
+    abstract void searchLevel(KnnCollector results, RandomVectorScorer scorer, int level, int[] eps, HnswGraph graph, Bits acceptOrds)
         throws IOException;
 
     /**

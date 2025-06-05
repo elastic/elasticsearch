@@ -517,7 +517,7 @@ public class HnswGraphBuilder implements HnswBuilder {
                             infoStream.message(HNSW_COMPONENT, "connected ok " + c0node + " -> " + c.start());
                         }
                     }
-                    if (!linked) {
+                    if (linked == false) {
                         if (infoStream.isEnabled(HNSW_COMPONENT)) {
                             infoStream.message(HNSW_COMPONENT, "not connected; no free nodes found");
                         }

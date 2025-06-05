@@ -241,7 +241,7 @@ public abstract class QueryList {
         AliasFilter aliasFilter,
         LongBlock block
     ) {
-        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, block, null);
+        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, block, false);
     }
 
     /**
@@ -303,9 +303,9 @@ public abstract class QueryList {
             SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
             LongBlock block,
-            OnlySingleValueParams onlySingleValueParams
+            boolean onlySingleValues
         ) {
-            super(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams);
+            super(field, searchExecutionContext, aliasFilter, block, onlySingleValues);
             if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
                 // TODO: do this validation earlier
                 throw new IllegalArgumentException(
@@ -330,14 +330,8 @@ public abstract class QueryList {
         }
 
         @Override
-        public DateNanosQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
-            return new DateNanosQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                (LongBlock) block,
-                new OnlySingleValueParams(warnings, multiValueWarningMessage)
-            );
+        public DateNanosQueryList onlySingleValues() {
+            return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block, true);
         }
 
         @Override

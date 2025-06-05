@@ -183,9 +183,9 @@ public class SearchMultiProjectIT extends MultiProjectRestTestCase {
         // That is, an aggregation with size:0
         ObjectPath response = search(projectId1, indexName, query);
         String context = "In search response: " + response;
-        assertThat(response.evaluateArraySize("aggregations.proj.buckets"), equalTo(1));
-        assertThat(response.evaluate("aggregations.proj.buckets.0.key"), equalTo(1));
-        assertThat(response.evaluate("aggregations.proj.buckets.0.doc_count"), equalTo(1));
+        assertThat(context, response.evaluateArraySize("aggregations.proj.buckets"), equalTo(1));
+        assertThat(context, response.evaluate("aggregations.proj.buckets.0.key"), equalTo(1));
+        assertThat(context, response.evaluate("aggregations.proj.buckets.0.doc_count"), equalTo(1));
 
         final long agg1CacheSize = getRequestCacheUsage();
         assertThat("Expected aggregation result to be stored in shard request cache", agg1CacheSize, greaterThan(initialCacheSize));

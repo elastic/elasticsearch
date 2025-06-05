@@ -81,7 +81,7 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
             // the serialization of the boolean would result in wrong results.
             throw new EsqlIllegalArgumentException(
                 name() + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}, {}] or newer.",
-                out.getTransportVersion(),
+                transportVersion,
                 TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19,
                 TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
             );

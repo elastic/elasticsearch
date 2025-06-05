@@ -319,7 +319,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         initIndexes(group);
         initData(group);
         for (TestConfig config : testConfigurations.get(group).configs.values()) {
-            if ((isValidDatType(config.mainType()) && isValidDatType(config.lookupType())) == false ) {
+            if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false ) {
                 continue;
             }
             String query = String.format(
@@ -577,7 +577,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
-    private boolean isValidDatType(DataType dataType) {
+    private boolean isValidDataType(DataType dataType) {
         return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
     }
 }

@@ -1096,9 +1096,14 @@ public class IndicesPermissionTests extends ESTestCase {
 
         var ex = expectThrows(
             IllegalArgumentException.class,
-            () -> permission.checkResourcePrivileges(Set.of("****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*"), false, Set.of("read"), null)
+            () -> permission.checkResourcePrivileges(
+                Set.of("a?*b??*c?de**?f?oh*i?????j*k*l?m*n?????*o*p**qr*?s**t*"),
+                false,
+                Set.of("read"),
+                null
+            )
         );
-        assertThat(ex.getMessage(), containsString("index pattern [****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*]"));
+        assertThat(ex.getMessage(), containsString("index pattern [a?*b??*c?de**?f?oh*i?????j*k*l?m*n?????*o*p**qr*?s**t*]"));
         assertThat(ex.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 

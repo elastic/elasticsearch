@@ -302,14 +302,14 @@ public class PolicyManager {
                     serverEntitlements,
                     moduleName,
                     SERVER.componentName,
-                    getComponentPathFromClass(requestingClass)
+                    List.of(getComponentPathFromClass(requestingClass))
                 );
             }
             case APM_AGENT -> {
                 // The APM agent is the only thing running non-modular in the system classloader
                 return policyEntitlements(
                     APM_AGENT.componentName,
-                    getComponentPathFromClass(requestingClass),
+                    List.of(getComponentPathFromClass(requestingClass)),
                     ALL_UNNAMED,
                     apmAgentEntitlements
                 );

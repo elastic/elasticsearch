@@ -372,12 +372,20 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertBusy(() -> {
                 verify(mergeTask).schedule();
                 verify(mergeTask).run();
+                verify(mergeTask, times(0)).abort();
             });
             // let the test finish
             testDoneLatch.countDown();
             assertBusy(() -> {
                 // available budget is back to the initial value
                 assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(availableInitialBudget));
+                if (stallingMergeTask.schedule() == RUN) {
+                    verify(stallingMergeTask).run();
+                    verify(stallingMergeTask, times(0)).abort();
+                } else {
+                    verify(stallingMergeTask).abort();
+                    verify(stallingMergeTask, times(0)).run();
+                }
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
         }
@@ -477,7 +485,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     // budget hasn't changed!
                     assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()));
                 });
-                if (checkRounds-- > 0) {
+                if (checkRounds-- <= 0) {
                     break;
                 }
                 // maybe re-enqueue backlogged merge task
@@ -496,6 +504,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 assertBusy(() -> {
                     verify(mergeTask).schedule();
                     verify(mergeTask).run();
+                    verify(mergeTask, times(0)).abort();
                 });
             }
             // let the test finish

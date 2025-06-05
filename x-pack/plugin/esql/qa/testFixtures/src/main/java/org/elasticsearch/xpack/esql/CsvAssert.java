@@ -278,7 +278,7 @@ public final class CsvAssert {
         fail(description + System.lineSeparator() + describeFailures(dataFailures) + actual + expected);
     }
 
-    private static final int MAX_ROWS = 25;
+    private static final int MAX_ROWS = 50;
 
     private static String pipeTable(
         String description,

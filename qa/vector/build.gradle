@@ -8,6 +8,7 @@
  */
 
 apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -19,23 +20,74 @@ dependencies {
   implementation project(':server')
 }
 
+/**
+ * Task to run the KnnIndexTester with the provided parameters.
+ *
+ *
+ */
 tasks.register("checkVec", JavaExec) {
   group = "Execution"
   description = "Runs KnnIndexTester with the provided parameters to validate recall and performance."
   classpath = sourceSets.main.runtimeClasspath
   mainClass.set("org.elasticsearch.test.knn.KnnIndexTester")
-  // TODO REGISTER ARGS
-  args = [
-    "--docVectors=/some/path",
-    "--numDocs=100000",
-    //"--reindex",
-    //"--forceMerge",
-    "--queryVectors=/some/other/path",
-    "--dimensions=768",
-    "--overSamplingFactor=3",
-    "--nProbe=5"
-  ]
   if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED', '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8'
+    jvmArgs '-Xms4g', '-Xmx4g', '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED', '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8', '-XX:+UnlockDiagnosticVMOptions', '-XX:+DebugNonSafepoints', '-XX:+HeapDumpOnOutOfMemoryError'
+  }
+}
+
+tasks.register("checkVecHelp", JavaExec) {
+  group = "Help"
+  description = "Prints help for the KnnIndexTester task."
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass.set("org.elasticsearch.test.knn.KnnIndexTester")
+  args = ["--help"]
+  doLast {
+    println """
+    =============================================================================
+    KnnIndexTester Help
+    =============================================================================
+
+    Run with Gradle:
+    ----------------
+    # Using default configuration file
+    ./gradlew :qa:vector:checkVec
+
+    # Using custom configuration file
+    ./gradlew :qa:vector:checkVec --args="path/to/your/config.json"
+
+    # Adjust heap size
+    ./gradlew :qa:vector:checkVec -Dorg.gradle.jvmargs="-Xmx8g" --args="path/to/your/config.json"
+
+    # Set environment variable for more extensive JVM options
+    export GRADLE_OPTS="-Xmx8g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
+    ./gradlew :qa:vector:checkVec
+
+
+    Run directly with Java:
+    ----------------------
+    # Generate classpath (run once to create the file)
+    ./gradlew :qa:vector:printClasspath
+
+    # Then use the classpath file with java
+    java -cp "\$(cat build/vector_classpath.txt)" \\
+         --add-modules=jdk.incubator.vector \\
+         --enable-native-access=ALL-UNNAMED \\
+         -Djava.util.concurrent.ForkJoinPool.common.parallelism=8 \\
+         -Xmx4g \\
+         -Xms4g \\\\
+         org.elasticsearch.test.knn.KnnIndexTester path/to/your/config.json
+    """
+  }
+}
+
+tasks.register("printClasspath") {
+  group = "Help"
+  description = "Prints the classpath needed to run KnnIndexTester directly with java"
+
+  doLast {
+    def classpathFile = new File("${buildDir}/vector_classpath.txt")
+    classpathFile.parentFile.mkdirs()
+    classpathFile.text = sourceSets.main.runtimeClasspath.asPath
+    println "Classpath written to: ${classpathFile.absolutePath}"
   }
 }

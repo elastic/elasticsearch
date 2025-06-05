@@ -61,6 +61,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -77,8 +78,6 @@ import static org.elasticsearch.test.knn.KnnIndexer.ID_FIELD;
 import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 class KnnSearcher {
-
-    record SearcherResults(float avgRecall, float qps, float avgLatency, long averageVisited) {}
 
     private static final Logger logger = LogManager.getLogger(KnnIndexTester.class);
 
@@ -99,27 +98,27 @@ class KnnSearcher {
     private final float overSamplingFactor;
     private final int searchThreads;
 
-    KnnSearcher(Path indexPath, KnnIndexTester.CmdLineArgs cmdLineArgs) {
-        this.docPath = cmdLineArgs.docVectors;
+    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs) {
+        this.docPath = cmdLineArgs.docVectors();
         this.indexPath = indexPath;
-        this.queryPath = cmdLineArgs.queryVectors;
-        this.numDocs = cmdLineArgs.numDocs;
-        this.numQueryVectors = cmdLineArgs.numQueries;
-        this.topK = cmdLineArgs.k;
-        this.dim = cmdLineArgs.dimensions;
-        this.similarityFunction = cmdLineArgs.vectorSpace;
-        this.vectorEncoding = cmdLineArgs.vectorEncoding;
-        this.overSamplingFactor = cmdLineArgs.overSamplingFactor;
+        this.queryPath = cmdLineArgs.queryVectors();
+        this.numDocs = cmdLineArgs.numDocs();
+        this.numQueryVectors = cmdLineArgs.numQueries();
+        this.topK = cmdLineArgs.k();
+        this.dim = cmdLineArgs.dimensions();
+        this.similarityFunction = cmdLineArgs.vectorSpace();
+        this.vectorEncoding = cmdLineArgs.vectorEncoding();
+        this.overSamplingFactor = cmdLineArgs.overSamplingFactor();
         if (numQueryVectors <= 0) {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
-        this.efSearch = cmdLineArgs.numCandidates;
-        this.nProbe = cmdLineArgs.nProbe;
-        this.indexType = cmdLineArgs.indexType;
-        this.searchThreads = cmdLineArgs.searchThreads;
+        this.efSearch = cmdLineArgs.numCandidates();
+        this.nProbe = cmdLineArgs.nProbe();
+        this.indexType = cmdLineArgs.indexType();
+        this.searchThreads = cmdLineArgs.searchThreads();
     }
 
-    SearcherResults runSearch() throws IOException {
+    void runSearch(KnnIndexTester.Results finalResults) throws IOException {
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
@@ -139,7 +138,6 @@ class KnnSearcher {
             try (MMapDirectory dir = new MMapDirectory(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchThreads > 1 ? new IndexSearcher(reader, executorService) : new IndexSearcher(reader);
-                    int numDocs = reader.maxDoc();
                     byte[] targetBytes = new byte[dim];
                     float[] target = new float[dim];
                     // warm up
@@ -165,7 +163,7 @@ class KnnSearcher {
                         }
                     }
                     totalCpuTimeMS = TimeUnit.NANOSECONDS.toMillis(bean.getCurrentThreadCpuTime() - cpuTimeStartNs);
-                    elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS); // ns -> ms
+                    elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS);
 
                     // Fetch, validate and write result document ids.
                     StoredFields storedFields = reader.storedFields();
@@ -188,12 +186,10 @@ class KnnSearcher {
         logger.info("checking results");
         int[][] nn = getOrCalculateExactNN();
         float recall = checkResults(resultIds, nn, topK);
-        return new SearcherResults(
-            recall,
-            ((1000f * numQueryVectors) / elapsed),
-            (float) totalCpuTimeMS / numQueryVectors,
-            totalVisited / numQueryVectors
-        );
+        finalResults.avgRecall = recall;
+        finalResults.qps = (1000f * numQueryVectors) / elapsed;
+        finalResults.avgLatency = (float) elapsed / numQueryVectors;
+        finalResults.averageVisited = (double) totalVisited / numQueryVectors;
     }
 
     private int[][] getOrCalculateExactNN() throws IOException {
@@ -214,7 +210,7 @@ class KnnSearcher {
         );
         String nnFileName = "nn-" + hash + ".bin";
         Path nnPath = Paths.get("target/" + nnFileName);
-        if (Files.exists(nnPath)) {
+        if (Files.exists(nnPath) && isNewer(nnPath, docPath, indexPath, queryPath)) {
             logger.info("read pre-cached exact match vectors from cache file \"" + nnPath + "\"");
             return readExactNN(nnPath);
         } else {
@@ -233,6 +229,16 @@ class KnnSearcher {
             logger.info("computed " + numQueryVectors + " exact matches in " + elapsedMS + " ms");
             return nn;
         }
+    }
+
+    private boolean isNewer(Path path, Path... others) throws IOException {
+        FileTime modified = Files.getLastModifiedTime(path);
+        for (Path other : others) {
+            if (Files.getLastModifiedTime(other).compareTo(modified) >= 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher) throws IOException {

@@ -13,20 +13,29 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.index.VectorEncoding;
-import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
-class KnnIndexTester {
+/**
+ * A utility class to create and test KNN indices using Lucene.
+ * It supports various index types (HNSW, FLAT, IVF) and configurations.
+ */
+public class KnnIndexTester {
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
@@ -40,148 +49,48 @@ class KnnIndexTester {
         IVF
     }
 
-    static class CmdLineArgs {
-        static CmdLineArgs parse(String[] args) {
-            CmdLineArgs cmdLineArgs = new CmdLineArgs();
-
-            for (String arg : args) {
-                String[] parts = arg.split("=");
-                String key = parts[0].trim();
-                String value = null;
-                if (parts.length > 1) {
-                    value = parts[1].trim();
-                }
-                if (parts.length > 2) {
-                    throw new IllegalArgumentException("Too many parts in argument: " + arg);
-                }
-
-                switch (key) {
-                    case "--docVectors":
-                        cmdLineArgs.docVectors = Path.of(value);
-                        break;
-                    case "--queryVectors":
-                        cmdLineArgs.queryVectors = Path.of(value);
-                        break;
-                    case "--numDocs":
-                        cmdLineArgs.numDocs = Integer.parseInt(value);
-                        break;
-                    case "--numQueries":
-                        cmdLineArgs.numQueries = Integer.parseInt(value);
-                        break;
-                    case "--indexType":
-                        cmdLineArgs.indexType = IndexType.valueOf(value.toUpperCase());
-                        break;
-                    case "--numCandidates":
-                        cmdLineArgs.numCandidates = Integer.parseInt(value);
-                        break;
-                    case "--k":
-                        cmdLineArgs.k = Integer.parseInt(value);
-                        break;
-                    case "--nProbe":
-                        cmdLineArgs.nProbe = Integer.parseInt(value);
-                        break;
-                    case "--ivfClusterSize":
-                        cmdLineArgs.ivfClusterSize = Integer.parseInt(value);
-                        break;
-                    case "--overSamplingFactor":
-                        cmdLineArgs.overSamplingFactor = Integer.parseInt(value);
-                        break;
-                    case "--hnswM":
-                        cmdLineArgs.hnswM = Integer.parseInt(value);
-                        break;
-                    case "--hnswEfConstruction":
-                        cmdLineArgs.hnswEfConstruction = Integer.parseInt(value);
-                        break;
-                    case "--searchThreads":
-                        cmdLineArgs.searchThreads = Integer.parseInt(value);
-                        break;
-                    case "--indexThreads":
-                        cmdLineArgs.indexThreads = Integer.parseInt(value);
-                        break;
-                    case "--reindex":
-                        cmdLineArgs.reindex = true;
-                        break;
-                    case "--forceMerge":
-                        cmdLineArgs.forceMerge = true;
-                        break;
-                    case "--vectorSpace":
-                        cmdLineArgs.vectorSpace = VectorSimilarityFunction.valueOf(value.toUpperCase());
-                        break;
-                    case "--quantizeBits":
-                        cmdLineArgs.quantizeBits = Integer.parseInt(value);
-                        break;
-                    case "--vectorEncoding":
-                        cmdLineArgs.vectorEncoding = VectorEncoding.valueOf(value.toUpperCase());
-                        break;
-                    case "--dimensions":
-                        cmdLineArgs.dimensions = Integer.parseInt(value);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown argument: " + key);
-                }
-            }
-            return cmdLineArgs;
-        }
-
-        int numDocs = 1000;
-        int numQueries = 10;
-        IndexType indexType = IndexType.IVF;
-        int numCandidates = 100;
-        int k = 100;
-        int nProbe = -1;
-        int ivfClusterSize = 384;
-        int overSamplingFactor = 0;
-        int hnswM = 16;
-        int hnswEfConstruction = 100;
-        int searchThreads = 1;
-        int indexThreads = 1;
-        boolean reindex = false;
-        boolean forceMerge = false;
-        VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
-        // 32 means no quantization
-        int quantizeBits = 32;
-        int dimensions = 1024; // Default dimension size for vectors
-        VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
-        Path docVectors = null;
-        Path queryVectors = null;
-    }
-
     private static String formatIndexPath(CmdLineArgs args) {
         List<String> suffix = new ArrayList<>();
-        if (args.indexType == IndexType.FLAT) {
+        if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
-        } else if (args.indexType == IndexType.IVF) {
+        } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
-            suffix.add(Integer.toString(args.ivfClusterSize));
+            suffix.add(Integer.toString(args.ivfClusterSize()));
         } else {
-            suffix.add(Integer.toString(args.hnswM));
-            suffix.add(Integer.toString(args.hnswEfConstruction));
-            if (args.quantizeBits < 32) {
-                suffix.add(Integer.toString(args.quantizeBits));
+            suffix.add(Integer.toString(args.hnswM()));
+            suffix.add(Integer.toString(args.hnswEfConstruction()));
+            if (args.quantizeBits() < 32) {
+                suffix.add(Integer.toString(args.quantizeBits()));
             }
         }
-        return INDEX_DIR + "/" + args.docVectors.getFileName() + "-" + String.join("-", suffix) + ".index";
+        return INDEX_DIR + "/" + args.docVectors().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
-        if (args.indexType == IndexType.IVF) {
-            format = new IVFVectorsFormat(args.ivfClusterSize);
+        if (args.indexType() == IndexType.IVF) {
+            format = new IVFVectorsFormat(args.ivfClusterSize());
         } else {
-            if (args.quantizeBits == 1) {
-                if (args.indexType == IndexType.FLAT) {
+            if (args.quantizeBits() == 1) {
+                if (args.indexType() == IndexType.FLAT) {
                     format = new ES818BinaryQuantizedVectorsFormat();
                 } else {
-                    format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM, args.hnswEfConstruction, 1, null);
+                    format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
                 }
-            } else if (args.quantizeBits < 32) {
-                if (args.indexType == IndexType.FLAT) {
-                    format = new ES813Int8FlatVectorFormat(null, args.quantizeBits, true);
+            } else if (args.quantizeBits() < 32) {
+                if (args.indexType() == IndexType.FLAT) {
+                    format = new ES813Int8FlatVectorFormat(null, args.quantizeBits(), true);
                 } else {
-                    format = new ES814HnswScalarQuantizedVectorsFormat(args.hnswM, args.hnswEfConstruction, null, args.quantizeBits, true);
+                    format = new ES814HnswScalarQuantizedVectorsFormat(
+                        args.hnswM(),
+                        args.hnswEfConstruction(),
+                        null,
+                        args.quantizeBits(),
+                        true
+                    );
                 }
             } else {
-                format = new Lucene99HnswVectorsFormat(args.hnswM, args.hnswEfConstruction, 1, null);
+                format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
             }
         }
         return new Lucene101Codec() {
@@ -192,67 +101,208 @@ class KnnIndexTester {
         };
     }
 
+    /**
+     * Main method to run the KNN index tester.
+     * It parses command line arguments, creates the index, and runs searches if specified.
+     *
+     * @param args Command line arguments
+     * @throws Exception If an error occurs during index creation or search
+     */
     public static void main(String[] args) throws Exception {
-        CmdLineArgs cmdLineArgs = CmdLineArgs.parse(args);
-        if (cmdLineArgs.docVectors == null || cmdLineArgs.docVectors.toFile().exists() == false) {
-            throw new IllegalArgumentException("Document vectors file does not exist: " + cmdLineArgs.docVectors);
-        }
-        Codec codec = createCodec(cmdLineArgs);
-        Path indexPath = Path.of(formatIndexPath(cmdLineArgs));
-        long indexCreationTimeMS = 0;
-        long forceMergeTimeMS = 0;
-        int numSegments = 1;
-        StringBuilder resultHeaders = new StringBuilder();
-        StringBuilder resultValues = new StringBuilder();
-        // indicate params used for index creation
-        resultHeaders.append("index_type\t");
-        resultValues.append(cmdLineArgs.indexType).append("\t");
-        resultHeaders.append("num_docs\t");
-        resultValues.append(cmdLineArgs.numDocs).append("\t");
-        if (cmdLineArgs.reindex || cmdLineArgs.forceMerge) {
-            KnnIndexer knnIndexer = new KnnIndexer(
-                cmdLineArgs.docVectors,
-                indexPath,
-                codec,
-                cmdLineArgs.indexThreads,
-                cmdLineArgs.vectorEncoding,
-                cmdLineArgs.dimensions,
-                cmdLineArgs.vectorSpace,
-                cmdLineArgs.numDocs
+        if (args.length != 1 || args[0].equals("--help") || args[0].equals("-h")) {
+            // printout an example configuration formatted file and indicate that it is required
+            System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file>");
+            System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
+            System.out.println("An example configuration object: ");
+            System.out.println(
+                Strings.toString(
+                    new CmdLineArgs.Builder().setDimensions(64)
+                        .setDocVectors("/doc/vectors/path")
+                        .setQueryVectors("/query/vectors/path")
+                        .build(),
+                    true,
+                    true
+                )
             );
-            if (cmdLineArgs.reindex) {
-                indexCreationTimeMS = knnIndexer.createIndex();
-            }
-            if (cmdLineArgs.forceMerge) {
-                forceMergeTimeMS = knnIndexer.forceMerge();
+            return;
+        }
+        String jsonConfig = args[0];
+        // Parse command line arguments
+        Path jsonConfigPath = Path.of(jsonConfig);
+        if (jsonConfigPath.toFile().exists() == false) {
+            throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
+        }
+        // Parse the JSON config file to get command line arguments
+        // This assumes that CmdLineArgs.fromXContent is implemented to parse the JSON file
+        List<CmdLineArgs> cmdLineArgsList = new ArrayList<>();
+        try (
+            InputStream jsonStream = Files.newInputStream(jsonConfigPath);
+            XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, jsonStream)
+        ) {
+            // check if the parser is at the start of an object if so, we only have one set of arguments
+            if (parser.currentToken() == null && parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                cmdLineArgsList.add(CmdLineArgs.fromXContent(parser));
+            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                // if the parser is at the start of an array, we have multiple sets of arguments
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    cmdLineArgsList.add(CmdLineArgs.fromXContent(parser));
+                }
             } else {
-                numSegments = knnIndexer.numSegments();
+                throw new IllegalArgumentException("Invalid JSON format in config file: " + jsonConfigPath);
             }
         }
-        if (indexCreationTimeMS > 0) {
-            resultHeaders.append("index_time(ms)").append("\t");
-            resultValues.append(indexCreationTimeMS).append("\t");
+        FormattedResults formattedResults = new FormattedResults();
+        for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
+            Results result = new Results(cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT), cmdLineArgs.numDocs());
+            System.out.println("Running KNN index tester with arguments: " + cmdLineArgs);
+            Codec codec = createCodec(cmdLineArgs);
+            Path indexPath = Path.of(formatIndexPath(cmdLineArgs));
+            if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
+                KnnIndexer knnIndexer = new KnnIndexer(
+                    cmdLineArgs.docVectors(),
+                    indexPath,
+                    codec,
+                    cmdLineArgs.indexThreads(),
+                    cmdLineArgs.vectorEncoding(),
+                    cmdLineArgs.dimensions(),
+                    cmdLineArgs.vectorSpace(),
+                    cmdLineArgs.numDocs()
+                );
+                if (cmdLineArgs.reindex()) {
+                    knnIndexer.createIndex(result);
+                }
+                if (cmdLineArgs.forceMerge()) {
+                    knnIndexer.forceMerge(result);
+                } else {
+                    knnIndexer.numSegments(result);
+                }
+            }
+            if (cmdLineArgs.queryVectors() != null) {
+                KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
+                knnSearcher.runSearch(result);
+            }
+            formattedResults.results.add(result);
         }
-        if (forceMergeTimeMS > 0) {
-            resultHeaders.append("force_merge_time(ms)").append("\t");
-            resultValues.append(forceMergeTimeMS).append("\t");
-        }
-        resultHeaders.append("num_segments\t");
-        resultValues.append(numSegments).append("\t");
+        System.out.println("Results:");
+        System.out.println(formattedResults);
+    }
 
-        if (cmdLineArgs.queryVectors != null) {
-            KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
-            KnnSearcher.SearcherResults results = knnSearcher.runSearch();
-            resultHeaders.append("latency(ms)\t");
-            resultValues.append(results.avgLatency()).append("\t");
-            resultHeaders.append("qps\t");
-            resultValues.append(results.qps()).append("\t");
-            resultHeaders.append("recall\t");
-            resultValues.append(results.avgRecall()).append("\t");
-            resultHeaders.append("visited\t");
-            resultValues.append(results.averageVisited()).append("\t");
+    static class FormattedResults {
+        List<Results> results = new ArrayList<>();
+
+        @Override
+        public String toString() {
+            if (results.isEmpty()) {
+                return "No results available.";
+            }
+
+            // Define column headers
+            String[] headers = {
+                "index_type",
+                "num_docs",
+                "index_time(ms)",
+                "force_merge_time(ms)",
+                "num_segments",
+                "latency(ms)",
+                "QPS",
+                "recall",
+                "visited" };
+
+            // Calculate appropriate column widths based on headers and data
+            int[] widths = calculateColumnWidths(headers);
+
+            StringBuilder sb = new StringBuilder();
+
+            // Format and append header
+            sb.append(formatRow(headers, widths));
+            sb.append("\n");
+
+            // Add separator line
+            for (int width : widths) {
+                sb.append("-".repeat(width)).append("  ");
+            }
+            sb.append("\n");
+
+            // Format and append each row of data
+            for (Results result : results) {
+                String[] rowData = {
+                    result.indexType,
+                    Integer.toString(result.numDocs),
+                    Long.toString(result.indexTimeMS),
+                    Long.toString(result.forceMergeTimeMS),
+                    Integer.toString(result.numSegments),
+                    String.format(Locale.ROOT, "%.2f", result.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", result.qps),
+                    String.format(Locale.ROOT, "%.2f", result.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", result.averageVisited) };
+                sb.append(formatRow(rowData, widths));
+                sb.append("\n");
+            }
+
+            return sb.toString();
         }
-        System.out.println(resultHeaders);
-        System.out.println(resultValues);
+
+        // Helper method to format a single row with proper column widths
+        private String formatRow(String[] values, int[] widths) {
+            StringBuilder row = new StringBuilder();
+            for (int i = 0; i < values.length; i++) {
+                // Left-align text column (index_type), right-align numeric columns
+                String format = (i == 0) ? "%-" + widths[i] + "s" : "%" + widths[i] + "s";
+                row.append(String.format(format, values[i]));
+
+                // Add separation between columns
+                if (i < values.length - 1) {
+                    row.append("  ");
+                }
+            }
+            return row.toString();
+        }
+
+        // Calculate appropriate column widths based on headers and data
+        private int[] calculateColumnWidths(String[] headers) {
+            int[] widths = new int[headers.length];
+
+            // Initialize widths with header lengths
+            for (int i = 0; i < headers.length; i++) {
+                widths[i] = headers[i].length();
+            }
+
+            // Update widths based on data
+            for (Results result : results) {
+                String[] values = {
+                    result.indexType,
+                    Integer.toString(result.numDocs),
+                    Long.toString(result.indexTimeMS),
+                    Long.toString(result.forceMergeTimeMS),
+                    Integer.toString(result.numSegments),
+                    String.format(Locale.ROOT, "%.2f", result.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", result.qps),
+                    String.format(Locale.ROOT, "%.2f", result.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", result.averageVisited) };
+
+                for (int i = 0; i < values.length; i++) {
+                    widths[i] = Math.max(widths[i], values[i].length());
+                }
+            }
+
+            return widths;
+        }
+    }
+
+    static class Results {
+        final String indexType;
+        final int numDocs;
+        long indexTimeMS;
+        long forceMergeTimeMS;
+        int numSegments;
+        double avgLatency;
+        double qps;
+        double avgRecall;
+        double averageVisited;
+
+        Results(String indexType, int numDocs) {
+            this.indexType = indexType;
+            this.numDocs = numDocs;
+        }
     }
 }

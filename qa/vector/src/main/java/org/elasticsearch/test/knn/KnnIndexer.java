@@ -89,15 +89,15 @@ class KnnIndexer {
         this.numDocs = numDocs;
     }
 
-    int numSegments() {
+    void numSegments(KnnIndexTester.Results result) {
         try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
-            return reader.leaves().size();
+            result.numSegments = reader.leaves().size();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
         }
     }
 
-    long createIndex() throws IOException, InterruptedException, ExecutionException {
+    void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
         iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
@@ -170,10 +170,10 @@ class KnnIndexer {
 
         long elapsed = System.nanoTime() - start;
         logger.debug("Indexing took %d ms for %d docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
-        return TimeUnit.NANOSECONDS.toMillis(elapsed);
+        result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
     }
 
-    long forceMerge() throws Exception {
+    void forceMerge(KnnIndexTester.Results results) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
@@ -190,7 +190,7 @@ class KnnIndexer {
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);
         logger.info("forceMerge took %d ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
-        return TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
+        results.forceMergeTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
     }
 
     static class IndexerThread extends Thread {

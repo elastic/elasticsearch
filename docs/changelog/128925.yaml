@@ -1,5 +1,5 @@
 pr: 128925
-summary: Take `match_phrase` out of snapshot and make tech preview
+summary: ES|QL - Add `match_phrase` full text function (tech preview)
 area: ES|QL
 type: enhancement
 issues: []

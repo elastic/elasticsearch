@@ -151,7 +151,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._id", node_2), "test");
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
 
         clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
@@ -216,6 +216,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> relocate the shard from node1 to node2");
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
+        // updateIndexSettings(Settings.builder().put("index.routing.allocation.include._id", node_2), "test");
 
         // Relocation will suspend throttling for the paused shard, allow the indexing thread to proceed, thereby releasing
         // the indexing permit it holds, in turn allowing relocation to acquire the permits and proceed.
@@ -296,6 +297,10 @@ public class RelocationIT extends ESIntegTestCase {
                 indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
                 ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
+
+                // updateIndexSettings(Settings.builder().put("index.routing.allocation.include._id", nodes[toNode]), "test");
+                // ensureGreen(ACCEPTABLE_RELOCATION_TIME, "test");
+
                 if (rarely()) {
                     logger.debug("--> flushing");
                     indicesAdmin().prepareFlush().get();

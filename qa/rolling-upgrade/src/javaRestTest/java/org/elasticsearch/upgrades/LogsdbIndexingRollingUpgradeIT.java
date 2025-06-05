@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
+public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """

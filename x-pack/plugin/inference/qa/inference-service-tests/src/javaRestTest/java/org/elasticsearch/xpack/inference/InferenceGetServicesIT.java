@@ -32,7 +32,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(23));
+        assertThat(services.size(), equalTo(24));
 
         var providers = providers(services);
 
@@ -57,6 +57,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "mistral",
                     "openai",
                     "streaming_completion_test_service",
+                    "completion_test_service",
                     "test_reranking_service",
                     "test_service",
                     "text_embedding_test_service",
@@ -153,6 +154,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googleaistudio",
                     "openai",
                     "streaming_completion_test_service",
+                    "completion_test_service",
                     "hugging_face",
                     "amazon_sagemaker"
                 ).toArray()

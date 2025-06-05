@@ -38,6 +38,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -179,8 +180,9 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> creating test index ...");
         prepareCreate("test", indexSettings(1, 0)).get();
 
-        logger.info("--> index 10 docs");
-        for (int i = 0; i < 10; i++) {
+        logger.info("--> index docs");
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         logger.info("--> flush so we have an actual index");
@@ -188,7 +190,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         indicesAdmin().prepareRefresh().get();
-        assertHitCount(prepareSearch("test").setSize(0), 10L);
+        assertHitCount(prepareSearch("test").setSize(0), numDocs);
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -203,19 +205,21 @@ public class RelocationIT extends ESIntegTestCase {
         IndexShard shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
         shard.activateThrottling();
         // Verify that indexing is paused for the throttled shard
-        assertThat(shard.getEngineOrNull().isIndexingPaused(), equalTo(true));
+        Engine engine = shard.getEngineOrNull();
+        assertThat(engine != null && engine.isThrottled(), equalTo(true));
         // Try to index a document into the "test" index which is currently throttled
         logger.info("--> Try to index a doc while indexing is paused");
         IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(20)).setSource("field", "value" + 20);
         var future = indexRequestBuilder.execute();
-        expectThrows(ElasticsearchException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        expectThrows(ElasticsearchException.class, () -> future.actionGet(500, TimeUnit.MILLISECONDS));
         // Verify that the new document has not been indexed indicating that the indexing thread is paused.
         logger.info("--> verifying count is unchanged...");
         indicesAdmin().prepareRefresh().get();
-        assertHitCount(prepareSearch("test").setSize(0), 10);
+        assertHitCount(prepareSearch("test").setSize(0), numDocs);
 
         logger.info("--> relocate the shard from node1 to node2");
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", node_2), "test");
+        ensureGreen(ACCEPTABLE_RELOCATION_TIME, "test");
 
         // Relocation will suspend throttling for the paused shard, allow the indexing thread to proceed, thereby releasing
         // the indexing permit it holds, in turn allowing relocation to acquire the permits and proceed.
@@ -229,7 +233,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying count after relocation ...");
         future.actionGet();
         indicesAdmin().prepareRefresh().get();
-        assertHitCount(prepareSearch("test").setSize(0), 11);
+        assertHitCount(prepareSearch("test").setSize(0), numDocs + 1);
     }
 
     public void testRelocationWhileIndexingRandom() throws Exception {
@@ -245,9 +249,7 @@ public class RelocationIT extends ESIntegTestCase {
             numberOfNodes
         );
 
-        // Start node with PAUSE_INDEXING_ON_THROTTLE setting set to true. This means that if we activate
-        // index throttling for a shard on this node, it will pause indexing for that shard until throttling
-        // is deactivated.
+        // Randomly use pause throttling vs lock throttling, to verify that relocations proceed regardless
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
         nodes[0] = internalCluster().startNode(
@@ -282,7 +284,8 @@ public class RelocationIT extends ESIntegTestCase {
                 // Activate index throttling on "test" index primary shard
                 shard.activateThrottling();
                 // Verify that indexing is throttled for this shard
-                assertThat(shard.getEngineOrNull().isThrottled(), equalTo(true));
+                Engine engine = shard.getEngineOrNull();
+                assertThat(engine != null && engine.isThrottled(), equalTo(true));
             }
             logger.info("--> starting relocations...");
             int nodeShiftBased = numberOfReplicas; // if we have replicas shift those
@@ -295,7 +298,10 @@ public class RelocationIT extends ESIntegTestCase {
                 logger.debug("--> Allow indexer to index [{}] documents", numDocs);
                 indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
-                ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
+
+                updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", nodes[toNode]), "test");
+                ensureGreen(ACCEPTABLE_RELOCATION_TIME, "test");
+
                 if (rarely()) {
                     logger.debug("--> flushing");
                     indicesAdmin().prepareFlush().get();
@@ -308,7 +314,7 @@ public class RelocationIT extends ESIntegTestCase {
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
-                if(throttleIndexing) {
+                if (throttleIndexing) {
                     // Deactivate throttling on source shard to allow indexing threads to pass
                     shard.deactivateThrottling();
                     // Activate throttling on target shard before next relocation
@@ -316,12 +322,13 @@ public class RelocationIT extends ESIntegTestCase {
                     shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
                     shard.activateThrottling();
                     // Verify that indexing is throttled for this shard
-                    assertThat(shard.getEngineOrNull().isThrottled(), equalTo(true));
+                    Engine engine = shard.getEngineOrNull();
+                    assertThat(engine != null && engine.isThrottled(), equalTo(true));
                 }
             }
             logger.info("--> done relocations");
             // Deactivate throttling on the primary shard to allow indexing threads to pass
-            if(throttleIndexing) {
+            if (throttleIndexing) {
                 shard.deactivateThrottling();
             }
             logger.info("--> waiting for indexing threads to stop ...");

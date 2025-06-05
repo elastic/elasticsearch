@@ -2276,8 +2276,6 @@ public abstract class Engine implements Closeable {
      */
     public abstract void resumeThrottling();
 
-    public abstract boolean isIndexingPaused();
-
     /**
      * This method replays translog to restore the Lucene index which might be reverted previously.
      * This ensures that all acknowledged writes are restored correctly when this engine is promoted.

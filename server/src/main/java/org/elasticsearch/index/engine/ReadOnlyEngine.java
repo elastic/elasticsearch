@@ -514,11 +514,6 @@ public class ReadOnlyEngine extends Engine {
     public void resumeThrottling() {}
 
     @Override
-    public boolean isIndexingPaused() {
-        return (false);
-    }
-
-    @Override
     public void trimUnreferencedTranslogFiles() {}
 
     @Override

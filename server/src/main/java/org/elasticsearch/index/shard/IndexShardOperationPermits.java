@@ -90,7 +90,7 @@ final class IndexShardOperationPermits implements Closeable {
         waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
     }
 
-    protected void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, Executor executor) {
+    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, Executor executor) {
         executor.execute(new AbstractRunnable() {
 
             final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
@@ -126,7 +126,7 @@ final class IndexShardOperationPermits implements Closeable {
         });
     }
 
-    protected void delayOperations() {
+    private void delayOperations() {
         if (closed) {
             throw new IndexShardClosedException(shardId);
         }

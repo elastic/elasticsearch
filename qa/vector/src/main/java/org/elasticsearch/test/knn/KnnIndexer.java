@@ -124,7 +124,11 @@ class KnnIndexer {
             similarityFunction
         );
 
-        Files.createDirectory(indexPath);
+        if (Files.exists(indexPath)) {
+            logger.debug("KnnIndexer: existing index at %s", indexPath);
+        } else {
+            Files.createDirectory(indexPath);
+        }
 
         long start = System.nanoTime();
         try (
@@ -269,6 +273,7 @@ class KnnIndexer {
         final float[] target;
         final ByteBuffer bytes;
         final FileChannel input;
+        long position;
 
         static VectorReader create(FileChannel input, int dim, VectorEncoding vectorEncoding) throws IOException {
             int bufferSize = dim * vectorEncoding.byteSize;
@@ -288,22 +293,26 @@ class KnnIndexer {
         }
 
         void reset() throws IOException {
-            input.position(0);
+            position = 0;
+            input.position(position);
         }
 
         private void readNext() throws IOException {
-            int bytesRead = Channels.readFromFileChannel(this.input, this.input.position(), bytes);
+            int bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
             if (bytesRead < bytes.capacity()) {
+                position = 0;
+                bytes.position(0);
                 // wrap around back to the start of the file if we hit the end:
                 logger.warn("VectorReader hit EOF when reading " + this.input + "; now wrapping around to start of file again");
-                this.input.position(0);
-                bytesRead = Channels.readFromFileChannel(this.input, this.input.position(), bytes);
+                this.input.position(position);
+                bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
                 if (bytesRead < bytes.capacity()) {
                     throw new IllegalStateException(
                         "vector file " + input + " doesn't even have enough bytes for a single vector?  got bytesRead=" + bytesRead
                     );
                 }
             }
+            position += bytesRead;
             bytes.position(0);
         }
 

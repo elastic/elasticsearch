@@ -22,6 +22,7 @@ cancel-grace-period=300
 tags="queue=elasticsearch-quick-agent"
 acquire-job=""
 tags-from-gcp="false"
+git-mirrors-path=/opt/git-mirrors
 EOF
 
 grep 'token=' "$BUILDKITE_CONFIG_PATH" >> "$CONFIG_FILE"

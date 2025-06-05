@@ -291,10 +291,45 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+            BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+            Integer numClauses = getApproxWildCardQuery(wildcardPattern, rewritten);
+            if (numClauses == null) {
+                // We have no concrete characters and we're not a pure length query e.g. ???
+                return new FieldExistsQuery(name());
+            }
+            Automaton automaton = caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
+                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            if (numClauses > 0) {
+                // We can accelerate execution with the ngram query
+                BooleanQuery approxQuery = rewritten.build();
+                return BinaryDvConfirmedQuery.fromAutomaton(approxQuery, name(), wildcardPattern, automaton);
+            } else {
+                return BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
+            }
+        }
 
-            String ngramIndexPattern = addLineEndChars(wildcardPattern);
+        private Integer getApproxWildCardQuery(String wildcardPattern, BooleanQuery.Builder rewritten) {
             // Break search term into tokens
             Set<String> tokens = new LinkedHashSet<>();
+            boolean matchAll = breakIntoTokens(wildcardPattern, tokens);
+            if (matchAll) {
+                // We have no concrete characters and we're not a pure length query e.g. ???
+                return null;
+            }
+            int clauseCount = 0;
+            for (String string : tokens) {
+                if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                    break;
+                }
+                addClause(string, rewritten, Occur.MUST);
+                clauseCount++;
+            }
+            return clauseCount;
+        }
+
+        private boolean breakIntoTokens(String wildcardPattern, Set<String> tokens) {
+            String ngramIndexPattern = addLineEndChars(wildcardPattern);
             StringBuilder sequence = new StringBuilder();
             int numWildcardChars = 0;
             int numWildcardStrings = 0;
@@ -336,29 +371,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (sequence.length() > 0) {
                 getNgramTokens(tokens, sequence.toString());
             }
-
-            BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-            int clauseCount = 0;
-            for (String string : tokens) {
-                if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                    break;
-                }
-                addClause(string, rewritten, Occur.MUST);
-                clauseCount++;
-            }
-            Automaton automaton = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
-                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-            if (clauseCount > 0) {
-                // We can accelerate execution with the ngram query
-                BooleanQuery approxQuery = rewritten.build();
-                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);
-            } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
-                // We have no concrete characters and we're not a pure length query e.g. ???
-                return new FieldExistsQuery(name());
-            }
-            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
-
+            return tokens.isEmpty() && (numWildcardChars == 0 || numWildcardStrings > 0);
         }
 
         @Override
@@ -391,7 +404,7 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
 
             // We can accelerate execution with the ngram query
-            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);
+            return BinaryDvConfirmedQuery.fromAutomaton(approxNgramQuery, name(), value, automaton);
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -723,9 +736,9 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
 
             if (accelerationQuery == null) {
-                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), lower + "-" + upper, automaton);
+                return BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), name(), lower + "-" + upper, automaton);
             }
-            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);
+            return BinaryDvConfirmedQuery.fromAutomaton(accelerationQuery, name(), lower + "-" + upper, automaton);
         }
 
         @Override
@@ -814,10 +827,10 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewriteMethod
                     );
                 if (ngramQ.clauses().size() == 0) {
-                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
+                    return BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
                 }
 
-                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
+                return BinaryDvConfirmedQuery.fromAutomaton(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -836,7 +849,14 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
-            return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
+            BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+            Integer numClauses = getApproxWildCardQuery(escapeWildcardSyntax(searchTerm), rewritten);
+            if (numClauses != null && numClauses > 0) {
+                Query approxQuery = rewritten.build();
+                return BinaryDvConfirmedQuery.fromTerms(approxQuery, name(), new BytesRef(searchTerm));
+            } else {
+                return BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), name(), new BytesRef(searchTerm));
+            }
         }
 
         private static String escapeWildcardSyntax(String term) {

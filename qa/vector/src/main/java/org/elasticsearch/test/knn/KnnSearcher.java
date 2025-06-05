@@ -41,8 +41,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
@@ -74,12 +72,11 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 import static org.elasticsearch.test.knn.KnnIndexer.ID_FIELD;
 import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 class KnnSearcher {
-
-    private static final Logger logger = LogManager.getLogger(KnnIndexTester.class);
 
     private final Path docPath;
     private final Path indexPath;
@@ -172,7 +169,7 @@ class KnnSearcher {
                         resultIds[i] = getResultIds(results[i], storedFields);
                     }
                     logger.info(
-                        "completed {} searches in {} ms: {} QPS CPU time={}ms",
+                        "completed %d searches in %d ms: %d QPS CPU time=%dms",
                         numQueryVectors,
                         elapsed,
                         (1000L * numQueryVectors) / elapsed,

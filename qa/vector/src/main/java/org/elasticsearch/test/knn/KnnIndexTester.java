@@ -20,6 +20,7 @@ import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsForm
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,6 +37,10 @@ import java.util.Locale;
  * It supports various index types (HNSW, FLAT, IVF) and configurations.
  */
 public class KnnIndexTester {
+    static final Level LOG_LEVEL = Level.DEBUG;
+
+    static final SysOutLogger logger = new SysOutLogger();
+
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
@@ -303,6 +308,57 @@ public class KnnIndexTester {
         Results(String indexType, int numDocs) {
             this.indexType = indexType;
             this.numDocs = numDocs;
+        }
+    }
+
+    static final class SysOutLogger {
+
+        void warn(String message) {
+            if (LOG_LEVEL.ordinal() >= Level.WARN.ordinal()) {
+                System.out.println(message);
+            }
+        }
+
+        void warn(String message, Object... params) {
+            if (LOG_LEVEL.ordinal() >= Level.WARN.ordinal()) {
+                System.out.println(String.format(Locale.ROOT, message, params));
+            }
+        }
+
+        void info(String message) {
+            if (LOG_LEVEL.ordinal() >= Level.INFO.ordinal()) {
+                System.out.println(message);
+            }
+        }
+
+        void info(String message, Object... params) {
+            if (LOG_LEVEL.ordinal() >= Level.INFO.ordinal()) {
+                System.out.println(String.format(Locale.ROOT, message, params));
+            }
+        }
+
+        void debug(String message) {
+            if (LOG_LEVEL.ordinal() >= Level.DEBUG.ordinal()) {
+                System.out.println(message);
+            }
+        }
+
+        void debug(String message, Object... params) {
+            if (LOG_LEVEL.ordinal() >= Level.DEBUG.ordinal()) {
+                System.out.println(String.format(Locale.ROOT, message, params));
+            }
+        }
+
+        void trace(String message) {
+            if (LOG_LEVEL == Level.TRACE) {
+                System.out.println(message);
+            }
+        }
+
+        void trace(String message, Object... params) {
+            if (LOG_LEVEL == Level.TRACE) {
+                System.out.println(String.format(Locale.ROOT, message, params));
+            }
         }
     }
 }

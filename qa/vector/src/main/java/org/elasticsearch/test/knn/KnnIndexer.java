@@ -35,8 +35,6 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.PrintStreamInfoStream;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -54,8 +52,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.knn.KnnIndexTester.logger;
+
 class KnnIndexer {
-    private static final Logger logger = LogManager.getLogger(KnnIndexer.class);
     private static final double WRITER_BUFFER_MB = 128;
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";

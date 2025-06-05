@@ -110,7 +110,7 @@ public final class IndexLifecycleTransition {
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
      * @param forcePhaseDefinitionRefresh Whether to force the phase JSON to be reread or not
-     * @return The updated cluster state where the index moved to <code>newStepKey</code>
+     * @return The updated project metadata where the index moved to <code>newStepKey</code>
      */
     static ProjectMetadata moveIndexToStep(
         Index index,
@@ -208,7 +208,7 @@ public final class IndexLifecycleTransition {
      * Move the given index's execution state back to a step that had previously failed. If this is
      * an automatic retry ({@code isAutomaticRetry}), the retry count is incremented.
      */
-    static ProjectMetadata moveClusterStateToPreviouslyFailedStep(
+    static ProjectMetadata moveIndexToPreviouslyFailedStep(
         ProjectMetadata project,
         String index,
         LongSupplier nowSupplier,
@@ -408,7 +408,7 @@ public final class IndexLifecycleTransition {
      * built if the step info has changed, otherwise the same old <code>project</code> is
      * returned
      */
-    static ProjectMetadata addStepInfoToClusterState(Index index, ProjectMetadata project, ToXContentObject stepInfo) {
+    static ProjectMetadata addStepInfoToProject(Index index, ProjectMetadata project, ToXContentObject stepInfo) {
         IndexMetadata indexMetadata = project.index(index);
         if (indexMetadata == null) {
             // This index doesn't exist anymore, we can't do anything

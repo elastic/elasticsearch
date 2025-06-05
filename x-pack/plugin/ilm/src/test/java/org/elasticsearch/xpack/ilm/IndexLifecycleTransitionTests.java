@@ -321,7 +321,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             {"type":"illegal_argument_exception","reason":"non elasticsearch-exception\"""");
     }
 
-    public void testAddStepInfoToClusterState() throws IOException {
+    public void testAddStepInfoToProject() throws IOException {
         String indexName = "my_index";
         Step.StepKey currentStep = new Step.StepKey("current_phase", "current_action", "current_step");
         RandomStepInfo stepInfo = new RandomStepInfo(() -> randomAlphaOfLength(10));
@@ -332,9 +332,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStep(currentStep.name());
         ProjectMetadata project = buildProject(indexName, Settings.builder(), lifecycleState.build(), List.of());
         Index index = project.index(indexName).getIndex();
-        ProjectMetadata newProject = IndexLifecycleTransition.addStepInfoToClusterState(index, project, stepInfo);
+        ProjectMetadata newProject = IndexLifecycleTransition.addStepInfoToProject(index, project, stepInfo);
         assertProjectStepInfo(project, index, currentStep, newProject, stepInfo);
-        ProjectMetadata runAgainProject = IndexLifecycleTransition.addStepInfoToClusterState(index, newProject, stepInfo);
+        ProjectMetadata runAgainProject = IndexLifecycleTransition.addStepInfoToProject(index, newProject, stepInfo);
         assertSame(newProject, runAgainProject);
     }
 
@@ -731,7 +731,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setFailedStep(failedStepKey.name());
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
         Index index = project.index(indexName).getIndex();
-        ProjectMetadata newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+        ProjectMetadata newProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
             project,
             indexName,
             () -> now,
@@ -773,7 +773,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
+            () -> IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
         );
         assertThat(
             exception.getMessage(),
@@ -787,7 +787,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ProjectMetadata project = buildProject(existingIndexName, Settings.builder(), LifecycleExecutionState.builder().build(), List.of());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, invalidIndexName, () -> 0L, null, false)
+            () -> IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(project, invalidIndexName, () -> 0L, null, false)
         );
         assertThat(exception.getMessage(), equalTo("index [" + invalidIndexName + "] does not exist"));
     }
@@ -809,7 +809,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
+            () -> IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
         );
         assertThat(exception.getMessage(), equalTo("index [" + indexName + "] is not associated with an Index Lifecycle Policy"));
     }
@@ -829,7 +829,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
+            () -> IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(project, indexName, () -> now, policyRegistry, false)
         );
         assertThat(
             exception.getMessage(),
@@ -839,7 +839,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
     }
 
-    public void testMoveClusterStateToPreviouslyFailedStepAsAutomaticRetryAndSetsPreviousStepInfo() {
+    public void testMoveIndexToPreviouslyFailedStepAsAutomaticRetryAndSetsPreviousStepInfo() {
         String indexName = "my_index";
         String policyName = "my_policy";
         long now = randomNonNegativeLong();
@@ -868,7 +868,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setStepInfo(initialStepInfo);
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), List.of(policyMetadata));
         Index index = project.index(indexName).getIndex();
-        ProjectMetadata newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+        ProjectMetadata newProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
             project,
             indexName,
             () -> now,
@@ -929,7 +929,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             currentExecutionState.build(),
             policyMetadatas
         );
-        ProjectMetadata newProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+        ProjectMetadata newProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
             project,
             indexName,
             ESTestCase::randomNonNegativeLong,

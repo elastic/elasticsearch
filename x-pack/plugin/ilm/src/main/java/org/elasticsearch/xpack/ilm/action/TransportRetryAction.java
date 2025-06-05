@@ -74,10 +74,8 @@ public class TransportRetryAction extends TransportMasterNodeAction<RetryActionR
         submitUnbatchedTask("ilm-re-run", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final var updatedProject = indexLifecycleService.moveClusterStateToPreviouslyFailedStep(
-                    state.metadata().getProject(),
-                    request.indices()
-                );
+                final var project = state.metadata().getProject();
+                final var updatedProject = indexLifecycleService.moveIndicesToPreviouslyFailedStep(project, request.indices());
                 return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
             }
 

@@ -657,7 +657,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected ClusterState doExecute(ClusterState currentState) {
-            final var updatedProject = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            final var updatedProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
                 currentState.metadata().getProject(),
                 index.getName(),
                 nowSupplier,

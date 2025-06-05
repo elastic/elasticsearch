@@ -55,7 +55,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(lifecycleState))) {
             return ClusterState.builder(currentState)
-                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToClusterState(index, project, stepInfo))
+                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToProject(index, project, stepInfo))
                 .build();
         } else {
             // either the policy has changed or the step is now

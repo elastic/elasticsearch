@@ -199,9 +199,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                 return state;
             }
             return ClusterState.builder(state)
-                .putProjectMetadata(
-                    IndexLifecycleTransition.addStepInfoToClusterState(index, state.metadata().getProject(), stepInfo)
-                )
+                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToProject(index, state.metadata().getProject(), stepInfo))
                 .build();
         }
     }

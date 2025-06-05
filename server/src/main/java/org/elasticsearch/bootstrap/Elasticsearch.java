@@ -63,6 +63,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Security;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -248,7 +249,7 @@ class Elasticsearch {
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
         var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
-        Map<String, Iterable<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+        Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
             .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), pluginBundle -> singleton(pluginBundle.getDir())));
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,

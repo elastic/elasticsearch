@@ -27,6 +27,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -66,7 +67,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
-        Map<String, Iterable<Path>> pluginSourcePaths,
+        Map<String, Collection<Path>> pluginSourcePaths,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -156,7 +157,7 @@ public class EntitlementBootstrap {
         }
     }
 
-    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Iterable<Path>> pluginSourcePaths) {
+    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Collection<Path>> pluginSourcePaths) {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         return new PolicyManager(

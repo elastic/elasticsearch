@@ -21,6 +21,7 @@ import java.lang.module.ModuleReference;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -141,17 +142,17 @@ public class PolicyManager {
         }
     }
 
-    private FileAccessTree getDefaultFileAccess(Iterable<Path> componentPaths) {
+    private FileAccessTree getDefaultFileAccess(Collection<Path> componentPaths) {
         return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPaths);
     }
 
     // pkg private for testing
-    ModuleEntitlements defaultEntitlements(String componentName, Iterable<Path> componentPaths, String moduleName) {
+    ModuleEntitlements defaultEntitlements(String componentName, Collection<Path> componentPaths, String moduleName) {
         return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPaths), getLogger(componentName, moduleName));
     }
 
     // pkg private for testing
-    ModuleEntitlements policyEntitlements(String componentName, Iterable<Path> componentPaths, String moduleName, List<Entitlement> entitlements) {
+    ModuleEntitlements policyEntitlements(String componentName, Collection<Path> componentPaths, String moduleName, List<Entitlement> entitlements) {
         FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
         for (Entitlement entitlement : entitlements) {
             if (entitlement instanceof FilesEntitlement) {
@@ -203,7 +204,7 @@ public class PolicyManager {
         .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
         .collect(Collectors.toUnmodifiableSet());
 
-    private final Map<String, Iterable<Path>> pluginSourcePaths;
+    private final Map<String, Collection<Path>> pluginSourcePaths;
 
     /**
      * Paths that are only allowed for a single module. Used to generate
@@ -217,7 +218,7 @@ public class PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Iterable<Path>> pluginSourcePaths,
+        Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -354,7 +355,7 @@ public class PolicyManager {
         Map<String, List<Entitlement>> scopeEntitlements,
         String scopeName,
         String componentName,
-        Iterable<Path> componentPaths
+        Collection<Path> componentPaths
     ) {
         var entitlements = scopeEntitlements.get(scopeName);
         if (entitlements == null) {

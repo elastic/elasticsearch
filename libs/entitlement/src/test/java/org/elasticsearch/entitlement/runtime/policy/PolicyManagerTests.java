@@ -94,7 +94,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of("plugin1", new Policy("plugin1", List.of(new Scope("plugin.module1", List.of(new ExitVMEntitlement()))))),
             c -> policyScope.get(),
-            Map.of("plugin1", plugin1SourcePath),
+            Map.of("plugin1", List.of(plugin1SourcePath)),
             TEST_PATH_LOOKUP
         );
         Path thisSourcePath = policyManager.getComponentPathFromClass(getClass());
@@ -107,7 +107,7 @@ public class PolicyManagerTests extends ESTestCase {
             getClass(),
             policyManager.policyEntitlements(
                 SERVER.componentName,
-                thisSourcePath,
+                List.of(thisSourcePath),
                 "org.example.httpclient",
                 List.of(new OutboundNetworkEntitlement())
             ),
@@ -118,7 +118,7 @@ public class PolicyManagerTests extends ESTestCase {
         resetAndCheckEntitlements(
             "Default entitlements for unspecified module",
             getClass(),
-            policyManager.defaultEntitlements(SERVER.componentName, thisSourcePath, "plugin.unspecifiedModule"),
+            policyManager.defaultEntitlements(SERVER.componentName, List.of(thisSourcePath), "plugin.unspecifiedModule"),
             policyManager
         );
 
@@ -126,7 +126,7 @@ public class PolicyManagerTests extends ESTestCase {
         resetAndCheckEntitlements(
             "Specified entitlements for plugin",
             getClass(),
-            policyManager.policyEntitlements("plugin1", plugin1SourcePath, "plugin.module1", List.of(new ExitVMEntitlement())),
+            policyManager.policyEntitlements("plugin1", List.of(plugin1SourcePath), "plugin.module1", List.of(new ExitVMEntitlement())),
             policyManager
         );
 
@@ -134,7 +134,7 @@ public class PolicyManagerTests extends ESTestCase {
         resetAndCheckEntitlements(
             "Default entitlements for plugin",
             getClass(),
-            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, "plugin.unspecifiedModule"),
+            policyManager.defaultEntitlements("plugin1", List.of(plugin1SourcePath), "plugin.unspecifiedModule"),
             policyManager
         );
     }
@@ -248,7 +248,7 @@ public class PolicyManagerTests extends ESTestCase {
                     )
                 ),
                 c -> PolicyScope.plugin("plugin1", moduleName(c)),
-                Map.of("plugin1", Path.of("modules", "plugin1")),
+                Map.of("plugin1", List.of(Path.of("modules", "plugin1"))),
                 TEST_PATH_LOOKUP
             )
         );
@@ -298,7 +298,7 @@ public class PolicyManagerTests extends ESTestCase {
                     )
                 ),
                 c -> PolicyScope.plugin("", moduleName(c)),
-                Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
+                Map.of("plugin1", List.of(Path.of("modules", "plugin1")), "plugin2", List.of(Path.of("modules", "plugin2"))),
                 TEST_PATH_LOOKUP
             )
         );

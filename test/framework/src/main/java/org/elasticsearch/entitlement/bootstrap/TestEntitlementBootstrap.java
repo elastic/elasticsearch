@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,8 +81,8 @@ public class TestEntitlementBootstrap {
             .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
-        Iterable<Path> yolo = List.of(Path.of("/"));
-        Map<String, Iterable<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> yolo));
+        Collection<Path> yolo = List.of(Path.of("/"));
+        Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> yolo));
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 

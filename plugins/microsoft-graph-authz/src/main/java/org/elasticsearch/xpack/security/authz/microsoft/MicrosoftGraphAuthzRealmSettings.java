@@ -52,6 +52,12 @@ public class MicrosoftGraphAuthzRealmSettings {
         key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<TimeValue> EXECUTION_TIMEOUT = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(REALM_TYPE),
+        "execution_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Setting.Property.NodeScope)
+    );
+
     public static List<Setting<?>> getSettings() {
         var settings = new ArrayList<Setting<?>>(RealmSettings.getStandardSettings(REALM_TYPE));
         settings.add(CLIENT_ID);

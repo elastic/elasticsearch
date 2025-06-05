@@ -24,6 +24,7 @@ module org.elasticsearch.plugin.security.authz {
     requires com.google.gson;
     requires okhttp3;
     requires com.azure.core.http.okhttp;
+    requires org.apache.logging.log4j;
 
     provides org.elasticsearch.xpack.core.security.SecurityExtension with MicrosoftGraphAuthzPlugin;
 }

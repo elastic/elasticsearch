@@ -8,13 +8,10 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -41,15 +38,14 @@ import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRea
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
+import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -150,7 +146,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm implements Rel
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
-        final CancellableLdapRunnable<AuthenticationResult<User>> cancellableLdapRunnable = new CancellableLdapRunnable<>(
+        final CancellableRunnable<AuthenticationResult<User>> cancellableLdapRunnable = new CancellableRunnable<>(
             listener,
             ex -> AuthenticationResult.unsuccessful("Authentication against realm [" + this.toString() + "] failed", ex),
             () -> sessionFactory.session(
@@ -173,7 +169,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm implements Rel
                 result -> userActionListener.onResponse(result.getValue()),
                 userActionListener::onFailure
             );
-            final CancellableLdapRunnable<User> cancellableLdapRunnable = new CancellableLdapRunnable<>(
+            final CancellableRunnable<User> cancellableLdapRunnable = new CancellableRunnable<>(
                 userActionListener,
                 e -> null,
                 () -> sessionFactory.unauthenticatedSession(
@@ -322,66 +318,6 @@ public final class LdapRealm extends CachingUsernamePasswordRealm implements Rel
                 logger.debug(() -> format("Exception occurred during %s for %s", action, LdapRealm.this), e);
             }
             resultListener.onResponse(AuthenticationResult.unsuccessful(action + " failed", e));
-        }
-
-    }
-
-    /**
-     * A runnable that allows us to terminate and call the listener. We use this as a runnable can
-     * be queued and not executed for a long time or ever and this causes user requests to appear
-     * to hang. In these cases at least we can provide a response.
-     */
-    static class CancellableLdapRunnable<T> extends AbstractRunnable {
-
-        private final Runnable in;
-        private final ActionListener<T> listener;
-        private final Function<Exception, T> defaultValue;
-        private final Logger logger;
-        private final AtomicReference<LdapRunnableState> state = new AtomicReference<>(LdapRunnableState.AWAITING_EXECUTION);
-
-        CancellableLdapRunnable(ActionListener<T> listener, Function<Exception, T> defaultValue, Runnable in, Logger logger) {
-            this.listener = listener;
-            this.defaultValue = Objects.requireNonNull(defaultValue);
-            this.in = in;
-            this.logger = logger;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error("execution of ldap runnable failed", e);
-            final T result = defaultValue.apply(e);
-            listener.onResponse(result);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            if (state.compareAndSet(LdapRunnableState.AWAITING_EXECUTION, LdapRunnableState.EXECUTING)) {
-                in.run();
-            } else {
-                logger.trace("skipping execution of ldap runnable as the current state is [{}]", state.get());
-            }
-        }
-
-        @Override
-        public void onRejection(Exception e) {
-            listener.onFailure(e);
-        }
-
-        /**
-         * If the execution of this runnable has not already started, the runnable is cancelled and we pass an exception to the user
-         * listener
-         */
-        void maybeTimeout() {
-            if (state.compareAndSet(LdapRunnableState.AWAITING_EXECUTION, LdapRunnableState.TIMED_OUT)) {
-                logger.warn("skipping execution of ldap runnable as it has been waiting for " + "execution too long");
-                listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for " + "execution of ldap runnable"));
-            }
-        }
-
-        enum LdapRunnableState {
-            AWAITING_EXECUTION,
-            EXECUTING,
-            TIMED_OUT
         }
     }
 }

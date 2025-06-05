@@ -21,18 +21,20 @@ import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.authentication.AzureIdentityAuthenticationProvider;
 import com.microsoft.kiota.http.middleware.RetryHandler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Duration;
@@ -69,6 +72,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
     private final GraphServiceClient client;
     private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
+    private final TimeValue executionTimeout;
 
     public MicrosoftGraphAuthzRealm(UserRoleMapper roleMapper, RealmConfig config, ThreadPool threadPool) {
         this(roleMapper, config, buildClient(config), XPackPlugin.getSharedLicenseState(), threadPool);
@@ -90,6 +94,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         this.client = client;
         this.licenseState = licenseState;
         this.threadPool = threadPool;
+        this.executionTimeout = config.getSetting(MicrosoftGraphAuthzRealmSettings.EXECUTION_TIMEOUT);
     }
 
     private static void validate(RealmConfig config) {
@@ -127,30 +132,39 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             return;
         }
 
-        threadPool.generic().execute(() -> {
-            try {
-                final var userProperties = fetchUserProperties(client, principal);
-                final var groups = fetchGroupMembership(client, principal);
+        final var runnable = new CancellableRunnable<>(
+            listener,
+            ex -> null,
+            () -> doLookupUser(principal, listener),
+            logger
+        );
+        threadPool.generic().execute(runnable);
+        threadPool.schedule(runnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
 
-                final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
+    private void doLookupUser(String principal, ActionListener<User> listener) {
+        try {
+            final var userProperties = fetchUserProperties(client, principal);
+            final var groups = fetchGroupMembership(client, principal);
 
-                roleMapper.resolveRoles(userData, listener.delegateFailureAndWrap((l, roles) -> {
-                    final var user = new User(
-                        principal,
-                        roles.toArray(Strings.EMPTY_ARRAY),
-                        userProperties.v1(),
-                        userProperties.v2(),
-                        Map.of(),
-                        true
-                    );
-                    logger.trace("Authorized user from Microsoft Graph {}", user);
-                    l.onResponse(user);
-                }));
-            } catch (Exception e) {
-                logger.error(Strings.format("Failed to authorize [{}] with MS Graph realm", principal), e);
-                listener.onFailure(e);
-            }
-        });
+            final var userData = new UserRoleMapper.UserData(principal, null, groups, Map.of(), config);
+
+            roleMapper.resolveRoles(userData, listener.delegateFailureAndWrap((l, roles) -> {
+                final var user = new User(
+                    principal,
+                    roles.toArray(Strings.EMPTY_ARRAY),
+                    userProperties.v1(),
+                    userProperties.v2(),
+                    Map.of(),
+                    true
+                );
+                logger.trace("Authorized user from Microsoft Graph {}", user);
+                l.onResponse(user);
+            }));
+        } catch (Exception e) {
+            logger.error(Strings.format("Failed to authorize [{}] with MS Graph realm", principal), e);
+            listener.onFailure(e);
+        }
     }
 
     private static GraphServiceClient buildClient(RealmConfig config) {

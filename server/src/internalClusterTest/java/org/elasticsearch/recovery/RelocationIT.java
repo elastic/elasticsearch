@@ -249,9 +249,7 @@ public class RelocationIT extends ESIntegTestCase {
             numberOfNodes
         );
 
-        // Start node with PAUSE_INDEXING_ON_THROTTLE setting set to true. This means that if we activate
-        // index throttling for a shard on this node, it will pause indexing for that shard until throttling
-        // is deactivated.
+        // Randomly use pause throttling vs lock throttling, to verify that relocations proceed regardless
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
         nodes[0] = internalCluster().startNode(
@@ -318,13 +316,15 @@ public class RelocationIT extends ESIntegTestCase {
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
                 if (throttleIndexing) {
                     // Deactivate throttling on source shard to allow indexing threads to pass
+                    Engine engine = shard.getEngineOrNull();
+                    assertThat(engine, equalTo(null));
                     shard.deactivateThrottling();
                     // Activate throttling on target shard before next relocation
                     indicesService = internalCluster().getInstance(IndicesService.class, nodes[toNode]);
                     shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
                     shard.activateThrottling();
                     // Verify that indexing is throttled for this shard
-                    Engine engine = shard.getEngineOrNull();
+                    engine = shard.getEngineOrNull();
                     assertThat(engine != null && engine.isThrottled(), equalTo(true));
                 }
             }

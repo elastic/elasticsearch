@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -55,12 +57,32 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
 
+    private final List<Order> order;
+    @Nullable
+    private final Expression limit;
+
     protected List<Attribute> lazyOutput;
 
     public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
+        this.order = List.of();
+        this.limit = null;
+    }
+
+    public Aggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings, List<? extends NamedExpression> aggregates,
+        List<Order> order,
+        @Nullable Expression limit
+    ) {
+        super(source, child);
+        this.groupings = groupings;
+        this.aggregates = aggregates;
+        this.order = order;
+        this.limit = limit;
     }
 
     public Aggregate(StreamInput in) throws IOException {
@@ -71,6 +93,13 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         }
         this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
         this.aggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOP_N_AGGREGATES)) {
+            this.order = in.readCollectionAsList(Order::new);
+            this.limit = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            this.order = emptyList();
+            this.limit = null;
+        }
     }
 
     @Override
@@ -83,6 +112,10 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         }
         out.writeNamedWriteableCollection(groupings);
         out.writeNamedWriteableCollection(aggregates());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOP_N_AGGREGATES)) {
+            out.writeCollection(order);
+            out.writeOptionalNamedWriteable(limit);
+        }
     }
 
     @Override
@@ -97,7 +130,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
 
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
-        return new Aggregate(source(), newChild, groupings, aggregates);
+        return new Aggregate(source(), newChild, groupings, aggregates, order, limit);
     }
 
     public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
@@ -105,7 +138,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new Aggregate(source(), child, newGroupings, newAggregates);
+        return new Aggregate(source(), child, newGroupings, newAggregates, order, limit);
     }
 
     public List<Expression> groupings() {
@@ -114,6 +147,14 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
 
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
+    }
+
+    public List<Order> order() {
+        return order;
+    }
+
+    public Expression limit() {
+        return limit;
     }
 
     @Override

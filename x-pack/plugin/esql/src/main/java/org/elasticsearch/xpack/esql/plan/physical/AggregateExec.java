@@ -12,21 +12,26 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -51,6 +56,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    private final List<Order> order;
+    @Nullable
+    private final Expression limit;
+
     public AggregateExec(
         Source source,
         PhysicalPlan child,
@@ -66,20 +75,47 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.mode = mode;
         this.intermediateAttributes = intermediateAttributes;
         this.estimatedRowSize = estimatedRowSize;
+        this.order = List.of();
+        this.limit = null;
+    }
+
+    public AggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        List<Order> order,
+        @Nullable Expression limit
+    ) {
+        super(source, child);
+        this.groupings = groupings;
+        this.aggregates = aggregates;
+        this.mode = mode;
+        this.intermediateAttributes = intermediateAttributes;
+        this.estimatedRowSize = estimatedRowSize;
+        this.order = order;
+        this.limit = limit;
     }
 
     protected AggregateExec(StreamInput in) throws IOException {
         // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class),
-            in.readEnum(AggregatorMode.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalVInt()
-        );
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class));
+        this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        this.aggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        this.mode = in.readEnum(AggregatorMode.class);
+        this.intermediateAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.estimatedRowSize = in.readOptionalVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOP_N_AGGREGATES)) {
+            this.order = in.readCollectionAsList(Order::new);
+            this.limit = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            this.order = emptyList();
+            this.limit = null;
+        }
     }
 
     @Override
@@ -95,6 +131,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
             out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
         }
         out.writeOptionalVInt(estimatedRowSize());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOP_N_AGGREGATES)) {
+            out.writeCollection(order);
+            out.writeOptionalNamedWriteable(limit);
+        }
     }
 
     @Override
@@ -109,7 +149,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public AggregateExec replaceChild(PhysicalPlan newChild) {
-        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, order, limit);
     }
 
     public List<? extends Expression> groupings() {
@@ -120,8 +160,16 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return aggregates;
     }
 
+    public List<Order> order() {
+        return order;
+    }
+
+    public Expression limit() {
+        return limit;
+    }
+
     public AggregateExec withMode(AggregatorMode newMode) {
-        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize, order, limit);
     }
 
     /**
@@ -141,7 +189,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     protected AggregateExec withEstimatedSize(int estimatedRowSize) {
-        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, order, limit);
     }
 
     public AggregatorMode getMode() {

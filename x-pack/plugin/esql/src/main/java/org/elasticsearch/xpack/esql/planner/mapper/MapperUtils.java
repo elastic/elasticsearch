@@ -152,6 +152,7 @@ public class MapperUtils {
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
         if (aggregate instanceof TimeSeriesAggregate ts) {
+            // TODO: Update this
             return new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
@@ -170,7 +171,9 @@ public class MapperUtils {
                 aggregate.aggregates(),
                 aggMode,
                 intermediateAttributes,
-                null
+                null,
+                aggregate.order(),
+                aggregate.limit()
             );
         }
     }

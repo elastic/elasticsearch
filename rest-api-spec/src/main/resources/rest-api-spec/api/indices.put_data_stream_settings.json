@@ -5,8 +5,7 @@
       "description":"Updates a data stream's settings"
     },
     "stability":"stable",
-    "visibility": "feature_flag",
-    "feature_flag": "logs_stream",
+    "visibility": "public",
     "headers":{
       "accept": [ "application/json"]
     },
@@ -20,20 +19,25 @@
           "parts":{
             "name":{
               "type":"string",
-              "description":"The name of the data stream or data stream pattern"
+              "description":"Comma-separated list of data streams or data stream patterns"
             }
           }
         }
       ]
     },
     "params":{
+      "dry_run":{
+        "type":"boolean",
+        "description":"Whether this request should only be a dry run rather than actually applying settings",
+        "default":false
+      },
       "timeout":{
         "type":"time",
-        "description":"Specify timeout for acknowledging the cluster state update"
+        "description":"Period to wait for a response"
       },
       "master_timeout":{
         "type":"time",
-        "description":"Specify timeout for connection to master"
+        "description":"Period to wait for a connection to the master node"
       }
     },
     "body":{

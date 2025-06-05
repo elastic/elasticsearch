@@ -30,8 +30,7 @@ RUN apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against the published checksum.
 RUN set -eux; \\
-    arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \\
-    case "\$arch" in \\
+    case "\$(arch)" in \\
         aarch64) tini_bin='tini-arm64'; tini_sum='07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81' ;; \\
         x86_64)  tini_bin='tini-amd64'; tini_sum='93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c' ;; \\
         *) echo >&2 "Unsupported architecture \$arch"; exit 1 ;; \\
@@ -44,7 +43,7 @@ RUN set -eux; \\
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 

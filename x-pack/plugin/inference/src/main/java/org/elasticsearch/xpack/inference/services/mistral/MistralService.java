@@ -98,16 +98,12 @@ public class MistralService extends SenderService {
     ) {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
-        switch (model) {
-            case MistralEmbeddingsModel mistralEmbeddingsModel:
-                mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
-                break;
-            case MistralChatCompletionModel mistralChatCompletionModel:
-                mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
-                break;
-            default:
-                listener.onFailure(createInvalidModelException(model));
-                break;
+        if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
+            mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
+        } else if (model instanceof MistralChatCompletionModel mistralChatCompletionModel) {
+            mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+        } else {
+            listener.onFailure(createInvalidModelException(model));
         }
     }
 

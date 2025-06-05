@@ -159,8 +159,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
             TokenPruningConfig tokenPruningConfig
         ) throws IOException {
             return (shouldPruneTokens)
-                   ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, this, context)
-                   : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, this, context);
+                ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, this, context)
+                : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, this, context);
         }
 
         private static String indexedValueForSearch(Object value) {

@@ -252,9 +252,9 @@ public abstract class QueryList {
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
             LongBlock block,
-            boolean onlySingleValueParams
+            boolean onlySingleValues
         ) {
-            super(field, searchExecutionContext, block, onlySingleValueParams);
+            super(field, searchExecutionContext, block, onlySingleValues);
             if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
                 // TODO: do this validation earlier
                 throw new IllegalArgumentException(

@@ -29,8 +29,8 @@ import java.util.Set;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
@@ -101,6 +101,7 @@ public class BlockLoaderTestRunner {
         blockLoader.rowStrideReader(context).read(0, storedFieldsLoader, builder);
         var block = (TestBlock) builder.build();
         assertThat(block.size(), equalTo(1));
+
         return block.get(0);
     }
 

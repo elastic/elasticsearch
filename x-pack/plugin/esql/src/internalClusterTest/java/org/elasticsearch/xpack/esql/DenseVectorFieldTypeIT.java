@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -129,6 +130,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
+        assumeTrue("Dense vector type is disabled", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
         var indexName = "test";
         var client = client().admin().indices();
         XContentBuilder mapping = XContentFactory.jsonBuilder()

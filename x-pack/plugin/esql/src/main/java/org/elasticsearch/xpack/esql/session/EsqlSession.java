@@ -377,7 +377,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l); });
+            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
@@ -426,18 +426,20 @@ public class EsqlSession {
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
         Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
-        // Get the list of active clusters for the lookup index
-        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
         StringBuilder patternWithRemotes = new StringBuilder(localPattern);
-        // Create a pattern with all active remote clusters
-        clusters.forEach(cluster -> {
-            String clusterAlias = cluster.getClusterAlias();
-            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-                // Skip the local cluster, as it is already included in the localPattern
-                return;
-            }
-            patternWithRemotes.append(",").append(clusterAlias).append(":").append(localPattern);
-        });
+        if (executionInfo.getClusters().isEmpty() == false) {
+            // Get the list of active clusters for the lookup index
+            Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
+            // Create a pattern with all active remote clusters
+            clusters.forEach(cluster -> {
+                String clusterAlias = cluster.getClusterAlias();
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                    // Skip the local cluster, as it is already included in the localPattern
+                    return;
+                }
+                patternWithRemotes.append(",").append(clusterAlias).append(":").append(localPattern);
+            });
+        }
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
             patternWithRemotes.toString(),
@@ -447,6 +449,16 @@ public class EsqlSession {
         );
     }
 
+    private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
+        VerificationException error = new VerificationException(message);
+        // If we can, skip the cluster and mark it as such
+        if (executionInfo.isSkipUnavailable(clusterAlias)) {
+            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
+        } else {
+            throw error;
+        }
+    }
+
     private PreAnalysisResult receiveLookupIndexResolution(
         PreAnalysisResult result,
         String index,
@@ -454,22 +466,27 @@ public class EsqlSession {
         IndexResolution newIndexResolution
     ) {
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, newIndexResolution.unavailableClusters());
-        if (newIndexResolution.isValid() == false) {
+        if (newIndexResolution.isValid() == false || executionInfo.getClusters().isEmpty()) {
             // If the index resolution is invalid, don't bother with the rest of the analysis
             return result.addLookupIndexResolution(index, newIndexResolution);
         }
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(newIndexResolution.resolvedIndices().size());
         newIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
+            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
-                throw new VerificationException(
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
                     "Lookup index [" + indexName + "] has index mode [" + indexMode + "], expected [" + IndexMode.LOOKUP + "]"
                 );
             }
-            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
             // Each cluster should have only one resolution for the lookup index
             if (clustersWithResolvedIndices.containsKey(clusterAlias)) {
-                throw new VerificationException(
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
                     "Multiple resolutions for lookup index [" + index + "] " + EsqlCCSUtils.inClusterName(clusterAlias)
                 );
             } else {
@@ -484,22 +501,11 @@ public class EsqlSession {
             String clusterAlias = cluster.getClusterAlias();
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
-                VerificationException error = new VerificationException(
-                    "Lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias)
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "Lookup index [" + index + "] is not available in cluster " + EsqlCCSUtils.inClusterName(clusterAlias)
                 );
-                // For now, local cluster can not be skipped, so we throw an error
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)
-                    || executionInfo.isSkipUnavailable(clusterAlias) == false) {
-                    throw error;
-                } else {
-                    // If we can, skip the cluster and mark it as such
-                    EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                        executionInfo,
-                        clusterAlias,
-                        EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                        error
-                    );
-                }
             }
         });
 
@@ -508,7 +514,7 @@ public class EsqlSession {
             String localIndexName = clustersWithResolvedIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (localIndexName == null) {
                 // Get the first index name instead
-                localIndexName = clustersWithResolvedIndices.values().iterator().next();
+                localIndexName = RemoteClusterAware.splitIndexName(clustersWithResolvedIndices.values().iterator().next())[1];
             }
             var localIndex = new EsIndex(index, newIndexResolution.get().mapping(), Map.of(localIndexName, IndexMode.LOOKUP));
             newIndexResolution = IndexResolution.valid(

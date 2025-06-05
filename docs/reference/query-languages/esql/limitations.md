@@ -50,12 +50,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 {{esql}} does not yet support the following field types:
 
-* TSDB metrics
-
-    * `counter`
-    * `position`
-    * `aggregate_metric_double`
-
 * Date/time
 
     * `date_range`
@@ -187,10 +181,14 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](docs-c
 * The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md#esql-multi-index-union-types).
 
 
-## Time series data streams are not supported [esql-tsdb]
+## Time series data streams
 
-{{esql}} does not support querying time series data streams (TSDS).
+{{esql}} supports time-series data streams (TSDS) with limitations:
 
+* Counter fields such as `counter_long`, `counter_integer`, and `counter_double` are not supported except
+  through explicit casting.
+* aggregate_metric_double` types are supported in max, min, sum, avg, and count aggregations;
+  however, this functionality is experimental and available in snapshot builds or requires enabling via its feature flag.
 
 ## Date math limitations [esql-limitations-date-math]
 

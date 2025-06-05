@@ -18,7 +18,7 @@
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
-package org.elasticsearch.index.codec.vectors.es819;
+package org.elasticsearch.index.codec.vectors.es910;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;

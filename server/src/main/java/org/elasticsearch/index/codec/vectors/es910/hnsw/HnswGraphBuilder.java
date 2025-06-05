@@ -18,7 +18,7 @@
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
-package org.elasticsearch.index.codec.vectors.es819.hnsw;
+package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.internal.hppc.IntHashSet;
 import org.apache.lucene.search.KnnCollector;
@@ -29,7 +29,7 @@ import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.HnswUtil.Component;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswUtil.Component;
 
 import java.io.IOException;
 import java.util.Comparator;

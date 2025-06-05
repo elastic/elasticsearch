@@ -17,28 +17,23 @@
  *
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
+package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
-package org.elasticsearch.index.codec.vectors.es819.util;
+import java.io.IOException;
 
-import static org.apache.lucene.util.ArrayUtil.growExact;
-import static org.apache.lucene.util.ArrayUtil.oversize;
-
-public class ArrayUtil {
-
-    public static float[] growInRange(float[] array, int minLength, int maxLength) {
-        assert minLength >= 0 : "minLength must be positive (got " + minLength + "): likely integer overflow?";
-
-        if (minLength > maxLength) {
-            throw new IllegalArgumentException(
-                "requested minimum array length " + minLength + " is larger than requested maximum array length " + maxLength
-            );
-        }
-
-        if (array.length >= minLength) {
-            return array;
-        }
-
-        int potentialLength = oversize(minLength, Float.BYTES);
-        return growExact(array, Math.min(maxLength, potentialLength));
-    }
+/**
+ * An interface that provides an HNSW graph. This interface is useful when gathering multiple HNSW
+ * graphs to bootstrap segment merging. The graph may be off the JVM heap.
+ *
+ * @lucene.experimental
+ */
+public interface HnswGraphProvider {
+    /**
+     * Return the stored HnswGraph for the given field.
+     *
+     * @param field the field containing the graph
+     * @return the HnswGraph for the given field if found
+     * @throws IOException when reading potentially off-heap graph fails
+     */
+    HnswGraph getGraph(String field) throws IOException;
 }

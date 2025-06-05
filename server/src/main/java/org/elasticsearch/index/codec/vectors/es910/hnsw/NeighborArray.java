@@ -18,14 +18,14 @@
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
-package org.elasticsearch.index.codec.vectors.es819.hnsw;
+package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.es819.internal.hppc.MaxSizedFloatArrayList;
-import org.elasticsearch.index.codec.vectors.es819.internal.hppc.MaxSizedIntArrayList;
+import org.elasticsearch.index.codec.vectors.es910.internal.hppc.MaxSizedFloatArrayList;
+import org.elasticsearch.index.codec.vectors.es910.internal.hppc.MaxSizedIntArrayList;
 
 import java.io.IOException;
 import java.util.Arrays;

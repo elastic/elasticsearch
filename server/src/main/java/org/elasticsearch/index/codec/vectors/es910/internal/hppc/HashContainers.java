@@ -18,7 +18,7 @@
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
-package org.elasticsearch.index.codec.vectors.es819.internal.hppc;
+package org.elasticsearch.index.codec.vectors.es910.internal.hppc;
 
 import org.apache.lucene.internal.hppc.BufferAllocationException;
 

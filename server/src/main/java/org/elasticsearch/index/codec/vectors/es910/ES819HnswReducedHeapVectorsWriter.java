@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es819;
+package org.elasticsearch.index.codec.vectors.es910;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
@@ -46,13 +46,13 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.ConcurrentHnswMerger;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.HnswGraph;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.HnswGraphBuilder;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.HnswGraphMerger;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.IncrementalHnswGraphMerger;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.NeighborArray;
-import org.elasticsearch.index.codec.vectors.es819.hnsw.OnHeapHnswGraph;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.ConcurrentHnswMerger;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraph;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraphBuilder;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraphMerger;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.IncrementalHnswGraphMerger;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.NeighborArray;
+import org.elasticsearch.index.codec.vectors.es910.hnsw.OnHeapHnswGraph;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ import java.util.Objects;
 
 import static org.apache.lucene.codecs.KnnVectorsWriter.MergedVectorValues.hasVectorValues;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.es819.ES819HnswReducedHeapVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.vectors.es910.ES819HnswReducedHeapVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10.3.0

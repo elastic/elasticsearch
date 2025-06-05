@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es819.hnsw;
+package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BitSet;

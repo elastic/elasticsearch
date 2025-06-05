@@ -29,20 +29,6 @@ RUN apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
 # The tini GitHub page gives instructions for verifying the binary using
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against the published checksum.
-<<<<<<< HEAD
-RUN set -eux ; \\
-    tini_bin="" ; \\
-    case "\$(arch)" in \\
-        aarch64) tini_bin='tini-arm64' ;; \\
-        x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-    sha256sum -c \${tini_bin}.sha256sum ; \\
-    rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /bin/tini ; \\
-=======
 RUN set -eux; \\
     arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \\
     case "\$arch" in \\
@@ -53,43 +39,14 @@ RUN set -eux; \\
     curl -f --retry 10 -S -L -o /tmp/tini https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}; \\
     echo "\${tini_sum}  /tmp/tini" | sha256sum -c -; \\
     mv /tmp/tini /bin/tini; \\
->>>>>>> 649b5057317 ([Build] Address further dockerhub feedback on default Dockerfile (#128686))
     chmod 0555 /bin/tini
 
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
-<<<<<<< HEAD
 
-RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
-=======
-RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
-RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
-# Configure the distribution for Docker
-    sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
-# Create required directory
-    mkdir data && \\
-# Reset permissions on all directories
-    find . -type d -exec chmod 0555 {} + && \\
-# keep default elasticsearch log4j config
-    mv config/log4j2.properties config/log4j2.file.properties && \\
-# Reset permissions on all files
-    find . -type f -exec chmod 0444 {} + && \\
-# Make CLI tools executable
-    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
-# Make some directories writable. `bin` must be writable because
-# plugins can install their own CLI utilities.
-    chmod 0775 bin config config/jvm.options.d data logs plugins && \\
-# Make some files writable
-    find config -type f -exec chmod 0664 {} + && \\
-# Tighten up permissions on the ES home dir (the permissions of the contents are handled below)
-    chmod 0775 . && \\
-# You can't install plugins that include configuration when running as `elasticsearch` and the `config`
-# dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
-# config directory.
-    chown 1000:1000 bin config config/jvm.options.d data logs plugins
->>>>>>> 649b5057317 ([Build] Address further dockerhub feedback on default Dockerfile (#128686))
 
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
@@ -167,18 +124,16 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 #    dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 #    config directory.
 RUN chmod g=u /etc/passwd && \\
+    chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
-<<<<<<< HEAD
 # Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
 # stays up-to-date with changes to Ubuntu's store)
 COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
 RUN /etc/ca-certificates/update.d/docker-openjdk
 
-=======
->>>>>>> 649b5057317 ([Build] Address further dockerhub feedback on default Dockerfile (#128686))
 EXPOSE 9200 9300
 
 LABEL org.label-schema.build-date="${build_date}" \\

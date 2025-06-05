@@ -58,7 +58,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Security;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -122,7 +121,6 @@ class Elasticsearch {
         final PrintStream err = getStderr();
         final ServerArgs args;
 
-        final boolean useEntitlements = true;
         try {
             initSecurityProperties();
             LogConfigurator.registerErrorListener();
@@ -150,7 +148,7 @@ class Elasticsearch {
             return null; // unreachable, to satisfy compiler
         }
 
-        return new Bootstrap(out, err, args, useEntitlements);
+        return new Bootstrap(out, err, args);
     }
 
     /**
@@ -251,7 +249,7 @@ class Elasticsearch {
             nodeEnv.logsDir(),
             nodeEnv.tmpDir(),
             args.pidFile(),
-            Set.of(EntitlementSelfTester.class)
+            Set.of(EntitlementSelfTester.class.getPackage())
         );
         EntitlementSelfTester.entitlementSelfTest();
 
@@ -358,11 +356,7 @@ class Elasticsearch {
                 final BoundTransportAddress boundTransportAddress,
                 List<BootstrapCheck> checks
             ) throws NodeValidationException {
-                var additionalChecks = new ArrayList<>(checks);
-                if (bootstrap.useEntitlements() == false) {
-                    additionalChecks.add(new BootstrapChecks.AllPermissionCheck());
-                }
-                BootstrapChecks.check(context, boundTransportAddress, additionalChecks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
         INSTANCE = new Elasticsearch(bootstrap.spawner(), node);
@@ -524,9 +518,6 @@ class Elasticsearch {
                 }
             }
         }
-
-        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
-        Security.setProperty("policy.expandProperties", "true");
     }
 
     private static Environment createEnvironment(Path configDir, Settings initialSettings, SecureSettings secureSettings) {

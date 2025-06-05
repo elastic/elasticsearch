@@ -325,7 +325,7 @@ book_no:keyword | title:text                                                    
 
 semanticTextMatch
 required_capability: metadata_score
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 required_capability: match_function
 
 from semantic_text metadata _id, _score
@@ -343,7 +343,7 @@ _id:keyword
 semanticTextMatchWithAllTheTextFunctions
 
 required_capability: metadata_score
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 required_capability: match_function
 required_capability: kql_function
 required_capability: qstr_function
@@ -454,7 +454,6 @@ book_no:keyword |  _score:double
 8678            | 0.0
 ;
 
-
 disjunctionScoresMultipleClauses
 
 required_capability: metadata_score
@@ -476,4 +475,19 @@ book_no:keyword |  _score:double
 7140            | 1.746896743774414 
 4023            | 1.5062403678894043
 2924            | 1.2732219696044922
+;
+
+statsScores
+
+required_capability: metadata_score
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books metadata _score 
+| where match(title, "Lord Rings", {"operator": "AND"})
+| stats avg_score = avg(_score), max_score = max(_score), min_score = min(_score)
+;
+
+avg_score:double   | max_score:double   | min_score:double
+3.869828939437866  | 5.123856544494629  | 3.0124807357788086
 ;

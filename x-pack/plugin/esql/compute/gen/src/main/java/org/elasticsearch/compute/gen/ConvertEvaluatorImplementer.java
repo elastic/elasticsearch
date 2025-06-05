@@ -28,9 +28,12 @@ import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.ORDINALS_BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -41,7 +44,7 @@ public class ConvertEvaluatorImplementer {
 
     private final TypeElement declarationType;
     private final EvaluatorImplementer.ProcessFunction processFunction;
-    private final String extraName;
+    private final boolean canProcessOrdinals;
     private final ClassName implementation;
     private final TypeName argumentType;
     private final List<TypeMirror> warnExceptions;
@@ -55,6 +58,10 @@ public class ConvertEvaluatorImplementer {
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = new EvaluatorImplementer.ProcessFunction(types, processFunction, warnExceptions);
+        this.canProcessOrdinals = warnExceptions.isEmpty()
+            && this.processFunction.returnType().equals(BYTES_REF)
+            && this.processFunction.args.get(0) instanceof EvaluatorImplementer.StandardProcessFunctionArg s
+            && s.type().equals(BYTES_REF);
 
         if (this.processFunction.args.get(0) instanceof EvaluatorImplementer.StandardProcessFunctionArg == false) {
             throw new IllegalArgumentException("first argument must be the field to process");
@@ -66,7 +73,6 @@ public class ConvertEvaluatorImplementer {
             }
         }
 
-        this.extraName = extraName;
         this.argumentType = TypeName.get(processFunction.getParameters().get(0).asType());
         this.warnExceptions = warnExceptions;
 
@@ -102,6 +108,9 @@ public class ConvertEvaluatorImplementer {
         builder.addMethod(evalValue(true));
         builder.addMethod(evalBlock());
         builder.addMethod(evalValue(false));
+        if (canProcessOrdinals) {
+            builder.addMethod(evalOrdinals());
+        }
         builder.addMethod(processFunction.toStringMethod(implementation));
         builder.addMethod(processFunction.close());
         builder.addType(factory());
@@ -132,6 +141,15 @@ public class ConvertEvaluatorImplementer {
 
         TypeName vectorType = vectorType(argumentType);
         builder.addStatement("$T vector = ($T) v", vectorType, vectorType);
+        if (canProcessOrdinals) {
+            builder.addStatement("$T ordinals = vector.asOrdinals()", ORDINALS_BYTES_REF_VECTOR);
+            builder.beginControlFlow("if (ordinals != null)");
+            {
+                builder.addStatement("return evalOrdinals(ordinals)");
+            }
+            builder.endControlFlow();
+        }
+
         builder.addStatement("int positionCount = v.getPositionCount()");
 
         String scratchPadName = argumentType.equals(BYTES_REF) ? "scratchPad" : null;
@@ -296,6 +314,31 @@ public class ConvertEvaluatorImplementer {
         }
         pattern.append(")");
         builder.addStatement(pattern.toString(), args.toArray());
+        return builder.build();
+    }
+
+    private MethodSpec evalOrdinals() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("evalOrdinals").addModifiers(Modifier.PRIVATE);
+        builder.addParameter(ORDINALS_BYTES_REF_VECTOR, "v").returns(BLOCK);
+
+        builder.addStatement("int positionCount = v.getDictionaryVector().getPositionCount()");
+        builder.addStatement("BytesRef scratchPad = new BytesRef()");
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount))",
+            BYTES_REF_VECTOR_BUILDER
+        );
+        {
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+            {
+                builder.addStatement("builder.appendBytesRef($N)", evalValueCall("v.getDictionaryVector()", "p", "scratchPad"));
+            }
+            builder.endControlFlow();
+            builder.addStatement("$T ordinals = v.getOrdinalsVector()", INT_VECTOR);
+            builder.addStatement("ordinals.incRef()");
+            builder.addStatement("return new $T(ordinals, builder.build()).asBlock()", ORDINALS_BYTES_REF_VECTOR);
+        }
+        builder.endControlFlow();
+
         return builder.build();
     }
 

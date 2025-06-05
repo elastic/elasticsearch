@@ -126,6 +126,10 @@ Machine Learning::
 * Set default similarity for Cohere model to cosine {es-pull}125370[#125370] (issue: {es-issue}122878[#122878])
 * Updating Inference Update API documentation to have the correct PUT method {es-pull}121048[#121048]
 * [Inference API] Fix output stream ordering in `InferenceActionProxy` {es-pull}124225[#124225]
+* Restrict file system access for PyTorch models {ml-pull}2851[#2851]
+* Update the PyTorch library to version 2.5.1. {ml-pull}2783[#2798], {ml-pull}2799[#2799]
+* Upgrade Boost libraries to version 1.86. {ml-pull}2780[#2780], {ml-pull}2779[#2779]
+
 
 Mapping::
 * Avoid serializing empty `_source` fields in mappings {es-pull}122606[#122606]
@@ -485,7 +489,7 @@ authentication to perform outbound network connections. This issue will be fixed
 +
 As a workaround, you can temporarily patch the policy using a JVM option:
 
-1. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-127061.options`.
+1. Create a file called `${ES_CONF_PATH}/jvm.options.d/workaround-127061.options`.
 2. Add the following line to the new file:
 +
      -Des.entitlements.policy.x-pack-core=dmVyc2lvbnM6CiAgLSA4LjE4LjAKICAtIDkuMC4wCnBvbGljeToKICB1bmJvdW5kaWQubGRhcHNkazoKICAgIC0gc2V0X2h0dHBzX2Nvbm5lY3Rpb25fcHJvcGVydGllcwogICAgLSBvdXRib3VuZF9uZXR3b3Jr

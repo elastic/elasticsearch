@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Request for the query Users API. <br>
  * Model for API requests to the query users API
  */
-public final class QueryUserRequest extends ActionRequest {
+public final class QueryUserRequest extends LegacyActionRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;

@@ -364,6 +364,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -921,6 +922,9 @@ public class MachineLearning extends Plugin
         NamedXContentRegistry xContentRegistry = services.xContentRegistry();
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
         TelemetryProvider telemetryProvider = services.telemetryProvider();
+
+        // Initialize WritableIndexExpander
+        WritableIndexExpander.initialize(clusterService, indexNameExpressionResolver);
 
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,

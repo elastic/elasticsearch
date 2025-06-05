@@ -147,13 +147,13 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         // In isolation, full text functions are pushable to source. We check if there are no disjunctions in Or conditions
-        return true;
+        return Translatable.YES;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(handler);
     }
 
@@ -195,25 +195,31 @@ public abstract class FullTextFunction extends Function
             checkCommandsBeforeExpression(
                 plan,
                 condition,
-                Match.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                Term.class,
+                FullTextFunction.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
             checkFullTextFunctionsParents(condition, failures);
+        } else if (plan instanceof Aggregate agg) {
+            checkFullTextFunctionsInAggs(agg, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
+                failures.add(fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType()));
             });
         }
+    }
+
+    private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
+        agg.groupings().forEach(exp -> {
+            exp.forEachDown(e -> {
+                if (e instanceof FullTextFunction ftf) {
+                    failures.add(
+                        fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
+                    );
+                }
+            });
+        });
     }
 
     /**

@@ -85,11 +85,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
-            if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
-                l.onResponse(List.of());
-            } else if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)
+                || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                    executionInfo,
+                    clusterAlias,
+                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                    e
+                );
                 l.onResponse(List.of());
             } else {
                 l.onFailure(e);
@@ -122,14 +125,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
                     return profiles;
                 }))) {
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
-                    exchangeSource.addRemoteSink(
-                        remoteSink,
-                        failFast,
-                        () -> pagesFetched.set(true),
-                        queryPragmas.concurrentExchangeClients(),
-                        computeListener.acquireAvoid()
-                    );
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
@@ -143,6 +138,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         groupTask,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                    );
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    exchangeSource.addRemoteSink(
+                        remoteSink,
+                        failFast,
+                        () -> pagesFetched.set(true),
+                        queryPragmas.concurrentExchangeClients(),
+                        computeListener.acquireAvoid()
                     );
                 }
             })
@@ -264,6 +267,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        "remote_reduce",
                         clusterAlias,
                         List.of(),
                         configuration,

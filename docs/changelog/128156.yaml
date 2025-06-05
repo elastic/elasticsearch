@@ -1,0 +1,5 @@
+pr: 128156
+summary: Push more ==s on text fields to lucene (backport)
+area: ES|QL
+type: feature
+issues: []

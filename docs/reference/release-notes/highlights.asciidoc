@@ -33,13 +33,35 @@ Other versions:
 
 endif::[]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[add_new_experimental_rank_vectors_mapping_for_late_interaction_second_order_ranking]]
+=== `rank_vectors` field type is now available for late-interaction ranking
+
+<<rank-vectors,`rank_vectors`>> is a new field type released as an experimental feature in {es} {minor-version}. It is designed to be used with dense vectors and allows for late-interaction second order ranking.
+
+Late-interaction models are powerful rerankers. While their size and overall cost doesn't lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
+
+[discrete]
+[[enable_lookup_join_in_non_snapshot_builds]]
+=== {esql} LOOKUP JOIN is now available in technical preview
+
+<<esql-lookup-join,LOOKUP JOIN>> is now available in technical preview.
+LOOKUP JOIN combines data from your {esql} queries with matching records from a lookup index, enabling you to:
+
+* Enrich your search results with reference data
+* Speed up root-cause analysis and security investigations 
+* Join data across indices without complex queries
+* Reduce operational overhead when correlating events
+
+[discrete]
+[[release_semantic_text_as_ga_feature]]
+=== The `semantic_text` field type is now GA
+
+<<semantic-text,`semantic_text`>> is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time.
+
+
 // end::notable-highlights[]
 
 

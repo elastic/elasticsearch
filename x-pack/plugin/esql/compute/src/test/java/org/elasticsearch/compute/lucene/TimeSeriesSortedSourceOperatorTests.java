@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
-import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.lucene.document.NumericField;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -174,6 +174,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 driverContext,
                 timeSeriesFactory.get(driverContext),
                 List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
@@ -236,7 +237,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             }
             try (var reader = writer.getReader()) {
                 var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-                Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
+                Query query = randomFrom(NumericField.newRangeLongQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
                 var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
@@ -248,6 +249,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 List<Page> results = new ArrayList<>();
                 OperatorTestCase.runDriver(
                     new Driver(
+                        "test",
                         driverContext,
                         timeSeriesFactory.get(driverContext),
                         List.of(),
@@ -306,6 +308,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 ctx,
                 timeSeriesFactory.get(ctx),
                 List.of(

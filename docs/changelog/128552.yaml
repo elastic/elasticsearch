@@ -1,0 +1,5 @@
+pr: 128552
+summary: Fix - NPE on batched query execution when the request is part of PIT with alias filters
+area: Search
+type: bug
+issues: []

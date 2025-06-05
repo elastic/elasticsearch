@@ -161,6 +161,12 @@ public class ParsingTests extends ESTestCase {
         throw new IllegalArgumentException("can't find name for " + functionCall);
     }
 
+    public void testInvalidLimit() {
+        assertEquals("1:13: Invalid value for LIMIT [foo: String], expecting a non negative integer", error("row a = 1 | limit \"foo\""));
+        assertEquals("1:13: Invalid value for LIMIT [1.2: Double], expecting a non negative integer", error("row a = 1 | limit 1.2"));
+        assertEquals("1:13: Invalid value for LIMIT [-1], expecting a non negative integer", error("row a = 1 | limit -1"));
+    }
+
     private String error(String query) {
         ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query)));
         String message = e.getMessage();

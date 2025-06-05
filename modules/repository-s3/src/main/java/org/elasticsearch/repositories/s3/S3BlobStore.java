@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.awscore.AwsRequest;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.http.HttpMetric;
@@ -92,6 +93,8 @@ class S3BlobStore implements BlobStore {
 
     private final int bulkDeletionBatchSize;
 
+    private final boolean addPurposeCustomQueryParameter;
+
     S3BlobStore(
         S3Service service,
         String bucket,
@@ -116,6 +119,7 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
+        this.addPurposeCustomQueryParameter = service.settings(repositoryMetadata).addPurposeCustomQueryParameter;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
@@ -520,9 +524,17 @@ class S3BlobStore implements BlobStore {
         Operation operation,
         OperationPurpose purpose
     ) {
-        request.overrideConfiguration(
-            builder -> builder.metricPublishers(List.of(blobStore.getMetricPublisher(operation, purpose)))
-                .putRawQueryParameter(CUSTOM_QUERY_PARAMETER_PURPOSE, purpose.getKey())
-        );
+        request.overrideConfiguration(builder -> {
+            builder.metricPublishers(List.of(blobStore.getMetricPublisher(operation, purpose)));
+            blobStore.addPurposeQueryParameter(purpose, builder);
+        });
     }
+
+    public void addPurposeQueryParameter(OperationPurpose purpose, AwsRequestOverrideConfiguration.Builder builder) {
+        if (addPurposeCustomQueryParameter || purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
+            // REPOSITORY_ANALYSIS is a strict check for 100% S3 compatibility, including custom query parameter support, so is always added
+            builder.putRawQueryParameter(CUSTOM_QUERY_PARAMETER_PURPOSE, purpose.getKey());
+        }
+    }
+
 }

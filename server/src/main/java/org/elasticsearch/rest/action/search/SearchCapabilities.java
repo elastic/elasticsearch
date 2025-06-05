@@ -45,6 +45,10 @@ public final class SearchCapabilities {
 
     private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
 
+    private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
+
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -61,6 +65,8 @@ public final class SearchCapabilities {
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
+        capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

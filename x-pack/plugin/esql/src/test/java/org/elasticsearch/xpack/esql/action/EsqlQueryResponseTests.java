@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -200,7 +201,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                case TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
+                case TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );
@@ -239,6 +240,15 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
+                }
+                case DENSE_VECTOR -> {
+                    BlockLoader.FloatBuilder floatBuilder = (BlockLoader.FloatBuilder) builder;
+                    int dims = randomIntBetween(32, 64) * 2; // min 64 dims, always even
+                    floatBuilder.beginPositionEntry();
+                    for (int i = 0; i < dims; i++) {
+                        floatBuilder.appendFloat(randomFloat());
+                    }
+                    floatBuilder.endPositionEntry();
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -746,6 +756,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 new EsqlQueryResponse.Profile(
                     List.of(
                         new DriverProfile(
+                            "test",
                             1723489812649L,
                             1723489819929L,
                             20021,
@@ -780,6 +791,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "profile" : {
                     "drivers" : [
                       {
+                        "task_description" : "test",
                         "start_millis" : 1723489812649,
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
@@ -940,7 +952,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {
@@ -977,6 +989,22 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         aggBuilder.max().appendDouble(((Number) value).doubleValue());
                         aggBuilder.sum().appendDouble(((Number) value).doubleValue());
                         aggBuilder.count().appendInt(((Number) value).intValue());
+                    }
+                    case DENSE_VECTOR -> {
+                        FloatBlock.Builder floatBuilder = (FloatBlock.Builder) builder;
+                        List<?> vector = (List<?>) value;
+                        floatBuilder.beginPositionEntry();
+                        for (Object v : vector) {
+                            // XContentParser may retrieve Double values - we convert them to Float if needed
+                            if (v instanceof Double d) {
+                                floatBuilder.appendFloat(d.floatValue());
+                            } else if (v instanceof Float f) {
+                                floatBuilder.appendFloat(f);
+                            } else {
+                                fail("Unexpected dense_vector value type: " + v.getClass());
+                            }
+                        }
+                        floatBuilder.endPositionEntry();
                     }
                 }
             }

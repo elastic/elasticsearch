@@ -9,8 +9,17 @@
 Prior to version *8.16.0*, the connector release notes were published as part of the {enterprise-search-ref}/changelog.html[Enterprise Search documentation].
 ====
 
+[discrete]
 [[es-connectors-release-notes-8-18-0]]
 === 8.18.0
+
+[discrete#release-notes-8-18-0-Enterprise-search-support]
+== Enterprise Search is discontinued in Elastic 9.0.0
+
+Elastic 9.0.0 and 8.18.0 are released at the same time.
+Please note that Enterprise Search is not available in Elastic 9.0+, including App Search, Workplace Search, the Elastic Web Crawler, and Elastic managed connectors.
+If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer to https://www.elastic.co/resources/search/enterprise-search-faq#what-features-are-impacted-by-this-announcement[our Enterprise Search FAQ].
+It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 
 [discrete]
 [[es-connectors-release-notes-8-18-0-enhancements]]

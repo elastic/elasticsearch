@@ -70,6 +70,9 @@ public class CsvTestsDataLoader {
         "mapping-languages_nested_fields.json",
         "languages_nested_fields.csv"
     ).withSetting("languages_lookup-settings.json");
+    private static final TestDataset LANGUAGES_MIX_NUMERICS = new TestDataset("languages_mixed_numerics").withSetting(
+        "languages_lookup-settings.json"
+    );
     private static final TestDataset ALERTS = new TestDataset("alerts");
     private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
     private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
@@ -115,6 +118,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset MV_TEXT = new TestDataset("mv_text");
+    private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -126,6 +131,7 @@ public class CsvTestsDataLoader {
         Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
         Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),
+        Map.entry(LANGUAGES_MIX_NUMERICS.indexName, LANGUAGES_MIX_NUMERICS),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
@@ -160,7 +166,9 @@ public class CsvTestsDataLoader {
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        Map.entry(MV_TEXT.indexName, MV_TEXT),
+        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -193,6 +201,7 @@ public class CsvTestsDataLoader {
         CITY_BOUNDARIES_ENRICH,
         CITY_AIRPORTS_ENRICH
     );
+    public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     /**
      * <p>
@@ -555,7 +564,8 @@ public class CsvTestsDataLoader {
 
     private static String quoteIfNecessary(String value) {
         boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        return isQuoted ? value : "\"" + value + "\"";
+        boolean isNumeric = value.matches(NUMERIC_REGEX);
+        return isQuoted || isNumeric ? value : "\"" + value + "\"";
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
@@ -63,7 +64,7 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
 
     @Override
     public void close() {
-        field.close();
+        Releasables.closeExpectNoException(field);
     }
 
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

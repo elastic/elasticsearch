@@ -510,8 +510,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setupEntitlementsForClass() {
-        TestEntitlementBootstrap.setActive(false == getTestClass().isAnnotationPresent(WithoutEntitlements.class));
-        TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class));
+        boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
+        boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
+        if (TestEntitlementBootstrap.isEnabledForTest()) {
+            TestEntitlementBootstrap.setActive(false == withoutEntitlements);
+            TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
+        } else if (withEntitlementsOnTestCode) {
+            throw new AssertionError("Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing");
+        }
     }
 
     @AfterClass

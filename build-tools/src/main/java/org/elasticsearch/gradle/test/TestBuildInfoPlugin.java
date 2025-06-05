@@ -18,9 +18,12 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.jvm.tasks.ProcessResources;
 
 import javax.inject.Inject;
+
+import java.util.function.Supplier;
 
 /**
  * This plugin configures the {@link GenerateTestBuildInfoTask} task
@@ -52,6 +55,10 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
 
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
             task.into("META-INF", copy -> copy.from(testBuildInfoTask));
+        });
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            test.systemProperty("es.entitlement.enableForTests", "true");
         });
     }
 }

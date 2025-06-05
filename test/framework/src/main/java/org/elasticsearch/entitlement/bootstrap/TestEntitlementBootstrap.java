@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -48,6 +51,9 @@ public class TestEntitlementBootstrap {
      * Activates entitlement checking in tests.
      */
     public static void bootstrap(Path tempDir) throws IOException {
+        if (isEnabledForTest() == false) {
+            return;
+        }
         TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
         policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
@@ -59,6 +65,10 @@ public class TestEntitlementBootstrap {
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
+    public static boolean isEnabledForTest() {
+        return Boolean.getBoolean("es.entitlement.enableForTests");
+    }
+
     public static void setActive(boolean newValue) {
         policyManager.setActive(newValue);
     }
@@ -68,7 +78,9 @@ public class TestEntitlementBootstrap {
     }
 
     public static void reset() {
-        policyManager.reset();
+        if (policyManager != null) {
+            policyManager.reset();
+        }
     }
 
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {

@@ -94,7 +94,8 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         returnType = "boolean",
         preview = true,
         description = """
-            Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the specified field.
+            Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
+            specified field.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
 
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.

@@ -15,12 +15,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -33,6 +33,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -267,6 +268,8 @@ public class SemanticTextHighlighter implements Highlighter {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), null));
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), null));
+                } else if (query instanceof MatchAllDocsQuery) {
+                    queries.add(new MatchAllDocsQuery());
                 }
             }
         });
@@ -292,6 +295,13 @@ public class SemanticTextHighlighter implements Highlighter {
                     queries.add(sparseVectorQuery.getTermsQuery());
                 }
                 return this;
+            }
+
+            @Override
+            public void visitLeaf(Query query) {
+                if (query instanceof MatchAllDocsQuery) {
+                    queries.add(new MatchAllDocsQuery());
+                }
             }
         });
         return queries;

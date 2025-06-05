@@ -15,8 +15,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matcher;
@@ -31,6 +34,9 @@ import java.util.function.Supplier;
 
 public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule()
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -39,7 +45,8 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         .module("mapper-extras")
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.license.self_generated.type", initTestSeed().nextBoolean() ? "trial" : "basic")
         // We upgrade from standard to logsdb, so we need to start with logsdb disabled,
         // then later cluster.logsdb.enabled gets set to true and next rollover data stream is in logsdb mode.
@@ -54,6 +61,11 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private static final String BULK_INDEX_REQUEST = """

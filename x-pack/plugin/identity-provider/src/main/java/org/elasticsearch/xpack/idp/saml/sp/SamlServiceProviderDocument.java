@@ -538,7 +538,9 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.Attributes.EMAIL.getPreferredName(), attributeNames.email);
         builder.field(Fields.Attributes.NAME.getPreferredName(), attributeNames.name);
         builder.field(Fields.Attributes.ROLES.getPreferredName(), attributeNames.roles);
-        builder.field(Fields.Attributes.EXTENSIONS.getPreferredName(), attributeNames.extensions);
+        if (attributeNames.extensions != null && attributeNames.extensions.isEmpty() == false) {
+            builder.field(Fields.Attributes.EXTENSIONS.getPreferredName(), attributeNames.extensions);
+        }
         builder.endObject();
 
         builder.startObject(Fields.CERTIFICATES.getPreferredName());

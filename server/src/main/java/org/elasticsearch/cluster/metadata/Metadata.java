@@ -1793,17 +1793,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         @Deprecated(forRemoval = true)
-        public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
-            getSingleProject().indexGraveyard(indexGraveyard);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public IndexGraveyard indexGraveyard() {
-            return getSingleProject().indexGraveyard();
-        }
-
-        @Deprecated(forRemoval = true)
         public Builder updateSettings(Settings settings, String... indices) {
             getSingleProject().updateSettings(settings, indices);
             return this;

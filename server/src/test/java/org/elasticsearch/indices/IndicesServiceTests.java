@@ -546,8 +546,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
         final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).indexGraveyard(graveyard).build();
-        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metadata(metadata).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).putProjectMetadata(project).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
     }

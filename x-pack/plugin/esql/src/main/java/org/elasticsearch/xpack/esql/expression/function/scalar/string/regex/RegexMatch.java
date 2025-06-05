@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -75,14 +74,15 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {
         var transportVersion = out.getTransportVersion();
         if (transportVersion.onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)
-            || transportVersion.isPatchFrom(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19)) {
+            || transportVersion.isPatchFrom(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19)) {
             out.writeBoolean(caseInsensitive());
         } else if (caseInsensitive()) {
             // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
             // the serialization of the boolean would result in wrong results.
             throw new EsqlIllegalArgumentException(
-                name() + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                name() + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}, {}] or newer.",
                 out.getTransportVersion(),
+                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19,
                 TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
             );
         } // else: write nothing, the remote peer can execute the case-sensitive query
@@ -91,6 +91,6 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     static boolean deserializeCaseInsensitivity(StreamInput in) throws IOException {
         var transportVersion = in.getTransportVersion();
         return (transportVersion.onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)
-            || transportVersion.isPatchFrom(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19)) && in.readBoolean();
+            || transportVersion.isPatchFrom(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19)) && in.readBoolean();
     }
 }

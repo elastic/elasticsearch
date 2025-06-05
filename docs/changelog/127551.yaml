@@ -1,0 +1,6 @@
+pr: 127551
+summary: "Retain the scores of portions of an ES|QL query, via a score function"
+area: ES|QL
+type: enhancement
+issues:
+ - 120082

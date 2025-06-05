@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFac
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRea
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
-import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.util.HashMap;

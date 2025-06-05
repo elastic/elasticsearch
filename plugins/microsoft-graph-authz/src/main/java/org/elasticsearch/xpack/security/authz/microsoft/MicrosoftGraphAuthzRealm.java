@@ -132,12 +132,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
             return;
         }
 
-        final var runnable = new CancellableRunnable<>(
-            listener,
-            ex -> null,
-            () -> doLookupUser(principal, listener),
-            logger
-        );
+        final var runnable = new CancellableRunnable<>(listener, ex -> null, () -> doLookupUser(principal, listener), logger);
         threadPool.generic().execute(runnable);
         threadPool.schedule(runnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }

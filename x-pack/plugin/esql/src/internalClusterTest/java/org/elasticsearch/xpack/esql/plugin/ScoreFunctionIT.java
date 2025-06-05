@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.util.Collection;
 import java.util.List;
@@ -74,7 +73,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("Condition expression needs to be boolean, found [DOUBLE]"));
+        assertThat(error.getMessage(), containsString("[MATCH] function can't be used with SCORE"));
     }
 
     public void testScoreInWhereWithFilter() {
@@ -87,82 +86,6 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Condition expression needs to be boolean, found [DOUBLE]"));
     }
 
-    public void testMatchScoreFilter() {
-        var query = """
-            FROM test
-            | WHERE score(match(content, "brown")) > 0
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(6)));
-        }
-    }
-
-    public void testKqlScoreFilter() {
-        var query = """
-            FROM test
-            | WHERE score(kql("brown")) > 0
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(6)));
-        }
-    }
-
-    public void testQstrScoreFilter() {
-        var query = """
-            FROM test
-            | WHERE score(qstr("brown")) > 0
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(6)));
-        }
-    }
-
-    public void testMultipleFTFScoreFilter() {
-        var query = """
-            FROM test
-            | WHERE score(match(content, "brown")) > 0.4 OR score(match(content, "fox")) > 0.2
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
-        }
-    }
-
-    public void testMultipleHybridScoreFilter() {
-        var query = """
-            FROM test
-            | WHERE score(match(content, "brown")) > 0.2 AND id > 2
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(3), List.of(6)));
-        }
-    }
-
-    @Ignore("it's meaningless but it passes o_O")
     public void testScoreMeaninglessFunction() {
         var query = """
             FROM test

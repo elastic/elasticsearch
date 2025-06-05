@@ -295,7 +295,6 @@ public abstract class FullTextFunction extends Function
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
                 && (parent instanceof EsqlBinaryComparison == false)
-                && (parent instanceof Score == false) // e.g., WHERE score($ftf) > ...
                 && (parent instanceof Not == false)) {
                 failures.add(
                     fail(

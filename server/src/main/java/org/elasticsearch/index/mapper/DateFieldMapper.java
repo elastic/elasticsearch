@@ -868,7 +868,7 @@ public final class DateFieldMapper extends FieldMapper {
                 query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
-                query = new XIndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;
         }

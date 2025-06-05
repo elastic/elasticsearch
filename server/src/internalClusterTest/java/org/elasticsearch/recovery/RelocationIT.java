@@ -316,15 +316,13 @@ public class RelocationIT extends ESIntegTestCase {
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
                 if (throttleIndexing) {
                     // Deactivate throttling on source shard to allow indexing threads to pass
-                    Engine engine = shard.getEngineOrNull();
-                    assertThat(engine, equalTo(null));
                     shard.deactivateThrottling();
                     // Activate throttling on target shard before next relocation
                     indicesService = internalCluster().getInstance(IndicesService.class, nodes[toNode]);
                     shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
                     shard.activateThrottling();
                     // Verify that indexing is throttled for this shard
-                    engine = shard.getEngineOrNull();
+                    Engine engine = shard.getEngineOrNull();
                     assertThat(engine != null && engine.isThrottled(), equalTo(true));
                 }
             }

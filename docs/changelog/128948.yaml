@@ -1,5 +1,5 @@
 pr: 128948
-summary: Enable the completion command as a tech preview feature
+summary: ES|QL - Add COMPLETION command as a tech preview feature
 area: ES|QL
 type: feature
 issues:

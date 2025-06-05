@@ -100,10 +100,10 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "long",
         description = """
             Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string) to convert the result to a string.
+            The result is long encoded. Use <<esql-st_geohex_to_string>> to convert the result to a string.
 
-            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
-            and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
+            These functions are related to the <<query-dsl-geo-grid-query,`geo_grid` query>>
+            and the <<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid` aggregation>>.""",
         examples = @Example(file = "spatial-grid", tag = "st_geohex-grid")
     )
     public StGeohex(

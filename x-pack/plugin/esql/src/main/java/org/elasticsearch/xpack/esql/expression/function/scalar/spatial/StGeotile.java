@@ -96,10 +96,10 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "long",
         description = """
             Calculates the `geotile` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
+            The result is long encoded. Use <<esql-st_geotile_to_string>> to convert the result to a string.
 
-            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
-            and the [`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).""",
+            These functions are related to the <<query-dsl-geo-grid-query,`geo_grid` query>>
+            and the <<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid` aggregation>>.""",
         examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
     )
     public StGeotile(

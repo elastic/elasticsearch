@@ -3843,8 +3843,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // go ahead and release the indexing permit it holds.
         suspendThrottling();
         try {
-            indexShardOperationPermits.blockOperations(ActionListener.runAfter(onAcquired, this::resumeThrottling),
-                timeout, timeUnit, executor);
+            indexShardOperationPermits.blockOperations(
+                ActionListener.runAfter(onAcquired, this::resumeThrottling),
+                timeout,
+                timeUnit,
+                executor
+            );
         } catch (IndexShardClosedException e) {
             resumeThrottling();
             throw e;

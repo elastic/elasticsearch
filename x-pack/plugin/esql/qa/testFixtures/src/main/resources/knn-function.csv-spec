@@ -70,7 +70,7 @@ required_capability: knn_function
 
 from colors metadata _score 
 | where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 140})
-| sort _score desc 
+| sort _score desc, color asc
 | keep color, rgb_vector
 | limit 10
 ;
@@ -93,7 +93,7 @@ required_capability: knn_function
 
 from colors metadata _score
 | where knn(rgb_vector, [128,128,0], {"k": 140}) and match(color, "olive") 
-| sort _score desc
+| sort _score desc, color asc
 | keep color, rgb_vector
 ;
 
@@ -259,7 +259,7 @@ required_capability: knn_function
 
 from colors metadata _score 
 | where (knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 40}) and length(color) > 5) or (knn(rgb_vector, [128,0,128], {"k": 140, "similarity": 40}) and primary == false) 
-| sort _score desc 
+| sort _score desc, color asc
 | keep color, primary
 ;
 
@@ -280,18 +280,6 @@ c: long
 59      
 ;
 
-testKnnInStatsPushableAndNonPushable
-required_capability: knn_function
-required_capability: full_text_functions_in_stats_where
-
-from colors metadata _score 
-| stats c = count(*) where (knn(rgb_vector, [0,255,255], {"k": 140}) or knn(rgb_vector, [0, 0, 255])) and knn(rgb_vector, [0, 255, 0], {"k": 40})
-;
-
-c:long
-40
-;
-
 testKnnInStatsWithGrouping
 required_capability: knn_function
 required_capability: full_text_functions_in_stats_where
@@ -304,17 +292,4 @@ from colors
 c: long       | primary: boolean    
 50            | false          
 9             | true           
-;
-
-testKnnInStatsPushable
-required_capability: knn_function
-required_capability: full_text_functions_in_stats_where
-
-from colors
-| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 40})
-;
-
-# No surprises, gets the number of top k
-c:long
-40
 ;

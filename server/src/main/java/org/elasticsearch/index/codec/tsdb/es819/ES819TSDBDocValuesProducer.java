@@ -1269,22 +1269,28 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    int startIndexInBlock = 0;
-                    int currentBlockIndex = docs.get(0) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                    for (int i = startIndexInBlock; i < docs.count(); i++) {
+                    for (int i = 0; i < docs.count(); i++) {
                         doc = docs.get(i);
-                        int blockIndex = doc >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                        if (blockIndex != currentBlockIndex) {
-                            // TODO: make builder aware of codec?
-                            loadCurrentBlock(blockIndex);
-                            for (int j = startIndexInBlock; j < i; j++) {
-                                int blockInIndex = doc & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
-                                builder.appendLong(currentBlock[blockInIndex]);
-                            }
-                            currentBlockIndex = blockIndex;
-                            startIndexInBlock = i;
-                        }
+                        builder.appendLong(longValue());
                     }
+
+                    // TODO: Try to fix this:
+//                    int startIndexInBlock = 0;
+//                    int currentBlockIndex = docs.get(0) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+//                    for (int i = startIndexInBlock; i < docs.count(); i++) {
+//                        doc = docs.get(i);
+//                        int blockIndex = doc >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+//                        if (blockIndex != currentBlockIndex) {
+//                             TODO: make builder aware of codec?
+//                            loadCurrentBlock(blockIndex);
+//                            for (int j = startIndexInBlock; j < i; j++) {
+//                                int blockInIndex = doc & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+//                                builder.appendLong(currentBlock[blockInIndex]);
+//                            }
+//                            currentBlockIndex = blockIndex;
+//                            startIndexInBlock = i;
+//                        }
+//                    }
                 }
 
                 @Override
@@ -1299,23 +1305,29 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    int startIndexInBlock = 0;
-                    int currentBlockIndex = docs.get(0) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                    for (int i = startIndexInBlock; i < docs.count(); i++) {
-                        int docId = docs.get(i);
-                        int blockIndex = docId >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                        if (blockIndex != currentBlockIndex) {
-                            // TODO: make builder aware of codec?
-                            loadCurrentBlock(blockIndex);
-                            for (int j = startIndexInBlock; j < i; j++) {
-                                int blockInIndex = docId & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
-                                int value = Math.toIntExact(currentBlock[blockInIndex]);
-                                builder.appendInt(value);
-                            }
-                            currentBlockIndex = blockIndex;
-                            startIndexInBlock = i;
-                        }
+                    for (int i = 0; i < docs.count(); i++) {
+                        doc = docs.get(i);
+                        builder.appendInt(Math.toIntExact(longValue()));
                     }
+
+                    // TODO: try to fix this:
+//                    int startIndexInBlock = 0;
+//                    int currentBlockIndex = docs.get(0) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+//                    for (int i = startIndexInBlock; i < docs.count(); i++) {
+//                        int docId = docs.get(i);
+//                        int blockIndex = docId >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+//                        if (blockIndex != currentBlockIndex) {
+//                             TODO: make builder aware of codec?
+//                            loadCurrentBlock(blockIndex);
+//                            for (int j = startIndexInBlock; j < i; j++) {
+//                                int blockInIndex = docId & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+//                                int value = Math.toIntExact(currentBlock[blockInIndex]);
+//                                builder.appendInt(value);
+//                            }
+//                            currentBlockIndex = blockIndex;
+//                            startIndexInBlock = i;
+//                        }
+//                    }
                 }
 
                 @Override

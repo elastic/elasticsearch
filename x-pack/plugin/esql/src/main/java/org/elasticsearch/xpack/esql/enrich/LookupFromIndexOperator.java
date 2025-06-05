@@ -43,6 +43,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         int inputChannel,
         Function<DriverContext, LookupFromIndexService> lookupService,
         DataType inputDataType,
+        String lookupIndexPattern,
         String lookupIndex,
         String matchField,
         List<NamedExpression> loadFields,
@@ -73,6 +74,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 inputChannel,
                 lookupService.apply(driverContext),
                 inputDataType,
+                lookupIndexPattern,
                 lookupIndex,
                 matchField,
                 loadFields,
@@ -86,6 +88,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final CancellableTask parentTask;
     private final int inputChannel;
     private final DataType inputDataType;
+    private final String lookupIndexPattern;
     private final String lookupIndex;
     private final String matchField;
     private final List<NamedExpression> loadFields;
@@ -108,6 +111,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         int inputChannel,
         LookupFromIndexService lookupService,
         DataType inputDataType,
+        String lookupIndexPattern,
         String lookupIndex,
         String matchField,
         List<NamedExpression> loadFields,
@@ -119,6 +123,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.inputChannel = inputChannel;
         this.lookupService = lookupService;
         this.inputDataType = inputDataType;
+        this.lookupIndexPattern = lookupIndexPattern;
         this.lookupIndex = lookupIndex;
         this.matchField = matchField;
         this.loadFields = loadFields;
@@ -132,6 +137,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
+            lookupIndexPattern,
             inputDataType,
             matchField,
             new Page(inputBlock),

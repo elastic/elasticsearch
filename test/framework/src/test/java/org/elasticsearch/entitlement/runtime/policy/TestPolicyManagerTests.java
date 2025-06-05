@@ -37,17 +37,17 @@ public class TestPolicyManagerTests extends ESTestCase {
     }
 
     public void testReset() {
-        assertTrue(policyManager.moduleEntitlementsMap.isEmpty());
+        assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
-        assertFalse(policyManager.moduleEntitlementsMap.isEmpty());
+        assertFalse(policyManager.classEntitlementsMap.isEmpty());
 
         policyManager.reset();
 
-        assertTrue(policyManager.moduleEntitlementsMap.isEmpty());
+        assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());
-        assertFalse(policyManager.moduleEntitlementsMap.isEmpty());
+        assertFalse(policyManager.classEntitlementsMap.isEmpty());
     }
 
     public void testIsTriviallyAllowed() {

@@ -117,7 +117,7 @@ public class PolicyManager {
      *
      * @param componentName the plugin name or else one of the special component names like "(server)".
      */
-    record ModuleEntitlements(
+    protected record ModuleEntitlements(
         String componentName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
         FileAccessTree fileAccess,
@@ -287,11 +287,14 @@ public class PolicyManager {
      */
     private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
 
-    ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+    protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+        if ("io.netty.channel.socket.nio.NioSocketChannel".equals(requestingClass.getName())) {
+            System.err.println("PATDOYLE here we go");
+        }
         return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));
     }
 
-    private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
+    protected final ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
         var policyScope = scopeResolver.apply(requestingClass);
         var componentName = policyScope.componentName();
         var moduleName = policyScope.moduleName();

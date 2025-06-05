@@ -482,7 +482,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
         if (policyManager.isTriviallyAllowed(requestingClass)) {
             return;
         }
-        checkFlagEntitlement(policyManager.getEntitlements(requestingClass), entitlementClass, requestingClass, callerClass);
+        ModuleEntitlements entitlements = policyManager.getEntitlements(requestingClass);
+        checkFlagEntitlement(entitlements, entitlementClass, requestingClass, callerClass);
     }
 
     @Override

@@ -15,11 +15,18 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public class TestPolicyManager extends PolicyManager {
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
+
+    /**
+     * We don't have modules in tests, so we can't use the inherited map of entitlements per module.
+     * We need this larger map per class instead.
+     */
+    final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
 
     public TestPolicyManager(
         Policy serverPolicy,
@@ -45,7 +52,8 @@ public class TestPolicyManager extends PolicyManager {
      * Called between tests so each test is not affected by prior tests
      */
     public final void reset() {
-        super.moduleEntitlementsMap.clear();
+        assert moduleEntitlementsMap.isEmpty(): "We're not supposed to be using moduleEntitlementsMap in tests";
+        classEntitlementsMap.clear();
         isActive = false;
         isTriviallyAllowingTestCode = true;
     }
@@ -107,5 +115,10 @@ public class TestPolicyManager extends PolicyManager {
     @Override
     protected Path getComponentPathFromClass(Class<?> requestingClass) {
         return Path.of("/");
+    }
+
+    @Override
+    protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+        return classEntitlementsMap.computeIfAbsent(requestingClass, c -> computeEntitlements(requestingClass));
     }
 }

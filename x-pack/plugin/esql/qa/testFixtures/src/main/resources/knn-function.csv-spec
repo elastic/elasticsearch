@@ -11,6 +11,7 @@ from colors metadata _score
 | sort _score desc, color asc
 // end::knn-function[]
 | keep color, rgb_vector
+| limit 10
 ;
 
 // tag::knn-function-result[]
@@ -174,6 +175,7 @@ from colors metadata _score
 | where knn(rgb_vector, [255,255,238], {"k": 140}) and hex_code like "#FFF*" 
 | sort _score desc, color asc
 | keep color, hex_code, rgb_vector
+| limit 10
 ;
 ignoreOrder:true
 

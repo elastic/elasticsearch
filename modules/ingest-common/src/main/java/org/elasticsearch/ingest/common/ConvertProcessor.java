@@ -155,6 +155,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             }
         }
 
+        private final float ABS_MAX_EXACT_FLOAT = 0x1p24f - 1;
         private static boolean isExactIntegerFloat(Object value) {
             if (value instanceof Float == false) {
                 return false;
@@ -163,6 +164,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             return v == (long) v && -ABS_MAX_EXACT_FLOAT <= v && v <= ABS_MAX_EXACT_FLOAT;
         }
 
+        private final double ABS_MAX_EXACT_DOUBLE = 0x1p53 - 1;
         private static boolean isExactIntegerDouble(Object value) {
             if (value instanceof Double == false) {
                 return false;
@@ -178,9 +180,6 @@ public final class ConvertProcessor extends AbstractProcessor {
     private final String targetField;
     private final Type convertType;
     private final boolean ignoreMissing;
-
-    private final float ABS_MAX_EXACT_FLOAT = 0x1p24f - 1;
-    private final double ABS_MAX_EXACT_DOUBLE = 0x1p53 - 1;
 
     ConvertProcessor(String tag, String description, String field, String targetField, Type convertType, boolean ignoreMissing) {
         super(tag, description);

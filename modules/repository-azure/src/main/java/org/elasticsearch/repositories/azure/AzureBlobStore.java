@@ -19,6 +19,8 @@ import reactor.core.scheduler.Schedulers;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.rest.ResponseBase;
 import com.azure.core.util.BinaryData;
+import com.azure.core.util.FluxUtil;
+import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerAsyncClient;
@@ -48,6 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -63,13 +66,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -97,6 +103,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -121,6 +128,7 @@ public class AzureBlobStore implements BlobStore {
     private final ByteSizeValue maxSinglePartUploadSize;
     private final int deletionBatchSize;
     private final int maxConcurrentBatchDeletes;
+    private final int multipartUploadMaxConcurrency;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -142,6 +150,7 @@ public class AzureBlobStore implements BlobStore {
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
         this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
+        this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
@@ -464,6 +473,140 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
+    void writeBlobAtomic(
+        final OperationPurpose purpose,
+        final String blobName,
+        final long blobSize,
+        final CheckedBiFunction<Long, Long, InputStream, IOException> provider,
+        final boolean failIfAlreadyExists
+    ) throws IOException {
+        try {
+            final List<MultiPart> multiParts;
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                multiParts = null;
+            } else {
+                multiParts = computeMultiParts(blobSize, getUploadBlockSize());
+            }
+            if (multiParts == null || multiParts.size() == 1) {
+                logger.debug("{}: uploading blob of size [{}] as single upload", blobName, blobSize);
+                try (var stream = provider.apply(0L, blobSize)) {
+                    var flux = convertStreamToByteBuffer(stream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
+                    executeSingleUpload(purpose, blobName, flux, blobSize, failIfAlreadyExists);
+                }
+            } else {
+                logger.debug("{}: uploading blob of size [{}] using [{}] parts", blobName, blobSize, multiParts.size());
+                assert blobSize == ((multiParts.size() - 1) * getUploadBlockSize()) + multiParts.getLast().blockSize();
+                assert multiParts.size() > 1;
+
+                final var asyncClient = asyncClient(purpose).getBlobContainerAsyncClient(container)
+                    .getBlobAsyncClient(blobName)
+                    .getBlockBlobAsyncClient();
+
+                Flux.fromIterable(multiParts)
+                    .flatMapSequential(multipart -> stageBlock(asyncClient, blobName, multipart, provider), multipartUploadMaxConcurrency)
+                    .collect(Collectors.toList())
+                    .flatMap(blockIds -> {
+                        logger.debug("{}: all {} parts uploaded, now committing", blobName, multiParts.size());
+                        return asyncClient.commitBlockList(
+                            multiParts.stream().map(MultiPart::blockId).toList(),
+                            failIfAlreadyExists == false
+                        )
+                            .doOnSuccess(unused -> logger.debug("{}: all {} parts committed", blobName, multiParts.size()))
+                            // Note: non-committed uploaded blocks will be deleted by Azure after a week
+                            // (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-block#remarks)
+                            .doOnError(e -> logger.error(() -> format("%s: failed to commit %d parts", blobName, multiParts.size()), e));
+                    })
+                    .block();
+            }
+        } catch (final BlobStorageException e) {
+            if (failIfAlreadyExists
+                && e.getStatusCode() == HttpURLConnection.HTTP_CONFLICT
+                && BlobErrorCode.BLOB_ALREADY_EXISTS.equals(e.getErrorCode())) {
+                throw new FileAlreadyExistsException(blobName, null, e.getMessage());
+            }
+            throw new IOException("Unable to write blob " + blobName, e);
+        } catch (Exception e) {
+            throw new IOException("Unable to write blob " + blobName, e);
+        }
+    }
+
+    private record MultiPart(int part, String blockId, long blockOffset, long blockSize, boolean isLast) {}
+
+    private static List<MultiPart> computeMultiParts(long totalSize, long partSize) {
+        if (partSize <= 0) {
+            throw new IllegalArgumentException("Part size must be greater than zero");
+        }
+        if ((totalSize == 0L) || (totalSize <= partSize)) {
+            return List.of(new MultiPart(0, makeMultipartBlockId(), 0L, totalSize, true));
+        }
+
+        long remaining = totalSize % partSize;
+        int parts = Math.toIntExact(totalSize / partSize) + (0L < remaining ? 1 : 0);
+        long lastPartSize = 0L < remaining ? remaining : partSize;
+
+        long blockOffset = 0L;
+        var list = new ArrayList<MultiPart>(parts);
+        for (int p = 0; p < parts; p++) {
+            boolean isLast = (p == parts - 1);
+            var multipart = new MultiPart(p, makeMultipartBlockId(), blockOffset, isLast ? lastPartSize : partSize, isLast);
+            blockOffset += multipart.blockSize();
+            list.add(multipart);
+        }
+        return List.copyOf(list);
+    }
+
+    private static Mono<String> stageBlock(
+        BlockBlobAsyncClient asyncClient,
+        String blobName,
+        MultiPart multiPart,
+        CheckedBiFunction<Long, Long, InputStream, IOException> provider
+    ) {
+        logger.debug(
+            "{}: staging part [{}] of size [{}] from offset [{}]",
+            blobName,
+            multiPart.part(),
+            multiPart.blockSize(),
+            multiPart.blockOffset()
+        );
+        try {
+            final var stream = provider.apply(multiPart.blockOffset(), multiPart.blockSize());
+            assert stream.markSupported() : "provided input stream must support mark and reset";
+            boolean success = false;
+            try {
+                var stageBlock = asyncClient.stageBlock(
+                    multiPart.blockId(),
+                    toFlux(wrapInputStream(blobName, stream, multiPart), multiPart.blockSize(), DEFAULT_UPLOAD_BUFFERS_SIZE),
+                    multiPart.blockSize()
+                ).doOnSuccess(unused -> {
+                    logger.debug(() -> format("%s: part [%s] of size [%s] uploaded", blobName, multiPart.part(), multiPart.blockSize()));
+                    IOUtils.closeWhileHandlingException(stream);
+                }).doOnCancel(() -> {
+                    logger.warn(() -> format("%s: part [%s] of size [%s] cancelled", blobName, multiPart.part(), multiPart.blockSize()));
+                    IOUtils.closeWhileHandlingException(stream);
+                }).doOnError(t -> {
+                    logger.error(() -> format("%s: part [%s] of size [%s] failed", blobName, multiPart.part(), multiPart.blockSize()), t);
+                    IOUtils.closeWhileHandlingException(stream);
+                });
+                logger.debug(
+                    "{}: part [{}] of size [{}] from offset [{}] staged",
+                    blobName,
+                    multiPart.part(),
+                    multiPart.blockSize(),
+                    multiPart.blockOffset()
+                );
+                success = true;
+                return stageBlock.map(unused -> multiPart.blockId());
+            } finally {
+                if (success != true) {
+                    IOUtils.close(stream);
+                }
+            }
+        } catch (IOException e) {
+            logger.error(() -> format("%s: failed to stage part [%s] of size [%s]", blobName, multiPart.part(), multiPart.blockSize()), e);
+            return FluxUtil.monoError(new ClientLogger(AzureBlobStore.class), new UncheckedIOException(e));
+        }
+    }
+
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         assert inputStream.markSupported()
@@ -623,6 +766,135 @@ public class AzureBlobStore implements BlobStore {
             });
         }).subscribeOn(Schedulers.elastic()); // We need to subscribe on a different scheduler to avoid blocking the io threads when
                                               // we read the input stream (i.e. when it's rate limited)
+    }
+
+    /**
+     * Wraps an {@link InputStream} to assert that it is read only by a single thread at a time and to add log traces.
+     */
+    private static InputStream wrapInputStream(final String blobName, final InputStream delegate, final MultiPart multipart) {
+        return new FilterInputStream(delegate) {
+
+            private final AtomicReference<Thread> currentThread = Assertions.ENABLED ? new AtomicReference<>() : null;
+            private final boolean isTraceEnabled = logger.isTraceEnabled();
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                assert assertThread(null, Thread.currentThread());
+                assert ThreadPool.assertCurrentThreadPool(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+                try {
+                    var result = super.read(b, off, len);
+                    if (isTraceEnabled) {
+                        logger.trace("{} reads {} bytes from {} part {}", Thread.currentThread(), result, blobName, multipart.part());
+                    }
+                    return result;
+                } finally {
+                    assert assertThread(Thread.currentThread(), null);
+                }
+            }
+
+            @Override
+            public int read() throws IOException {
+                assert assertThread(null, Thread.currentThread());
+                assert ThreadPool.assertCurrentThreadPool(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+                try {
+                    var result = super.read();
+                    if (isTraceEnabled) {
+                        logger.trace("{} reads {} byte from {} part {}", Thread.currentThread(), result, blobName, multipart.part());
+                    }
+                    return result;
+                } finally {
+                    assert assertThread(Thread.currentThread(), null);
+                }
+            }
+
+            private boolean assertThread(Thread current, Thread updated) {
+                final Thread witness = currentThread.compareAndExchange(current, updated);
+                assert witness == current
+                    : "Unable to set current thread to ["
+                        + updated
+                        + "]: expected thread ["
+                        + current
+                        + "] to be the thread currently accessing the input stream for reading, but thread "
+                        + witness
+                        + " is already reading "
+                        + blobName
+                        + " part "
+                        + multipart.part();
+                return true;
+            }
+        };
+    }
+
+    /**
+     * Converts an input stream to a Flux of ByteBuffer. This method also checks that the stream has provided the expected number of bytes.
+     *
+     * @param stream            the input stream that needs to be converted
+     * @param length            the expected length in bytes of the input stream
+     * @param byteBufferSize    the size of the ByteBuffers to be created
+     **/
+    private static Flux<ByteBuffer> toFlux(InputStream stream, long length, final int byteBufferSize) {
+        assert stream.markSupported() : "input stream must support mark and reset";
+        // always marks the input stream in case it needs to be retried
+        stream.mark(Integer.MAX_VALUE);
+        // defer the creation of the flux until it is subscribed
+        return Flux.defer(() -> {
+            try {
+                stream.reset();
+            } catch (IOException e) {
+                // Flux.defer() catches and propagates the exception
+                throw new UncheckedIOException(e);
+            }
+            // the number of bytes read is updated in a thread pool (repository_azure) and later compared to the expected length in another
+            // thread pool (azure_event_loop), so we need this to be atomic.
+            final var bytesRead = new AtomicLong(0L);
+
+            assert length <= ByteSizeValue.ofMb(100L).getBytes() : length;
+            // length is at most 100MB so it's safe to cast back to an integer
+            final int parts = Math.toIntExact(length / byteBufferSize);
+            final long remaining = length % byteBufferSize;
+
+            // This flux is subscribed by a downstream subscriber (reactor.netty.channel.MonoSendMany) that queues the buffers into netty
+            // output queue. Sadly we are not able to get a signal once the buffer has been flushed, so we have to allocate those and let
+            // the GC to reclaim them. Additionally, the MonoSendMany subscriber requests 128 elements from the flux when it subscribes to
+            // it. This 128 value is hardcoded in reactor.netty.channel.MonoSend.MAX_SIZE). After 128 byte buffers have been published by
+            // the flux, the MonoSendMany subscriber requests 64 more byte buffers (see reactor.netty.channel.MonoSend.REFILL_SIZE) and so
+            // on.
+            //
+            // So this flux instantiates 128 ByteBuffer objects of DEFAULT_UPLOAD_BUFFERS_SIZE bytes in heap every time the NettyOutbound in
+            // the Azure's Netty event loop requests byte buffers to write to the network channel. That represents 128 * 64kb = 8 mb per
+            // flux which is aligned with BlobAsyncClient.BLOB_DEFAULT_HTBB_UPLOAD_BLOCK_SIZE. The creation of the ByteBuffer objects are
+            // forked to the repository_azure thread pool, which has a maximum of 15 threads (most of the time, can be less than that for
+            // nodes with less than 750mb heap). It means that max. 15 * 8 = 120mb bytes are allocated on heap at a time here (omitting the
+            // ones already created and pending garbage collection).
+            return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * byteBufferSize).concatMap(pos -> Mono.fromCallable(() -> {
+                long count = pos + byteBufferSize > length ? length - pos : byteBufferSize;
+                int numOfBytesRead = 0;
+                int offset = 0;
+                int len = (int) count;
+                final byte[] buffer = new byte[len];
+                while (numOfBytesRead != -1 && offset < count) {
+                    numOfBytesRead = stream.read(buffer, offset, len);
+                    offset += numOfBytesRead;
+                    len -= numOfBytesRead;
+                    if (numOfBytesRead != -1) {
+                        bytesRead.addAndGet(numOfBytesRead);
+                    }
+                }
+                if (numOfBytesRead == -1 && bytesRead.get() < length) {
+                    throw new IllegalStateException(
+                        format("Input stream [%s] emitted %d bytes, less than the expected %d bytes.", stream, bytesRead, length)
+                    );
+                }
+                return ByteBuffer.wrap(buffer);
+            })).doOnComplete(() -> {
+                if (bytesRead.get() > length) {
+                    throw new IllegalStateException(
+                        format("Input stream [%s] emitted %d bytes, more than the expected %d bytes.", stream, bytesRead, length)
+                    );
+                }
+            });
+            // subscribe on a different scheduler to avoid blocking the network io threads when reading bytes from disk
+        }).subscribeOn(Schedulers.elastic());
     }
 
     /**

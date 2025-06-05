@@ -45,6 +45,8 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
             .setting("xpack.security.enabled", "false")
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
+        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
+        // inconsistent
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");

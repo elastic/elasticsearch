@@ -118,9 +118,9 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
 
     static class TestMockFileStore extends FileStore {
 
-        public long totalSpace;
-        public long freeSpace;
-        public long usableSpace;
+        public volatile long totalSpace;
+        public volatile long freeSpace;
+        public volatile long usableSpace;
 
         private final String desc;
 
@@ -662,6 +662,158 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertBusy(() -> {
                 assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
+            });
+        }
+    }
+
+    public void testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable() throws Exception {
+        aFileStore.totalSpace = randomLongBetween(300L, 1_000L);
+        bFileStore.totalSpace = randomLongBetween(300L, 1_000L);
+        long grantedUsableSpaceBuffer = randomLongBetween(10L, 50L);
+        aFileStore.usableSpace = randomLongBetween(200L, aFileStore.totalSpace - grantedUsableSpaceBuffer);
+        bFileStore.usableSpace = randomLongBetween(200L, bFileStore.totalSpace - grantedUsableSpaceBuffer);
+        boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(settings);
+        // change the watermark level, just for coverage and it's easier with the calculations
+        if (randomBoolean()) {
+            settingsBuilder.put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "90%");
+        } else {
+            settingsBuilder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "90%");
+        }
+        try (
+                ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                        .maybeCreateThreadPoolMergeExecutorService(
+                                testThreadPool,
+                                ClusterSettings.createBuiltInClusterSettings(settingsBuilder.build()),
+                                nodeEnvironment
+                        )
+        ) {
+            assert threadPoolMergeExecutorService != null;
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), greaterThanOrEqualTo(1));
+            // uses the 10% watermark limit
+            final long availableInitialBudget = aHasMoreSpace
+                ? aFileStore.usableSpace - aFileStore.totalSpace / 10
+                : bFileStore.usableSpace - bFileStore.totalSpace / 10;
+            final AtomicLong expectedAvailableBudget = new AtomicLong(availableInitialBudget);
+            assertBusy(
+                () -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()))
+            );
+            // maybe let some merge tasks hold up some budget
+            // take care that there's still at least one thread available to run merges
+            int maxBlockingTasksToSubmit = mergeExecutorThreadCount - 1;
+            // first maybe submit some running or aborting merge tasks that hold up some budget while running or aborting
+            List<ThreadPoolMergeScheduler.MergeTask> runningMergeTasks = new ArrayList<>();
+            List<ThreadPoolMergeScheduler.MergeTask> abortingMergeTasks = new ArrayList<>();
+            CountDownLatch testDoneLatch = new CountDownLatch(1);
+            while (expectedAvailableBudget.get() > 0L && maxBlockingTasksToSubmit-- > 0 && randomBoolean()) {
+                ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
+                long taskBudget = randomLongBetween(1L, expectedAvailableBudget.get());
+                when(mergeTask.estimatedRemainingMergeSize()).thenReturn(taskBudget);
+                when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
+                // this task runs/aborts, and it's going to hold up some budget for it
+                expectedAvailableBudget.set(expectedAvailableBudget.get() - taskBudget);
+                // this task will hold up budget because it blocks when it runs (to simulate it running for a long time)
+                doAnswer(mock -> {
+                    // wait to be signalled before completing (this holds up budget)
+                    testDoneLatch.await();
+                    return null;
+                }).when(mergeTask).run();
+                doAnswer(mock -> {
+                    // wait to be signalled before completing (this holds up budget)
+                    testDoneLatch.await();
+                    return null;
+                }).when(mergeTask).abort();
+                threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+                if (mergeTask.schedule() == RUN) {
+                    runningMergeTasks.add(mergeTask);
+                } else {
+                    abortingMergeTasks.add(mergeTask);
+                }
+            }
+            assertBusy(() -> {
+                assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
+                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()));
+            });
+            // send some runnable merge tasks that although runnable are currently over budget
+            int overBudgetTaskCount = randomIntBetween(1, 5);
+            List<ThreadPoolMergeScheduler.MergeTask> overBudgetTasksToRunList = new ArrayList<>();
+            List<ThreadPoolMergeScheduler.MergeTask> overBudgetTasksToAbortList = new ArrayList<>();
+            while (overBudgetTaskCount-- > 0) {
+                ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
+                // currently over-budget
+                long taskBudget = randomLongBetween(
+                    expectedAvailableBudget.get() + 1L,
+                    expectedAvailableBudget.get() + grantedUsableSpaceBuffer
+                );
+                when(mergeTask.estimatedRemainingMergeSize()).thenReturn(taskBudget);
+                Schedule schedule = randomFrom(RUN, ABORT);
+                when(mergeTask.schedule()).thenReturn(schedule);
+                threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+                if (schedule == RUN) {
+                    overBudgetTasksToRunList.add(mergeTask);
+                } else {
+                    overBudgetTasksToAbortList.add(mergeTask);
+                }
+            }
+            // over-budget tasks did not run, are enqueued, and budget is unchanged
+            assertBusy(() -> {
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : overBudgetTasksToAbortList) {
+                    verify(mergeTask, times(0)).schedule();
+                    verify(mergeTask, times(0)).run();
+                    verify(mergeTask, times(0)).abort();
+                }
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : overBudgetTasksToRunList) {
+                    verify(mergeTask, times(0)).schedule();
+                    verify(mergeTask, times(0)).run();
+                    verify(mergeTask, times(0)).abort();
+                }
+                assertThat(
+                    threadPoolMergeExecutorService.getMergeTasksQueueLength(),
+                    is(overBudgetTasksToAbortList.size() + overBudgetTasksToRunList.size())
+                );
+                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()));
+            });
+            // more disk space becomes available
+            if (aHasMoreSpace) {
+                aFileStore.usableSpace += grantedUsableSpaceBuffer;
+            } else {
+                bFileStore.usableSpace += grantedUsableSpaceBuffer;
+            }
+            expectedAvailableBudget.set(expectedAvailableBudget.get() + grantedUsableSpaceBuffer);
+            // all over-budget tasks can now run because more disk space became available
+            assertBusy(() -> {
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : overBudgetTasksToRunList) {
+                    verify(mergeTask).schedule();
+                    verify(mergeTask).run();
+                    verify(mergeTask, times(0)).abort();
+                }
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : overBudgetTasksToAbortList) {
+                    verify(mergeTask).schedule();
+                    verify(mergeTask, times(0)).run();
+                    verify(mergeTask).abort();
+                }
+                assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
+                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()));
+            });
+            // let test finish cleanly
+            testDoneLatch.countDown();
+            assertBusy(() -> {
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : runningMergeTasks) {
+                    verify(mergeTask).run();
+                }
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : abortingMergeTasks) {
+                    verify(mergeTask).abort();
+                }
+                assertThat(
+                    threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                    is(availableInitialBudget + grantedUsableSpaceBuffer)
+                );
+                assertThat(threadPoolMergeExecutorService.allDone(), is(true));
+                assertThat(
+                    threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                    is(availableInitialBudget + grantedUsableSpaceBuffer)
+                );
             });
         }
     }

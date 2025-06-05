@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
@@ -133,8 +134,8 @@ public class KnnIndexTester {
         }
         String jsonConfig = args[0];
         // Parse command line arguments
-        Path jsonConfigPath = Path.of(jsonConfig);
-        if (jsonConfigPath.toFile().exists() == false) {
+        Path jsonConfigPath = PathUtils.get(jsonConfig);
+        if (Files.exists(jsonConfigPath) == false) {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
         // Parse the JSON config file to get command line arguments
@@ -161,7 +162,7 @@ public class KnnIndexTester {
             Results result = new Results(cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT), cmdLineArgs.numDocs());
             System.out.println("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
-            Path indexPath = Path.of(formatIndexPath(cmdLineArgs));
+            Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     cmdLineArgs.docVectors(),
@@ -253,7 +254,7 @@ public class KnnIndexTester {
             for (int i = 0; i < values.length; i++) {
                 // Left-align text column (index_type), right-align numeric columns
                 String format = (i == 0) ? "%-" + widths[i] + "s" : "%" + widths[i] + "s";
-                row.append(String.format(format, values[i]));
+                row.append(Strings.format(format, values[i]));
 
                 // Add separation between columns
                 if (i < values.length - 1) {

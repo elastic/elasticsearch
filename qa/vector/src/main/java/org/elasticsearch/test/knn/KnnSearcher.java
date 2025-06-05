@@ -40,6 +40,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -58,7 +59,6 @@ import java.nio.IntBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -119,8 +119,10 @@ class KnnSearcher {
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
-        ExecutorService executorService = Executors.newFixedThreadPool(searchThreads);
-        try (FileChannel input = FileChannel.open(queryPath)) {
+        try (
+            FileChannel input = FileChannel.open(queryPath);
+            ExecutorService executorService = Executors.newFixedThreadPool(searchThreads, r -> new Thread(r, "KnnSearcher-Thread"))
+        ) {
             long queryPathSizeInBytes = input.size();
             logger.info(
                 "queryPath size: "
@@ -177,13 +179,10 @@ class KnnSearcher {
                     );
                 }
             }
-        } finally {
-            executorService.shutdown();
         }
         logger.info("checking results");
         int[][] nn = getOrCalculateExactNN();
-        float recall = checkResults(resultIds, nn, topK);
-        finalResults.avgRecall = recall;
+        finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
         finalResults.averageVisited = (double) totalVisited / numQueryVectors;
@@ -206,7 +205,7 @@ class KnnSearcher {
             36
         );
         String nnFileName = "nn-" + hash + ".bin";
-        Path nnPath = Paths.get("target/" + nnFileName);
+        Path nnPath = PathUtils.get("target/" + nnFileName);
         if (Files.exists(nnPath) && isNewer(nnPath, docPath, indexPath, queryPath)) {
             logger.info("read pre-cached exact match vectors from cache file \"" + nnPath + "\"");
             return readExactNN(nnPath);

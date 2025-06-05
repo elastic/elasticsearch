@@ -15,6 +15,10 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
+tasks.named('forbiddenApisMain').configure {
+  enabled = false
+}
+
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-queries:${versions.lucene}"

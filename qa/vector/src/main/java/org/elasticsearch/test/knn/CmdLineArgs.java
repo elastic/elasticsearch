@@ -12,6 +12,7 @@ package org.elasticsearch.test.knn;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -158,12 +159,12 @@ record CmdLineArgs(
         private int dimensions;
 
         public Builder setDocVectors(String docVectors) {
-            this.docVectors = Path.of(docVectors);
+            this.docVectors = PathUtils.get(docVectors);
             return this;
         }
 
         public Builder setQueryVectors(String queryVectors) {
-            this.queryVectors = Path.of(queryVectors);
+            this.queryVectors = PathUtils.get(queryVectors);
             return this;
         }
 

@@ -35,12 +35,14 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.PrintStreamInfoStream;
+import org.elasticsearch.common.io.Channels;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -122,11 +124,7 @@ class KnnIndexer {
             similarityFunction
         );
 
-        if (indexPath.toFile().mkdirs()) {
-            logger.info("Created index directory: %s", indexPath);
-        } else {
-            logger.info("Index directory already exists: %s", indexPath);
-        }
+        Files.createDirectory(indexPath);
 
         long start = System.nanoTime();
         try (
@@ -149,7 +147,7 @@ class KnnIndexer {
             );
 
             VectorReader inReader = VectorReader.create(in, dim, vectorEncoding);
-            try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads)) {
+            try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
                 AtomicInteger numDocsIndexed = new AtomicInteger();
                 List<Future<?>> threads = new ArrayList<>();
                 for (int i = 0; i < numIndexThreads; i++) {
@@ -294,12 +292,12 @@ class KnnIndexer {
         }
 
         private void readNext() throws IOException {
-            int bytesRead = this.input.read(bytes);
+            int bytesRead = Channels.readFromFileChannel(this.input, this.input.position(), bytes);
             if (bytesRead < bytes.capacity()) {
                 // wrap around back to the start of the file if we hit the end:
                 logger.warn("VectorReader hit EOF when reading " + this.input + "; now wrapping around to start of file again");
                 this.input.position(0);
-                bytesRead = this.input.read(bytes);
+                bytesRead = Channels.readFromFileChannel(this.input, this.input.position(), bytes);
                 if (bytesRead < bytes.capacity()) {
                     throw new IllegalStateException(
                         "vector file " + input + " doesn't even have enough bytes for a single vector?  got bytesRead=" + bytesRead

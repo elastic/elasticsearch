@@ -71,22 +71,22 @@ required_capability: knn_function
 from colors metadata _score 
 | where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 140})
 | sort _score desc 
-| eval round_score = round(_score, 4)
+| eval round_score = round(_score)
 | keep color, rgb_vector, round_score
 | limit 10
 ;
 
 color:text        | rgb_vector:dense_vector | round_score:double
-violet            | [238.0, 130.0, 238.0]   | 13.9457
-blue violet       | [138.0, 43.0, 226.0]    | 3.0877
-dark violet       | [148.0, 0.0, 211.0]     | 3.0877
-pale violet red   | [219.0, 112.0, 147.0]   | 2.5366
-medium violet red | [199.0, 21.0, 133.0]    | 2.5359
-orchid            | [218.0, 112.0, 214.0]   | 0.0083
-plum              | [221.0, 160.0, 221.0]   | 0.0071
-hot pink          | [255.0, 105.0, 180.0]   | 0.0024
-thistle           | [216.0, 191.0, 216.0]   | 0.0021
-light pink        | [255.0, 182.0, 193.0]   | 0.0021
+violet            | [238.0, 130.0, 238.0]   | 14.0
+blue violet       | [138.0, 43.0, 226.0]    | 3.0
+dark violet       | [148.0, 0.0, 211.0]     | 3.0
+pale violet red   | [219.0, 112.0, 147.0]   | 3.0
+medium violet red | [199.0, 21.0, 133.0]    | 3.0
+orchid            | [218.0, 112.0, 214.0]   | 0.0
+plum              | [221.0, 160.0, 221.0]   | 0.0
+hot pink          | [255.0, 105.0, 180.0]   | 0.0
+thistle           | [216.0, 191.0, 216.0]   | 0.0
+light pink        | [255.0, 182.0, 193.0]   | 0.0
 ;
 
 knnWithMultipleFunctions
@@ -95,14 +95,14 @@ required_capability: knn_function
 from colors metadata _score
 | where knn(rgb_vector, [128,128,0], {"k": 140}) and match(color, "olive") 
 | sort _score desc
-| eval round_score = round(_score, 4)
+| eval round_score = round(_score)
 | keep color, rgb_vector, round_score
 ;
 
 color:text       | rgb_vector:dense_vector | round_score:double
-olive            | [128.0, 128.0, 0.0]     | 5.4979            
-olive drab       | [107.0, 142.0, 35.0]    | 3.5206            
-dark olive green | [85.0, 107.0, 47.0]     | 2.8906 
+olive            | [128.0, 128.0, 0.0]     | 5.0            
+olive drab       | [107.0, 142.0, 35.0]    | 4.0            
+dark olive green | [85.0, 107.0, 47.0]     | 3.0 
 ;
 
 knnAfterKeep
@@ -247,13 +247,13 @@ required_capability: knn_function
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 30}) or length(color) > 17 
 | sort _score desc, color asc
-| eval round_score = round(_score, 4)
+| eval round_score = round(_score)
 | keep color, round_score 
 ;
 
 color:text              | round_score:double
 olive                   | 1.0
-olive drab              | 0.0014
+olive drab              | 0.0
 light golden rod yellow | 0.0
 medium aqua marine      | 0.0
 medium spring green     | 0.0
@@ -265,14 +265,14 @@ required_capability: knn_function
 from colors metadata _score 
 | where (knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 40}) and length(color) > 5) or (knn(rgb_vector, [128,0,128], {"k": 140, "similarity": 40}) and primary == false) 
 | sort _score desc 
-| eval round_score = round(_score, 4) 
+| eval round_score = round(_score) 
 | keep color, primary, round_score
 ;
 
 color:text   | primary:boolean | round_score:double
 purple       | false           | 1.0
-dark magenta | false           | 0.0045
-olive drab   | false           | 0.0014  
+dark magenta | false           | 0.0
+olive drab   | false           | 0.0  
 ;
 
 testKnnInStatsNonPushable

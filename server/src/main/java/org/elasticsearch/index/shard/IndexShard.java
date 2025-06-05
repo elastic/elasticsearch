@@ -2757,18 +2757,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public boolean isIndexingPaused() {
-        Engine engine = getEngineOrNull();
-        final boolean indexingPaused;
-        if (engine == null) {
-            indexingPaused = false;
-        } else {
-            indexingPaused = engine.isIndexingPaused();
-        }
-        return (indexingPaused);
-    }
-
-    public void suspendThrottling() {
+    private void suspendThrottling() {
         try {
             getEngine().suspendThrottling();
         } catch (AlreadyClosedException ex) {
@@ -2776,7 +2765,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void resumeThrottling() {
+    private void resumeThrottling() {
         try {
             getEngine().resumeThrottling();
         } catch (AlreadyClosedException ex) {
@@ -3850,13 +3839,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final TimeUnit timeUnit,
         final Executor executor
     ) {
-        indexShardOperationPermits.delayOperations();
         // In case indexing is paused on the shard, suspend throttling so that any currently paused task can
         // go ahead and release the indexing permit it holds.
         suspendThrottling();
-        indexShardOperationPermits.waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
-        // TODO: Does this do anything ? Looks like the relocated shard does not have throttling enabled
-        resumeThrottling();
+        try {
+            indexShardOperationPermits.blockOperations(ActionListener.runAfter(onAcquired, this::resumeThrottling),
+                timeout, timeUnit, executor);
+        } catch (IndexShardClosedException e) {
+            resumeThrottling();
+            throw e;
+        }
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {

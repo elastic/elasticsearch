@@ -76,9 +76,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
-        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
         final ShardHeapUsageSupplier mockShardHeapUsageSupplier = spy(new StubShardShardHeapUsageSupplier());
-        clusterInfoService.setShardHeapUsageSupplier(mockShardHeapUsageSupplier);
+        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            mockShardHeapUsageSupplier
+        );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
 

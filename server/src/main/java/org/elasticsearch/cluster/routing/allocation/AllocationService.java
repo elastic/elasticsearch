@@ -15,9 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.ShardHeapUsageSupplier;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -637,12 +635,6 @@ public class AllocationService {
                 taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
             }
         });
-    }
-
-    public void setHeapUsageSupplier(ShardHeapUsageSupplier shardHeapUsageSupplier) {
-        if (clusterInfoService instanceof InternalClusterInfoService internalClusterInfoService) {
-            internalClusterInfoService.setShardHeapUsageSupplier(shardHeapUsageSupplier);
-        }
     }
 
     /**

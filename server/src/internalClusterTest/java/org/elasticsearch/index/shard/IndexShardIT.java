@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -816,36 +817,43 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    private static class BogusShardShardHeapUsageSupplier implements ShardHeapUsageSupplier {
+    public static class BogusShardShardHeapUsageSupplier implements ShardHeapUsageSupplier {
 
-        private final ClusterService clusterService;
+        private final BogusShardHeapUsagePlugin plugin;
 
-        private BogusShardShardHeapUsageSupplier(ClusterService clusterService) {
-            this.clusterService = clusterService;
+        public BogusShardShardHeapUsageSupplier(BogusShardHeapUsagePlugin plugin) {
+            this.plugin = plugin;
         }
 
         @Override
         public void getClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
             ActionListener.completeWith(
                 listener,
-                () -> clusterService.state().nodes().stream().collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> {
-                    final long maxHeap = randomNonNegativeLong();
-                    final long usedHeap = (long) (randomFloat() * maxHeap);
-                    return new ShardHeapUsage(node.getId(), node.getName(), maxHeap, usedHeap);
-                }))
+                () -> plugin.getClusterService()
+                    .state()
+                    .nodes()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> {
+                        final long maxHeap = randomNonNegativeLong();
+                        final long usedHeap = (long) (randomFloat() * maxHeap);
+                        return new ShardHeapUsage(node.getId(), node.getName(), maxHeap, usedHeap);
+                    }))
             );
         }
     }
 
     public static class BogusShardHeapUsagePlugin extends Plugin implements ClusterPlugin {
 
-        public BogusShardHeapUsagePlugin() {}
+        private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
         @Override
         public Collection<?> createComponents(PluginServices services) {
-            BogusShardShardHeapUsageSupplier bogusHeapUsageSupplier = new BogusShardShardHeapUsageSupplier(services.clusterService());
-            services.allocationService().setHeapUsageSupplier(bogusHeapUsageSupplier);
+            clusterService.set(services.clusterService());
             return List.of();
+        }
+
+        public ClusterService getClusterService() {
+            return clusterService.get();
         }
     }
 }

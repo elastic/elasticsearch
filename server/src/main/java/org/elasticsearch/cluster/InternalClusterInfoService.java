@@ -97,19 +97,26 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
+    private final ShardHeapUsageSupplier shardHeapUsageSupplier;
 
-    private ShardHeapUsageSupplier shardHeapUsageSupplier = ShardHeapUsageSupplier.EMPTY;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
     @SuppressWarnings("this-escape")
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
+    public InternalClusterInfoService(
+        Settings settings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        ShardHeapUsageSupplier shardHeapUsageSupplier
+    ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
         this.shardHeapUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
+        this.shardHeapUsageSupplier = shardHeapUsageSupplier;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -132,16 +139,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     void setUpdateFrequency(TimeValue updateFrequency) {
         this.updateFrequency = updateFrequency;
-    }
-
-    /**
-     * This can be provided by plugins, which are initialised long after the ClusterInfoService is created
-     *
-     * @param shardHeapUsageSupplier The HeapUsageSupplier to use
-     */
-    public void setShardHeapUsageSupplier(ShardHeapUsageSupplier shardHeapUsageSupplier) {
-        assert this.shardHeapUsageSupplier == ShardHeapUsageSupplier.EMPTY;
-        this.shardHeapUsageSupplier = shardHeapUsageSupplier;
     }
 
     @Override

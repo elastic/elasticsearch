@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.util.Arrays.asList;
+import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
 
@@ -34,26 +34,26 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
-        super(localLogicalOptimizerContext);
-    }
-
-    @Override
-    protected List<Batch<LogicalPlan>> batches() {
-        var local = new Batch<>(
+    private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
+        new Batch<>(
             "Local rewrite",
             Limiter.ONCE,
             new ReplaceTopNWithLimitAndSort(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
             new InferNonNullAggConstraint()
-        );
+        ),
+        localOperators(),
+        cleanup()
+    );
 
-        var rules = new ArrayList<Batch<LogicalPlan>>();
-        rules.add(local);
-        // TODO: if the local rules haven't touched the tree, the rest of the rules can be skipped
-        rules.addAll(asList(localOperators(), cleanup()));
-        return rules;
+    public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
+        super(localLogicalOptimizerContext);
+    }
+
+    @Override
+    protected List<Batch<LogicalPlan>> batches() {
+        return RULES;
     }
 
     @SuppressWarnings("unchecked")

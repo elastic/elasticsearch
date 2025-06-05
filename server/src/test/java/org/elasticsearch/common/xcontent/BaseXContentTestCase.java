@@ -16,13 +16,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -43,6 +44,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.DayOfWeek;
 import java.time.Duration;
@@ -375,15 +378,18 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'text':''}", () -> builder().startObject().field("text", new Text("")).endObject());
         assertResult("{'text':'foo bar'}", () -> builder().startObject().field("text", new Text("foo bar")).endObject());
 
-        final BytesReference random = new BytesArray(randomBytes());
-        XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
+        final var random = randomBytes();
+        XContentBuilder builder = builder().startObject().field("text", new Text(new XContentString.UTF8Bytes(random))).endObject();
 
         try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
             assertSame(parser.nextToken(), Token.START_OBJECT);
             assertSame(parser.nextToken(), Token.FIELD_NAME);
             assertEquals(parser.currentName(), "text");
             assertTrue(parser.nextToken().isValue());
-            assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
+            assertThat(
+                new BytesRef(parser.charBuffer()).utf8ToString(),
+                equalTo(StandardCharsets.UTF_8.decode(ByteBuffer.wrap(random)).toString())
+            );
             assertSame(parser.nextToken(), Token.END_OBJECT);
             assertNull(parser.nextToken());
         }
@@ -589,7 +595,10 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':[1,1,2,3,5,8,13]}", new Object[] { 1L, 1L, 2L, 3L, 5L, 8L, 13L });
         objects.put("{'objects':[1,1,2,3,5,8]}", new Object[] { (short) 1, (short) 1, (short) 2, (short) 3, (short) 5, (short) 8 });
         objects.put("{'objects':['a','b','c']}", new Object[] { "a", "b", "c" });
-        objects.put("{'objects':['a','b','c']}", new Object[] { new Text("a"), new Text(new BytesArray("b")), new Text("c") });
+        objects.put(
+            "{'objects':['a','b','c']}",
+            new Object[] { new Text("a"), new Text(new XContentString.UTF8Bytes("b".getBytes(StandardCharsets.UTF_8))), new Text("c") }
+        );
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[] { null, null, null });
         objects.put("{'objects':['OPEN','CLOSE']}", IndexMetadata.State.values());
@@ -635,7 +644,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':1}", (short) 1);
         object.put("{'object':'string'}", "string");
         object.put("{'object':'a'}", new Text("a"));
-        object.put("{'object':'b'}", new Text(new BytesArray("b")));
+        object.put("{'object':'b'}", new Text(new XContentString.UTF8Bytes("b".getBytes(StandardCharsets.UTF_8))));
         object.put("{'object':null}", null);
         object.put("{'object':'OPEN'}", IndexMetadata.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);

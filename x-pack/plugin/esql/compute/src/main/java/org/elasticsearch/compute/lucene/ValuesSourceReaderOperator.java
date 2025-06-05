@@ -557,13 +557,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
     }
 
-    private void sanityCheckBlock(Object loader, int expectedPositions, Block block, int f) {
+    /**
+     * Quick checks for on the loaded block to make sure it looks reasonable.
+     * @param loader the object that did the loading - we use it to make error messages if the block is busted
+     * @param expectedPositions how many positions the block should have - it's as many as the incoming {@link Page} has
+     * @param block the block to sanity check
+     * @param field offset into the {@link #fields} array for the block being loaded
+     */
+    private void sanityCheckBlock(Object loader, int expectedPositions, Block block, int field) {
         if (block.getPositionCount() != expectedPositions) {
             throw new IllegalStateException(loader + ": " + block + " didn't have [" + expectedPositions + "] positions");
         }
-        if (block.elementType() != ElementType.NULL && block.elementType() != fields[f].info.type) {
+        if (block.elementType() != ElementType.NULL && block.elementType() != fields[field].info.type) {
             throw new IllegalStateException(
-                loader + ": " + block + "'s element_type [" + block.elementType() + "] NOT IN (NULL, " + fields[f].info.type + ")"
+                loader + ": " + block + "'s element_type [" + block.elementType() + "] NOT IN (NULL, " + fields[field].info.type + ")"
             );
         }
     }

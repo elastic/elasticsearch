@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.stream.Collectors.toMap;
+
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
@@ -78,6 +80,8 @@ public class TestEntitlementBootstrap {
             .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
+        Iterable<Path> yolo = List.of(Path.of("/"));
+        Map<String, Iterable<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> yolo));
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
@@ -86,7 +90,7 @@ public class TestEntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            Map.of(),
+            pluginSourcePaths,
             pathLookup
         );
     }

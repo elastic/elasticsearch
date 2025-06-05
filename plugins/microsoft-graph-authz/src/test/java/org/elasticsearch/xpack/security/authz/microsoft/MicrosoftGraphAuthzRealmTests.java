@@ -72,7 +72,7 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
     private final String roleName = randomAlphaOfLengthBetween(4, 10);
     private final String username = randomAlphaOfLengthBetween(4, 10);
     private final String name = randomAlphaOfLengthBetween(4, 10);
-    private final String email = Strings.format("[%s]@example.com", randomAlphaOfLengthBetween(4, 10));
+    private final String email = Strings.format("%s@example.com", randomAlphaOfLengthBetween(4, 10));
     private final String groupId = randomAlphaOfLengthBetween(4, 10);
     private final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(
         MicrosoftGraphAuthzRealmSettings.REALM_TYPE,
@@ -190,7 +190,7 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
                     "Log exception",
                     MicrosoftGraphAuthzRealm.class.getName(),
                     Level.ERROR,
-                    Strings.format("Failed to authorize [{}] with MS Graph realm", username)
+                    Strings.format("Failed to authorize [%s] with MS Graph realm", username)
                 )
             );
 
@@ -228,7 +228,7 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
                     "Log exception",
                     MicrosoftGraphAuthzRealm.class.getName(),
                     Level.ERROR,
-                    Strings.format("Failed to authorize [{}] with MS Graph realm", username)
+                    Strings.format("Failed to authorize [%s] with MS Graph realm", username)
                 )
             );
 

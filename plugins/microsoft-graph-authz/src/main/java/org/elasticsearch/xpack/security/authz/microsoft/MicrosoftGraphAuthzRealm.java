@@ -157,7 +157,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
                 l.onResponse(user);
             }));
         } catch (Exception e) {
-            logger.error(Strings.format("Failed to authorize [{}] with MS Graph realm", principal), e);
+            logger.error(Strings.format("Failed to authorize [%s] with MS Graph realm", principal), e);
             listener.onFailure(e);
         }
     }

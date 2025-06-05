@@ -18,6 +18,7 @@ If you don’t specify an inference endpoint, the `inference_id` field defaults 
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for your data, or how to index it.
 The {infer} endpoint automatically determines the embedding generation, indexing, and query to use.
+Newly created indices with `semantic_text` fields using dense embeddings will be <<dense-vector-quantization,quantized>> to `bbq_hnsw` automatically.
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
 
@@ -225,7 +226,8 @@ In these cases - when you use `sparse_vector` or `dense_vector` field types inst
 For indices containing `semantic_text` fields, updates that use scripts have the following behavior:
 
 * Are supported through the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update[Update API].
-* Are not supported through the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1[Bulk API] and will fail. Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
+* Are not supported through the https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1[Bulk API] and will fail.
+Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
 [discrete]
 [[copy-to-support]]

@@ -207,14 +207,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             return state;
         }
         logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
-        return IndexLifecycleTransition.moveClusterStateToStep(
-            index,
-            state,
-            nextStepKey,
-            nowSupplier,
-            policyStepsRegistry,
-            false
-        );
+        return IndexLifecycleTransition.moveClusterStateToStep(index, state, nextStepKey, nowSupplier, policyStepsRegistry, false);
     }
 
     @Override

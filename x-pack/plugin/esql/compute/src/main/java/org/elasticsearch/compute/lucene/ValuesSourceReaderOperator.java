@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -161,12 +160,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     many.run();
                 }
             }
-            if (Assertions.ENABLED) {
-                for (int f = 0; f < fields.length; f++) {
-                    assert blocks[f].elementType() == ElementType.NULL || blocks[f].elementType() == fields[f].info.type
-                        : blocks[f].elementType() + " NOT IN (NULL, " + fields[f].info.type + ")";
-                }
-            }
             success = true;
             for (Block b : blocks) {
                 valuesLoaded += b.getTotalValueCount();
@@ -233,6 +226,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
                     blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
+                    sanityCheckBlock(columnAtATime, docs.count(), blocks[f], f);
                 } else {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
@@ -282,6 +276,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             for (RowStrideReaderWork work : rowStrideReaders) {
                 blocks[work.offset] = work.build();
+                sanityCheckBlock(work.reader, docs.count(), blocks[work.offset], work.offset);
             }
         } finally {
             Releasables.close(rowStrideReaders);
@@ -385,6 +380,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 try (Block targetBlock = fieldTypeBuilders[f].build()) {
                     target[f] = targetBlock.filter(backwards);
                 }
+                sanityCheckBlock(rowStride[f], docs.getPositionCount(), target[f], f);
             }
         }
 
@@ -559,6 +555,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     @Override
     protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
         return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
+    }
+
+    private void sanityCheckBlock(Object loader, int expectedPositions, Block block, int f) {
+        if (block.getPositionCount() != expectedPositions) {
+            throw new IllegalStateException(loader + ": " + block + " didn't have [" + expectedPositions + "] positions");
+        }
+        if (block.elementType() != ElementType.NULL && block.elementType() != fields[f].info.type) {
+            throw new IllegalStateException(
+                loader + ": " + block + "'s element_type [" + block.elementType() + "] NOT IN (NULL, " + fields[f].info.type + ")"
+            );
+        }
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {

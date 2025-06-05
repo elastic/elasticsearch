@@ -10,20 +10,20 @@
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.build'
 
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
   implementation project(':libs:logging')
   implementation project(':server')
 }
-
 /**
  * Task to run the KnnIndexTester with the provided parameters.
- *
- *
  */
 tasks.register("checkVec", JavaExec) {
   group = "Execution"

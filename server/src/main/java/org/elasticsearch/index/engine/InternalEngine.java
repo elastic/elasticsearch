@@ -3613,7 +3613,7 @@ public class InternalEngine extends Engine {
     }
 
     public void deleteByQuery(ShardSplittingQuery query) throws Exception {
-        System.out.println("Delete documents using ShardSplitQuery");
+        // System.out.println("Delete documents using ShardSplitQuery");
         indexWriter.deleteDocuments(query);
         indexWriter.flush();
         indexWriter.commit();

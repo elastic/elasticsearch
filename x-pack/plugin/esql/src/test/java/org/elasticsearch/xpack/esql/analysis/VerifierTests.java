@@ -1374,7 +1374,13 @@ public class VerifierTests extends ESTestCase {
         throws Exception {
         assertThat(
             error("from test | eval y = " + functionInvocation, fullTextAnalyzer),
-            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands, or in EVAL within score(.) function")
+            containsString(
+                "["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " is only supported in WHERE and STATS commands, or in EVAL within score(.) function"
+            )
         );
         assertThat(
             error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),

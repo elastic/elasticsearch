@@ -6,22 +6,17 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.common.text;
-
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+package org.elasticsearch.xcontent;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
- * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
+ * Both {@link String} and {@link UTF8Bytes} representation of the text. Starts with one of those, and if
+ * the other is requested, caches the other one in a local reference so no additional conversion will be needed.
  */
-public final class Text implements Comparable<Text>, ToXContentFragment {
+public final class Text implements XContentString, Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];
 
@@ -36,31 +31,46 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         return texts;
     }
 
-    private BytesReference bytes;
-    private String text;
+    private UTF8Bytes bytes;
+    private String string;
     private int hash;
+    private int stringLength = -1;
 
-    public Text(BytesReference bytes) {
+    /**
+     * Construct a Text from encoded UTF8Bytes. Since no string length is specified, {@link #stringLength()}
+     * will perform a string conversion to measure the string length.
+     */
+    public Text(UTF8Bytes bytes) {
         this.bytes = bytes;
     }
 
-    public Text(String text) {
-        this.text = text;
+    /**
+     * Construct a Text from encoded UTF8Bytes and an explicit string length. Used to avoid string conversion
+     * in {@link #stringLength()}. The provided stringLength should match the value that would
+     * be calculated by {@link Text#Text(UTF8Bytes)}.
+     */
+    public Text(UTF8Bytes bytes, int stringLength) {
+        this.bytes = bytes;
+        this.stringLength = stringLength;
+    }
+
+    public Text(String string) {
+        this.string = string;
     }
 
     /**
-     * Whether a {@link BytesReference} view of the data is already materialized.
+     * Whether an {@link UTF8Bytes} view of the data is already materialized.
      */
     public boolean hasBytes() {
         return bytes != null;
     }
 
-    /**
-     * Returns a {@link BytesReference} view of the data.
-     */
-    public BytesReference bytes() {
+    @Override
+    public UTF8Bytes bytes() {
         if (bytes == null) {
-            bytes = new BytesArray(text.getBytes(StandardCharsets.UTF_8));
+            var byteBuff = StandardCharsets.UTF_8.encode(string);
+            assert byteBuff.hasArray();
+            bytes = new UTF8Bytes(byteBuff.array(), byteBuff.arrayOffset() + byteBuff.position(), byteBuff.remaining());
         }
         return bytes;
     }
@@ -69,14 +79,25 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
      * Whether a {@link String} view of the data is already materialized.
      */
     public boolean hasString() {
-        return text != null;
+        return string != null;
     }
 
-    /**
-     * Returns a {@link String} view of the data.
-     */
+    @Override
     public String string() {
-        return text == null ? bytes.utf8ToString() : text;
+        if (string == null) {
+            var byteBuff = ByteBuffer.wrap(bytes.bytes(), bytes.offset(), bytes.length());
+            string = StandardCharsets.UTF_8.decode(byteBuff).toString();
+            assert (stringLength < 0) || (string.length() == stringLength);
+        }
+        return string;
+    }
+
+    @Override
+    public int stringLength() {
+        if (stringLength < 0) {
+            stringLength = string().length();
+        }
+        return stringLength;
     }
 
     @Override
@@ -115,8 +136,7 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         } else {
             // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
             // request to jackson to support InputStream as well?
-            BytesRef br = this.bytes().toBytesRef();
-            return builder.utf8Value(br.bytes, br.offset, br.length);
+            return builder.utf8Value(bytes.bytes(), bytes.offset(), bytes.length());
         }
     }
 }

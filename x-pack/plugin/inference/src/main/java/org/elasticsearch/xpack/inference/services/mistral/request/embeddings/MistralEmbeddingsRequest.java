@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.mistral.request;
+package org.elasticsearch.xpack.inference.services.mistral.request.embeddings;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;

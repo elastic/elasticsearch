@@ -740,24 +740,13 @@ public class MachineLearning extends Plugin
     );
 
     /**
-     * The time interval between the adaptive allocations triggers.
-     * This setting requires a reboot to take effect, as it is only consumed during startup.
-     */
-    public static final Setting<TimeValue> DEFAULT_TIME_INTERVAL = Setting.timeSetting(
-        "xpack.ml.trained_models.adaptive_allocations.trigger_time",
-        TimeValue.timeValueSeconds(10),
-        TimeValue.timeValueSeconds(10),
-        Setting.Property.NodeScope
-    );
-
-    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
     public static final Setting<TimeValue> SCALE_UP_COOLDOWN_TIME = Setting.timeSetting(
         "xpack.ml.trained_models.adaptive_allocations.scale_up_cooldown_time",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(1),
         Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -772,7 +761,7 @@ public class MachineLearning extends Plugin
     public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
         "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
         TimeValue.timeValueHours(24),
-        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueMinutes(1),
         Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -853,7 +842,6 @@ public class MachineLearning extends Plugin
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
-            DEFAULT_TIME_INTERVAL,
             SCALE_UP_COOLDOWN_TIME,
             SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME
         );

@@ -181,6 +181,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         }
     }
 
+    /**
+     * The time interval between the adaptive allocations triggers.
+     */
+    private static final long DEFAULT_TIME_INTERVAL_SECONDS = 10;
+
     private static final Logger logger = LogManager.getLogger(AdaptiveAllocationsScalerService.class);
 
     private final long timeIntervalSeconds;
@@ -218,7 +223,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             inferenceAuditor,
             meterRegistry,
             isNlpEnabled,
-            MachineLearning.DEFAULT_TIME_INTERVAL.get(settings).getSeconds(),
+            DEFAULT_TIME_INTERVAL_SECONDS,
             new AtomicLong(MachineLearning.SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME.get(settings).getSeconds()),
             new AtomicLong(MachineLearning.SCALE_UP_COOLDOWN_TIME.get(settings).getMillis())
         );

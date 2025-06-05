@@ -1,5 +1,5 @@
 pr: 128914
-summary: Set Adaptive Allocations Scale to Zero to 24h
+summary: Make Adaptive Allocations Scale to Zero configurable and set default to 24h
 area: Machine Learning
 type: enhancement
 issues: []

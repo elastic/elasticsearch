@@ -329,8 +329,7 @@ public class PolicyManager {
         }
     }
 
-    // pkg private for testing
-    static Path getComponentPathFromClass(Class<?> requestingClass) {
+    protected Path getComponentPathFromClass(Class<?> requestingClass) {
         var codeSource = requestingClass.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             return null;

@@ -88,7 +88,6 @@ public class PolicyManagerTests extends ESTestCase {
         AtomicReference<PolicyScope> policyScope = new AtomicReference<>();
 
         // A common policy with a variety of entitlements to test
-        Path thisSourcePath = PolicyManager.getComponentPathFromClass(getClass());
         var plugin1SourcePath = Path.of("modules", "plugin1");
         var policyManager = new PolicyManager(
             new Policy("server", List.of(new Scope("org.example.httpclient", List.of(new OutboundNetworkEntitlement())))),
@@ -98,6 +97,7 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of("plugin1", plugin1SourcePath),
             TEST_PATH_LOOKUP
         );
+        Path thisSourcePath = policyManager.getComponentPathFromClass(getClass());
 
         // "Unspecified" below means that the module is not named in the policy
 

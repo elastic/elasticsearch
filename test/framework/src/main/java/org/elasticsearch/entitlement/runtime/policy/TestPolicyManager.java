@@ -103,4 +103,9 @@ public class TestPolicyManager extends PolicyManager {
         "org.mockito",
         "net.bytebuddy", // Mockito uses this
     };
+
+    @Override
+    protected Path getComponentPathFromClass(Class<?> requestingClass) {
+        return Path.of("/");
+    }
 }

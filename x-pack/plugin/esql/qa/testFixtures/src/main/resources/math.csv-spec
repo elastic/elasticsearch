@@ -1842,3 +1842,28 @@ emp_no:integer | l1:double | l2:double
 10002          | -7.23     | null     
 10003          | 4.0       | null     
 ;
+
+copySignWithMixedNumericValues
+required_capability: copy_sign
+
+ROW cs1=COPY_SIGN(10.0, -5.0), cs2=COPY_SIGN(10, 1), cs3=COPY_SIGN(1, -5.0);
+
+cs1:double | cs2:integer | cs3:integer
+-10.0       | 10         | -1
+;
+
+copySignWithMixedNumericValuesWithMV
+required_capability: copy_sign
+
+FROM employees
+| EVAL cs1 = COPY_SIGN(salary, LEAST(salary_change))
+| KEEP emp_no, salary, salary_change, cs1
+| SORT emp_no
+| LIMIT 3
+;
+
+    emp_no:integer | salary:integer | salary_change:double | cs1:integer
+    10001          | 57305          | 1.19                 | 57305
+    10002          | 56371          | [-7.23, 11.17]       | -56371  
+    10003          | 61805          | [12.82, 14.68]       | 61805  
+;

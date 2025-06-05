@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -84,14 +84,15 @@ public final class EnrichCache {
      * This method notifies the given listener of the value in this cache for the given search parameters. If there is no value in the cache
      * for these search parameters, then the new cache value is computed using searchResponseFetcher.
      *
-     * @param enrichIndex The enrich index from which the results will be retrieved
-     * @param lookupValue The value that will be used in the search
-     * @param maxMatches The max number of matches that the search will return
+     * @param projectId             The ID of the project
+     * @param enrichIndex           The enrich index from which the results will be retrieved
+     * @param lookupValue           The value that will be used in the search
+     * @param maxMatches            The max number of matches that the search will return
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
-     * @param listener A listener to be notified of the value in the cache
+     * @param listener              A listener to be notified of the value in the cache
      */
-    @FixForMultiProject(description = "The enrich cache will currently leak data between projects. We need to either disable or fix it.")
     public void computeIfAbsent(
+        ProjectId projectId,
         String enrichIndex,
         Object lookupValue,
         int maxMatches,
@@ -100,7 +101,7 @@ public final class EnrichCache {
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
-        var cacheKey = new CacheKey(enrichIndex, lookupValue, maxMatches);
+        var cacheKey = new CacheKey(projectId, enrichIndex, lookupValue, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
@@ -200,11 +201,11 @@ public final class EnrichCache {
      *
      * @param enrichIndex The enrich <i>index</i> (i.e. not the alias, but the concrete index that the alias points to)
      * @param lookupValue The value that is used to find matches in the enrich index
-     * @param maxMatches The max number of matches that the enrich lookup should return. This changes the size of the search response and
-     * should thus be included in the cache key
+     * @param maxMatches  The max number of matches that the enrich lookup should return. This changes the size of the search response and
+     *                    should thus be included in the cache key
      */
     // Visibility for testing
-    record CacheKey(String enrichIndex, Object lookupValue, int maxMatches) {
+    record CacheKey(ProjectId projectId, String enrichIndex, Object lookupValue, int maxMatches) {
         /**
          * In reality, the size in bytes of the cache key is a function of the {@link CacheKey#lookupValue} field plus some constant for
          * the object itself, the string reference for the enrich index (but not the string itself because it's taken from the metadata),

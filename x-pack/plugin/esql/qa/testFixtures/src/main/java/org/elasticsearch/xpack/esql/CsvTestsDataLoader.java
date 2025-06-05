@@ -61,17 +61,16 @@ public class CsvTestsDataLoader {
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestDataset LANGUAGES = new TestDataset("languages");
-    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
-        .withSetting("languages_lookup-settings.json");
+    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
         "languages_nested_fields.csv"
-    ).withSetting("languages_lookup-settings.json");
+    ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_MIX_NUMERICS = new TestDataset("languages_mixed_numerics").withSetting(
-        "languages_lookup-settings.json"
+        "lookup-settings.json"
     );
     private static final TestDataset ALERTS = new TestDataset("alerts");
     private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
@@ -85,13 +84,14 @@ public class CsvTestsDataLoader {
     private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
+    private static final TestDataset LOOKUP_SAMPLE_DATA_TS_NANOS = SAMPLE_DATA_TS_NANOS.withIndex("lookup_sample_data_ts_nanos")
+        .withSetting("lookup-settings.json");
     private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
-    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
-        .withSetting("clientips_lookup-settings.json");
+    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup").withSetting("lookup-settings.json");
     private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
     private static final TestDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
-        .withSetting("message_types_lookup-settings.json");
+        .withSetting("lookup-settings.json");
     private static final TestDataset CLIENT_CIDR = new TestDataset("client_cidr");
     private static final TestDataset AGES = new TestDataset("ages");
     private static final TestDataset HEIGHTS = new TestDataset("heights");
@@ -139,6 +139,7 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
         Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
+        Map.entry(LOOKUP_SAMPLE_DATA_TS_NANOS.indexName, LOOKUP_SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),

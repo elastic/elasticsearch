@@ -412,7 +412,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
-        );
+        ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
@@ -454,7 +454,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
-        );
+        ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
 
         DateFieldType ft2 = new DateFieldType("field", false);
@@ -480,7 +480,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
-        );
+        ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
 
         DateFieldType ft2 = new DateFieldType("field", false, Resolution.NANOSECONDS);

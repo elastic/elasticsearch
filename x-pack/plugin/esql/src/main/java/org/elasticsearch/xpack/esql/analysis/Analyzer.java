@@ -98,7 +98,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
-import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -153,10 +152,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static final List<Attribute> NO_FIELDS = List.of(
         new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
-    private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
-    static {
-        var init = new Batch<>(
+    private static final List<Batch<LogicalPlan>> RULES = List.of(
+        new Batch<>(
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
@@ -164,16 +162,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions()
-        );
-        var resolution = new Batch<>(
+        ),
+        new Batch<>(
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
-        );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup());
-        rules = List.of(init, resolution, finish);
-    }
+        ),
+        new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup())
+    );
 
     private final Verifier verifier;
 
@@ -196,8 +193,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     @Override
-    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
-        return rules;
+    protected List<Batch<LogicalPlan>> batches() {
+        return RULES;
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {

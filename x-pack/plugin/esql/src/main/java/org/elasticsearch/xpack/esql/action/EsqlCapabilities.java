@@ -1187,7 +1187,6 @@ public class EsqlCapabilities {
          */
         MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
 
-
         private final boolean enabled;
 
         Cap() {

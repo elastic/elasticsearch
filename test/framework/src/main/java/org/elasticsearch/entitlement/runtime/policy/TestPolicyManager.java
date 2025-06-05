@@ -12,6 +12,8 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.CodeSource;
@@ -25,7 +27,12 @@ import java.util.function.Function;
 import static java.util.Objects.requireNonNull;
 
 public class TestPolicyManager extends PolicyManager {
-    public static final Path TEST_LOCATION_SUFFIX = Path.of("classes", "java", "test");
+    /**
+     * TEMPORARY. We should be identifying test code as the delta between runtime and testRuntime
+     * class paths in Gradle, rather than guessing based on the nature of the paths.
+     */
+    static final Path TEST_LOCATION_SUFFIX = Path.of("classes", "java", "test");
+
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
 
@@ -35,15 +42,19 @@ public class TestPolicyManager extends PolicyManager {
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
 
+    final Collection<URI> testOnlyClasspath;
+
     public TestPolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Collection<Path>> pluginSourcePaths,
-        PathLookup pathLookup
+        PathLookup pathLookup,
+        Collection<URI> testOnlyClasspath
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        this.testOnlyClasspath = testOnlyClasspath;
         reset();
     }
 
@@ -76,10 +87,13 @@ public class TestPolicyManager extends PolicyManager {
         if (isActive == false) {
             return true;
         }
-        if (isTriviallyAllowingTestCode && isTestCaseClass(requestingClass)) {
+        if (isEntitlementClass(requestingClass)) {
             return true;
         }
-        if (isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass)) {
+        if (isTestFrameworkClass(requestingClass)) {
+            return true;
+        }
+        if (isTriviallyAllowingTestCode && isTestCode(requestingClass)) {
             return true;
         }
         return super.isTriviallyAllowed(requestingClass);
@@ -90,6 +104,9 @@ public class TestPolicyManager extends PolicyManager {
             && (requestingClass.getName().contains("Test") == false);
     }
 
+    @Deprecated // TODO: reevaluate whether we want this.
+    // If we can simply check for dependencies the gradle worker has that aren't
+    // declared in the gradle config (namely org.gradle) that would be simpler.
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
         String packageName = requestingClass.getPackageName();
         for (String prefix: TEST_FRAMEWORK_PACKAGE_PREFIXES) {
@@ -100,7 +117,8 @@ public class TestPolicyManager extends PolicyManager {
         return false;
     }
 
-    private boolean isTestCaseClass(Class<?> requestingClass) {
+    private boolean isTestCode(Class<?> requestingClass) {
+        // TODO: Cache this? It's expensive
         for (Class<?> candidate = requireNonNull(requestingClass); candidate != null; candidate = candidate.getDeclaringClass()) {
             if (ESTestCase.class.isAssignableFrom(candidate)) {
                 return true;
@@ -112,11 +130,13 @@ public class TestPolicyManager extends PolicyManager {
             // This can happen for JDK classes
             return false;
         }
-        URL location = codeSource.getLocation();
-        if (location.getProtocol().equals("file") && Path.of(location.getPath()).endsWith(TEST_LOCATION_SUFFIX)) {
-            return true;
+        URI uri;
+        try {
+            uri = codeSource.getLocation().toURI();
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(e);
         }
-        return false;
+        return testOnlyClasspath.contains(uri);
     }
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {

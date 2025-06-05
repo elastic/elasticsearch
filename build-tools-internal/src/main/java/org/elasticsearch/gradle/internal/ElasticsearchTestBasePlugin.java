@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
@@ -37,6 +38,7 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -172,6 +174,19 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
+
+            nonInputProperties.systemProperty("es.entitlement.testOnlyPath", ()->{
+                SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+                FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+                FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+                FileCollection result = testRuntime.minus(mainRuntime);
+                Configuration compileOnly = project.getConfigurations()
+                    .findByName(RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+                if (compileOnly != null) {
+//                    result.minus(compileOnly);
+                }
+                return result.getAsPath();
+            });
 
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("es.").get());

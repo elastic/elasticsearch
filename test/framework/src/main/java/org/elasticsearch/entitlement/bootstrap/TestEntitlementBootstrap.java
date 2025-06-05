@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -86,13 +87,22 @@ public class TestEntitlementBootstrap {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
+        String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");
+        Set<URI> testOnlyPath;
+        if (testOnlyPathProperty == null) {
+            testOnlyPath = Set.of();
+        } else {
+            testOnlyPath = Arrays.stream(testOnlyPathProperty.split(":")).map(URI::create).collect(Collectors.toCollection(TreeSet::new));
+        }
+
         return new TestPolicyManager(
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
             pluginSourcePaths,
-            pathLookup
+            pathLookup,
+            testOnlyPath
         );
     }
 

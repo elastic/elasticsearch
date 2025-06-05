@@ -70,7 +70,7 @@ public class HierarchicalKMeans {
             float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
             int localSampleSize = (int) (f * vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
-            kMeansLocal.cluster(vectors, kMeansIntermediate);
+            kMeansLocal.cluster(vectors, kMeansIntermediate, true);
         }
 
         return kMeansIntermediate;
@@ -87,8 +87,8 @@ public class HierarchicalKMeans {
         // TODO: instead of creating a sub-cluster assignments reuse the parent array each time
         int[] assignments = new int[vectors.size()];
 
-        KMeans kmeans = new KMeans(m, maxIterations);
-        float[][] centroids = KMeans.pickInitialCentroids(vectors, k);
+        KMeansLocal kmeans = new KMeansLocal(m, maxIterations);
+        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids);
         kmeans.cluster(vectors, kMeansIntermediate);
 

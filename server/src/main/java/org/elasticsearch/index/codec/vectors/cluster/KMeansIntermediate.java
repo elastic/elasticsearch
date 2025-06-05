@@ -14,7 +14,7 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 /**
  * Intermediate object for clustering (partitioning) a set of vectors
  */
-public class KMeansIntermediate extends KMeansResult {
+class KMeansIntermediate extends KMeansResult {
     private final IntToIntFunction assignmentOrds;
 
     KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrds, int[] soarAssignments) {

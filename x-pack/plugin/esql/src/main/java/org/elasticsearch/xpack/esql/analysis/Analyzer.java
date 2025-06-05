@@ -1615,20 +1615,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             unionFieldAttributes = new ArrayList<>();
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(LogicalPlan plan) {
+            Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
-            plan.forEachUp(EsRelation.class, rel -> {
+            if (plan instanceof EsRelation rel) {
+                unionFieldAttributes.clear();
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
                         unionFieldAttributes.add(fa);
                     }
                 }
-            });
+            }
 
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
-        }
-
-        private LogicalPlan doRule(LogicalPlan plan) {
-            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
@@ -1637,8 +1638,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return e;
             });
+
             // If no union fields were generated, return the plan as is
-            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
+            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes.get()) {
                 return plan;
             }
 

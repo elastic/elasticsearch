@@ -8,23 +8,23 @@ required_capability: knn_function
 // tag::knn-function[]
 from colors metadata _score 
 | where knn(rgb_vector, [0, 120, 0]) 
-| sort _score desc 
+| sort _score desc, color asc
 // end::knn-function[]
 | keep color, rgb_vector
 ;
 
 // tag::knn-function-result[]
 color:text       | rgb_vector:dense_vector
-green            | [0.0, 128.0, 0.0]      
-dark green       | [0.0, 100.0, 0.0]      
-forest green     | [34.0, 139.0, 34.0]    
-dark olive green | [85.0, 107.0, 47.0]    
-sea green        | [46.0, 139.0, 87.0]    
-dark slate gray  | [47.0, 79.0, 79.0]     
-olive drab       | [107.0, 142.0, 35.0]   
-lime green       | [50.0, 205.0, 50.0]    
-black            | [0.0, 0.0, 0.0]        
-olive            | [128.0, 128.0, 0.0]    
+green            | [0.0, 128.0, 0.0]
+dark green       | [0.0, 100.0, 0.0]
+forest green     | [34.0, 139.0, 34.0]
+dark olive green | [85.0, 107.0, 47.0]
+sea green        | [46.0, 139.0, 87.0]
+dark slate gray  | [47.0, 79.0, 79.0]
+lime green       | [50.0, 205.0, 50.0]
+olive drab       | [107.0, 142.0, 35.0]
+black            | [0.0, 0.0, 0.0]
+olive            | [128.0, 128.0, 0.0]
 // end::knn-function-result[]
 ;
 
@@ -52,17 +52,16 @@ required_capability: knn_function
 
 from colors metadata _score 
 | where knn(rgb_vector, [255,192,203], {"k": 140, "similarity": 40})
-| sort _score desc 
+| sort _score desc, color asc
 | keep color, rgb_vector
 ;
 
 color:text       | rgb_vector:dense_vector
-pink             | [255.0, 192.0, 203.0]
-light pink       | [255.0, 182.0, 193.0]
-peach puff       | [255.0, 218.0, 185.0]
-bisque           | [255.0, 228.0, 196.0]
-thistle          | [216.0, 191.0, 216.0]
-wheat            | [245.0, 222.0, 179.0]
+pink       | [255.0, 192.0, 203.0]
+light pink | [255.0, 182.0, 193.0]
+peach puff | [255.0, 218.0, 185.0]
+bisque     | [255.0, 228.0, 196.0]
+wheat      | [245.0, 222.0, 179.0]
 ;
 
 knnHybridSearch
@@ -157,14 +156,14 @@ from colors metadata _score
 color:text       | composed_name:boolean
 olive            | false
 olive drab       | true
-dark olive green | true
 dark golden rod  | true
-sienna           | false
 saddle brown     | true
-dim gray         | true
+dark olive green | true
+sienna           | false
 chocolate        | false
 yellow green     | true
 peru             | false
+forest green     | true
 ;
 
 knnWithConjunction
@@ -234,11 +233,11 @@ sienna     | false                 | 0.0
 chocolate  | false                 | 0.0
 peru       | false                 | 0.0
 brown      | false                 | 0.0
+firebrick  | false                 | 0.0
+chartreuse | false                 | 0.0
 gray       | false                 | 0.0
 green      | false                 | 0.0
 maroon     | false                 | 0.0
-firebrick  | false                 | 0.0
-chartreuse | false                 | 0.0
 ;
 
 testKnnWithNonPushableDisjunctions
@@ -253,7 +252,6 @@ from colors metadata _score
 
 color:text              | round_score:double
 olive                   | 1.0
-olive drab              | 0.0
 light golden rod yellow | 0.0
 medium aqua marine      | 0.0
 medium spring green     | 0.0
@@ -272,7 +270,6 @@ from colors metadata _score
 color:text   | primary:boolean | round_score:double
 purple       | false           | 1.0
 dark magenta | false           | 0.0
-olive drab   | false           | 0.0  
 ;
 
 testKnnInStatsNonPushable

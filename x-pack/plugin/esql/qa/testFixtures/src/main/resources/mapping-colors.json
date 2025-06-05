@@ -6,12 +6,15 @@
     "hex_code": {
       "type": "keyword"
     },
-    "rgb_vector": {
-      "type": "dense_vector",
-      "similarity": "l2_norm"
-    },
     "primary": {
       "type": "boolean"
+    },
+    "rgb_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "index_options": {
+        "type": "hnsw"
+      }
     }
   }
 }

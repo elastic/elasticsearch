@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1082,7 +1083,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public ClusterState performAction(Index index, ClusterState clusterState) {
+        public ProjectState performAction(Index index, ProjectState projectState) {
             executeCount++;
             if (latch != null) {
                 latch.countDown();
@@ -1090,7 +1091,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             if (exception != null) {
                 throw exception;
             }
-            return clusterState;
+            return projectState;
         }
     }
 

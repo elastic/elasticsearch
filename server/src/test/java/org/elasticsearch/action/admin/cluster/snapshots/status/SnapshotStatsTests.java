@@ -28,6 +28,14 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
         long incrementalSize = ((long) randomIntBetween(0, Integer.MAX_VALUE)) * 2;
         long totalSize = ((long) randomIntBetween(0, Integer.MAX_VALUE)) * 2;
         long processedSize = ((long) randomIntBetween(0, Integer.MAX_VALUE)) * 2;
+
+        // toXContent() omits the "processed" sub-object if processedFileCount == incrementalFileCount, so here we increase the probability
+        // of that scenario so we can make sure the processed values are set as expected in fromXContent().
+        if (randomBoolean()) {
+            processedFileCount = incrementalFileCount;
+            processedSize = incrementalSize;
+        }
+
         return new SnapshotStats(
             startTime,
             time,
@@ -38,26 +46,6 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
             totalSize,
             processedSize
         );
-    }
-
-    public void testXContentSerializationWhenProcessedFileCountEqualsIncrementalFileCount() throws IOException {
-        final var instance = createTestInstance();
-        final var incrementalSameAsProcessed = new SnapshotStats(
-            instance.getStartTime(),
-            instance.getTime(),
-            instance.getIncrementalFileCount(),
-            instance.getTotalFileCount(),
-            instance.getIncrementalFileCount(), // processedFileCount
-            instance.getIncrementalSize(),
-            instance.getTotalSize(),
-            instance.getIncrementalSize() // processedSize
-        );
-        // toXContent() omits the "processed" sub-object in this case, make sure the processed values are set as expected in fromXContent().
-        testFromXContent(() -> incrementalSameAsProcessed);
-    }
-
-    public void testXContentSerializationForEmptyStats() throws IOException {
-        testFromXContent(SnapshotStats::new);
     }
 
     @Override

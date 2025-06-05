@@ -284,16 +284,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        testFromXContent(this::createTestInstance);
-    }
-
-    /**
-     * Generic test that creates a new instance using the given supplier and verifies XContent round trip serialization.
-     */
-    public final void testFromXContent(Supplier<T> testInstanceSupplier) throws IOException {
         testFromXContent(
             NUMBER_OF_TEST_RUNS,
-            testInstanceSupplier,
+            this::createTestInstance,
             supportsUnknownFields(),
             getShuffleFieldsExceptions(),
             getRandomFieldsExcludeFilter(),

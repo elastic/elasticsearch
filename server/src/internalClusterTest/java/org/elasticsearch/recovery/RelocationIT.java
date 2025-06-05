@@ -181,7 +181,7 @@ public class RelocationIT extends ESIntegTestCase {
         prepareCreate("test", indexSettings(1, 0)).get();
 
         logger.info("--> index docs");
-        int numDocs = between(1,10);
+        int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }

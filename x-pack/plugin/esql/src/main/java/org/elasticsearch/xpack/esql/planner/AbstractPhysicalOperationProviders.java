@@ -71,14 +71,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
         var sourceLayout = source.layout;
 
-        if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
-            assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
-        }
-        if (aggregatorMode == AggregatorMode.INITIAL && aggregateExec.child() instanceof ExchangeSourceExec) {
-            // the reducer step at data node (local) level
-            aggregatorMode = AggregatorMode.INTERMEDIATE;
-        }
-
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();

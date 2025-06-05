@@ -673,8 +673,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         aFileStore.usableSpace = randomLongBetween(200L, aFileStore.totalSpace - grantedUsableSpaceBuffer);
         bFileStore.usableSpace = randomLongBetween(200L, bFileStore.totalSpace - grantedUsableSpaceBuffer);
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put(settings);
+        Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // change the watermark level, just for coverage and it's easier with the calculations
         if (randomBoolean()) {
             settingsBuilder.put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "90%");
@@ -682,12 +681,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             settingsBuilder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "90%");
         }
         try (
-                ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                        .maybeCreateThreadPoolMergeExecutorService(
-                                testThreadPool,
-                                ClusterSettings.createBuiltInClusterSettings(settingsBuilder.build()),
-                                nodeEnvironment
-                        )
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                .maybeCreateThreadPoolMergeExecutorService(
+                    testThreadPool,
+                    ClusterSettings.createBuiltInClusterSettings(settingsBuilder.build()),
+                    nodeEnvironment
+                )
         ) {
             assert threadPoolMergeExecutorService != null;
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), greaterThanOrEqualTo(1));

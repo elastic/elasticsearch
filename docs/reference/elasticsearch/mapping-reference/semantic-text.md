@@ -1,4 +1,4 @@
----
+
 navigation_title: "Semantic text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
@@ -28,9 +28,8 @@ service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
-the embedding generation, indexing, and query to use. Newly created
-`semantic_text`
-indices created in {{es}} with dense embeddings will be
+the embedding generation, indexing, and query to use. 
+Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 

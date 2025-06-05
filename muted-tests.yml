@@ -417,12 +417,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testThrottleStats
-  issue: https://github.com/elastic/elasticsearch/issues/126359
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
-  method: testTaskCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/128009
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
@@ -489,12 +483,27 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test124CanRestartContainerWithStackLoggingConfig
   issue: https://github.com/elastic/elasticsearch/issues/128121
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceIT
-  method: testSymlinkUpdateTriggerReload
-  issue: https://github.com/elastic/elasticsearch/issues/128619
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test085EnvironmentVariablesAreRespectedUnderDockerExec
   issue: https://github.com/elastic/elasticsearch/issues/128115
+- class: org.elasticsearch.compute.operator.LimitOperatorTests
+  method: testEarlyTermination
+  issue: https://github.com/elastic/elasticsearch/issues/128721
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test040JavaUsesTheOsProvidedKeystore
+  issue: https://github.com/elastic/elasticsearch/issues/128230
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128799
+- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
+  method: testSimpleOffHeapSizeFSDir
+  issue: https://github.com/elastic/elasticsearch/issues/128800
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIOUsed
+  issue: https://github.com/elastic/elasticsearch/issues/128829
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test150MachineDependentHeap
+  issue: https://github.com/elastic/elasticsearch/issues/128120
 
 # Examples:
 #

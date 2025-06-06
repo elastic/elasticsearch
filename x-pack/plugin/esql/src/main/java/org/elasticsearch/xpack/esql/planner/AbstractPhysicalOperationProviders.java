@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -70,16 +69,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
-
-        if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
-            assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
-        }
-        if (aggregatorMode == AggregatorMode.INITIAL
-            && aggregateExec.child() instanceof ExchangeSourceExec exchangeSourceExec
-            && exchangeSourceExec.isIntermediateAgg()) {
-            // the reducer step at data node (local) level
-            aggregatorMode = AggregatorMode.INTERMEDIATE;
-        }
 
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping

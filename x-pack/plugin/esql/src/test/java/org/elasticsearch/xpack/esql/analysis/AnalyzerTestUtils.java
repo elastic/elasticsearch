@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -21,8 +23,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
@@ -186,5 +190,26 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution tsdbIndexResolution() {
         return loadMapping("tsdb-mapping.json", "test");
+    }
+
+    public static IndexResolution indexWithDateDateNanosUnionType() {
+        // this method is shared by AnalyzerTest, QueryTranslatorTests and LocalPhysicalPlanOptimizerTests
+        String dateDateNanos = "date_and_date_nanos"; // mixed date and date_nanos
+        String dateDateNanosLong = "date_and_date_nanos_and_long"; // mixed date, date_nanos and long
+        LinkedHashMap<String, Set<String>> typesToIndices1 = new LinkedHashMap<>();
+        typesToIndices1.put("date", Set.of("index1", "index2"));
+        typesToIndices1.put("date_nanos", Set.of("index3"));
+        LinkedHashMap<String, Set<String>> typesToIndices2 = new LinkedHashMap<>();
+        typesToIndices2.put("date", Set.of("index1"));
+        typesToIndices2.put("date_nanos", Set.of("index2"));
+        typesToIndices2.put("long", Set.of("index3"));
+        EsField dateDateNanosField = new InvalidMappedField(dateDateNanos, typesToIndices1);
+        EsField dateDateNanosLongField = new InvalidMappedField(dateDateNanosLong, typesToIndices2);
+        EsIndex index = new EsIndex(
+            "test*",
+            Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
+            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD)
+        );
+        return IndexResolution.valid(index);
     }
 }

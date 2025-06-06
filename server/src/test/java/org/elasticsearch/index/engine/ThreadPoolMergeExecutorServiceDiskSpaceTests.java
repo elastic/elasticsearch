@@ -65,7 +65,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     private static String bPathPart;
     private static int mergeExecutorThreadCount;
     private static Settings settings;
-    private static CapturingThreadPool testThreadPool;
+    private static TestCapturingThreadPool testThreadPool;
     private static NodeEnvironment nodeEnvironment;
 
     @BeforeClass
@@ -90,7 +90,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             settingsBuilder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
         }
         settings = settingsBuilder.build();
-        testThreadPool = new CapturingThreadPool("test", settings);
+        testThreadPool = new TestCapturingThreadPool("test", settings);
         nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
     }
 
@@ -108,10 +108,10 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         testThreadPool.scheduledTasks.clear();
     }
 
-    static class CapturingThreadPool extends TestThreadPool {
+    static class TestCapturingThreadPool extends TestThreadPool {
         final List<Tuple<TimeValue, Cancellable>> scheduledTasks = new ArrayList<>();
 
-        CapturingThreadPool(String name, Settings settings) {
+        TestCapturingThreadPool(String name, Settings settings) {
             super(name, settings);
         }
 

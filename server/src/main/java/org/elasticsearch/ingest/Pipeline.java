@@ -97,6 +97,7 @@ public final class Pipeline {
      * @deprecated To be removed after Logstash has transitioned fully to the logstash-bridge library. Functionality will be relocated to
      * there. Use {@link Pipeline#create(String, Map, Map, ScriptService, ProjectId, Predicate)} instead.
      */
+    @Deprecated
     public static Pipeline create(
         String id,
         Map<String, Object> config,
@@ -125,6 +126,10 @@ public final class Pipeline {
                 "pipeline ["
                     + id
                     + "] doesn't support one or more provided configuration parameters [field_access_pattern]"
+            );
+        } else if (fieldAccessPatternRaw != null && IngestPipelineFieldAccessPattern.isValidAccessPattern(fieldAccessPatternRaw) == false) {
+            throw new ElasticsearchParseException(
+                "pipeline [" + id + "] doesn't support value of [" + fieldAccessPatternRaw + "] for parameter [field_access_pattern]"
             );
         }
         IngestPipelineFieldAccessPattern accessPattern = fieldAccessPatternRaw == null

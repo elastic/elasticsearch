@@ -197,7 +197,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             false,
             ingestService,
             RestApiVersion.current(),
-            (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));
@@ -276,7 +276,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 false,
                 ingestService,
                 RestApiVersion.current(),
-                (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
             )
         );
         assertThat(e1.getMessage(), equalTo("must specify at least one document in [docs]"));
@@ -294,7 +294,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 false,
                 ingestService,
                 RestApiVersion.current(),
-                (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
             )
         );
         assertThat(e2.getMessage(), equalTo("malformed [docs] section, should include an inner object"));
@@ -310,7 +310,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 false,
                 ingestService,
                 RestApiVersion.current(),
-                (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
             )
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
@@ -391,7 +391,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             false,
             ingestService,
             RestApiVersion.V_8,
-            (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));

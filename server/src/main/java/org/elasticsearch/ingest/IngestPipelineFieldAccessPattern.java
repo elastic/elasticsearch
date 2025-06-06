@@ -31,6 +31,10 @@ public enum IngestPipelineFieldAccessPattern {
         this.key = key;
     }
 
+    public String getKey() {
+        return key;
+    }
+
     private static final Map<String, IngestPipelineFieldAccessPattern> NAME_REGISTRY = Map.of(CLASSIC.key, CLASSIC, FLEXIBLE.key, FLEXIBLE);
 
     public static boolean isValidAccessPattern(String accessPatternName) {

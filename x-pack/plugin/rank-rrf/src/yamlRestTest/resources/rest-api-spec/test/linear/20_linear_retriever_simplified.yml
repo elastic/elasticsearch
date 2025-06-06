@@ -70,11 +70,11 @@ setup:
         refresh: true
         body: |
           {"index": {"_id": "1"}}
-          {"keyword": "keyword match 1", "inference_1": "inference_1 match 1", "inference_2": "inference_2 match 1", "text_1": "foo match 1", "text_2": "x match 1", "timestamp": "2000-03-30", "vector": [1]}
+          {"keyword": "keyword match 1", "inference_1": "inference_1 match 1", "inference_2": "inference_2 match 1", "text_1": "foo match 1", "text_2": "x match 2", "timestamp": "2000-03-30", "vector": [1]}
           {"index": {"_id": "2"}}
-          {"keyword": "keyword match 2", "inference_1": "inference_1 match 2", "inference_2": "inference_2 match 2", "text_1": "bar match 2", "text_2": "y match 2", "timestamp": "2010-02-08", "vector": [2]}
+          {"keyword": "keyword match 2", "inference_1": "inference_1 match 2", "inference_2": "inference_2 match 2", "text_1": "bar match 3", "text_2": "y match 4", "timestamp": "2010-02-08", "vector": [2]}
           {"index": {"_id": "3"}}
-          {"keyword": "keyword match 3", "inference_1": "inference_1 match 3", "inference_2": "inference_2 match 3", "text_1": "baz match 3", "text_2": "z match 3", "timestamp": "2024-08-08", "vector": [3]}
+          {"keyword": "keyword match 3", "inference_1": "inference_1 match 3", "inference_2": "inference_2 match 3", "text_1": "baz match 5", "text_2": "z match 6", "timestamp": "2024-08-08", "vector": [3]}
 
 ---
 "Query all fields using the simplified format":
@@ -108,8 +108,8 @@ setup:
         body:
           retriever:
             linear:
-              fields: ["text_1", "text_2^2"]
-              query: "foo z"
+              fields: ["text_1", "text_2^3"]
+              query: "foo 1 z"
               normalizer: "minmax"
 
   # Lexical-only match, so max score is 1

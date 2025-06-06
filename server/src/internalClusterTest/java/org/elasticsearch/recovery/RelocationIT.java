@@ -253,7 +253,8 @@ public class RelocationIT extends ESIntegTestCase {
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
         nodes[0] = internalCluster().startNode(
-            Settings.builder().put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), randomBoolean()));
+            Settings.builder().put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), randomBoolean())
+        );
 
         logger.info("--> creating test index ...");
         prepareCreate("test", indexSettings(1, numberOfReplicas)).get();
@@ -261,7 +262,8 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 2; i <= numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i);
             nodes[i - 1] = internalCluster().startNode(
-                Settings.builder().put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), randomBoolean()));
+                Settings.builder().put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), randomBoolean())
+            );
             if (i != numberOfNodes) {
                 ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForEvents(Priority.LANGUID)

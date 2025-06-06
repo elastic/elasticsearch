@@ -331,11 +331,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 }
             }
 
-            // I don't think we need this - TODO delete this
-            // if (modelSettings.get() != null) {
-            // validateServiceSettings(modelSettings.get(), resolvedModelSettings);
-            // }
-
             // Validate any specified index options against existing or default index options
             SemanticTextIndexOptions resolvedIndexOptions = indexOptions.getValue();
             if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY) {
@@ -1255,7 +1250,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
 
-        // TODO address merging to/from default index options
         if (previous == null || current == null) {
             return true;
         }
@@ -1264,7 +1258,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
         }
 
-        // TODO clean this up a bit
         if (previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
             DenseVectorFieldMapper.DenseVectorIndexOptions previousDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) previous
                 .indexOptions();

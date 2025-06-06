@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -23,4 +24,8 @@ public abstract class BlockAwareNumericDocValues extends NumericDocValues {
     public abstract void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException;
 
     public abstract void loadDoc(BlockLoader.IntBuilder builder, int docId) throws IOException;
+
+    public abstract void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble) throws IOException;
+
+    public abstract void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble) throws IOException;
 }

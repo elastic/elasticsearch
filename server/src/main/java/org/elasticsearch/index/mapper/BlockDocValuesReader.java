@@ -506,7 +506,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.Ints";
+            return "BlockDocValuesReader.BlockAwareInts";
         }
     }
 
@@ -539,13 +539,25 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonDoubles(singleton, toDouble);
+                    if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                        return new BlockAwareSingletonDoubles(blockAware, toDouble);
+                    } else {
+                        return new SingletonDoubles(singleton, toDouble);
+                    }
                 }
-                return new Doubles(docValues, toDouble);
+                if (docValues instanceof BlockAwareSortedNumericDocValues blockAware) {
+                    return new BlockAwareDoubles(blockAware, toDouble);
+                } else {
+                    return new Doubles(docValues, toDouble);
+                }
             }
             NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonDoubles(singleton, toDouble);
+                if (singleton instanceof BlockAwareNumericDocValues blockAware) {
+                    return new BlockAwareSingletonDoubles(blockAware, toDouble);
+                } else {
+                    return new SingletonDoubles(singleton, toDouble);
+                }
             }
             return new ConstantNullsReader();
         }
@@ -566,6 +578,59 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (doc < lastDoc) {
+                        throw new IllegalStateException("docs within same block must be in order");
+                    }
+                    if (docValues.advanceExact(doc)) {
+                        builder.appendDouble(toDouble.convert(docValues.longValue()));
+                    } else {
+                        builder.appendNull();
+                    }
+                    lastDoc = doc;
+                    this.docID = doc;
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            this.docID = docId;
+            DoubleBuilder blockBuilder = (DoubleBuilder) builder;
+            if (docValues.advanceExact(this.docID)) {
+                blockBuilder.appendDouble(toDouble.convert(docValues.longValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.SingletonDoubles";
+        }
+    }
+
+    private static class BlockAwareSingletonDoubles extends BlockDocValuesReader {
+        private final BlockAwareNumericDocValues docValues;
+        private final ToDouble toDouble;
+        private int docID = -1;
+
+        BlockAwareSingletonDoubles(BlockAwareNumericDocValues docValues, ToDouble toDouble) {
+            this.docValues = docValues;
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
+                int lastDoc = -1;
+                for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -660,6 +725,41 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public String toString() {
             return "BlockDocValuesReader.Doubles";
         }
+    }
+
+    private static class BlockAwareDoubles extends BlockDocValuesReader {
+        private final BlockAwareSortedNumericDocValues blockAware;
+        private final ToDouble toDouble;
+
+        BlockAwareDoubles(BlockAwareSortedNumericDocValues blockAware, ToDouble toDouble) {
+            this.blockAware = blockAware;
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
+                blockAware.loadBlock(builder, docs, toDouble);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            DoubleBuilder blockBuilder = (DoubleBuilder) builder;
+            blockAware.loadDoc(blockBuilder, docId, toDouble);
+        }
+
+        @Override
+        public int docId() {
+            return blockAware.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareDoubles";
+        }
+
     }
 
     public static class DenseVectorBlockLoader extends DocValuesBlockLoader {

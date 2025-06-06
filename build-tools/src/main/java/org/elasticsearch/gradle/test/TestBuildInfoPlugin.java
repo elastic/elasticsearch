@@ -21,10 +21,9 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.jvm.tasks.ProcessResources;
 
-import javax.inject.Inject;
-
 import java.util.List;
-import java.util.function.Supplier;
+
+import javax.inject.Inject;
 
 /**
  * This plugin configures the {@link GenerateTestBuildInfoTask} task

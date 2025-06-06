@@ -152,7 +152,12 @@ public class PolicyManager {
     }
 
     // pkg private for testing
-    ModuleEntitlements policyEntitlements(String componentName, Collection<Path> componentPaths, String moduleName, List<Entitlement> entitlements) {
+    ModuleEntitlements policyEntitlements(
+        String componentName,
+        Collection<Path> componentPaths,
+        String moduleName,
+        List<Entitlement> entitlements
+    ) {
         FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
         for (Entitlement entitlement : entitlements) {
             if (entitlement instanceof FilesEntitlement) {

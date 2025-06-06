@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
@@ -36,12 +35,9 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
-import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
@@ -179,20 +175,21 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
-            nonInputProperties.systemProperty("es.entitlement.testOnlyPath", ()->{
+            nonInputProperties.systemProperty("es.entitlement.testOnlyPath", () -> {
                 SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
                 FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                 FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
                 FileCollection result = testRuntime.minus(mainRuntime);
-                Configuration compileOnly = project.getConfigurations()
-                    .findByName(RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+                Configuration compileOnly = project.getConfigurations().findByName(RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
                 if (compileOnly != null) {
-//                    result.minus(compileOnly);
+                    // result.minus(compileOnly);
                 }
                 String asPath = result.getAsPath();
                 String[] pathEntries = asPath.split(File.pathSeparator);
                 Arrays.sort(pathEntries);
-                System.err.println("PATDOYLE - for " + project.getName() + " " + test.getName() + " using testOnlyPath:\n" + String.join("\n", pathEntries));
+                System.err.println(
+                    "PATDOYLE - for " + project.getName() + " " + test.getName() + " using testOnlyPath:\n" + String.join("\n", pathEntries)
+                );
                 return asPath;
             });
 
@@ -264,7 +261,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders()
                 .add(
                     () -> List.of(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base" + File.pathSeparator + "/Users/prdoyle/IdeaProjects/elasticsearch/libs/entitlement/bridge/build/distributions/elasticsearch-entitlement-bridge-9.1.0-SNAPSHOT.jar",
+                        "--patch-module=java.base="
+                            + patchedFileCollection.getSingleFile()
+                            + "/java.base"
+                            + File.pathSeparator
+                            + "/Users/prdoyle/IdeaProjects/elasticsearch/libs/entitlement/bridge/build/distributions/elasticsearch-entitlement-bridge-9.1.0-SNAPSHOT.jar",
                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                     )
                 );

@@ -495,7 +495,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Marks a test suite or a test method that should run without checking for entitlements.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target( ElementType.TYPE )
+    @Target(ElementType.TYPE)
     public @interface WithoutEntitlements {
     }
 
@@ -504,7 +504,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target( ElementType.TYPE )
+    @Target(ElementType.TYPE)
     public @interface WithEntitlementsOnTestCode {
     }
 
@@ -517,7 +517,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             TestEntitlementBootstrap.setActive(false == withoutEntitlements);
             TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
         } else if (withEntitlementsOnTestCode) {
-            throw new AssertionError("Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing");
+            throw new AssertionError(
+                "Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
+            );
         } else {
             System.err.println("PATDOYLE entitlements are NOT enabled for this test");
         }

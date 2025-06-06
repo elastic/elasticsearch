@@ -12,9 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
@@ -71,7 +68,7 @@ public class TestPolicyManager extends PolicyManager {
      * Called between tests so each test is not affected by prior tests
      */
     public final void reset() {
-        assert moduleEntitlementsMap.isEmpty(): "We're not supposed to be using moduleEntitlementsMap in tests";
+        assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";
         classEntitlementsMap.clear();
         isActive = false;
         isTriviallyAllowingTestCode = true;
@@ -110,7 +107,7 @@ public class TestPolicyManager extends PolicyManager {
     // declared in the gradle config (namely org.gradle) that would be simpler.
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
         String packageName = requestingClass.getPackageName();
-        for (String prefix: TEST_FRAMEWORK_PACKAGE_PREFIXES) {
+        for (String prefix : TEST_FRAMEWORK_PACKAGE_PREFIXES) {
             if (packageName.startsWith(prefix)) {
                 return true;
             }
@@ -136,8 +133,12 @@ public class TestPolicyManager extends PolicyManager {
             needle = needle.substring(0, needle.length() - 1);
         }
         boolean result = testOnlyClasspath.contains(needle);
-        System.err.println("PATDOYLE: isTestCode:" + result + " for " + requestingClass.getName() + " in " + "[" + needle.hashCode() + "]" + needle);
-        System.err.println("testOnlyClasspath:\n" + testOnlyClasspath.stream().map(s-> "[" + s.hashCode() + "]" + s).collect(Collectors.joining("\n")));
+        System.err.println(
+            "PATDOYLE: isTestCode:" + result + " for " + requestingClass.getName() + " in " + "[" + needle.hashCode() + "]" + needle
+        );
+        System.err.println(
+            "testOnlyClasspath:\n" + testOnlyClasspath.stream().map(s -> "[" + s.hashCode() + "]" + s).collect(Collectors.joining("\n"))
+        );
         return result;
     }
 

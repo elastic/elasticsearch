@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;

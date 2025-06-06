@@ -20,6 +20,6 @@ import java.nio.file.Path;
 @ESTestCase.WithEntitlementsOnTestCode
 public class JUnitEntitlementMetaTests extends ESTestCase {
     public void testForbiddenActionThrows() {
-        assertThrows(NotEntitledException.class, ()-> Path.of(".").toRealPath());
+        assertThrows(NotEntitledException.class, () -> Path.of(".").toRealPath());
     }
 }

@@ -22,7 +22,6 @@ public class StringsTests extends ESTestCase {
         System.out.println("HEY HEY path is " + path);
     }
 
-
     public void testIncorrectPattern() {
         AssertionError assertionError = expectThrows(AssertionError.class, () -> Strings.format("%s %s", 1));
         assertThat(

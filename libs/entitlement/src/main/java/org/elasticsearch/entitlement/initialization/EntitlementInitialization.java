@@ -76,11 +76,7 @@ public class EntitlementInitialization {
      * @param suppressFailureLogPackages
      * @param policyManager
      */
-    public record InitializeArgs(
-        PathLookup pathLookup,
-        Set<Package> suppressFailureLogPackages,
-        PolicyManager policyManager
-    ) {
+    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
         public InitializeArgs {
             requireNonNull(pathLookup);
             requireNonNull(suppressFailureLogPackages);

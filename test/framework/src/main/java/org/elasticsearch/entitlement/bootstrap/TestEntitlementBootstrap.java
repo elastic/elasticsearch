@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -56,11 +55,7 @@ public class TestEntitlementBootstrap {
         }
         TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
         policyManager = createPolicyManager(pathLookup);
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            pathLookup,
-            Set.of(),
-            policyManager
-        );
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }

@@ -250,7 +250,12 @@ class Elasticsearch {
 
         var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
         Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
-            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), pluginBundle -> singleton(pluginBundle.getDir())));
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    bundle -> bundle.pluginDescriptor().getName(),
+                    pluginBundle -> singleton(pluginBundle.getDir())
+                )
+            );
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,
             pluginPolicies,

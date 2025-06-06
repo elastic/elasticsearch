@@ -93,13 +93,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             pathLookup,
             suppressFailureLogPackages,
-            createPolicyManager(
-                pluginPolicies,
-                pathLookup,
-                serverPolicyPatch,
-                scopeResolver,
-                pluginSourcePaths
-            )
+            createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
@@ -157,7 +151,13 @@ public class EntitlementBootstrap {
         }
     }
 
-    private static PolicyManager createPolicyManager(Map<String, Policy> pluginPolicies, PathLookup pathLookup, Policy serverPolicyPatch, Function<Class<?>, PolicyManager.PolicyScope> scopeResolver, Map<String, Collection<Path>> pluginSourcePaths) {
+    private static PolicyManager createPolicyManager(
+        Map<String, Policy> pluginPolicies,
+        PathLookup pathLookup,
+        Policy serverPolicyPatch,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        Map<String, Collection<Path>> pluginSourcePaths
+    ) {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         return new PolicyManager(

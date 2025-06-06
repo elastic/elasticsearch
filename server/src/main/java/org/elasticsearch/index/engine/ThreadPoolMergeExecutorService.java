@@ -408,6 +408,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 }
             }
         );
+        if (availableDiskSpacePeriodicMonitor.isScheduled() == false) {
+            // in case the disk space monitor starts off as disabled, then make sure that merging is NOT blocked
+            // (in the other case, merging IS blocked until the first update for the available disk space)
+            availableDiskSpaceUpdateConsumer.accept(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        }
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
             availableDiskSpacePeriodicMonitor::setHighStageWatermark
@@ -470,8 +475,17 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 monitor.cancel();
             }
             if (closed == false && checkInterval.duration() > 0) {
+                // do an eager run,
+                // in order to increase responsiveness in case the period is long and something blocks waiting for the first update
+                threadPool.generic().execute(this::run);
                 monitor = threadPool.scheduleWithFixedDelay(this::run, checkInterval, threadPool.generic());
+            } else {
+                monitor = null;
             }
+        }
+
+        boolean isScheduled() {
+            return monitor != null && closed == false;
         }
 
         @Override
@@ -533,10 +547,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     static class MergeTaskPriorityBlockingQueue extends PriorityBlockingQueueWithBudget<MergeTask> {
         MergeTaskPriorityBlockingQueue() {
-            // start with unlimited budget (so this will behave like a regular priority queue until {@link #updateBudget} is invoked)
-            // use the "remaining" merge size as the budget function so that the "budget" of taken elements is updated according
-            // to the remaining disk space requirements of currently running merge tasks
-            super(MergeTask::estimatedRemainingMergeSize, Long.MAX_VALUE);
+            // start with 0 budget (so takes on this queue will always block until {@link #updateBudget} is invoked)
+            // use the estimated *remaining* merge size as the budget function so that the disk space budget of taken (in-use) elements is
+            // updated according to the remaining disk space requirements of the currently running merge tasks
+            super(MergeTask::estimatedRemainingMergeSize, 0L);
         }
 
         // exposed for tests

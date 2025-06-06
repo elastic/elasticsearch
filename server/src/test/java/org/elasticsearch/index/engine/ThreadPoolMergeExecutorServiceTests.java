@@ -764,7 +764,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
 
     public void testMergeTaskQueueAvailableBudgetTracking() throws Exception {
         MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
-        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(Long.MAX_VALUE));
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(0L));
         long availableBudget = randomLongBetween(1, 10);
         mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
         assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
@@ -819,7 +819,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
 
     public void testMergeTaskQueueBudgetTrackingWhenEstimatedRemainingMergeSizeChanges() throws Exception {
         MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
-        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(Long.MAX_VALUE));
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(0L));
         // plenty of available budget (this should be fixed for this test)
         final long availableBudget = randomLongBetween(1000L, 2000L);
         mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);

@@ -17,6 +17,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -34,11 +36,14 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -61,7 +66,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     private static String bPathPart;
     private static int mergeExecutorThreadCount;
     private static Settings settings;
-    private static TestThreadPool testThreadPool;
+    private static CapturingThreadPool testThreadPool;
     private static NodeEnvironment nodeEnvironment;
 
     @BeforeClass
@@ -86,7 +91,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             settingsBuilder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
         }
         settings = settingsBuilder.build();
-        testThreadPool = new TestThreadPool("test", settings);
+        testThreadPool = new CapturingThreadPool("test", settings);
         nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
     }
 
@@ -97,6 +102,21 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         bFileStore = null;
         testThreadPool.close();
         nodeEnvironment.close();
+    }
+
+    static class CapturingThreadPool extends TestThreadPool {
+        final List<Tuple<TimeValue, Cancellable>> scheduledTasks = new ArrayList<>();
+
+        CapturingThreadPool(String name, Settings settings) {
+            super(name, settings);
+        }
+
+        @Override
+        public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
+            Cancellable cancellable = super.scheduleWithFixedDelay(command, interval, executor);
+            scheduledTasks.add(new Tuple<>(interval, cancellable));
+            return cancellable;
+        }
     }
 
     static class TestMockUsableSpaceFileSystemProvider extends FilterFileSystemProvider {
@@ -241,6 +261,51 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 }
             });
         }
+    }
+
+    public void testDiskSpaceMonitorStartsAsDisabled() throws Exception {
+        aFileStore.usableSpace = randomLongBetween(1L, 100L);
+        aFileStore.totalSpace = randomLongBetween(1L, 100L);
+        aFileStore.throwIoException = randomBoolean();
+        bFileStore.usableSpace = randomLongBetween(1L, 100L);
+        bFileStore.totalSpace = randomLongBetween(1L, 100L);
+        bFileStore.throwIoException = randomBoolean();
+        Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        if (randomBoolean()) {
+            settingsBuilder.put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0");
+        } else {
+            settingsBuilder.put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s");
+        }
+        Settings settings = settingsBuilder.build();
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
+        LinkedHashSet<ByteSizeValue> availableDiskSpaceUpdates = new LinkedHashSet<>();
+        try (
+            var diskSpacePeriodicMonitor = ThreadPoolMergeExecutorService.startDiskSpaceMonitoring(
+                testThreadPool,
+                nodeEnvironment.dataPaths(),
+                clusterSettings,
+                (availableDiskSpace) -> {
+                    synchronized (availableDiskSpaceUpdates) {
+                        availableDiskSpaceUpdates.add(availableDiskSpace);
+                    }
+                }
+            )
+        ) {
+            assertThat(diskSpacePeriodicMonitor.isScheduled(), is(false));
+            assertThat(availableDiskSpaceUpdates.size(), is(1));
+            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(Long.MAX_VALUE));
+            // updating monitoring interval should enable the monitor
+            String intervalSettingValue = randomFrom("1s", "123ms", "5ns", "2h");
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), intervalSettingValue)
+                    .build()
+            );
+            assertThat(diskSpacePeriodicMonitor.isScheduled(), is(true));
+            assertThat(testThreadPool.scheduledTasks.size(), is(1));
+        }
+        aFileStore.throwIoException = false;
+        bFileStore.throwIoException = false;
     }
 
     public void testAvailableDiskSpaceMonitorWhenFileSystemStatErrors() throws Exception {

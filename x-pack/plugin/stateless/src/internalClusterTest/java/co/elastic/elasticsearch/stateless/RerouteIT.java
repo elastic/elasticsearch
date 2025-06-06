@@ -49,6 +49,11 @@ import static org.hamcrest.Matchers.not;
 public class RerouteIT extends AbstractStatelessIntegTestCase {
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
     }

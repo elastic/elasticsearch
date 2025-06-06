@@ -80,6 +80,11 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessIntegTestCase 
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)

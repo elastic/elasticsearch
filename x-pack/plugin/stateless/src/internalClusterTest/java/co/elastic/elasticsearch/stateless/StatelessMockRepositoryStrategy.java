@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
  * This is a strategy class for {@link StatelessMockRepository}.
@@ -120,6 +121,28 @@ public class StatelessMockRepositoryStrategy {
         OperationPurpose purpose,
         String blobName,
         BytesReference bytes,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        originalRunnable.run();
+    }
+
+    /**
+     * Called in {@link BlobContainer#supportsConcurrentMultipartUploads()} .
+     */
+    public boolean supportsConcurrentMultipartUploads(BooleanSupplier originalRunnable) {
+        return originalRunnable.getAsBoolean();
+    }
+
+    /**
+     * Called in
+     * {@link BlobContainer#writeBlobAtomic(OperationPurpose, String, long, BlobContainer.BlobMultiPartInputStreamProvider, boolean)}.
+     */
+    public void blobContainerWriteBlobAtomic(
+        CheckedRunnable<IOException> originalRunnable,
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobContainer.BlobMultiPartInputStreamProvider provider,
         boolean failIfAlreadyExists
     ) throws IOException {
         originalRunnable.run();

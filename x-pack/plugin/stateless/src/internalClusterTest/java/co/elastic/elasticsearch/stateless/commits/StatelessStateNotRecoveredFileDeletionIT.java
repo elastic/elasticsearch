@@ -55,6 +55,11 @@ import static org.hamcrest.Matchers.is;
 public class StatelessStateNotRecoveredFileDeletionIT extends AbstractStatelessIntegTestCase {
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
     }

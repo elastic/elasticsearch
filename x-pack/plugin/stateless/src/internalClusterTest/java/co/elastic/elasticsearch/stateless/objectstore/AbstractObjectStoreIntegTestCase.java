@@ -48,6 +48,11 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         return Settings.builder().put("compress", randomBoolean()).build();
     }
 
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
     public void testBlobCreateVerifyDelete() throws Exception {
         startMasterAndIndexNode();
         var objectStoreService = getCurrentMasterObjectStoreService();

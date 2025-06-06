@@ -120,6 +120,11 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
     private final boolean NETWORK_DISRUPTIONS = TEST_HARDER ? true : false;
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);

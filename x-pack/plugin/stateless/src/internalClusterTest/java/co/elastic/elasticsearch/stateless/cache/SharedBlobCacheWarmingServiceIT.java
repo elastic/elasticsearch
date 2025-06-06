@@ -117,6 +117,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true);

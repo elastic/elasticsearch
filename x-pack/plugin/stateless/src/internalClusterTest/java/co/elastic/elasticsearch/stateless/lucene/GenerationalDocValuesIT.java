@@ -463,6 +463,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);

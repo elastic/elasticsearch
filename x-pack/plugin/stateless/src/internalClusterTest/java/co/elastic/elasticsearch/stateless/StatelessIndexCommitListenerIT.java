@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
@@ -201,7 +200,10 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BlobCachePlugin.class, TestStateless.class);
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStateless.class);
+        return List.copyOf(plugins);
     }
 
     @Override

@@ -151,6 +151,11 @@ import static org.hamcrest.Matchers.oneOf;
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public class StatelessIT extends AbstractStatelessIntegTestCase {
 
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(BlobStoreHealthIndicator.POLL_INTERVAL, "1s")
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);

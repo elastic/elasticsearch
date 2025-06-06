@@ -118,6 +118,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
@@ -228,7 +229,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private Analyzer makeAnalyzer(IndexResolution indexResolution) {
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution()),
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), defaultInferenceResolution()),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }

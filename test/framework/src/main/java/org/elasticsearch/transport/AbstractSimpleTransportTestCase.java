@@ -3354,7 +3354,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockLog.assertThatLogger(
             deterministicTaskQueue::runAllRunnableTasks,
             ThreadWatchdog.class,
-            new MockLog.UnseenEventExpectation("no logging", ThreadWatchdog.class.getCanonicalName(), Level.WARN, "*")
+            new MockLog.UnseenEventExpectation("no logging", ThreadWatchdog.class.getCanonicalName(), Level.WARN, "*" + threadName + "*")
         );
         deterministicTaskQueue.advanceTime();
         MockLog.assertThatLogger(

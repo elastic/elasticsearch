@@ -371,9 +371,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            synchronized (mutex) {
-                return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + '}';
-            }
+            return "ConnectionTarget{discoveryNode=" + discoveryNode + '}';
         }
     }
 

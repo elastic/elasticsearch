@@ -77,23 +77,24 @@ public class EntitlementBootstrap {
         if (EntitlementInitialization.initializeArgs != null) {
             throw new IllegalStateException("initialization data is already set");
         }
+        PathLookupImpl pathLookup = new PathLookupImpl(
+            getUserHome(),
+            configDir,
+            dataDirs,
+            sharedRepoDirs,
+            libDir,
+            modulesDir,
+            pluginsDir,
+            logsDir,
+            tempDir,
+            pidFile,
+            settingResolver
+        );
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             serverPolicyPatch,
             pluginPolicies,
             scopeResolver,
-            new PathLookupImpl(
-                getUserHome(),
-                configDir,
-                dataDirs,
-                sharedRepoDirs,
-                libDir,
-                modulesDir,
-                pluginsDir,
-                logsDir,
-                tempDir,
-                pidFile,
-                settingResolver
-            ),
+            pathLookup,
             pluginSourcePaths,
             suppressFailureLogPackages
         );

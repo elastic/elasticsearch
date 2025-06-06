@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test120DockerLogsIncludeElasticsearchLogs
   issue: https://github.com/elastic/elasticsearch/issues/128117
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/128031
 
 # Examples:
 #

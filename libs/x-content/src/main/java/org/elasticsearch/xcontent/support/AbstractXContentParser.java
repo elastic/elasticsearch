@@ -87,7 +87,13 @@ public abstract class AbstractXContentParser implements XContentParser {
     public boolean isBooleanValue() throws IOException {
         return switch (currentToken()) {
             case VALUE_BOOLEAN -> true;
-            case VALUE_STRING -> Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+            case VALUE_STRING -> {
+                if (hasTextCharacters()) {
+                    yield Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+                } else {
+                    yield Booleans.isBoolean(text());
+                }
+            }
             default -> false;
         };
     }
@@ -96,7 +102,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
-            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            if (hasTextCharacters()) {
+                return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            } else {
+                return Booleans.parseBoolean(text(), false /* irrelevant */);
+            }
         }
         return doBooleanValue();
     }

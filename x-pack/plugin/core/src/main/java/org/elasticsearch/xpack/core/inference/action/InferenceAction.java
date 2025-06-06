@@ -64,6 +64,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
+        public static Builder builder(String inferenceEntityId, TaskType taskType) {
+            return new Builder().setInferenceEntityId(inferenceEntityId).setTaskType(taskType);
+        }
+
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);

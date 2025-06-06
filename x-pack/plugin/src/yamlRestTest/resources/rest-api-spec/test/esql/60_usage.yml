@@ -37,7 +37,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 19 }
+  - length: { esql.features: 21 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -57,6 +57,8 @@ setup:
   - set: {esql.features.lookup: lookup_counter}
   - set: {esql.features.change_point: change_point_counter}
   - set: {esql.features.inlinestats: inlinestats_counter}
+  - set: {esql.features.rerank: rerank_counter}
+  - set: {esql.features.completion: completion_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -89,6 +91,8 @@ setup:
   - match: {esql.features.lookup: $lookup_counter}
   - match: {esql.features.change_point: $change_point_counter}
   - match: {esql.features.inlinestats: $inlinestats_counter}
+  - match: {esql.features.rerank: $rerank_counter}
+  - match: {esql.features.completion: $completion_counter}
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}
@@ -117,7 +121,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 19 }
+  - length: { esql.features: 21 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -149,6 +153,8 @@ setup:
   - set: {esql.functions.cos: functions_cos}
   - set: {esql.functions.to_long: functions_to_long}
   - set: {esql.functions.coalesce: functions_coalesce}
+  - set: {esql.features.rerank: rerank_counter}
+  - set: {esql.features.completion: completion_counter}
 
   - do:
       esql.query:
@@ -169,6 +175,8 @@ setup:
   - match: {esql.features.lookup: $lookup_counter}
   - match: {esql.features.change_point: $change_point_counter}
   - match: {esql.features.inlinestats: $inlinestats_counter}
+  - match: { esql.features.rerank: $rerank_counter }
+  - match: { esql.features.completion: $completion_counter }
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}

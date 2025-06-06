@@ -386,6 +386,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitField(EsqlBaseParser.FieldContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankFields}.
+   * @param ctx the parse tree
+   */
+  void enterRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankFields}.
+   * @param ctx the parse tree
+   */
+  void exitRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankField}.
+   * @param ctx the parse tree
+   */
+  void enterRerankField(EsqlBaseParser.RerankFieldContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankField}.
+   * @param ctx the parse tree
+   */
+  void exitRerankField(EsqlBaseParser.RerankFieldContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#fromCommand}.
    * @param ctx the parse tree
    */
@@ -1045,4 +1065,24 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#completionCommand}.
+   * @param ctx the parse tree
+   */
+  void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
+   * @param ctx the parse tree
+   */
+  void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
 }

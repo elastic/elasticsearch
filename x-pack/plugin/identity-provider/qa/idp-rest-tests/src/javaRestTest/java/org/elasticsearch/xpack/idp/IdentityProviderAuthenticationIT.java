@@ -147,7 +147,8 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
                     Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
                     Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
                     Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles"),
+                    Map.entry("extensions", List.of("department", "region"))
                 )
             )
         );

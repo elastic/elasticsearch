@@ -452,7 +452,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             String name = ((Attribute) expectedSorts.get(i).child()).name();
             EsQueryExec.Sort sort = sorts.get(i);
             if (sort.field() != null) {
-                String fieldName = sort.field().fieldName().toString();
+                String fieldName = sort.field().fieldName().string();
                 assertThat("Expect sort[" + i + "] name to match", fieldName, is(sortName(name, fieldMap)));
             }
             assertThat("Expect sort[" + i + "] direction to match", sort.direction(), is(expectedSorts.get(i).direction()));

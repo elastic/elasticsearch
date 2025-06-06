@@ -6341,7 +6341,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var insensitive = as(filter.condition(), InsensitiveEquals.class);
         var field = as(insensitive.left(), FieldAttribute.class);
-        assertThat(field.fieldName().toString(), is("first_name"));
+        assertThat(field.fieldName().string(), is("first_name"));
         var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
         assertThat(bRef.utf8ToString(), is("VALÜ"));
         as(filter.child(), EsRelation.class);

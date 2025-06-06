@@ -130,23 +130,23 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public boolean exists(FieldName field) {
-        var stat = cache.get(field.toString());
-        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.toString());
+        var stat = cache.get(field.string());
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.string());
     }
 
     @Override
     public boolean isIndexed(FieldName field) {
-        return cache.computeIfAbsent(field.toString(), this::makeFieldStats).config.indexed;
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.indexed;
     }
 
     @Override
     public boolean hasDocValues(FieldName field) {
-        return cache.computeIfAbsent(field.toString(), this::makeFieldStats).config.hasDocValues;
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
     }
 
     @Override
     public boolean hasExactSubfield(FieldName field) {
-        return cache.computeIfAbsent(field.toString(), this::makeFieldStats).config.hasExactSubfield;
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
     }
 
     public long count() {
@@ -160,11 +160,11 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public long count(FieldName field) {
-        var stat = cache.computeIfAbsent(field.toString(), this::makeFieldStats);
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.count == null) {
             var count = new long[] { 0 };
             boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field.toString());
+                count[0] += countEntries(r, field.string());
                 return true;
             }, false);
             stat.count = completed ? count[0] : -1;
@@ -175,7 +175,7 @@ public class SearchContextStats implements SearchStats {
     @Override
     public long count(FieldName field, BytesRef value) {
         var count = new long[] { 0 };
-        Term term = new Term(field.toString(), value);
+        Term term = new Term(field.string(), value);
         boolean completed = doWithContexts(r -> {
             count[0] += r.docFreq(term);
             return true;
@@ -185,11 +185,11 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public byte[] min(FieldName field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field.toString(), this::makeFieldStats);
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.min == null) {
             var min = new byte[][] { null };
             doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field.toString());
+                byte[] localMin = PointValues.getMinPackedValue(r, field.string());
                 // TODO: how to compare with the previous min
                 if (localMin != null) {
                     if (min[0] == null) {
@@ -208,11 +208,11 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public byte[] max(FieldName field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field.toString(), this::makeFieldStats);
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.max == null) {
             var max = new byte[][] { null };
             doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field.toString());
+                byte[] localMax = PointValues.getMaxPackedValue(r, field.string());
                 // TODO: how to compare with the previous max
                 if (localMax != null) {
                     if (max[0] == null) {
@@ -231,7 +231,7 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public boolean isSingleValue(FieldName field) {
-        String fieldName = field.toString();
+        String fieldName = field.string();
         var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
@@ -307,7 +307,7 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
         for (SearchExecutionContext ctx : contexts) {
-            MappedFieldType type = ctx.getFieldType(name.toString());
+            MappedFieldType type = ctx.getFieldType(name.string());
             if (type == null) {
                 return false;
             }

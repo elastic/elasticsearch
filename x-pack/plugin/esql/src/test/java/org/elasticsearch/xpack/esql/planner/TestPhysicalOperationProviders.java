@@ -328,7 +328,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         if (conversion == null) {
             return getNullsBlock(indexDoc);
         }
-        return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName().toString(), blockCopier)) {
+        return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName().string(), blockCopier)) {
             case BlockResultMissing unused -> getNullsBlock(indexDoc);
             case BlockResultSuccess success -> TypeConverter.fromConvertFunction(conversion).convert(success.block);
         };

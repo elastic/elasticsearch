@@ -2442,7 +2442,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(range2.fieldName(), is("first_name"));
         var sort = source.sorts();
         assertThat(sort.size(), is(1));
-        assertThat(sort.get(0).field().fieldName().toString(), is("first_name"));
+        assertThat(sort.get(0).field().fieldName().string(), is("first_name"));
     }
 
     /**
@@ -2501,7 +2501,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(exists.fieldName(), is("first_name"));
         var sort = source.sorts();
         assertThat(sort.size(), is(1));
-        assertThat(sort.get(0).field().fieldName().toString(), is("last_name"));
+        assertThat(sort.get(0).field().fieldName().string(), is("last_name"));
     }
 
     /**
@@ -3225,7 +3225,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var stats = new EsqlTestUtils.TestSearchStats() {
             @Override
             public boolean exists(FieldAttribute.FieldName field) {
-                return "salary".equals(field.toString());
+                return "salary".equals(field.string());
             }
         };
         var optimized = optimizedPlan(plan, stats);
@@ -5093,7 +5093,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias.name(), is("distance"));
         var stDistance = as(alias.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName().toString(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
 
         // Validate the filter condition
         var and = as(filter.condition(), And.class);
@@ -5147,7 +5147,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName().toString(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.value(), instanceOf(BytesRef.class));
         assertThat(poiRef.value().toString(), is(poi.value().toString()));
@@ -6503,7 +6503,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName().toString(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.value(), instanceOf(BytesRef.class));
         assertThat(poiRef.value().toString(), is(poi.value().toString()));
@@ -6689,7 +6689,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName().toString(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.value(), instanceOf(BytesRef.class));
         assertThat(poiRef.value().toString(), is(poi.value().toString()));

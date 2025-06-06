@@ -169,7 +169,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public String constantValue(FieldAttribute.FieldName name) {
-            return name.toString().startsWith("constant_keyword") ? "foo" : null;
+            return name.string().startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -550,7 +550,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var stats = new TestSearchStats() {
             @Override
             public boolean exists(FieldAttribute.FieldName field) {
-                return "emp_no".equals(field.toString()) == false;
+                return "emp_no".equals(field.string()) == false;
             }
         };
 

@@ -351,22 +351,22 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean exists(FieldName field) {
-            return isConfigationSet(Config.EXISTS, field.toString());
+            return isConfigationSet(Config.EXISTS, field.string());
         }
 
         @Override
         public boolean isIndexed(FieldName field) {
-            return isConfigationSet(Config.INDEXED, field.toString());
+            return isConfigationSet(Config.INDEXED, field.string());
         }
 
         @Override
         public boolean hasDocValues(FieldName field) {
-            return isConfigationSet(Config.DOC_VALUES, field.toString());
+            return isConfigationSet(Config.DOC_VALUES, field.string());
         }
 
         @Override
         public boolean hasExactSubfield(FieldName field) {
-            return isConfigationSet(Config.EXACT_SUBFIELD, field.toString());
+            return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
         }
 
         @Override
@@ -502,7 +502,7 @@ public final class EsqlTestUtils {
 
             @Override
             public boolean exists(FieldName field) {
-                return fields.contains(field.toString()) == exists;
+                return fields.contains(field.string()) == exists;
             }
         };
     }

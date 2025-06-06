@@ -43,12 +43,7 @@ public class FieldAttribute extends TypedAttribute {
      * A field name, as found in the mapping. Includes the whole path from the root of the document.
      * Implemented as a wrapper around {@link String} to distinguish from the attribute name (which sometimes differs!) at compile time.
      */
-    public record FieldName(String name) {
-        @Override
-        public String toString() {
-            return name;
-        }
-    };
+    public record FieldName(String string) {};
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,

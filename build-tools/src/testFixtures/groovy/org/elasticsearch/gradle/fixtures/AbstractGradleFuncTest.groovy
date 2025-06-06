@@ -239,14 +239,13 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
     }
 
     ZipAssertion zip(String relativePath) {
-        try (ZipFile zipFile = new ZipFile(file(relativePath))) {
-            def files = new HashMap<>()
-            zipFile.entries().collect { entry ->
-                files.put(entry.name, new ZipAssertionFile(file(relativePath), entry))
+        File archiveFile = file(relativePath);
+        try (ZipFile zipFile = new ZipFile(archiveFile)) {
+            Map<String, ZipAssertionFile> files = zipFile.entries().collectEntries { ZipEntry entry ->
+                [(entry.name): new ZipAssertionFile(archiveFile, entry)]
             }
-            return new ZipAssertion(files)
+            return new ZipAssertion(files);
         }
-        null
     }
 
     static class ZipAssertion {

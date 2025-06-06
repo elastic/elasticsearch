@@ -100,7 +100,11 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
         innerParser.declareString(optionalConstructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.NODE));
         innerParser.declareString(optionalConstructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.REASON));
         innerParser.declareString(optionalConstructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.DESCRIPTION));
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
+        innerParser.declareObject(
+            constructorArg(),
+            (p, c) -> SnapshotStatsTests.fromXContent(p),
+            new ParseField(SnapshotStats.Fields.STATS)
+        );
         PARSER = (p, indexId, shardName) -> {
             // Combine the index name in the context with the shard name passed in for the named object parser
             // into a ShardId to pass as context for the inner parser.

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -733,11 +732,11 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         submitUnbatchedTask(clusterService, "put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().getProject().custom(ScriptMetadata.TYPE);
-                smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
+                final var project = currentState.metadata().getProject();
+                final ScriptMetadata originalSmd = project.custom(ScriptMetadata.TYPE);
+                final ScriptMetadata updatedSmd = ScriptMetadata.putStoredScript(originalSmd, request.id(), source);
 
-                return ClusterState.builder(currentState).metadata(mdb).build();
+                return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(ScriptMetadata.TYPE, updatedSmd));
             }
         });
     }
@@ -750,11 +749,11 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         submitUnbatchedTask(clusterService, "delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().getProject().custom(ScriptMetadata.TYPE);
-                smd = ScriptMetadata.deleteStoredScript(smd, request.id());
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
+                final var project = currentState.metadata().getProject();
+                final ScriptMetadata originalSmd = project.custom(ScriptMetadata.TYPE);
+                final ScriptMetadata updatedSmd = ScriptMetadata.deleteStoredScript(originalSmd, request.id());
 
-                return ClusterState.builder(currentState).metadata(mdb).build();
+                return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(ScriptMetadata.TYPE, updatedSmd));
             }
         });
     }

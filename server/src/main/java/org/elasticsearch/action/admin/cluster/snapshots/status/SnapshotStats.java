@@ -14,12 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -236,114 +234,6 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
         }
         return builder.endObject();
-    }
-
-    public static SnapshotStats fromXContent(XContentParser parser) throws IOException {
-        // Parse this old school style instead of using the ObjectParser since there's an impedance mismatch between how the
-        // object has historically been written as JSON versus how it is structured in Java.
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        long startTime = 0;
-        long time = 0;
-        int incrementalFileCount = 0;
-        int totalFileCount = 0;
-        int processedFileCount = Integer.MIN_VALUE;
-        long incrementalSize = 0;
-        long totalSize = 0;
-        long processedSize = Long.MIN_VALUE;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String currentName = parser.currentName();
-            token = parser.nextToken();
-            if (currentName.equals(Fields.INCREMENTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String innerName = parser.currentName();
-                    token = parser.nextToken();
-                    if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        incrementalFileCount = parser.intValue();
-                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        incrementalSize = parser.longValue();
-                    } else {
-                        // Unknown sub field, skip
-                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                    }
-                }
-            } else if (currentName.equals(Fields.PROCESSED)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String innerName = parser.currentName();
-                    token = parser.nextToken();
-                    if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        processedFileCount = parser.intValue();
-                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        processedSize = parser.longValue();
-                    } else {
-                        // Unknown sub field, skip
-                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                    }
-                }
-            } else if (currentName.equals(Fields.TOTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String innerName = parser.currentName();
-                    token = parser.nextToken();
-                    if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        totalFileCount = parser.intValue();
-                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        totalSize = parser.longValue();
-                    } else {
-                        // Unknown sub field, skip
-                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                    }
-                }
-            } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                startTime = parser.longValue();
-            } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                time = parser.longValue();
-            } else {
-                // Unknown field, skip
-                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-                    parser.skipChildren();
-                }
-            }
-        }
-        // Handle the case where the "processed" sub-object is omitted in toXContent() when processedFileCount == incrementalFileCount.
-        if (processedFileCount == Integer.MIN_VALUE) {
-            assert processedSize == Long.MIN_VALUE;
-            processedFileCount = incrementalFileCount;
-            processedSize = incrementalSize;
-        }
-        return new SnapshotStats(
-            startTime,
-            time,
-            incrementalFileCount,
-            totalFileCount,
-            processedFileCount,
-            incrementalSize,
-            totalSize,
-            processedSize
-        );
     }
 
     /**

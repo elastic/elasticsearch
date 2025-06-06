@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -130,9 +130,8 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            IngestGeoIpMetadata geoIpMeta = currentState.metadata()
-                .getProject()
-                .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+            final var project = currentState.metadata().getProject();
+            IngestGeoIpMetadata geoIpMeta = project.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             String id = database.id();
             final DatabaseConfigurationMetadata existingDatabase = geoIpMeta.getDatabases().get(id);
@@ -160,9 +159,8 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
                 logger.debug("updating existing database configuration [{}]", id);
             }
 
-            Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
+                .putProjectMetadata(ProjectMetadata.builder(project).putCustom(IngestGeoIpMetadata.TYPE, geoIpMeta))
                 .build();
         }
 

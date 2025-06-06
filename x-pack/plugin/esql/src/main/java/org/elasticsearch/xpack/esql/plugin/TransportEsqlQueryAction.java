@@ -159,7 +159,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceRunner(client)
+            new InferenceRunner(client, threadPool)
         );
 
         this.computeService = new ComputeService(

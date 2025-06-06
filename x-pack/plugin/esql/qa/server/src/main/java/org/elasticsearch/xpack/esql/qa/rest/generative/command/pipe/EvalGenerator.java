@@ -55,7 +55,7 @@ public class EvalGenerator implements CommandGenerator {
             cmd.append(expression);
         }
         String cmdString = cmd.toString();
-        return new CommandDescription(EVAL, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));
+        return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));
     }
 
     @Override

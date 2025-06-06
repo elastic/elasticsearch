@@ -62,7 +62,7 @@ public class StatsGenerator implements CommandGenerator {
                 cmd.append(" by " + col);
             }
         }
-        return new CommandDescription(STATS, cmd.toString(), Map.of());
+        return new CommandDescription(STATS, this, cmd.toString(), Map.of());
     }
 
     @Override

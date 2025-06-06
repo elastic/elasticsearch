@@ -36,7 +36,7 @@ public class EnrichGenerator implements CommandGenerator {
             + randomFrom(EsqlQueryGenerator.policiesOnKeyword(schema.enrichPolicies())).policyName()
             + " on "
             + field;
-        return new CommandDescription(ENRICH, cmdString, Map.of());
+        return new CommandDescription(ENRICH, this, cmdString, Map.of());
     }
 
     @Override

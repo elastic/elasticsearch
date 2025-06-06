@@ -59,7 +59,7 @@ public class DropGenerator implements CommandGenerator {
             return CommandGenerator.EMPTY_DESCRIPTION;
         }
         String cmdString = " | drop " + proj.stream().collect(Collectors.joining(", "));
-        return new CommandDescription(DROP, cmdString, Map.ofEntries(Map.entry(DROPPED_COLUMNS, droppedColumns)));
+        return new CommandDescription(DROP, this, cmdString, Map.ofEntries(Map.entry(DROPPED_COLUMNS, droppedColumns)));
     }
 
     @Override

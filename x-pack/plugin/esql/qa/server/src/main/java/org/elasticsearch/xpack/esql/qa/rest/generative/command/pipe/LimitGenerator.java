@@ -28,7 +28,7 @@ public class LimitGenerator implements CommandGenerator {
     ) {
         int limit = randomIntBetween(0, 15000);
         String cmd = " | limit " + limit;
-        return new CommandDescription(LIMIT, cmd, Map.ofEntries(Map.entry(LIMIT, limit)));
+        return new CommandDescription(LIMIT, this, cmd, Map.ofEntries(Map.entry(LIMIT, limit)));
     }
 
     @Override

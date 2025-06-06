@@ -52,7 +52,7 @@ public class GrokGenerator implements CommandGenerator {
         }
         result.append("\"");
         String cmdString = result.toString();
-        return new CommandDescription(GROK, cmdString, Map.of());
+        return new CommandDescription(GROK, this, cmdString, Map.of());
     }
 
     @Override

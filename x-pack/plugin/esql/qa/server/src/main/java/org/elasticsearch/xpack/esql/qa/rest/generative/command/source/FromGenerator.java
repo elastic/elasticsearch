@@ -37,7 +37,7 @@ public class FromGenerator implements CommandGenerator {
             result.append(pattern);
         }
         String query = result.toString();
-        return new CommandDescription("from", query, Map.of());
+        return new CommandDescription("from", this, query, Map.of());
     }
 
     @Override

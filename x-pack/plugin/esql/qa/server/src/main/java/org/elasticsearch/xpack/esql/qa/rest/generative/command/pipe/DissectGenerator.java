@@ -53,7 +53,7 @@ public class DissectGenerator implements CommandGenerator {
         }
         result.append("\"");
         String cmdString = result.toString();
-        return new CommandDescription(DISSECT, cmdString, Map.of());
+        return new CommandDescription(DISSECT, this, cmdString, Map.of());
     }
 
     @Override

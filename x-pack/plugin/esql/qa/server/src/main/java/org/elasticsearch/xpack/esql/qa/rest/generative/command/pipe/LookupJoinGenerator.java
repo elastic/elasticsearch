@@ -38,7 +38,7 @@ public class LookupJoinGenerator implements CommandGenerator {
         }
         EsqlQueryGenerator.Column key = randomFrom(candidateKeys);
         String cmdString = "| rename " + key.name() + " as " + idxKey + " | lookup join " + lookupIdxName + " on " + idxKey;
-        return new CommandDescription(LOOKUP_JOIN, cmdString, Map.of());
+        return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of());
     }
 
     @Override

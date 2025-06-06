@@ -28,7 +28,7 @@ public interface CommandGenerator {
      * @param context       additional information that could be useful for output validation.
      *                      This will be passed to validateOutput after the query execution, together with the query output
      */
-    record CommandDescription(String commandName, String commandString, Map<String, Object> context) {}
+    record CommandDescription(String commandName, CommandGenerator generator, String commandString, Map<String, Object> context) {}
 
     record QuerySchema(
         List<String> baseIndices,
@@ -38,7 +38,28 @@ public interface CommandGenerator {
 
     record ValidationResult(boolean success, String errorMessage) {}
 
-    CommandDescription EMPTY_DESCRIPTION = new CommandDescription("<empty>", "", Map.of());
+    CommandDescription EMPTY_DESCRIPTION = new CommandDescription("<empty>", new CommandGenerator() {
+        @Override
+        public CommandDescription generate(
+            List<CommandDescription> previousCommands,
+            List<EsqlQueryGenerator.Column> previousOutput,
+            QuerySchema schema
+        ) {
+            return EMPTY_DESCRIPTION;
+        }
+
+        @Override
+        public ValidationResult validateOutput(
+            List<CommandDescription> previousCommands,
+            CommandDescription command,
+            List<EsqlQueryGenerator.Column> previousColumns,
+            List<List<Object>> previousOutput,
+            List<EsqlQueryGenerator.Column> columns,
+            List<List<Object>> output
+        ) {
+            return VALIDATION_OK;
+        }
+    }, "", Map.of());
 
     ValidationResult VALIDATION_OK = new ValidationResult(true, null);
 
@@ -69,7 +90,9 @@ public interface CommandGenerator {
      * @param previousOutput The output of the original query (without last generated command), as a list (rows) of lists (columns) of values
      * @param columns The output schema of the full query (WITH last generated command).
      * @param output The output of the full query (WITH last generated command), as a list (rows) of lists (columns) of values
-     * @return The result of the output validation. If the validation succeeds, you should return {@link CommandGenerator#VALIDATION_OK}
+     * @return The result of the output validation. If the validation succeeds, you should return {@link CommandGenerator#VALIDATION_OK}.
+     * Also, if for some reason you can't validate the output, just return {@link CommandGenerator#VALIDATION_OK}; for a command, having a generator without
+     * validation is much better than having no generator at all.
      */
     ValidationResult validateOutput(
         List<CommandDescription> previousCommands,

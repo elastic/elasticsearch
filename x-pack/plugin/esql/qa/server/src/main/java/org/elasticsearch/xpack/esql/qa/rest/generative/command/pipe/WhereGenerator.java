@@ -46,7 +46,7 @@ public class WhereGenerator implements CommandGenerator {
         }
 
         String cmd = result.toString();
-        return new CommandDescription(WHERE, cmd, Map.of());
+        return new CommandDescription(WHERE, this, cmd, Map.of());
     }
 
     @Override

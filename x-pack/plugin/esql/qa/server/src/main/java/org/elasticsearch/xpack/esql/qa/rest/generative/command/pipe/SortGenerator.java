@@ -43,7 +43,7 @@ public class SortGenerator implements CommandGenerator {
             + proj.stream()
                 .map(x -> x + randomFrom("", " ASC", " DESC") + randomFrom("", " NULLS FIRST", " NULLS LAST"))
                 .collect(Collectors.joining(", "));
-        return new CommandDescription(SORT, cmd, Map.of());
+        return new CommandDescription(SORT, this, cmd, Map.of());
     }
 
     @Override

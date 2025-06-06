@@ -30,7 +30,7 @@ public class MvExpandGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION; // no columns to expand
         }
         String cmdString = " | mv_expand " + toExpand;
-        return new CommandDescription(MV_EXPAND, cmdString, Map.of());
+        return new CommandDescription(MV_EXPAND, this, cmdString, Map.of());
     }
 
     @Override

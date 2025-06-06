@@ -1,0 +1,39 @@
+= ES|QL Generative Tests
+
+These tests generate random queries and execute them.
+
+The intention is not to test the single commands, but rather to test how ES|QL query engine
+(parser, optimizers, query layout, compute) manages very complex queries.
+
+The test workflow is the following:
+
+1. Generate a source command (eg. `FROM idx`)
+2. Execute it
+3. Check the result
+4. Based on the previous query output, generate a pipe command (eg. `| EVAL foo = to_lower(bar))`
+5. Append the command to the query and execute it
+6. Check the result
+7. If the query is less than N commands (see `GenerativeRestTest.MAX_DEPTH)`, go to point `4`
+
+This workflow is executed M times (see `GenerativeRestTest.ITERATIONS`)
+
+The result check happens at two levels:
+
+* query success/failure - If the query fails:
+  ** If the error is in `GenerativeRestTest.ALLOWED_ERRORS`, ignore it and start with next iteration.
+  ** Otherwise throw an assertion error
+* check result correctness - this is delegated to last executed command generator
+
+== Implementing your own command generator
+
+If you implement a new command, and you want it to be tested by the generative tests, you can add a command generator here.
+
+All you have to do is:
+
+* add a class in `org.elasticsearch.xpack.esql.qa.rest.generative.command.source` (if it's a source command) or in `org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe` (if it's a pipe command)
+* Implement `CommandGenerator` interface (see its javadoc, it should be explicative. Or just have a look at one of the existing commands, eg. `SortGenerator`)
+** Implement `CommandGenerator.generate()` method, that will return the command.
+** Implement `CommandGenerator.validateOutput()` to validate the output of the query.
+* Add your class to `EsqlQueryGenerator.SOURCE_COMMANDS` (if it's a source command) or `EsqlQueryGenerator.PIPE_COMMANDS` (if it's a pipe command).
+* Run `GenerativeIT` at least a couple of times: these tests can be pretty noisy.
+* If you get unexpected errors (real bugs in ES|QL), please open an issue and add the error to `GenerativeRestTest.ALLOWED_ERRORS`. Run tests again until everything works fine.

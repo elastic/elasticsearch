@@ -55,7 +55,7 @@ public class KeepGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION;
         }
         String cmdString = " | keep " + proj.stream().collect(Collectors.joining(", "));
-        return new CommandDescription(KEEP, cmdString, Map.of());
+        return new CommandDescription(KEEP, this, cmdString, Map.of());
     }
 
     @Override

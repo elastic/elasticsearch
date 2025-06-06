@@ -79,7 +79,7 @@ public class RenameGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION;
         }
         String cmdString = " | rename " + proj.stream().collect(Collectors.joining(", "));
-        return new CommandDescription(RENAME, cmdString, Map.of());
+        return new CommandDescription(RENAME, this, cmdString, Map.of());
     }
 
     @Override

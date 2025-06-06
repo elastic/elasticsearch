@@ -79,7 +79,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         // use 2 data paths
         String[] paths = new String[] { path.resolve(aPathPart).toString(), path.resolve(bPathPart).toString() };
         // some tests hold one merge thread blocked, and need at least one other runnable
-        mergeExecutorThreadCount = randomIntBetween(2, 8);
+        mergeExecutorThreadCount = randomIntBetween(2, 9);
         Settings.Builder settingsBuilder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
@@ -734,7 +734,6 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     }
 
     public void testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution() throws Exception {
-        int submittedMergesCount = randomIntBetween(1, mergeExecutorThreadCount - 1);
         aFileStore.totalSpace = 150_000L;
         bFileStore.totalSpace = 140_000L;
         boolean aHasMoreSpace = randomBoolean();
@@ -771,8 +770,9 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             });
             List<ThreadPoolMergeScheduler.MergeTask> runningOrAbortingMergeTasksList = new ArrayList<>();
             List<CountDownLatch> latchesBlockingMergeTasksList = new ArrayList<>();
+            int submittedMergesCount = randomIntBetween(1, mergeExecutorThreadCount - 1);
             // submit merge tasks that don't finish, in order to deplete the available budget
-            while (submittedMergesCount > 0) {
+            while (submittedMergesCount > 0 && expectedAvailableBudget.get() > 0L) {
                 ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
                 when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
                 doAnswer(mock -> {

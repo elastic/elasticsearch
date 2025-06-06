@@ -1,0 +1,5 @@
+pr: 126256
+summary: Adjust REST test code to accommodate changes to calculation of "model bytes" and "peak mode bytes" values.
+area: Machine Learning
+type: enhancement
+issues: []

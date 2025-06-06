@@ -15,8 +15,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -266,6 +268,19 @@ public abstract class AbstractXContentParser implements XContentParser {
             return null;
         }
         return text();
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        return new Text(text());
+    }
+
+    @Override
+    public final XContentString optimizedTextOrNull() throws IOException {
+        if (currentToken() == Token.VALUE_NULL) {
+            return null;
+        }
+        return optimizedText();
     }
 
     @Override

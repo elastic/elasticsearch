@@ -1050,3 +1050,13 @@ FROM hosts METADATA _index
   description:text |  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long | host_group:text | card:keyword
 alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1         |DB servers       |eth0
 ;
+
+doubleShadowing
+
+FROM employees
+| INLINESTATS salary = min(salary) BY gender
+| INLINESTATS salary = max(salary) BY gender
+| KEEP salary, gender
+| SORT gender DESC
+| LIMIT 5
+;

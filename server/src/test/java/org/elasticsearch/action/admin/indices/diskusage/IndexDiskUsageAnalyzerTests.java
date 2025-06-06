@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
@@ -67,6 +68,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
@@ -254,15 +256,27 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             VectorSimilarityFunction similarity = randomFrom(VectorSimilarityFunction.values());
             int numDocs = between(1000, 5000);
             int dimension = between(10, 200);
+            DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
 
-            indexRandomly(dir, codec, numDocs, doc -> {
-                float[] vector = randomVector(dimension);
-                doc.add(new KnnFloatVectorField("vector", vector, similarity));
-            });
+            if (elementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+                indexRandomly(dir, codec, numDocs, doc -> {
+                    float[] vector = randomVector(dimension);
+                    doc.add(new KnnFloatVectorField("vector", vector, similarity));
+                });
+            } else {
+                indexRandomly(dir, codec, numDocs, doc -> {
+                    byte[] vector = new byte[dimension];
+                    random().nextBytes(vector);
+                    doc.add(new KnnByteVectorField("vector", vector, similarity));
+                });
+            }
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
 
-            long dataBytes = (long) numDocs * dimension * Float.BYTES; // size of flat vector data
+            // expected size of flat vector data
+            long dataBytes = elementType == DenseVectorFieldMapper.ElementType.FLOAT
+                ? ((long) numDocs * dimension * Float.BYTES)
+                : ((long) numDocs * dimension);
             long indexBytesEstimate = (long) numDocs * (Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
             assertThat("numDocs=" + numDocs + ";dimension=" + dimension, stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
             long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;

@@ -548,7 +548,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) {
         KnnVectorsReader vectorReader = reader.getVectorReader();
         if (vectorReader == null) {
             return;
@@ -561,6 +561,13 @@ final class IndexDiskUsageAnalyzer {
                 long totalSize = 0;
                 for (var entry : offHeap.entrySet()) {
                     totalSize += entry.getValue();
+                }
+                long vectorsSize = offHeap.getOrDefault("vec", 0L);
+                if (vectorsSize == 0L) {
+                    // This can happen if .vec file is opened with directIO
+                    // calculate the size of vectors manually
+                    vectorsSize = field.getVectorDimension() * field.getVectorEncoding().byteSize;
+                    totalSize += vectorsSize;
                 }
                 stats.addKnnVectors(field.name, totalSize);
             }

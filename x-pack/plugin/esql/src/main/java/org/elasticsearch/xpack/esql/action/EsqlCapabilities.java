@@ -319,6 +319,11 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
+         * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
+         */
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+
+        /**
          * Support for named or positional parameters in EsqlQueryRequest.
          */
         NAMED_POSITIONAL_PARAMETER,
@@ -920,7 +925,7 @@ public class EsqlCapabilities {
         /**
          * Support for COMPLETION command
          */
-        COMPLETION(Build.current().isSnapshot()),
+        COMPLETION,
 
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least

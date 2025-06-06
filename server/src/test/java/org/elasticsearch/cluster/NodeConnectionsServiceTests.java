@@ -17,7 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.NodeConnectionsService.ConnectionTarget;
+import org.elasticsearch.cluster.NodeConnectionsService.DisconnectionHistory;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -250,18 +250,17 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     }
 
     public void testDisconnectionHistory() {
-        final Settings.Builder settings = Settings.builder();
-        settings.put(CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "100ms");
-
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        final long reconnectIntervalMillis = CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+        final long reconnectIntervalSeconds = reconnectIntervalMillis / 1000;
 
-        MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
-        TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
+        MockTransport transport = new MockTransport(threadPool);
+        TestTransportService transportService = new TestTransportService(transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final NodeConnectionsService service = new NodeConnectionsService(settings.build(), threadPool, transportService);
+        final NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
         service.start();
 
         final DiscoveryNode noClose = DiscoveryNodeUtils.create("noClose");
@@ -281,6 +280,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertNullDisconnectionHistory(service, gracefulClose);
         assertNullDisconnectionHistory(service, exceptionalClose);
 
+        transportService.disconnectFromNode(gracefulClose);
+        transportService.disconnectFromNode(exceptionalClose);
+
+        // check disconnection history set after close
+        assertNullDisconnectionHistory(service, noClose);
+        assertDisconnectionHistoryDetails(service, threadPool, gracefulClose, null);
+        assertDisconnectionHistoryDetails(service, threadPool, exceptionalClose, RuntimeException.class);
+
         try (var mockLog = MockLog.capture(NodeConnectionsService.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -289,7 +296,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     Level.WARN,
                     "reopened transport connection to node ["
                         + gracefulClose.descriptionWithoutAttributes()
-                        + "] which disconnected gracefully [*ms] ago "
+                        + "] which disconnected gracefully [" + reconnectIntervalSeconds + "s/" + reconnectIntervalMillis + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
                         + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
@@ -301,33 +308,24 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     Level.WARN,
                     "reopened transport connection to node ["
                         + exceptionalClose.descriptionWithoutAttributes()
-                        + "] which disconnected exceptionally [*ms] ago "
+                        + "] which disconnected exceptionally [" + reconnectIntervalSeconds + "s/" + reconnectIntervalMillis + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
                         + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
             );
-            transportService.disconnectFromNode(gracefulClose);
-            transportService.disconnectFromNode(exceptionalClose);
-
-            // check disconnection history set after close
-            assertNullDisconnectionHistory(service, noClose);
-            assertDisconnectionHistoryDetails(service, threadPool, gracefulClose, null);
-            assertDisconnectionHistoryDetails(service, threadPool, exceptionalClose, RuntimeException.class);
-
-            runTasksUntil(deterministicTaskQueue, 200);
-
-            // check on reconnect -- disconnection history is reset
-            assertNullDisconnectionHistory(service, noClose);
-            assertNullDisconnectionHistory(service, gracefulClose);
-            assertNullDisconnectionHistory(service, exceptionalClose);
-
+            runTasksUntil(deterministicTaskQueue, deterministicTaskQueue.getCurrentTimeMillis() + reconnectIntervalMillis);
             mockLog.assertAllExpectationsMatched();
         }
+
+        // check on reconnect -- disconnection history is reset
+        assertNullDisconnectionHistory(service, noClose);
+        assertNullDisconnectionHistory(service, gracefulClose);
+        assertNullDisconnectionHistory(service, exceptionalClose);
     }
 
     private void assertNullDisconnectionHistory(NodeConnectionsService service, DiscoveryNode node) {
-        ConnectionTarget nodeTarget = service.connectionTargetForNode(node);
-        assertNull(nodeTarget.disconnectionHistory);
+        DisconnectionHistory disconnectionHistory = service.disconnectionHistoryForNode(node);
+        assertNull(disconnectionHistory);
     }
 
     private void assertDisconnectionHistoryDetails(
@@ -336,14 +334,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         DiscoveryNode node,
         @Nullable Class<?> disconnectCauseClass
     ) {
-        ConnectionTarget nodeTarget = service.connectionTargetForNode(node);
-        assertNotNull(nodeTarget.disconnectionHistory);
-        assertTrue(threadPool.absoluteTimeInMillis() - nodeTarget.disconnectionHistory.getDisconnectTimeMillis() >= 0);
-        assertTrue(threadPool.absoluteTimeInMillis() - nodeTarget.disconnectionHistory.getDisconnectTimeMillis() <= 200);
+        DisconnectionHistory disconnectionHistory = service.disconnectionHistoryForNode(node);
+        assertNotNull(disconnectionHistory);
+        assertTrue(threadPool.absoluteTimeInMillis() - disconnectionHistory.getDisconnectTimeMillis() >= 0);
+        assertTrue(threadPool.absoluteTimeInMillis() - disconnectionHistory.getDisconnectTimeMillis() <= 200);
         if (disconnectCauseClass != null) {
-            assertThat(nodeTarget.disconnectionHistory.getDisconnectCause(), Matchers.isA(disconnectCauseClass));
+            assertThat(disconnectionHistory.getDisconnectCause(), Matchers.isA(disconnectCauseClass));
         } else {
-            assertNull(nodeTarget.disconnectionHistory.getDisconnectCause());
+            assertNull(disconnectionHistory.getDisconnectCause());
         }
     }
 

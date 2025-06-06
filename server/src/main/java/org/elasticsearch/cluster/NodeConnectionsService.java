@@ -215,10 +215,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     }
 
     // exposed for testing
-    protected ConnectionTarget connectionTargetForNode(DiscoveryNode node) {
+    protected DisconnectionHistory disconnectionHistoryForNode(DiscoveryNode node) {
         synchronized (mutex) {
-            return targetsByNode.get(node);
+            ConnectionTarget connectionTarget = targetsByNode.get(node);
+            if (connectionTarget != null) {
+                return connectionTarget.disconnectionHistory;
+            }
         }
+        return null;
     }
 
     /**
@@ -235,14 +239,15 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
     }
 
-    protected class ConnectionTarget {
+    private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
 
         // access is synchronized by the service mutex
-        protected DisconnectionHistory disconnectionHistory = null;
+        @Nullable // null when node is connected or initialized; non-null in between disconnects and connects
+        private DisconnectionHistory disconnectionHistory = null;
 
         // all access to these fields is synchronized
         private List<Releasable> pendingRefs;
@@ -397,15 +402,17 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
             if (disconnectionHistory != null) {
                 long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis;
+                long secondsSinceDisconnect = millisSinceDisconnect / 1000;
                 if (disconnectionHistory.disconnectCause != null) {
                     logger.warn(
                         () -> format(
                             """
                                 reopened transport connection to node [%s] \
-                                which disconnected exceptionally [%dms] ago but did not \
+                                which disconnected exceptionally [%ds/%dms] ago but did not \
                                 restart, so the disconnection is unexpected; \
                                 see [%s] for troubleshooting guidance""",
                             node.descriptionWithoutAttributes(),
+                            secondsSinceDisconnect,
                             millisSinceDisconnect,
                             ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                         ),
@@ -415,10 +422,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     logger.warn(
                         """
                             reopened transport connection to node [{}] \
-                            which disconnected gracefully [{}ms] ago but did not \
+                            which disconnected gracefully [{}s/{}ms] ago but did not \
                             restart, so the disconnection is unexpected; \
                             see [{}] for troubleshooting guidance""",
                         node.descriptionWithoutAttributes(),
+                        secondsSinceDisconnect,
                         millisSinceDisconnect,
                         ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                     );

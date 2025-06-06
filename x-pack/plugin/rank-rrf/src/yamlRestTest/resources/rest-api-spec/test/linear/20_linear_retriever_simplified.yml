@@ -2,7 +2,7 @@ setup:
   - requires:
       cluster_features: [ "simplified_retriever_format" ]
       reason: "Simplified retriever format"
-      test_runner_features: [ "close_to", "headers" ]
+      test_runner_features: [ "close_to", "headers", "contains" ]
 
   - do:
       inference.put:
@@ -253,6 +253,22 @@ setup:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "2" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Cannot query raw vector fields":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "vector" ]
+              query: "foo"
+              normalizer: "minmax"
+
+  - contains: { error.root_cause.0.reason: "[linear] search failed - retrievers '[standard]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [vector] of type [dense_vector] does not support match queries" }
 
 ---
 "Wildcard index patterns that do not resolve to any index are handled gracefully":

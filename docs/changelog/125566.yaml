@@ -1,0 +1,5 @@
+pr: 125566
+summary: Bracket syntax for accessing dotted field names in ingest processors
+area: Ingest Node
+type: enhancement
+issues: []

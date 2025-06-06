@@ -33,6 +33,7 @@ All you have to do is:
 * add a class in `org.elasticsearch.xpack.esql.qa.rest.generative.command.source` (if it's a source command) or in `org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe` (if it's a pipe command)
 * Implement `CommandGenerator` interface (see its javadoc, it should be explicative. Or just have a look at one of the existing commands, eg. `SortGenerator`)
 ** Implement `CommandGenerator.generate()` method, that will return the command.
+*** Have a look at `EsqlQueryGenerator`, it contains many utility methods that will help you generate random expressions.
 ** Implement `CommandGenerator.validateOutput()` to validate the output of the query.
 * Add your class to `EsqlQueryGenerator.SOURCE_COMMANDS` (if it's a source command) or `EsqlQueryGenerator.PIPE_COMMANDS` (if it's a pipe command).
 * Run `GenerativeIT` at least a couple of times: these tests can be pretty noisy.

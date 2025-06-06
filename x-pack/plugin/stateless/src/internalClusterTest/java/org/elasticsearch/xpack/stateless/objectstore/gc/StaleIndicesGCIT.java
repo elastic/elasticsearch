@@ -67,6 +67,12 @@ import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);

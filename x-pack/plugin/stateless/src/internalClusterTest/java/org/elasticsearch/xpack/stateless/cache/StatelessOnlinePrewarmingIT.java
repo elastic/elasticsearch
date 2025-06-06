@@ -63,6 +63,11 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(2);
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Settings.Builder nodeSettings() {
         // we randomise the upload max size to test the production like case where the upload max size is slightly smaller than the
         // region size and the case where mutiple CCs are batched in a BCC exceeding the size of the region.

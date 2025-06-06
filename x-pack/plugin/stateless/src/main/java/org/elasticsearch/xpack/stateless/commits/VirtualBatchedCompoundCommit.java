@@ -1063,12 +1063,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 super.close();
             } finally {
                 LOG_TIME_SPENT_READING_DURING_UPLOAD.debug(
-                    "{} spent [{}] ms reading [{}] bytes from VBCC {} during upload {}",
+                    "{} spent [{}] ms reading [{}] bytes from VBCC {} during upload",
                     shardId,
                     TimeValue.nsecToMSec(elapsedNanos),
                     bytes,
-                    primaryTermAndGeneration,
-                    System.identityHashCode(in)
+                    primaryTermAndGeneration
                 );
             }
         }

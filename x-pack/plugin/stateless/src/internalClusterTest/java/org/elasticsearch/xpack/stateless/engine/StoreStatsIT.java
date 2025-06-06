@@ -49,6 +49,11 @@ import static org.hamcrest.Matchers.greaterThan;
 public class StoreStatsIT extends AbstractStatelessIntegTestCase {
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockRepository.Plugin.class);

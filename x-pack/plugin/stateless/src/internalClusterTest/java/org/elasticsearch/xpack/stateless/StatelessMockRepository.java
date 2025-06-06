@@ -185,6 +185,29 @@ public class StatelessMockRepository extends FsRepository {
             }
 
             @Override
+            public boolean supportsConcurrentMultipartUploads() {
+                return getStrategy().supportsConcurrentMultipartUploads(super::supportsConcurrentMultipartUploads);
+            }
+
+            @Override
+            public void writeBlobAtomic(
+                OperationPurpose purpose,
+                String blobName,
+                long blobSize,
+                BlobMultiPartInputStreamProvider provider,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                getStrategy().blobContainerWriteBlobAtomic(
+                    () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists),
+                    purpose,
+                    blobName,
+                    blobSize,
+                    provider,
+                    failIfAlreadyExists
+                );
+            }
+
+            @Override
             public void writeBlobAtomic(
                 OperationPurpose purpose,
                 String blobName,

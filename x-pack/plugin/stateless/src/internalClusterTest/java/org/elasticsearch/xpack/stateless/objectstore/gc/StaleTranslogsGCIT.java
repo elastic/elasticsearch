@@ -82,6 +82,11 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
     }
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(
             super.nodePlugins().stream().map(c -> c.equals(Stateless.class) ? TestStateless.class : c).toList(),

@@ -71,6 +71,11 @@ import static org.hamcrest.Matchers.oneOf;
 public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class, ShutdownPlugin.class), super.nodePlugins());
     }

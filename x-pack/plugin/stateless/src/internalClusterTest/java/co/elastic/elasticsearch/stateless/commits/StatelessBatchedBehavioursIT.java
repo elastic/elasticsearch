@@ -78,6 +78,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase {
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);

@@ -54,6 +54,11 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
     private static final ByteSizeValue CACHE_REGION_SIZE = ByteSizeValue.ofBytes(8L * SharedBytes.PAGE_SIZE);
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())

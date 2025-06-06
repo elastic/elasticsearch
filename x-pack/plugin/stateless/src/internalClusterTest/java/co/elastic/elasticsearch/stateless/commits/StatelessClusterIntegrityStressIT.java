@@ -110,6 +110,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTestCase {
 
     @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
     }

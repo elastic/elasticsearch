@@ -277,6 +277,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
     }

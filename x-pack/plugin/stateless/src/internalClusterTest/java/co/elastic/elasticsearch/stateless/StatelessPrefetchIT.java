@@ -36,6 +36,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 
 public class StatelessPrefetchIT extends AbstractStatelessIntegTestCase {
 
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
     }

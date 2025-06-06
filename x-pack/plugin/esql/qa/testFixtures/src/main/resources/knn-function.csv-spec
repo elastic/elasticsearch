@@ -15,17 +15,17 @@ from colors metadata _score
 ;
 
 // tag::knn-function-result[]
-color:text       | rgb_vector:dense_vector
-green            | [0.0, 128.0, 0.0]
-dark green       | [0.0, 100.0, 0.0]
-forest green     | [34.0, 139.0, 34.0]
-dark olive green | [85.0, 107.0, 47.0]
-sea green        | [46.0, 139.0, 87.0]
-dark slate gray  | [47.0, 79.0, 79.0]
-lime green       | [50.0, 205.0, 50.0]
-olive drab       | [107.0, 142.0, 35.0]
-black            | [0.0, 0.0, 0.0]
-olive            | [128.0, 128.0, 0.0]
+color:text | rgb_vector:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
+lime       | [0.0, 255.0, 0.0]
+sienna     | [160.0, 82.0, 45.0]
+maroon     | [128.0, 0.0, 0.0]
+navy       | [0.0, 0.0, 128.0]
+gray       | [128.0, 128.0, 128.0]
+chartreuse | [127.0, 255.0, 0.0]
 // end::knn-function-result[]
 ;
 
@@ -41,11 +41,11 @@ from colors metadata _score
 | limit 4
 ;
 
-color:text     | rgb_vector:dense_vector
-cyan           | [0.0, 255.0, 255.0]    
-deep sky blue  | [0.0, 191.0, 255.0]    
-dark turquoise | [0.0, 206.0, 209.0]    
-turquoise      | [64.0, 224.0, 208.0]   
+color:text  | rgb_vector:dense_vector
+cyan        | [0.0, 255.0, 255.0]
+turquoise   | [64.0, 224.0, 208.0]
+aqua marine | [127.0, 255.0, 212.0]
+teal        | [0.0, 128.0, 128.0]
 ;
 
 knnSearchWithSimilarityOption
@@ -57,12 +57,12 @@ from colors metadata _score
 | keep color, rgb_vector
 ;
 
-color:text       | rgb_vector:dense_vector
+color:text | rgb_vector:dense_vector
 pink       | [255.0, 192.0, 203.0]
-light pink | [255.0, 182.0, 193.0]
 peach puff | [255.0, 218.0, 185.0]
 bisque     | [255.0, 228.0, 196.0]
 wheat      | [245.0, 222.0, 179.0]
+
 ;
 
 knnHybridSearch
@@ -99,8 +99,6 @@ from colors metadata _score
 
 color:text       | rgb_vector:dense_vector
 olive            | [128.0, 128.0, 0.0]
-olive drab       | [107.0, 142.0, 35.0]
-dark olive green | [85.0, 107.0, 47.0]
 ;
 
 knnAfterKeep
@@ -116,10 +114,10 @@ from colors metadata _score
 
 rgb_vector:dense_vector
 [127.0, 255.0, 0.0]
-[124.0, 252.0, 0.0]
-[173.0, 255.0, 47.0]
-[154.0, 205.0, 50.0]
-[50.0, 205.0, 50.0]
+[128.0, 128.0, 0.0]
+[255.0, 255.0, 0.0]
+[0.0, 255.0, 0.0]
+[218.0, 165.0, 32.0]
 ;
 
 knnAfterDrop
@@ -134,11 +132,11 @@ from colors metadata _score
 ;
 
 rgb_vector:dense_vector
-[127.0, 255.0, 0.0]    
-[124.0, 252.0, 0.0]    
-[173.0, 255.0, 47.0]   
-[154.0, 205.0, 50.0]   
-[50.0, 205.0, 50.0]    
+[127.0, 255.0, 0.0]
+[255.0, 255.0, 0.0]
+[128.0, 128.0, 0.0]
+[0.0, 255.0, 0.0]
+[218.0, 165.0, 32.0]
 ;
 
 knnAfterEval
@@ -152,17 +150,17 @@ from colors metadata _score
 | limit 10
 ;
 
-color:text       | composed_name:boolean
-olive            | false
-olive drab       | true
-dark golden rod  | true
-saddle brown     | true
-dark olive green | true
-sienna           | false
-chocolate        | false
-yellow green     | true
-peru             | false
-forest green     | true
+color:text | composed_name:boolean
+olive      | false
+sienna     | false
+chocolate  | false
+peru       | false
+golden rod | true
+brown      | false
+firebrick  | false
+chartreuse | false
+green      | false
+maroon     | false
 ;
 
 knnWithConjunction
@@ -175,19 +173,15 @@ from colors metadata _score
 | keep color, hex_code, rgb_vector
 | limit 10
 ;
-ignoreOrder:true
 
-color:text     | hex_code:keyword | rgb_vector:dense_vector
-corn silk      | #FFF8DC          | [255.0, 248.0, 220.0]
-floral white   | #FFFAF0          | [255.0, 250.0, 240.0]
-ivory          | #FFFFF0          | [255.0, 255.0, 240.0]
-lavender blush | #FFF0F5          | [255.0, 240.0, 245.0]
-lemon chiffon  | #FFFACD          | [255.0, 250.0, 205.0]
-light yellow   | #FFFFE0          | [255.0, 255.0, 224.0]
-sea shell      | #FFF5EE          | [255.0, 245.0, 238.0]
-snow           | #FFFAFA          | [255.0, 250.0, 250.0]
-white          | #FFFFFF          | [255.0, 255.0, 255.0]
-yellow         | #FFFF00          | [255.0, 255.0, 0.0]
+color:text    | hex_code:keyword | rgb_vector:dense_vector
+ivory         | #FFFFF0          | [255.0, 255.0, 240.0]
+sea shell     | #FFF5EE          | [255.0, 245.0, 238.0]
+snow          | #FFFAFA          | [255.0, 250.0, 250.0]
+white         | #FFFFFF          | [255.0, 255.0, 255.0]
+corn silk     | #FFF8DC          | [255.0, 248.0, 220.0]
+lemon chiffon | #FFFACD          | [255.0, 250.0, 205.0]
+yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
@@ -242,30 +236,31 @@ testKnnWithNonPushableDisjunctions
 required_capability: knn_function
 
 from colors metadata _score 
-| where knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 30}) or length(color) > 17 
+| where knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 30}) or length(color) > 10 
 | sort _score desc, color asc
 | keep color 
 ;
 
 color:text
 olive
-light golden rod yellow
-medium aqua marine
-medium spring green
+aqua marine
+lemon chiffon
+papaya whip
 ;
 
 testKnnWithNonPushableDisjunctionsOnComplexExpressions
 required_capability: knn_function
 
 from colors metadata _score 
-| where (knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 40}) and length(color) > 5) or (knn(rgb_vector, [128,0,128], {"k": 140, "similarity": 40}) and primary == false) 
+| where (knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 70}) and length(color) < 10) or (knn(rgb_vector, [128,0,128], {"k": 140, "similarity": 60}) and primary == false) 
 | sort _score desc, color asc
 | keep color, primary
 ;
 
 color:text   | primary:boolean
+olive        | false
 purple       | false
-dark magenta | false
+indigo       | false
 ;
 
 testKnnInStatsNonPushable
@@ -277,7 +272,7 @@ from colors
 ;
 
 c: long 
-59      
+50      
 ;
 
 testKnnInStatsWithGrouping
@@ -290,6 +285,6 @@ from colors
 ;
 
 c: long       | primary: boolean    
-50            | false          
+41            | false          
 9             | true           
 ;

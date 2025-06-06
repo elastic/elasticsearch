@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,6 +53,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -171,6 +174,21 @@ public class SamlServiceProviderIndex implements Closeable {
         }
     }
 
+    Index getIndex(ClusterState state) {
+        final ProjectMetadata project = state.getMetadata().getProject();
+        final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
+
+        IndexAbstraction indexAbstraction = indicesLookup.get(ALIAS_NAME);
+        if (indexAbstraction == null) {
+            indexAbstraction = indicesLookup.get(INDEX_NAME);
+        }
+        if (indexAbstraction == null) {
+            return null;
+        } else {
+            return indexAbstraction.getWriteIndex();
+        }
+    }
+
     @Override
     public void close() {
         logger.debug("Closing ... removing cluster state listener");
@@ -274,7 +292,12 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private void findDocuments(QueryBuilder query, ActionListener<Set<DocumentSupplier>> listener) {
         logger.trace("Searching [{}] for [{}]", ALIAS_NAME, query);
-        final SearchRequest request = client.prepareSearch(ALIAS_NAME).setQuery(query).setSize(1000).setFetchSource(true).request();
+        final SearchRequest request = client.prepareSearch(ALIAS_NAME)
+            .setQuery(query)
+            .setSize(1000)
+            .setFetchSource(true)
+            .seqNoAndPrimaryTerm(true)
+            .request();
         client.search(request, ActionListener.wrap(response -> {
             if (logger.isTraceEnabled()) {
                 logger.trace("Search hits: [{}] [{}]", response.getHits().getTotalHits(), Arrays.toString(response.getHits().getHits()));

@@ -37,6 +37,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Elasticsearch910Lucene102Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +75,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         }
     }
 
-    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+    private final Codec codec = new Elasticsearch910Lucene102Codec() {
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {

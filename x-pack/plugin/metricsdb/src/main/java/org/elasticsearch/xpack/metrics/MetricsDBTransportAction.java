@@ -40,6 +40,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,9 +81,10 @@ public class MetricsDBTransportAction extends HandledTransportAction<
                 public void onResponse(BulkResponse bulkItemResponses) {
                     MessageLite response;
                     if (bulkItemResponses.hasFailures()) {
+                        long failures = Arrays.stream(bulkItemResponses.getItems()).filter(BulkItemResponse::isFailed).count();
                         response = ExportMetricsServiceResponse.newBuilder()
                             .getPartialSuccessBuilder()
-                            .setRejectedDataPoints(Arrays.stream(bulkItemResponses.getItems()).filter(BulkItemResponse::isFailed).count())
+                            .setRejectedDataPoints(failures)
                             .setErrorMessage(bulkItemResponses.buildFailureMessage())
                             .build();
                     } else {
@@ -168,7 +170,13 @@ public class MetricsDBTransportAction extends HandledTransportAction<
                     metric,
                     dp
                 );
-                bulkRequestBuilder.add(client.prepareIndex("metricsdb").setCreate(true).setSource(xContentBuilder));
+                bulkRequestBuilder.add(
+                    client.prepareIndex("metricsdb")
+                        .setCreate(true)
+                        .setRequireDataStream(true)
+                        .setPipeline(IngestService.NOOP_PIPELINE_NAME)
+                        .setSource(xContentBuilder)
+                );
             }
         }
     }
@@ -197,7 +205,6 @@ public class MetricsDBTransportAction extends HandledTransportAction<
         builder.startObject("attributes");
         buildAttributes(builder, resourceAttributes);
         builder.endObject();
-        builder.field("metric_name", metric.getName());
         builder.field("unit", metric.getUnit());
         builder.field("type");
         if (metric.getDataCase() == Metric.DataCase.SUM) {
@@ -217,10 +224,15 @@ public class MetricsDBTransportAction extends HandledTransportAction<
                 metric.getExponentialHistogram().getAggregationTemporality().toString()
             );
         }
+        builder.startObject("metric");
+        builder.field("name", metric.getName());
+        builder.startObject("value");
         switch (dp.getValueCase()) {
-            case AS_DOUBLE -> builder.field("value_double", dp.getAsDouble());
-            case AS_INT -> builder.field("value_long", dp.getAsInt());
+            case AS_DOUBLE -> builder.field("double", dp.getAsDouble());
+            case AS_INT -> builder.field("long", dp.getAsInt());
         }
+        builder.endObject();
+        builder.endObject();
         builder.endObject();
     }
 

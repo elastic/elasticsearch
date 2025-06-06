@@ -1,0 +1,81 @@
+---
+version: ${xpack.metricsdb.template.version}
+index_patterns: ["metricsdb"]
+priority: 120
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: default OpenTelemetry metrics template installed by x-pack
+  managed: true
+template:
+  settings:
+    index.mode: time_series
+    index.mapping.ignore_malformed: true
+  mappings:
+    date_detection: false
+    dynamic: false
+    properties:
+      "@timestamp":
+        type: date
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 20
+        time_series_dimension: true
+      dropped_attributes_count:
+        type: long
+      scope:
+        properties:
+          name:
+            type: keyword
+            ignore_above: 1024
+            time_series_dimension: true
+          version:
+            type: version
+          schema_url:
+            type: keyword
+            ignore_above: 1024
+          dropped_attributes_count:
+            type: long
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 30
+            time_series_dimension: true
+      resource:
+        properties:
+          schema_url:
+            type: keyword
+            ignore_above: 1024
+          dropped_attributes_count:
+            type: long
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 40
+            time_series_dimension: true
+      start_timestamp:
+        type: date
+      metric:
+        properties:
+          name:
+            type: keyword
+            time_series_dimension: true
+          value:
+            properties:
+              long:
+                type: long
+              double:
+                type: double
+      unit:
+        type: keyword
+        time_series_dimension: true
+        ignore_above: 1024
+      temporality:
+        type: keyword
+        time_series_dimension: true
+        ignore_above: 1024
+      type:
+        type: keyword
+        time_series_dimension: true
+        ignore_above: 1024

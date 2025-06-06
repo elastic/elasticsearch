@@ -11,11 +11,11 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name = 'metricsdb'
   description = 'A plugin for metrics related functionality'
-  classname ='org.elasticsearch.xpack.metrics.MetricsPlugin'
+  classname ='org.elasticsearch.xpack.metrics.MetricsDBPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {
-  archivesName = 'x-pack-metrics'
+  archivesName = 'x-pack-metricsdb'
 }
 
 dependencies {
@@ -23,6 +23,7 @@ dependencies {
   testImplementation project(':modules:data-streams')
   testImplementation project(':x-pack:plugin:esql')
   testImplementation project(':x-pack:plugin:esql-core')
+  testImplementation project(':x-pack:plugin:mapper-version')
 
   def otelVersion = "1.48.0"
   implementation "io.opentelemetry:opentelemetry-api:$otelVersion"

@@ -1,0 +1,7 @@
+# "version" holds the version of the templates and ingest pipelines installed.
+# This must be increased whenever an existing template is
+# changed, in order for it to be updated on Elasticsearch upgrade.
+version: 1
+
+index-templates:
+  - metricsdb@template

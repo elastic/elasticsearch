@@ -10,7 +10,6 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -156,8 +155,7 @@ public interface BlobContainer {
     /**
      * Provides an {@link InputStream} to read a part of the blob content.
      */
-    @FunctionalInterface
-    interface BlobMultiPartInputStreamProvider extends CheckedBiFunction<Long, Long, InputStream, IOException> {
+    interface BlobMultiPartInputStreamProvider {
         /**
          * Provides an {@link InputStream} to read a part of the blob content.
          *
@@ -166,8 +164,7 @@ public interface BlobContainer {
          * @return              an {@link InputStream} to read a part of the blob content.
          * @throws IOException  if something goes wrong opening the input stream
          */
-        @Override
-        InputStream apply(Long offset, Long length) throws IOException;
+        InputStream apply(long offset, long length) throws IOException;
     }
 
     /**

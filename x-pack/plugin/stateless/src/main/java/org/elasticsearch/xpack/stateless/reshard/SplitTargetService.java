@@ -77,6 +77,15 @@ public class SplitTargetService {
         final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(shardId.getIndex());
         final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
         final IndexRoutingTable indexRoutingTable = projectState.routingTable().index(shardId.getIndex());
+
+        if (reshardingMetadata == null) {
+            logger.info("Index metadata version: " + indexMetadata.getVersion());
+            logger.info("Index routing table: " + indexRoutingTable.prettyPrint());
+            logger.info("Cluster state version: " + clusterService.state().version());
+
+            throw new IllegalStateException("Resharding metadata is null.");
+        }
+
         final DiscoveryNode sourceNode = state.nodes()
             .get(indexRoutingTable.shard(reshardingMetadata.getSplit().sourceShard(shardId.id())).primaryShard().currentNodeId());
         long sourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));

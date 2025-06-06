@@ -247,7 +247,7 @@ GET /_xpack/usage
       "lookup" : 0,
       "inlinestats" : 0,
       "lookup_join" : 0,
-      "change_point" : 0
+      "change_point" : 0,
       "completion": 0,
       "rerank": 0
     },

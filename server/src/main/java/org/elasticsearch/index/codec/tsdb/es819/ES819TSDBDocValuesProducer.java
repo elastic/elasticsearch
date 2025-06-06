@@ -43,6 +43,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -1083,6 +1084,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
+                    public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+                        throws IOException {
+                        double value = toDouble.convert(0L);
+                        for (int i = 0; i < docs.count(); i++) {
+                            builder.appendDouble(value);
+                        }
+                    }
+
+                    @Override
+                    public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
+                        throws IOException {
+                        builder.appendDouble(toDouble.convert(0L));
+                    }
+
+                    @Override
                     public int docID() {
                         return doc;
                     }
@@ -1187,6 +1203,29 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     public void loadDoc(BlockLoader.IntBuilder builder, int docId) throws IOException {
                         if (disi.advanceExact(docId)) {
                             builder.appendInt(0);
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+
+                    @Override
+                    public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+                        throws IOException {
+                        double value = toDouble.convert(0L);
+                        for (int i = 0; i < docs.count(); i++) {
+                            if (disi.advanceExact(docs.get(i))) {
+                                builder.appendDouble(value);
+                            } else {
+                                builder.appendNull();
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
+                        throws IOException {
+                        if (disi.advanceExact(docId)) {
+                            builder.appendDouble(toDouble.convert(0L));
                         } else {
                             builder.appendNull();
                         }
@@ -1340,6 +1379,27 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     int value = Math.toIntExact(currentBlock[blockInIndex]);
                     builder.appendInt(value);
                 }
+
+                @Override
+                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    for (int i = 0; i < docs.count(); i++) {
+                        doc = docs.get(i);
+                        builder.appendDouble(toDouble.convert(longValue()));
+                    }
+                }
+
+                @Override
+                public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    doc = docId;
+
+                    int blockIndex = docId >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    int blockInIndex = docId & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    loadCurrentBlock(blockIndex);
+                    double value = toDouble.convert(currentBlock[blockInIndex]);
+                    builder.appendDouble(value);
+                }
             };
         } else {
             final IndexedDISI disi = new IndexedDISI(
@@ -1445,6 +1505,33 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     if (disi.advanceExact(docId)) {
                         int value = Math.toIntExact(longValue());
                         builder.appendInt(value);
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+
+                @Override
+                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    // TODO: collect all doc ids for current block and then append values to builder?
+
+                    for (int i = 0; i < docs.count(); i++) {
+                        int docId = docs.get(i);
+                        if (disi.advanceExact(docId)) {
+                            double value = toDouble.convert(longValue());
+                            builder.appendDouble(value);
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+
+                @Override
+                public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    if (disi.advanceExact(docId)) {
+                        double value = toDouble.convert(longValue());
+                        builder.appendDouble(value);
                     } else {
                         builder.appendNull();
                     }
@@ -1629,6 +1716,46 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         builder.endPositionEntry();
                     }
                 }
+
+                @Override
+                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    for (int i = 0; i < docs.count(); i++) {
+                        doc = docs.get(i);
+                        start = addresses.get(doc);
+                        end = addresses.get(doc + 1L);
+                        count = (int) (end - start);
+
+                        if (count == 1) {
+                            builder.appendDouble(toDouble.convert(nextValue()));
+                        } else {
+                            builder.beginPositionEntry();
+                            for (int v = 0; v < count; v++) {
+                                builder.appendDouble(toDouble.convert(nextValue()));
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                }
+
+                @Override
+                public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    doc = docId;
+                    start = addresses.get(docId);
+                    end = addresses.get(docId + 1L);
+                    count = (int) (end - start);
+
+                    if (count == 1) {
+                        builder.appendDouble(toDouble.convert(nextValue()));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int v = 0; v < count; v++) {
+                            builder.appendDouble(toDouble.convert(nextValue()));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
             };
         } else {
             // sparse
@@ -1752,6 +1879,46 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             for (int v = 0; v < count; v++) {
                                 int value = Math.toIntExact(nextValue());
                                 builder.appendInt(value);
+                            }
+                            builder.endPositionEntry();
+                        }
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+
+                @Override
+                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    for (int i = 0; i < docs.count(); i++) {
+                        if (disi.advanceExact(docs.get(i))) {
+                            set();
+                            if (count == 1) {
+                                builder.appendDouble(toDouble.convert(nextValue()));
+                            } else {
+                                builder.beginPositionEntry();
+                                for (int v = 0; v < count; v++) {
+                                    builder.appendDouble(toDouble.convert(nextValue()));
+                                }
+                                builder.endPositionEntry();
+                            }
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+
+                @Override
+                public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
+                    throws IOException {
+                    if (disi.advanceExact(docId)) {
+                        set();
+                        if (count == 1) {
+                            builder.appendDouble(toDouble.convert(nextValue()));
+                        } else {
+                            builder.beginPositionEntry();
+                            for (int v = 0; v < count; v++) {
+                                builder.appendDouble(toDouble.convert(nextValue()));
                             }
                             builder.endPositionEntry();
                         }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -101,7 +102,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -658,7 +659,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -698,7 +699,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });

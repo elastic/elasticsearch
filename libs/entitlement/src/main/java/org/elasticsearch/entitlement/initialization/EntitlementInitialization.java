@@ -10,11 +10,9 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
-import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -22,11 +20,7 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
@@ -70,7 +64,7 @@ public class EntitlementInitialization {
      */
     public static void initialize(Instrumentation inst) throws Exception {
         // the checker _MUST_ be set before _any_ instrumentation is done
-        checker = initChecker(createPolicyManager());
+        checker = initChecker(initializeArgs.policyManager());
         initInstrumentation(inst);
     }
 
@@ -78,27 +72,15 @@ public class EntitlementInitialization {
      * Arguments to {@link #initialize}. Since that's called in a static context from the agent,
      * we have no way to pass arguments directly, so we stuff them in here.
      *
-     * @param serverPolicyPatch
-     * @param pluginPolicies
-     * @param scopeResolver
      * @param pathLookup
-     * @param pluginSourcePaths
      * @param suppressFailureLogPackages
+     * @param policyManager
      */
-    public record InitializeArgs(
-        @Nullable Policy serverPolicyPatch,
-        Map<String, Policy> pluginPolicies,
-        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
-        PathLookup pathLookup,
-        Map<String, Collection<Path>> pluginSourcePaths,
-        Set<Package> suppressFailureLogPackages
-    ) {
+    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
         public InitializeArgs {
-            requireNonNull(pluginPolicies);
-            requireNonNull(scopeResolver);
             requireNonNull(pathLookup);
-            requireNonNull(pluginSourcePaths);
             requireNonNull(suppressFailureLogPackages);
+            requireNonNull(policyManager);
         }
     }
 
@@ -108,22 +90,6 @@ public class EntitlementInitialization {
             ENTITLEMENTS_MODULE,
             policyManager,
             initializeArgs.pathLookup()
-        );
-    }
-
-    private static PolicyManager createPolicyManager() {
-        Map<String, Policy> pluginPolicies = initializeArgs.pluginPolicies();
-        PathLookup pathLookup = initializeArgs.pathLookup();
-
-        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
-
-        return new PolicyManager(
-            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), initializeArgs.serverPolicyPatch()),
-            HardcodedEntitlements.agentEntitlements(),
-            pluginPolicies,
-            initializeArgs.scopeResolver(),
-            initializeArgs.pluginSourcePaths(),
-            pathLookup
         );
     }
 

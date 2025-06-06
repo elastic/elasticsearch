@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.initialization;
+package org.elasticsearch.entitlement.bootstrap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;

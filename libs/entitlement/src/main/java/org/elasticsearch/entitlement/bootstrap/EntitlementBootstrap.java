@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -91,12 +92,9 @@ public class EntitlementBootstrap {
             settingResolver
         );
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            serverPolicyPatch,
-            pluginPolicies,
-            scopeResolver,
             pathLookup,
-            pluginSourcePaths,
-            suppressFailureLogPackages
+            suppressFailureLogPackages,
+            createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
@@ -152,6 +150,25 @@ public class EntitlementBootstrap {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+    }
+
+    private static PolicyManager createPolicyManager(
+        Map<String, Policy> pluginPolicies,
+        PathLookup pathLookup,
+        Policy serverPolicyPatch,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        Map<String, Collection<Path>> pluginSourcePaths
+    ) {
+        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
+
+        return new PolicyManager(
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
+            HardcodedEntitlements.agentEntitlements(),
+            pluginPolicies,
+            scopeResolver,
+            pluginSourcePaths,
+            pathLookup
+        );
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

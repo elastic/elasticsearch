@@ -539,9 +539,7 @@ public class ES910HnswVectorsWriter extends KnnVectorsWriter {
 
     private static class FieldWriter<T> extends KnnFieldVectorsWriter<T> {
 
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(
-            ES910HnswVectorsWriter.FieldWriter.class
-        );
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES910HnswVectorsWriter.FieldWriter.class);
 
         private final FieldInfo fieldInfo;
         private final HnswGraphBuilder hnswGraphBuilder;

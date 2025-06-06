@@ -311,16 +311,16 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     if (aErrorsFirst) {
                         // uses the stats from "a"
                         assertThat(
-                                availableDiskSpaceUpdates.getLast().getBytes(),
-                                // the default 5% (same as flood stage level)
-                                is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
+                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            // the default 5% (same as flood stage level)
+                            is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
                         );
                     } else {
                         // uses the stats from "b"
                         assertThat(
-                                availableDiskSpaceUpdates.getLast().getBytes(),
-                                // the default 5% (same as flood stage level)
-                                is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
+                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            // the default 5% (same as flood stage level)
+                            is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
                         );
                     }
                 }

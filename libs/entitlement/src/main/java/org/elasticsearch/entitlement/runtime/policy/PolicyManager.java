@@ -321,15 +321,16 @@ public class PolicyManager {
                 );
             }
             case UNKNOWN -> {
-                return defaultEntitlements(UNKNOWN.componentName, null, moduleName);
+                return defaultEntitlements(UNKNOWN.componentName, List.of(), moduleName);
             }
             default -> {
                 assert policyScope.kind() == PLUGIN;
                 var pluginEntitlements = pluginsEntitlements.get(componentName);
+                Collection<Path> componentPaths = pluginSourcePaths.getOrDefault(componentName, List.of());
                 if (pluginEntitlements == null) {
-                    return defaultEntitlements(componentName, pluginSourcePaths.get(componentName), moduleName);
+                    return defaultEntitlements(componentName, componentPaths, moduleName);
                 } else {
-                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, pluginSourcePaths.get(componentName));
+                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, componentPaths);
                 }
             }
         }

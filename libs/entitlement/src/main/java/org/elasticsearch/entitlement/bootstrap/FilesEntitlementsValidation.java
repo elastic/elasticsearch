@@ -17,6 +17,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,7 +45,7 @@ class FilesEntitlementsValidation {
                     .map(x -> ((FilesEntitlement) x))
                     .findFirst();
                 if (filesEntitlement.isPresent()) {
-                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, null);
+                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, List.of());
                     validateReadFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, readAccessForbidden);
                     validateWriteFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, writeAccessForbidden);
                 }

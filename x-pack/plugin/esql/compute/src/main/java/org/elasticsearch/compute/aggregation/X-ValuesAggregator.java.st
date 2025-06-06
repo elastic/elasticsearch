@@ -28,7 +28,10 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int||double||float||BytesRef)$
+$if(BytesRef)$
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$Vector;
+$elseif(int||double||float)$
 import org.elasticsearch.compute.data.$Type$Block;
 $endif$
 import org.elasticsearch.compute.data.IntVector;
@@ -86,6 +89,24 @@ $endif$
     public static GroupingState initGrouping(BigArrays bigArrays) {
         return new GroupingState(bigArrays);
     }
+
+$if(BytesRef)$
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+$endif$
 
     public static void combine(GroupingState state, int groupId, $type$ v) {
 $if(long)$
@@ -234,8 +255,8 @@ $if(long||double)$
         private final LongLongHash values;
 
 $elseif(BytesRef)$
-        private final LongLongHash values;
-        private final BytesRefHash bytes;
+        final LongLongHash values;
+        BytesRefHash bytes;
 
 $elseif(int||float)$
         private final LongHash values;

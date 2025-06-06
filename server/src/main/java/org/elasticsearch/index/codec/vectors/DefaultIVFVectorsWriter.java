@@ -291,6 +291,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 }
             }
 
+            cluster.trimToSize();
             assignmentsByCluster[c] = cluster;
         }
 

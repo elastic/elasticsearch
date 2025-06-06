@@ -51,7 +51,7 @@ public class HierarchicalKMeans {
      * @return the centroids and the vectors assignments and SOAR (spilled from nearby neighborhoods) assignments
      * @throws IOException is thrown if vectors is inaccessible
      */
-    public KMeansIntermediate cluster(FloatVectorValues vectors, int targetSize) throws IOException {
+    public KMeansResult cluster(FloatVectorValues vectors, int targetSize) throws IOException {
 
         if (vectors.size() == 0) {
             return new KMeansIntermediate();

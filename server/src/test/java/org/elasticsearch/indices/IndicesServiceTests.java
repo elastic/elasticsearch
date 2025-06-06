@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -546,7 +547,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
         final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
-        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).indexGraveyard(graveyard).build();
+        @FixForMultiProject // Use random project-id
+        final var project = ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, true).indexGraveyard(graveyard).build();
         final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).putProjectMetadata(project).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);

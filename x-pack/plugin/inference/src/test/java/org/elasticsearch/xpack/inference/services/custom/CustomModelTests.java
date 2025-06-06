@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.apache.http.HttpHeaders;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.inference.services.custom.response.CustomResponse
 import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 import org.hamcrest.MatcherAssert;
 
 import java.util.HashMap;
@@ -30,7 +30,7 @@ public class CustomModelTests extends ESTestCase {
     private static final String taskSettingsValue = "test_taskSettings_value";
 
     private static final String secretSettingsKey = "test_secret_key";
-    private static final SerializableSecureString secretSettingsValue = new SerializableSecureString("test_secret_value");
+    private static final SecureString secretSettingsValue = new SecureString("test_secret_value".toCharArray());
     private static final String url = "http://www.abc.com";
 
     public void testOverride_DoesNotModifiedFields_TaskSettingsIsEmpty() {

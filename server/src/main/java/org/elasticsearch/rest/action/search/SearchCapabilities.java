@@ -49,7 +49,7 @@ public final class SearchCapabilities {
     private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
 
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
-
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
     private static final String INCLUDE_VECTORS_PARAM = "include_vectors_param";
 
     public static final Set<String> CAPABILITIES;
@@ -71,6 +71,7 @@ public final class SearchCapabilities {
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
         capabilities.add(INCLUDE_VECTORS_PARAM);
         CAPABILITIES = Set.copyOf(capabilities);
     }

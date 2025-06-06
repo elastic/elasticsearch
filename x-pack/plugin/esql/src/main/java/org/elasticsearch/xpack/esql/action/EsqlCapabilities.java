@@ -1178,6 +1178,11 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_ALIASES,
 
         /**
+         * Allows RLIKE to correctly handle the "empty language" flag, `#`.
+         */
+        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());

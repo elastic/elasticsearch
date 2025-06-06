@@ -291,7 +291,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
-            builder.field(Fields.EMW_RATE, recentSearchLoad);
+            builder.field(Fields.RECENT_SEARCH_LOAD, recentSearchLoad);
 
             return builder;
         }
@@ -453,7 +453,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
-        static final String EMW_RATE = "ewm_rate";
+        static final String RECENT_SEARCH_LOAD = "recent_search_load";
     }
 
     @Override

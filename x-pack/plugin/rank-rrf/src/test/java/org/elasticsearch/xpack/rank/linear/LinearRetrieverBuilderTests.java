@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+
 public class LinearRetrieverBuilderTests extends ESTestCase {
     public void testSimplifiedParamsRewrite() {
         final String indexName = "test-index";
@@ -53,7 +55,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo",
             MinMaxScoreNormalizer.INSTANCE,
-            10,
+            DEFAULT_RANK_WINDOW_SIZE,
             new float[0],
             new ScoreNormalizer[0]
         );
@@ -66,13 +68,32 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             MinMaxScoreNormalizer.INSTANCE
         );
 
+        // Non-default rank window size
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo2",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE * 2,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertSimplifiedParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of("field_1", 1.0f, "field_2", 1.0f),
+            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
+            "foo2",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
         // No wildcards, per-field boosting
         retriever = new LinearRetrieverBuilder(
             null,
             List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
             "bar",
             MinMaxScoreNormalizer.INSTANCE,
-            10,
+            DEFAULT_RANK_WINDOW_SIZE,
             new float[0],
             new ScoreNormalizer[0]
         );
@@ -91,7 +112,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             List.of("field_*^1.5", "*_field_1^2.5"),
             "baz",
             MinMaxScoreNormalizer.INSTANCE,
-            10,
+            DEFAULT_RANK_WINDOW_SIZE,
             new float[0],
             new ScoreNormalizer[0]
         );
@@ -110,7 +131,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             List.of("*"),
             "qux",
             MinMaxScoreNormalizer.INSTANCE,
-            10,
+            DEFAULT_RANK_WINDOW_SIZE,
             new float[0],
             new ScoreNormalizer[0]
         );
@@ -183,6 +204,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
 
         LinearRetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
+        assertEquals(retriever.rankWindowSize(), rewritten.rankWindowSize());
         assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewritten));
     }
 
@@ -197,6 +219,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             ScoreNormalizer normalizer = normalizers[i];
 
             if (innerRetriever.retriever() instanceof LinearRetrieverBuilder innerLinearRetriever) {
+                assertEquals(retriever.rankWindowSize(), innerLinearRetriever.rankWindowSize());
                 innerRetrieversSet.add(new InnerRetriever(getInnerRetrieversAsSet(innerLinearRetriever), weight, normalizer));
             } else {
                 innerRetrieversSet.add(new InnerRetriever(innerRetriever.retriever(), weight, normalizer));

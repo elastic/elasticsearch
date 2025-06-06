@@ -423,7 +423,16 @@ public final class StoreRecovery {
 
             .<Void>andThen(l -> {
                 final RecoveryState recoveryState = indexShard.recoveryState();
-                final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
+                // TODO
+                // hack due to resharding using RecoverySource.Type.EMPTY_STORE
+                final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE
+                    || (indexShard.indexSettings().getIndexMetadata().getReshardingMetadata() != null
+                        && indexShard.indexSettings().getIndexMetadata().getReshardingMetadata().isSplit()
+                        && indexShard.indexSettings()
+                            .getIndexMetadata()
+                            .getReshardingMetadata()
+                            .getSplit()
+                            .isTargetShard(indexShard.shardId.getId()));
                 indexShard.prepareForIndexRecovery();
                 SegmentInfos si = null;
                 final Store store = indexShard.store();

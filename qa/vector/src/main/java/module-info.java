@@ -7,12 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-subprojects {
-    apply plugin: 'elasticsearch.base-internal-es-plugin'
-
-    esplugin {
-      name = it.name
-      licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
-      noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
-    }
+module org.elasticsearch.test.knn {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
+    requires org.apache.lucene.core;
+    requires org.apache.lucene.codecs;
+    requires org.apache.lucene.queries;
+    requires org.elasticsearch.logging;
+    requires java.management;
+    requires jdk.management;
 }

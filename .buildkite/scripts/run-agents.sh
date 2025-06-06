@@ -12,6 +12,8 @@ cd "$AGENT_WORKSPACE"
 cp "$BUILDKITE_CONFIG_PATH" .
 CONFIG_FILE="$(basename "$BUILDKITE_CONFIG_PATH")"
 
+# git-mirrors support is not included here because updating the git-mirror takes much more time than setting up a blank repo with sparse-checkout and such
+
 cat <<EOF > "$CONFIG_FILE"
 build-path=$AGENT_WORKSPACE/builds
 hooks-path=$AGENT_WORKSPACE/hooks
@@ -28,5 +30,5 @@ grep 'token=' "$BUILDKITE_CONFIG_PATH" >> "$CONFIG_FILE"
 
 unset ${!BUILDKITE_*}
 
-# buildkite-agent start --spawn-per-cpu 1 --config "$CONFIG_FILE"
-buildkite-agent start --config "$CONFIG_FILE"
+buildkite-agent start --spawn-per-cpu 2 --config "$CONFIG_FILE"
+# buildkite-agent start --config "$CONFIG_FILE"

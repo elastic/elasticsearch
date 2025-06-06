@@ -47,6 +47,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -192,6 +193,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     private final boolean wasReadFromDiff;
 
+    private final Map<ProjectId, Settings> projectsSettings;
+
     // built on demand
     private volatile RoutingNodes routingNodes;
 
@@ -208,6 +211,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.blocks(),
             state.customs(),
             false,
+            state.projectsSettings,
             state.routingNodes
         );
     }
@@ -224,6 +228,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         ClusterBlocks blocks,
         Map<String, Custom> customs,
         boolean wasReadFromDiff,
+        Map<ProjectId, Settings> projectsSettings,
         @Nullable RoutingNodes routingNodes
     ) {
         this.version = version;
@@ -237,6 +242,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.blocks = blocks;
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
+        this.projectsSettings = projectsSettings;
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         assert assertConsistentProjectState(routingTable, metadata);
@@ -402,6 +408,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public RoutingTable routingTable(ProjectId projectId) {
         return routingTable.routingTable(projectId);
+    }
+
+    public Settings projectSettings(ProjectId projectId) {
+        return projectsSettings.getOrDefault(projectId, Settings.EMPTY);
+    }
+
+    public Map<ProjectId, Settings> projectsSettings() {
+        return projectsSettings;
     }
 
     @Deprecated(forRemoval = true)
@@ -672,7 +686,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         METADATA("metadata"),
         ROUTING_TABLE("routing_table"),
         ROUTING_NODES("routing_nodes"),
-        CUSTOMS("customs");
+        CUSTOMS("customs"),
+        PROJECTS_SETTINGS("projects_settings");
 
         private static final Map<String, Metric> valueToEnum;
 
@@ -849,7 +864,22 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                     customs.entrySet().iterator(),
                     e -> ChunkedToXContentHelper.object(e.getKey(), e.getValue().toXContentChunked(outerParams))
                 )
-                : Collections.emptyIterator()
+                : Collections.emptyIterator(),
+
+            chunkedSection(
+                multiProject && metrics.contains(Metric.PROJECTS_SETTINGS),
+                (builder, params) -> builder.startArray("projects_settings"),
+                projectsSettings.entrySet().iterator(),
+
+                entry -> Iterators.single((builder, params) -> {
+                    builder.startObject();
+                    builder.field("id", entry.getKey());
+                    builder.startObject("settings");
+                    entry.getValue().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                    return builder.endObject().endObject();
+                }),
+                (builder, params) -> builder.endArray()
+            )
         );
     }
 
@@ -1006,6 +1036,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private final Map<String, Set<String>> nodeFeatures;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<ProjectId, Settings> projectsSettings;
         private boolean fromDiff;
 
         public Builder(ClusterState state) {
@@ -1021,11 +1052,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.blocks = state.blocks();
             this.customs = ImmutableOpenMap.builder(state.customs());
             this.fromDiff = false;
+            this.projectsSettings = ImmutableOpenMap.builder(state.projectsSettings);
         }
 
         public Builder(ClusterName clusterName) {
             this.compatibilityVersions = new HashMap<>();
             this.nodeFeatures = new HashMap<>();
+            this.projectsSettings = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
@@ -1128,6 +1161,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 ? GlobalRoutingTable.builder()
                 : GlobalRoutingTable.builder(this.routingTable);
             return routingTable(globalRoutingTableBuilder.put(projectId, routingTable).build());
+        }
+
+        public Builder putProjectSettings(ProjectId projectId, Settings settings) {
+            projectsSettings.put(projectId, settings);
+            return this;
+        }
+
+        public Builder projectsSettings(Map<ProjectId, Settings> projectsSettings) {
+            this.projectsSettings.putAllFromMap(projectsSettings);
+            return this;
         }
 
         public Builder metadata(Metadata.Builder metadataBuilder) {
@@ -1234,6 +1277,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metadata != null ? blocks.initializeProjects(metadata.projects().keySet()) : blocks,
                 customs.build(),
                 fromDiff,
+                projectsSettings.build(),
                 routingNodes
             );
         }
@@ -1285,6 +1329,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            builder.projectsSettings(in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream));
+        }
         return builder.build();
     }
 
@@ -1306,9 +1353,23 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         clusterFeatures.writeTo(out);
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            out.writeMap(projectsSettings);
+        }
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
+        private static final DiffableUtils.ValueSerializer<ProjectId, Settings> SETTINGS_SERIALIZER = new DiffableUtils.DiffableValueSerializer<>() {
+            @Override
+            public Settings read(StreamInput in, ProjectId key) throws IOException {
+                return Settings.readSettingsFromStream(in);
+            }
+
+            @Override
+            public Diff<Settings> readDiff(StreamInput in, ProjectId key) throws IOException {
+                return Settings.readSettingsDiffFromStream(in);
+            }
+        };
 
         private final long toVersion;
 
@@ -1331,6 +1392,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         private final Diff<Map<String, Custom>> customs;
 
+        private final DiffableUtils.MapDiff<ProjectId, Settings, Map<ProjectId, Settings>> projectsSettings;
+
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
             toUuid = after.stateUUID;
@@ -1348,6 +1411,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            projectsSettings = DiffableUtils.diff(before.projectsSettings, after.projectsSettings, ProjectId.PROJECT_ID_SERIALIZER, SETTINGS_SERIALIZER);
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
@@ -1364,6 +1428,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+                projectsSettings = DiffableUtils.readJdkMapDiff(in, ProjectId.PROJECT_ID_SERIALIZER, SETTINGS_SERIALIZER);
+            } else {
+                projectsSettings = DiffableUtils.emptyDiff();
+            }
         }
 
         @Override
@@ -1380,6 +1449,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+                projectsSettings.writeTo(out);
+            }
         }
 
         @Override
@@ -1401,6 +1473,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
+            builder.projectsSettings(this.projectsSettings.apply(state.projectsSettings));
             builder.fromDiff(state);
             return builder.build();
         }

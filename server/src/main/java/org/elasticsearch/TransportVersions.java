@@ -285,6 +285,7 @@ public class TransportVersions {
     public static final TransportVersion ILM_ADD_SKIP_SETTING = def(9_089_0_00);
     public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED = def(9_090_0_00);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = def(9_091_0_00);
+    public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_092_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

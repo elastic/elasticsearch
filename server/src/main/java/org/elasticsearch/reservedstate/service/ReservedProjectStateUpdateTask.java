@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -70,7 +71,12 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
             return currentState;
         }
 
-        ProjectMetadata updatedProject = result.v1().getMetadata().getProject(projectId);
-        return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(updatedProject).put(result.v2())).build();
+        ClusterState updatedClusterState = result.v1();
+        Settings updatedSettings = updatedClusterState.projectSettings(projectId);
+        ProjectMetadata updatedProject = updatedClusterState.getMetadata().getProject(projectId);
+        return ClusterState.builder(currentState)
+            .putProjectSettings(projectId, updatedSettings)
+            .putProjectMetadata(ProjectMetadata.builder(updatedProject).put(result.v2()))
+            .build();
     }
 }

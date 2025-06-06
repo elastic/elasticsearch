@@ -801,10 +801,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         );
     }
 
-    private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(
-        ProjectId.READER
-    );
-
     private static class MetadataDiff implements Diff<Metadata> {
 
         private final long version;
@@ -846,7 +842,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 singleProject = null;
-                multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, PROJECT_ID_SERIALIZER);
+                multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, ProjectId.PROJECT_ID_SERIALIZER);
             }
 
             if (empty) {
@@ -955,8 +951,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     indices,
                     templates,
                     projectCustoms,
-                    DiffableUtils.emptyDiff(),
-                    Settings.EMPTY_DIFF
+                    DiffableUtils.emptyDiff()
                 );
                 multiProject = null;
             } else {
@@ -1001,7 +996,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         ) throws IOException {
             final var multiProject = DiffableUtils.readJdkMapDiff(
                 in,
-                PROJECT_ID_SERIALIZER,
+                ProjectId.PROJECT_ID_SERIALIZER,
                 ProjectMetadata::readFrom,
                 ProjectMetadata.ProjectMetadataDiff::new
             );
@@ -1075,7 +1070,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             } else {
                 final var multiProjectToWrite = multiProject != null
                     ? multiProject
-                    : DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER);
+                    : DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, ProjectId.PROJECT_ID_SERIALIZER);
 
                 if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
                     writeDiffWithRepositoriesMetadataAsClusterCustom(out, clusterCustoms, multiProjectToWrite, reservedStateMetadata);

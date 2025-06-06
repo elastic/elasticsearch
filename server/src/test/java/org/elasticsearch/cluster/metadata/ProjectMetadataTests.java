@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -623,7 +622,6 @@ public class ProjectMetadataTests extends ESTestCase {
         builder.put(backingIndex1, false);
         builder.put(backingIndex2, false);
         builder.put(dataStream);
-        builder.settings(Settings.builder().put(PROJECT_SETTING.getKey(), 43).build());
 
         final ProjectMetadata projectMetadata = builder.build();
         return projectMetadata;

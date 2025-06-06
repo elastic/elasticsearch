@@ -142,7 +142,9 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
             try {
                 Histogram histogram = searchResponse.getAggregations().get(DATE_BUCKETS);
                 if (histogram == null) {
-                    logger.warn("[{}] Delayed data check failed with missing aggregation in search response", jobId);
+                    // We log search response here to get information about shards and hits which may be helpful while debugging.
+                    // The size of the search response is small as we only log if the "date_buckets" aggregation is missing.
+                    logger.warn("[{}] Delayed data check failed with missing aggregation in search response [{}]", jobId, searchResponse);
                     return Collections.emptyMap();
                 }
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();

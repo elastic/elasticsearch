@@ -150,4 +150,15 @@ public class ES910HnswReducedHeapVectorsFormat extends KnnVectorsFormat {
     public int getMaxDimensions(String fieldName) {
         return Lucene99HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS;
     }
+
+    @Override
+    public String toString() {
+        return "ES910HnswReducedHeapVectorsFormat(name=ES910HnswReducedHeapVectorsFormat, maxConn="
+            + maxConn
+            + ", beamWidth="
+            + beamWidth
+            + ", flatVectorFormat="
+            + flatVectorsFormat
+            + ")";
+    }
 }

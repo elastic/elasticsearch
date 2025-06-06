@@ -30,6 +30,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.HnswGraph;
+import org.elasticsearch.index.codec.vectors.es910.ES910HnswReducedHeapVectorsWriter;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -119,7 +120,7 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        return new ES910HnswReducedHeapVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
     }
 
     @Override

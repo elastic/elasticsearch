@@ -617,55 +617,36 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     }
 
     private static class BlockAwareSingletonDoubles extends BlockDocValuesReader {
-        private final BlockAwareNumericDocValues docValues;
+        private final BlockAwareNumericDocValues blockAware;
         private final ToDouble toDouble;
-        private int docID = -1;
 
-        BlockAwareSingletonDoubles(BlockAwareNumericDocValues docValues, ToDouble toDouble) {
-            this.docValues = docValues;
+        BlockAwareSingletonDoubles(BlockAwareNumericDocValues blockAware, ToDouble toDouble) {
+            this.blockAware = blockAware;
             this.toDouble = toDouble;
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
-                int lastDoc = -1;
-                for (int i = 0; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (doc < lastDoc) {
-                        throw new IllegalStateException("docs within same block must be in order");
-                    }
-                    if (docValues.advanceExact(doc)) {
-                        builder.appendDouble(toDouble.convert(docValues.longValue()));
-                    } else {
-                        builder.appendNull();
-                    }
-                    lastDoc = doc;
-                    this.docID = doc;
-                }
+                blockAware.loadBlock(builder, docs, toDouble);
                 return builder.build();
             }
         }
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            this.docID = docId;
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-            if (docValues.advanceExact(this.docID)) {
-                blockBuilder.appendDouble(toDouble.convert(docValues.longValue()));
-            } else {
-                blockBuilder.appendNull();
-            }
+            blockAware.loadDoc(blockBuilder, docId, toDouble);
         }
 
         @Override
         public int docId() {
-            return docID;
+            return blockAware.docID();
         }
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.SingletonDoubles";
+            return "BlockDocValuesReader.BlockAwareSingletonDoubles";
         }
     }
 

@@ -2593,7 +2593,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final var project = currentState.metadata().getProject();
+                    final var project = currentState.metadata().getDefaultProject();
                     final RepositoriesMetadata state = RepositoriesMetadata.get(project);
                     final RepositoryMetadata repoState = state.repository(metadata.name());
                     if (repoState.generation() != corruptedGeneration) {
@@ -2787,13 +2787,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "] must be larger than latest known generation ["
                         + latestKnownRepoGen.get()
                         + "]";
-                final var project = currentState.metadata().getProject();
-                final var updatedRepositoriesMetadata = RepositoriesMetadata.get(project)
-                    .withUpdatedGeneration(repoName, safeGeneration, newGen);
-                return currentState.copyAndUpdateProject(
-                    project.id(),
-                    builder -> builder.putCustom(RepositoriesMetadata.TYPE, updatedRepositoriesMetadata)
-                );
+                final var project = currentState.metadata().getDefaultProject();
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(project)
+                            .putCustom(
+                                RepositoriesMetadata.TYPE,
+                                RepositoriesMetadata.get(project).withUpdatedGeneration(repoName, safeGeneration, newGen)
+                            )
+                            .build()
+                    )
+                    .build();
             }
 
             @Override

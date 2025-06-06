@@ -958,10 +958,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         autoFollowPatternNameToFollowedIndexUUIDs,
                         currentAutoFollowMetadata.getHeaders()
                     );
-                    return currentState.copyAndUpdateProject(
-                        currentProject.id(),
-                        builder -> builder.putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
-                    );
+                    return ClusterState.builder(currentState)
+                        .putProjectMetadata(
+                            ProjectMetadata.builder(currentProject).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
+                        )
+                        .build();
                 } else {
                     return currentState;
                 }

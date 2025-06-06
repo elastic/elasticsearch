@@ -354,9 +354,8 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     // Similar to the stateless recovery process without activating primary context
                     // (since we the shard is already in the primary mode and has checkpoint information)
                     logger.info("{} unhollowing shard (reason: ingestion)", shardId);
-                    // TODO: warming disabled until the deadlock issue with the warming threads is fully investigated (ES-11293 / ES-11323).
                     // Pre-warm the cache for the new index engine
-                    // indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
+                    indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
                     indexShard.resetEngine(engine -> {
                         assert assertIndexEngineLastCommitHollow(shardId, engine, true);
                         engine.skipTranslogRecovery(); // allows new flushes

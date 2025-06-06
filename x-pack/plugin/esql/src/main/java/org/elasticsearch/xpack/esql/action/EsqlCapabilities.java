@@ -790,7 +790,7 @@ public class EsqlCapabilities {
         /**
          * Support for COMPLETION command
          */
-        COMPLETION(Build.current().isSnapshot()),
+        COMPLETION,
 
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least

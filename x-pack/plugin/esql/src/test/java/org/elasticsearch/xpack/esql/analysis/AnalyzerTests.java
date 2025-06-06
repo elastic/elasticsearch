@@ -3402,8 +3402,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceId() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
@@ -3413,8 +3411,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceIdInvalidTaskType() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError(
             """
                 FROM books METADATA _score
@@ -3428,8 +3424,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceMissingInferenceId() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `unknown-inference-id`
@@ -3437,8 +3431,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceIdResolutionError() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `error-inference-id`
@@ -3446,8 +3438,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionTargetField() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS translation
@@ -3458,8 +3448,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionDefaultTargetField() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
@@ -3470,8 +3458,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionPrompt() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
@@ -3487,8 +3473,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionPromptInvalidType() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError("""
             FROM books METADATA _score
             | COMPLETION LENGTH(description) WITH `completion-inference-id`
@@ -3496,8 +3480,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionOutputField() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS description

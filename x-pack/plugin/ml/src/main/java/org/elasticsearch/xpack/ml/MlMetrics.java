@@ -272,6 +272,25 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsFailedAllocations, isMasterMap)
             )
         );
+        metrics.add(
+            meterRegistry.registerLongGauge(
+                "es.ml.trained_models.deployment.fixed_allocations.current",
+                "Sum of current trained model allocations that do not use adaptive allocations (either enabled or disabled)",
+                "allocations",
+                () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsFixedAllocations, isMasterMap)
+            )
+        );
+        /*
+         * AdaptiveAllocationsScalerService tracks the number of allocations with adaptive allocations enabled.
+         */
+        metrics.add(
+            meterRegistry.registerLongGauge(
+                "es.ml.trained_models.deployment.disabled_adaptive_allocations.current",
+                "Sum of current trained model allocations that have adaptive allocations disabled",
+                "allocations",
+                () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsDisabledAdaptiveAllocations, isMasterMap)
+            )
+        );
     }
 
     @Override
@@ -484,17 +503,28 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         int trainedModelsTargetAllocations = 0;
         int trainedModelsCurrentAllocations = 0;
         int trainedModelsFailedAllocations = 0;
+        int trainedModelsFixedAllocations = 0;
+        int trainedModelsDisabledAdaptiveAllocations = 0;
 
         for (TrainedModelAssignment trainedModelAssignment : metadata.allAssignments().values()) {
             trainedModelsTargetAllocations += trainedModelAssignment.totalTargetAllocations();
-            trainedModelsCurrentAllocations += trainedModelAssignment.totalCurrentAllocations();
             trainedModelsFailedAllocations += trainedModelAssignment.totalFailedAllocations();
+
+            trainedModelsCurrentAllocations += trainedModelAssignment.totalCurrentAllocations();
+            if (trainedModelAssignment.getAdaptiveAllocationsSettings() == null) {
+                trainedModelsFixedAllocations += trainedModelAssignment.totalCurrentAllocations();
+            } else if ((trainedModelAssignment.getAdaptiveAllocationsSettings().getEnabled() == null)
+                || (trainedModelAssignment.getAdaptiveAllocationsSettings().getEnabled() == false)) {
+                    trainedModelsDisabledAdaptiveAllocations += trainedModelAssignment.totalCurrentAllocations();
+                }
         }
 
         return new TrainedModelAllocationCounts(
             trainedModelsTargetAllocations,
             trainedModelsCurrentAllocations,
-            trainedModelsFailedAllocations
+            trainedModelsFailedAllocations,
+            trainedModelsFixedAllocations,
+            trainedModelsDisabledAdaptiveAllocations
         );
     }
 
@@ -556,8 +586,10 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
     record TrainedModelAllocationCounts(
         int trainedModelsTargetAllocations,
         int trainedModelsCurrentAllocations,
-        int trainedModelsFailedAllocations
+        int trainedModelsFailedAllocations,
+        int trainedModelsFixedAllocations,
+        int trainedModelsDisabledAdaptiveAllocations
     ) {
-        static final TrainedModelAllocationCounts EMPTY = new TrainedModelAllocationCounts(0, 0, 0);
+        static final TrainedModelAllocationCounts EMPTY = new TrainedModelAllocationCounts(0, 0, 0, 0, 0);
     }
 }

@@ -239,4 +239,12 @@ public class AdaptiveAllocationsScaler {
     public Long getLastMeasuredQueueSize() {
         return lastMeasuredQueueSize;
     }
+
+    public Integer getMinNumberOfAllocations() {
+        return minNumberOfAllocations;
+    }
+
+    public Integer getMaxNumberOfAllocations() {
+        return maxNumberOfAllocations;
+    }
 }

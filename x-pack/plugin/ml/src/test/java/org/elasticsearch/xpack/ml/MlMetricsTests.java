@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -146,11 +147,27 @@ public class MlMetricsTests extends ESTestCase {
             TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class), null)
                 .addRoutingEntry("node2", new RoutingInfo(0, 1, RoutingState.STARTING, ""))
         );
+        metadataBuilder.addNewAssignment(
+            "model4",
+            TrainedModelAssignment.Builder.empty(
+                mock(StartTrainedModelDeploymentAction.TaskParams.class),
+                new AdaptiveAllocationsSettings(true, 0, 1)
+            ).addRoutingEntry("node1", new RoutingInfo(0, 0, RoutingState.STARTING, ""))
+        );
+        metadataBuilder.addNewAssignment(
+            "model5",
+            TrainedModelAssignment.Builder.empty(
+                mock(StartTrainedModelDeploymentAction.TaskParams.class),
+                new AdaptiveAllocationsSettings(false, 1, 1)
+            ).addRoutingEntry("node1", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+        );
 
         MlMetrics.TrainedModelAllocationCounts counts = MlMetrics.findTrainedModelAllocationCounts(metadataBuilder.build());
-        assertThat(counts.trainedModelsTargetAllocations(), is(5));
-        assertThat(counts.trainedModelsCurrentAllocations(), is(3));
+        assertThat(counts.trainedModelsTargetAllocations(), is(6));
+        assertThat(counts.trainedModelsCurrentAllocations(), is(4));
         assertThat(counts.trainedModelsFailedAllocations(), is(1));
+        assertThat(counts.trainedModelsFixedAllocations(), is(3));
+        assertThat(counts.trainedModelsDisabledAdaptiveAllocations(), is(1));
     }
 
     public void testFindNativeMemoryFree() {

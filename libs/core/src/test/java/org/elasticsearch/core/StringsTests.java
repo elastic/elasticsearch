@@ -11,9 +11,17 @@ package org.elasticsearch.core;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URL;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringsTests extends ESTestCase {
+    public void testURL() {
+        URL url = ESTestCase.class.getProtectionDomain().getCodeSource().getLocation();
+        String path = url.getPath();
+        System.out.println("HEY HEY path is " + path);
+    }
+
 
     public void testIncorrectPattern() {
         AssertionError assertionError = expectThrows(AssertionError.class, () -> Strings.format("%s %s", 1));

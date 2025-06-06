@@ -23,6 +23,7 @@ import org.gradle.language.jvm.tasks.ProcessResources;
 
 import javax.inject.Inject;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -58,7 +59,10 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
         });
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            test.systemProperty("es.entitlement.enableForTests", "true");
+            if (List.of("test", "internalClusterTest").contains(test.getName())) {
+                System.err.println("PATDOYLE - es.entitlement.enableForTests on " + project.getName() + test.getName());
+                test.systemProperty("es.entitlement.enableForTests", "true");
+            }
         });
     }
 }

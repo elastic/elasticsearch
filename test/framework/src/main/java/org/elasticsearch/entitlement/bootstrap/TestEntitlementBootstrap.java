@@ -100,11 +100,11 @@ public class TestEntitlementBootstrap {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");
-        Set<URI> testOnlyPath;
+        Set<String> testOnlyPath;
         if (testOnlyPathProperty == null) {
             testOnlyPath = Set.of();
         } else {
-            testOnlyPath = Arrays.stream(testOnlyPathProperty.split(":")).map(URI::create).collect(Collectors.toCollection(TreeSet::new));
+            testOnlyPath = Arrays.stream(testOnlyPathProperty.split(":")).collect(Collectors.toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

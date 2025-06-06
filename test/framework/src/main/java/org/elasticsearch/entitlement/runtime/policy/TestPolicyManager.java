@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 
@@ -42,7 +43,7 @@ public class TestPolicyManager extends PolicyManager {
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
 
-    final Collection<URI> testOnlyClasspath;
+    final Collection<String> testOnlyClasspath;
 
     public TestPolicyManager(
         Policy serverPolicy,
@@ -51,7 +52,7 @@ public class TestPolicyManager extends PolicyManager {
         Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup,
-        Collection<URI> testOnlyClasspath
+        Collection<String> testOnlyClasspath
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
         this.testOnlyClasspath = testOnlyClasspath;
@@ -130,13 +131,14 @@ public class TestPolicyManager extends PolicyManager {
             // This can happen for JDK classes
             return false;
         }
-        URI uri;
-        try {
-            uri = codeSource.getLocation().toURI();
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException(e);
+        String needle = codeSource.getLocation().getPath();
+        if (needle.endsWith("/")) {
+            needle = needle.substring(0, needle.length() - 1);
         }
-        return testOnlyClasspath.contains(uri);
+        boolean result = testOnlyClasspath.contains(needle);
+        System.err.println("PATDOYLE: isTestCode:" + result + " for " + requestingClass.getName() + " in " + "[" + needle.hashCode() + "]" + needle);
+        System.err.println("testOnlyClasspath:\n" + testOnlyClasspath.stream().map(s-> "[" + s.hashCode() + "]" + s).collect(Collectors.joining("\n")));
+        return result;
     }
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {

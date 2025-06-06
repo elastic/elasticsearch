@@ -33,11 +33,15 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
@@ -185,7 +189,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 if (compileOnly != null) {
 //                    result.minus(compileOnly);
                 }
-                return result.getAsPath();
+                String asPath = result.getAsPath();
+                String[] pathEntries = asPath.split(File.pathSeparator);
+                Arrays.sort(pathEntries);
+                System.err.println("PATDOYLE - for " + project.getName() + " " + test.getName() + " using testOnlyPath:\n" + String.join("\n", pathEntries));
+                return asPath;
             });
 
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());

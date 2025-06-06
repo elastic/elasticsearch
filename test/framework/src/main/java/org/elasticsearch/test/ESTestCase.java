@@ -513,10 +513,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
         boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
         if (TestEntitlementBootstrap.isEnabledForTest()) {
+            System.err.println("PATDOYLE entitlements ARE enabled for this test: " + getTestClass().getName());
             TestEntitlementBootstrap.setActive(false == withoutEntitlements);
             TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
         } else if (withEntitlementsOnTestCode) {
             throw new AssertionError("Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing");
+        } else {
+            System.err.println("PATDOYLE entitlements are NOT enabled for this test");
         }
     }
 

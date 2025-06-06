@@ -1094,7 +1094,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public Result isConditionMet(Index index, ClusterState clusterState) {
+        public Result isConditionMet(Index index, ProjectState currentState) {
             executeCount++;
             if (exception != null) {
                 throw exception;

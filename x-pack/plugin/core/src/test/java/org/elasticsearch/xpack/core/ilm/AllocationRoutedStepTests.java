@@ -494,7 +494,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExecuteIndexMissing() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        ProjectState state = emptyProjectState();
+        ProjectState state = projectStateWithEmptyProject();
 
         AllocationRoutedStep step = createRandomInstance();
 

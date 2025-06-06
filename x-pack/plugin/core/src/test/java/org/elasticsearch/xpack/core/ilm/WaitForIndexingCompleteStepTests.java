@@ -111,7 +111,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testIndexDeleted() {
-        ProjectState state = emptyProjectState();
+        ProjectState state = projectStateWithEmptyProject();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
         ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), state);

@@ -415,7 +415,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testExecuteIndexMissing() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        ProjectState state = emptyProjectState();
+        ProjectState state = projectStateWithEmptyProject();
 
         CheckShrinkReadyStep step = createRandomInstance();
 

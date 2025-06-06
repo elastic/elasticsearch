@@ -71,7 +71,7 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         String tierPreference = String.join(",", includedTiers);
         WaitForDataTierStep step = new WaitForDataTierStep(randomStepKey(), randomStepKey(), tierPreference);
 
-        verify(step, emptyProjectState(), false, "no nodes for tiers [" + tierPreference + "] available");
+        verify(step, projectStateWithEmptyProject(), false, "no nodes for tiers [" + tierPreference + "] available");
         verify(step, state(List.of(notIncludedTier)), false, "no nodes for tiers [" + tierPreference + "] available");
         verify(step, state(includedTiers), true, null);
         verify(step, state(List.of(DiscoveryNodeRole.DATA_ROLE.roleName())), true, null);

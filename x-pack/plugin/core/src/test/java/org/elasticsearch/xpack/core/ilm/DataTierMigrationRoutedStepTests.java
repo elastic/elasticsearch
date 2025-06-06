@@ -158,7 +158,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteIndexMissing() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        ProjectState state = emptyProjectState();
+        ProjectState state = projectStateWithEmptyProject();
 
         DataTierMigrationRoutedStep step = createRandomInstance();
 

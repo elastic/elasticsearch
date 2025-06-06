@@ -67,6 +67,11 @@ nmcpAggregation {
   publishAllProjectsProbablyBreakingProjectIsolation()
 }
 
+tasks.named('zipAggregation').configure {
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
+}
+
 /**
  * This is a convenient method for declaring test artifact dependencies provided by the internal
  * test artifact plugin. It replaces basically the longer dependency notation with explicit capability

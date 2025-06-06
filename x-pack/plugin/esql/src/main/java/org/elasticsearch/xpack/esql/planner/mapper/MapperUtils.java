@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -150,9 +152,16 @@ public class MapperUtils {
         return intermediateAttributes;
     }
 
+    static List<Attribute> intermediateAttributes(TopNAggregate aggregate) {
+        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
+            aggregate.aggregates(),
+            aggregate.groupings()
+        );
+        return intermediateAttributes;
+    }
+
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
         if (aggregate instanceof TimeSeriesAggregate ts) {
-            // TODO: Update this
             return new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
@@ -176,6 +185,20 @@ public class MapperUtils {
                 aggregate.limit()
             );
         }
+    }
+
+    static AggregateExec topNAggExec(TopNAggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
+        return new TopNAggregateExec(
+            aggregate.source(),
+            child,
+            aggregate.groupings(),
+            aggregate.aggregates(),
+            aggMode,
+            intermediateAttributes,
+            null,
+            aggregate.order(),
+            aggregate.limit()
+        );
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

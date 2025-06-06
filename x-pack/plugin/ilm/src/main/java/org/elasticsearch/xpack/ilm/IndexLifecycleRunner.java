@@ -358,7 +358,7 @@ class IndexLifecycleRunner {
             logger.debug("[{}] running policy with async action step [{}]", index, currentStep.getKey());
             ((AsyncActionStep) currentStep).performAction(
                 indexMetadata,
-                currentState,
+                currentState.projectState(),
                 new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()),
                 new ActionListener<>() {
 

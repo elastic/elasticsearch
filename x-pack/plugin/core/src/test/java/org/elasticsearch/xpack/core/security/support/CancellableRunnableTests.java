@@ -4,14 +4,13 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.security.authc.ldap;
+package org.elasticsearch.xpack.core.security.support;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm.CancellableLdapRunnable;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,11 +21,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class CancellableLdapRunnableTests extends ESTestCase {
+public class CancellableRunnableTests extends ESTestCase {
 
     public void testTimingOutARunnable() {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
+        final CancellableRunnable<Object> runnable = new CancellableRunnable<>(ActionListener.wrap(user -> {
             throw new AssertionError("onResponse should not be called");
         }, exceptionAtomicReference::set), e -> null, () -> { throw new AssertionError("runnable should not be executed"); }, logger);
 
@@ -40,7 +39,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
     public void testCallTimeOutAfterRunning() {
         final AtomicBoolean ran = new AtomicBoolean(false);
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
+        final CancellableRunnable<Object> runnable = new CancellableRunnable<>(ActionListener.wrap(user -> {
             listenerCalled.set(true);
             throw new AssertionError("onResponse should not be called");
         }, e -> {
@@ -59,7 +58,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
 
     public void testRejectingExecution() {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-        final CancellableLdapRunnable<Object> runnable = new CancellableLdapRunnable<>(ActionListener.wrap(user -> {
+        final CancellableRunnable<Object> runnable = new CancellableRunnable<>(ActionListener.wrap(user -> {
             throw new AssertionError("onResponse should not be called");
         }, exceptionAtomicReference::set), e -> null, () -> { throw new AssertionError("runnable should not be executed"); }, logger);
 
@@ -75,7 +74,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         final CountDownLatch timeoutCalledLatch = new CountDownLatch(1);
         final CountDownLatch runningLatch = new CountDownLatch(1);
         final ActionListener<User> listener = ActionTestUtils.assertNoFailureListener(user -> listenerCalledLatch.countDown());
-        final CancellableLdapRunnable<User> runnable = new CancellableLdapRunnable<>(listener, e -> null, () -> {
+        final CancellableRunnable<User> runnable = new CancellableRunnable<>(listener, e -> null, () -> {
             runningLatch.countDown();
             try {
                 timeoutCalledLatch.await();
@@ -98,7 +97,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         AtomicReference<String> resultRef = new AtomicReference<>();
         final ActionListener<String> listener = ActionTestUtils.assertNoFailureListener(resultRef::set);
         String defaultValue = randomAlphaOfLengthBetween(2, 10);
-        final CancellableLdapRunnable<String> runnable = new CancellableLdapRunnable<>(listener, e -> defaultValue, () -> {
+        final CancellableRunnable<String> runnable = new CancellableRunnable<>(listener, e -> defaultValue, () -> {
             throw new RuntimeException("runnable intentionally failed");
         }, logger);
 

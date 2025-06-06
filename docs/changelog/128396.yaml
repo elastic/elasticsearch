@@ -1,0 +1,5 @@
+pr: 128396
+summary: Delegated authorization using Microsoft Graph (SDK)
+area: Authorization
+type: feature
+issues: []

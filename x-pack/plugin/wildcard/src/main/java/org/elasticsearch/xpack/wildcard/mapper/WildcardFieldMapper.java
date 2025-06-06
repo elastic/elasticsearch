@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -33,6 +34,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
@@ -81,11 +83,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
@@ -96,6 +101,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
+    private static final int WILDCARD_TERMS_EXPANSION_LIMIT = 16;
     public static final int NGRAM_SIZE = 3;
 
     static final NamedAnalyzer WILDCARD_ANALYZER_7_10 = new NamedAnalyzer("_wildcard_7_10", AnalyzerScope.GLOBAL, new Analyzer() {
@@ -833,6 +839,63 @@ public class WildcardFieldMapper extends FieldMapper {
             } else {
                 return BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), name(), new BytesRef(searchTerm));
             }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+            final BytesRef[] terms = buildTerms(values);
+            final Query aproxQuery;
+            if (terms.length < WILDCARD_TERMS_EXPANSION_LIMIT) {
+                // If there are few terms, we can approximate each term using a BooleanQuery.
+                final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (BytesRef term : terms) {
+                    final BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+                    final Integer numClauses = getApproxWildCardQuery(escapeWildcardSyntax(term.utf8ToString()), rewritten);
+                    if (numClauses != null && numClauses > 0) {
+                        builder.add(rewritten.build(), Occur.SHOULD);
+                    }
+                }
+                aproxQuery = builder.build();
+            } else {
+                // If there are too many terms, we cannot rewrite approximate into a BooleanQuery as it will use too much memory.
+                // Instead, we generate a TermInSetQuery. In order to match the necessary documents we need to add at least one token
+                // per term, ideally we should add the token that makes the term most different from the others.
+                final Set<String> tokens = new LinkedHashSet<>();
+                final Set<BytesRef> tokenList = new TreeSet<>();
+                for (BytesRef term : terms) {
+                    // Break search term into tokens
+                    final boolean matchAll = breakIntoTokens(escapeWildcardSyntax(term.utf8ToString()), tokens);
+                    assert matchAll == false;
+                    if (tokens.isEmpty() == false) {
+                        // If there are tokens, we take the middle one to represent the term
+                        // which is probably the most different one.
+                        tokenList.add(getMiddleToken(tokens));
+                    }
+                    tokens.clear();
+                }
+                aproxQuery = new TermInSetQuery(name(), tokenList);
+            }
+            return BinaryDvConfirmedQuery.fromTerms(new ConstantScoreQuery(aproxQuery), name(), terms);
+        }
+
+        private static BytesRef getMiddleToken(Set<String> tokens) {
+            int mid = (tokens.size() + 1) / 2;
+            Iterator<String> iterator = tokens.iterator();
+            for (int i = 0; i < mid - 1; i++) {
+                iterator.next();
+            }
+            assert iterator.hasNext();
+            return BytesRefs.toBytesRef(iterator.next());
+        }
+
+        private static BytesRef[] buildTerms(Collection<?> values) {
+            final Set<?> dedupe = new HashSet<>(values);
+            final BytesRef[] terms = new BytesRef[dedupe.size()];
+            final Iterator<?> iterator = dedupe.iterator();
+            for (int i = 0; i < dedupe.size(); i++) {
+                terms[i] = BytesRefs.toBytesRef(iterator.next());
+            }
+            return terms;
         }
 
         private static String escapeWildcardSyntax(String term) {

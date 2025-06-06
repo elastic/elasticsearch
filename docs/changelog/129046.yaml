@@ -1,0 +1,5 @@
+pr: 129046
+summary: Add Lucene improvements for HNSW merging
+area: "Vector Search, Search"
+type: enhancement
+issues: []

@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
+public class PutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
         Map<String, Object> responseMap = upsertRoles("""
             {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
@@ -311,5 +311,41 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             );
         }
+    }
+
+    public void testPutRoleWithInvalidManageRolesPrivilege() throws Exception {
+        final String badRoleName = "bad-role";
+
+        final ResponseException exception = expectThrows(ResponseException.class, () -> upsertRoles(String.format("""
+            {
+                "roles": {
+                    "%s": {
+                        "global": {
+                            "role": {
+                                "manage": {
+                                    "indices": [
+                                        {
+                                            "names": ["allowed-index-prefix-*"],
+                                            "privileges": ["foobar"]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }""", badRoleName)));
+
+        assertThat(exception.getMessage(), containsString("unknown index privilege [foobar]"));
+        assertEquals(400, exception.getResponse().getStatusLine().getStatusCode());
+        assertRoleDoesNotExist(badRoleName);
+    }
+
+    private void assertRoleDoesNotExist(final String roleName) throws Exception {
+        final ResponseException roleNotFound = expectThrows(
+            ResponseException.class,
+            () -> adminClient().performRequest(new Request("GET", "/_security/role/" + roleName))
+        );
+        assertEquals(404, roleNotFound.getResponse().getStatusLine().getStatusCode());
     }
 }

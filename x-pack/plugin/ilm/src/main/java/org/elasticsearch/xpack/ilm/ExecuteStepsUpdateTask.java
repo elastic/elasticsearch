@@ -140,7 +140,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             currentStep.getKey()
         );
         ClusterStateActionStep actionStep = (ClusterStateActionStep) currentStep;
-        state = actionStep.performAction(index, state);
+        state = actionStep.performAction(index, state.projectState()).cluster();
         // If this step (usually a CopyExecutionStateStep step) has brought the
         // index to where it needs to have async actions invoked, then add that
         // index to the list so that when the new cluster state has been
@@ -198,7 +198,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             if (stepInfo == null) {
                 return state;
             }
-            return IndexLifecycleTransition.addStepInfoToClusterState(index, state, stepInfo);
+            return ClusterState.builder(state)
+                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToProject(index, state.metadata().getProject(), stepInfo))
+                .build();
         }
     }
 
@@ -286,7 +288,12 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             ),
             cause
         );
-        return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
+        final var project = state.metadata().getProject();
+        return ClusterState.builder(state)
+            .putProjectMetadata(
+                IndexLifecycleTransition.moveIndexToErrorStep(index, project, cause, nowSupplier, policyStepsRegistry::getStep)
+            )
+            .build();
     }
 
     @Override

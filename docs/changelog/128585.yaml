@@ -1,0 +1,6 @@
+---
+pr: 128585
+summary: "Fix DateTimeToCharProcessorTests to align with updated datetime handling"
+area: SQL
+type: bug
+issues: []

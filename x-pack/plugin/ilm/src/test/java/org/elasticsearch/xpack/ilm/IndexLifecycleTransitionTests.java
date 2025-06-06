@@ -8,14 +8,11 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -56,7 +53,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
-import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagementTests.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
@@ -944,75 +940,6 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             is(initialPhaseDefinition)
         );
         assertThat(nextLifecycleExecutionState.step(), is(failedStep));
-    }
-
-    public void testRefreshPhaseJson() throws IOException {
-        LifecycleExecutionState.Builder exState = LifecycleExecutionState.builder()
-            .setPhase("hot")
-            .setAction("rollover")
-            .setStep("check-rollover-ready")
-            .setPhaseDefinition("""
-                {
-                  "policy" : "my-policy",
-                  "phase_definition" : {
-                    "min_age" : "20m",
-                    "actions" : {
-                      "rollover" : {
-                        "max_age" : "5s"
-                      },
-                      "set_priority" : {
-                        "priority" : 150
-                      }
-                    }
-                  },
-                  "version" : 1,
-                  "modified_date_in_millis" : 1578521007076
-                }""");
-
-        IndexMetadata meta = buildIndexMetadata("my-policy", exState);
-        String index = meta.getIndex().getName();
-
-        Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
-        actions.put("set_priority", new SetPriorityAction(100));
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        Map<String, Phase> phases = Map.of("hot", hotPhase);
-        LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Map.of(), 2L, 2L);
-
-        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
-            .build();
-
-        ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
-
-        IndexMetadata newIdxMeta = changedState.metadata().getProject().index(index);
-        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
-        Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
-        beforeState.remove("phase_definition");
-        Map<String, String> afterState = new HashMap<>(afterExState.asMap());
-        afterState.remove("phase_definition");
-        // Check that no other execution state changes have been made
-        assertThat(beforeState, equalTo(afterState));
-
-        // Check that the phase definition has been refreshed
-        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
-            {
-              "policy": "my-policy",
-              "phase_definition": {
-                "min_age": "0ms",
-                "actions": {
-                  "rollover": {
-                    "max_docs": 1
-                  },
-                  "set_priority": {
-                    "priority": 100
-                  }
-                }
-              },
-              "version": 2,
-              "modified_date_in_millis": 2
-            }""")));
     }
 
     public void testEligibleForRefresh() {

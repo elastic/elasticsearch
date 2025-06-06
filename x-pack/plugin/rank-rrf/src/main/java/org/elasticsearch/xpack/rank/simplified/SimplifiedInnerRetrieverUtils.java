@@ -150,8 +150,6 @@ public class SimplifiedInnerRetrieverUtils {
         nonInferenceFields.keySet().removeAll(inferenceFields.keySet());  // Remove all inference fields from non-inference fields map
 
         // TODO: Set index pre-filters on returned retrievers when we want to implement multi-index support
-        // TODO: Should we use a separate match query for each non-inference field, perform secondary normalization,
-        // and apply the boost after secondary normalization, like is done for inference fields?
         List<RetrieverBuilder> innerRetrievers = new ArrayList<>(2);
         if (nonInferenceFields.isEmpty() == false) {
             MultiMatchQueryBuilder nonInferenceFieldQueryBuilder = new MultiMatchQueryBuilder(query).type(

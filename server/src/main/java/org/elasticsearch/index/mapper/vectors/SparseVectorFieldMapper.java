@@ -151,7 +151,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return super.existsQuery(context);
         }
 
-        public Query finalizeQuery(
+        public Query finalizeSparseVectorQuery(
             SearchExecutionContext context,
             String fieldName,
             List<WeightedToken> queryVectors,

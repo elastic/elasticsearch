@@ -219,7 +219,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         if (ft instanceof SparseVectorFieldMapper.SparseVectorFieldType svft) {
-            return svft.finalizeQuery(context, fieldName, queryVectors, shouldPruneTokens, tokenPruningConfig);
+            return svft.finalizeSparseVectorQuery(context, fieldName, queryVectors, shouldPruneTokens, tokenPruningConfig);
         }
 
         throw new IllegalArgumentException(

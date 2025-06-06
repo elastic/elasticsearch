@@ -266,6 +266,10 @@ setup:
 
 ---
 "should normalize initial scores with l2_norm":
+  - skip:
+      version: "<8.19.0"
+      reason: "l2_norm normalization is only available from 8.19.0"
+      features: "l2_norm"
   - do:
       search:
         index: test
@@ -316,9 +320,14 @@ setup:
   - close_to: { hits.hits.2._score: { value: 1.6, error: 0.001 } }
   - match: { hits.hits.3._id: "3" }
   - close_to: { hits.hits.3._score: { value: 1.2, error: 0.001} }
+  - close_to: { hits.hits.3._score: { value: 1.2, error: 0.001 } }
 
 ---
 "should handle all zero scores in normalization":
+  - skip:
+      version: "<8.19.0"
+      reason: "l2_norm normalization is only available from 8.19.0"
+      features: "l2_norm"
   - do:
       search:
         index: test

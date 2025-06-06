@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 
+import java.util.function.Supplier;
+
 /**
  * Processes measured requests counts and inference times and decides whether
  * the number of allocations should be scaled up or down.
@@ -33,7 +35,7 @@ public class AdaptiveAllocationsScaler {
     private final String deploymentId;
     private final KalmanFilter1d requestRateEstimator;
     private final KalmanFilter1d inferenceTimeEstimator;
-    private final long scaleToZeroAfterNoRequestsSeconds;
+    private final Supplier<Long> scaleToZeroAfterNoRequestsSeconds;
     private double timeWithoutRequestsSeconds;
 
     private int numberOfAllocations;
@@ -46,7 +48,7 @@ public class AdaptiveAllocationsScaler {
     private Double lastMeasuredInferenceTime;
     private Long lastMeasuredQueueSize;
 
-    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations, long scaleToZeroAfterNoRequestsSeconds) {
+    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations, Supplier<Long> scaleToZeroAfterNoRequestsSeconds) {
         this.deploymentId = deploymentId;
         this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
 
@@ -173,7 +175,7 @@ public class AdaptiveAllocationsScaler {
         }
 
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
-            && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds) {
+            && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds.get()) {
 
             if (oldNumberOfAllocations != 0) {
                 // avoid logging this message if there is no change

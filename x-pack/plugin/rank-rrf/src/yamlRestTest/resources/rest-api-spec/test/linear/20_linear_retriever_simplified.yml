@@ -70,11 +70,35 @@ setup:
         refresh: true
         body: |
           {"index": {"_id": "1"}}
-          {"keyword": "keyword match 1", "inference_1": "you know", "inference_2": "for testing", "text_1": "foo match 1", "text_2": "x match 2", "timestamp": "2000-03-30", "vector": [1]}
+          {
+            "keyword": "keyword match 1",
+            "inference_1": "you know",
+            "inference_2": "for testing",
+            "text_1": "foo match 1",
+            "text_2": "x match 2",
+            "timestamp": "2000-03-30",
+            "vector": [1]
+          }
           {"index": {"_id": "2"}}
-          {"keyword": "keyword match 2", "inference_1": "ElasticSearch is an open source", "inference_2": "distributed, RESTful, search engine", "text_1": "bar match 3", "text_2": "y match 4", "timestamp": "2010-02-08", "vector": [2]}
+          {
+            "keyword": "keyword match 2",
+            "inference_1": "ElasticSearch is an open source",
+            "inference_2": "distributed, RESTful, search engine",
+            "text_1": "bar match 3",
+            "text_2": "y match 4",
+            "timestamp": "2010-02-08",
+            "vector": [2]
+          }
           {"index": {"_id": "3"}}
-          {"keyword": "keyword match 3", "inference_1": "which is built on top of Lucene internally", "inference_2": "and enjoys all the features it provides", "text_1": "baz match 5", "text_2": "z match 6", "timestamp": "2024-08-08", "vector": [3]}
+          {
+            "keyword": "keyword match 3",
+            "inference_1": "which is built on top of Lucene internally",
+            "inference_2": "and enjoys all the features it provides",
+            "text_1": "baz match 5",
+            "text_2": "z match 6",
+            "timestamp": "2024-08-08",
+            "vector": [3]
+          }
 
 ---
 "Query all fields using the simplified format":

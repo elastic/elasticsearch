@@ -124,19 +124,19 @@ knnAfterDrop
 required_capability: knn_function
 
 from colors metadata _score
-| drop color
-| where knn(rgb_vector, [128,255,0], {"k": 140})
-| sort _score desc
-| keep rgb_vector
+| drop primary
+| where knn(rgb_vector, [128,250,0], {"k": 140})
+| sort _score desc, color asc
+| keep color, rgb_vector
 | limit 5
 ;
 
-rgb_vector:dense_vector
-[127.0, 255.0, 0.0]
-[255.0, 255.0, 0.0]
-[128.0, 128.0, 0.0]
-[0.0, 255.0, 0.0]
-[218.0, 165.0, 32.0]
+color:text     | rgb_vector: dense_vector       
+chartreuse     | [127.0, 255.0, 0.0]  
+olive          | [128.0, 128.0, 0.0] 
+yellow         | [255.0, 255.0, 0.0] 
+golden rod     | [218.0, 165.0, 32.0]
+lime           | [0.0, 255.0, 0.0] 
 ;
 
 knnAfterEval
@@ -147,7 +147,7 @@ from colors metadata _score
 | where knn(rgb_vector, [128,128,0], {"k": 140})
 | sort _score desc, color asc
 | keep color, composed_name 
-| limit 10
+| limit 5
 ;
 
 color:text | composed_name:boolean
@@ -156,11 +156,6 @@ sienna     | false
 chocolate  | false
 peru       | false
 golden rod | true
-brown      | false
-firebrick  | false
-chartreuse | false
-green      | false
-maroon     | false
 ;
 
 knnWithConjunction

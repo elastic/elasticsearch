@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
@@ -40,7 +41,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
@@ -121,6 +121,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         public volatile long totalSpace;
         public volatile long freeSpace;
         public volatile long usableSpace;
+        public volatile boolean throwIoException;
 
         private final String desc;
 
@@ -149,17 +150,26 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         }
 
         @Override
-        public long getTotalSpace() {
+        public long getTotalSpace() throws IOException {
+            if (throwIoException) {
+                throw new IOException("Test IO Exception");
+            }
             return totalSpace;
         }
 
         @Override
-        public long getUnallocatedSpace() {
+        public long getUnallocatedSpace() throws IOException {
+            if (throwIoException) {
+                throw new IOException("Test IO Exception");
+            }
             return freeSpace;
         }
 
         @Override
-        public long getUsableSpace() {
+        public long getUsableSpace() throws IOException {
+            if (throwIoException) {
+                throw new IOException("Test IO Exception");
+            }
             return usableSpace;
         }
 
@@ -190,24 +200,134 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         aFileStore.totalSpace = aFileStore.usableSpace * 2;
         bFileStore.usableSpace = 1_000L;
         bFileStore.totalSpace = bFileStore.usableSpace * 2;
-        AtomicReference<ByteSizeValue> availableDiskSpaceForMerging = new AtomicReference<>();
-        CountDownLatch diskSpaceMonitor = new CountDownLatch(1);
+        LinkedHashSet<ByteSizeValue> availableDiskSpaceUpdates = new LinkedHashSet<>();
         try (
             var diskSpacePeriodicMonitor = ThreadPoolMergeExecutorService.startDiskSpaceMonitoring(
                 testThreadPool,
                 nodeEnvironment.dataPaths(),
                 ClusterSettings.createBuiltInClusterSettings(settings),
                 (availableDiskSpace) -> {
-                    availableDiskSpaceForMerging.set(availableDiskSpace);
-                    diskSpaceMonitor.countDown();
+                    synchronized (availableDiskSpaceUpdates) {
+                        availableDiskSpaceUpdates.add(availableDiskSpace);
+                    }
                 }
             )
         ) {
-            // wait for the disk space monitor to do a first run
-            safeAwait(diskSpaceMonitor);
+            assertBusy(() -> {
+                synchronized (availableDiskSpaceUpdates) {
+                    assertThat(availableDiskSpaceUpdates.size(), is(1));
+                    // 100_000 (available) - 5% (default flood stage level) * 200_000 (total space)
+                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(90_000L));
+                }
+            });
+            // "b" now has more available space
+            bFileStore.usableSpace = 110_000L;
+            bFileStore.totalSpace = 130_000L;
+            assertBusy(() -> {
+                synchronized (availableDiskSpaceUpdates) {
+                    assertThat(availableDiskSpaceUpdates.size(), is(2));
+                    // 110_000 (available) - 5% (default flood stage level) * 130_000 (total space)
+                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(103_500L));
+                }
+            });
+            // available space for "a" and "b" is below the limit => it's clamp down to "0"
+            aFileStore.usableSpace = 100L;
+            bFileStore.usableSpace = 1_000L;
+            assertBusy(() -> {
+                synchronized (availableDiskSpaceUpdates) {
+                    assertThat(availableDiskSpaceUpdates.size(), is(3));
+                    // 1_000 (available) - 5% (default flood stage level) * 130_000 (total space) < 0
+                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(0L));
+                }
+            });
         }
-        // 100_000 (available) - 5% (default flood stage level) * 200_000 (total space)
-        assertThat(availableDiskSpaceForMerging.get().getBytes(), is(90_000L));
+    }
+
+    public void testAvailableDiskSpaceMonitorWhenFileSystemStatErrors() throws Exception {
+        aFileStore.usableSpace = randomLongBetween(1L, 100L);
+        aFileStore.totalSpace = randomLongBetween(1L, 100L);
+        bFileStore.usableSpace = randomLongBetween(1L, 100L);
+        bFileStore.totalSpace = randomLongBetween(1L, 100L);
+        boolean aErrorsFirst = randomBoolean();
+        if (aErrorsFirst) {
+            // the "a" file system will error when collecting stats
+            aFileStore.throwIoException = true;
+            bFileStore.throwIoException = false;
+        } else {
+            aFileStore.throwIoException = false;
+            bFileStore.throwIoException = true;
+        }
+        LinkedHashSet<ByteSizeValue> availableDiskSpaceUpdates = new LinkedHashSet<>();
+        try (
+            var diskSpacePeriodicMonitor = ThreadPoolMergeExecutorService.startDiskSpaceMonitoring(
+                testThreadPool,
+                nodeEnvironment.dataPaths(),
+                ClusterSettings.createBuiltInClusterSettings(settings),
+                (availableDiskSpace) -> {
+                    synchronized (availableDiskSpaceUpdates) {
+                        availableDiskSpaceUpdates.add(availableDiskSpace);
+                    }
+                }
+            )
+        ) {
+            assertBusy(() -> {
+                synchronized (availableDiskSpaceUpdates) {
+                    assertThat(availableDiskSpaceUpdates.size(), is(1));
+                    if (aErrorsFirst) {
+                        // uses the stats from "b"
+                        assertThat(
+                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            // the default 5% (same as flood stage level)
+                            is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
+                        );
+                    } else {
+                        // uses the stats from "a"
+                        assertThat(
+                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            // the default 5% (same as flood stage level)
+                            is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
+                        );
+                    }
+                }
+            });
+            if (aErrorsFirst) {
+                // the "b" file system will also now error when collecting stats
+                bFileStore.throwIoException = true;
+            }
+            assertBusy(() -> {
+                synchronized (availableDiskSpaceUpdates) {
+                    assertThat(availableDiskSpaceUpdates.size(), is(2));
+                    // consider the available disk space as unlimited when no fs stats can be collected
+                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(Long.MAX_VALUE));
+                }
+            });
+            if (aErrorsFirst) {
+                // "a" fs stats collection recovered
+                aFileStore.throwIoException = false;
+            }
+            assertBusy(() -> {
+                synchronized (availableDiskSpaceUpdates) {
+                    assertThat(availableDiskSpaceUpdates.size(), is(3));
+                    if (aErrorsFirst) {
+                        // uses the stats from "a"
+                        assertThat(
+                                availableDiskSpaceUpdates.getLast().getBytes(),
+                                // the default 5% (same as flood stage level)
+                                is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
+                        );
+                    } else {
+                        // uses the stats from "b"
+                        assertThat(
+                                availableDiskSpaceUpdates.getLast().getBytes(),
+                                // the default 5% (same as flood stage level)
+                                is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
+                        );
+                    }
+                }
+            });
+        }
+        aFileStore.throwIoException = false;
+        bFileStore.throwIoException = false;
     }
 
     public void testAvailableDiskSpaceMonitorSettingsUpdate() throws Exception {

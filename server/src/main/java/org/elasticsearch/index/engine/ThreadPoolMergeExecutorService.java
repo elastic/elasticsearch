@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
@@ -390,7 +391,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         ThreadPool threadPool,
         NodeEnvironment.DataPath[] dataPaths,
         ClusterSettings clusterSettings,
-        Consumer<ByteSizeValue> updateConsumer
+        Consumer<ByteSizeValue> availableDiskSpaceUpdateConsumer
     ) {
         AvailableDiskSpacePeriodicMonitor availableDiskSpacePeriodicMonitor = new AvailableDiskSpacePeriodicMonitor(
             dataPaths,
@@ -398,7 +399,15 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             clusterSettings.get(INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING),
             clusterSettings.get(INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING),
             clusterSettings.get(INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING),
-            updateConsumer
+            availableDiskSpaceByteSize -> {
+                if (availableDiskSpaceByteSize.equals(ByteSizeValue.MINUS_ONE)) {
+                    // The merge executor is currently unaware of the available disk space because of an error.
+                    // Merges are NOT blocked if the available disk space is insufficient.
+                    availableDiskSpaceUpdateConsumer.accept(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+                } else {
+                    availableDiskSpaceUpdateConsumer.accept(availableDiskSpaceByteSize);
+                }
+            }
         );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
@@ -497,6 +506,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
             if (mostAvailablePath == null) {
                 LOGGER.error("Cannot read filesystem info for node data paths " + Arrays.toString(dataPaths));
+                updateConsumer.accept(ByteSizeValue.MINUS_ONE);
                 return;
             }
             long mostAvailableDiskSpaceBytes = mostAvailablePath.getAvailable().getBytes();

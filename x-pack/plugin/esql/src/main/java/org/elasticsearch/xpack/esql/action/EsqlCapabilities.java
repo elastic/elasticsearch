@@ -1178,6 +1178,11 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_ALIASES,
 
         /**
+         * Enable support for cross-cluster lookup joins.
+         */
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());

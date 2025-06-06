@@ -27,6 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
+    private static final String RERANK_RATE_LIMIT_ENDPOINT_ID = "rerank";
 
     public GoogleVertexAiRerankModel(
         String inferenceEntityId,
@@ -143,7 +144,6 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         var projectId = getServiceSettings().projectId();
         var modelId = getServiceSettings().modelId();
 
-        // In this case, we don't include the location since it's a global endpoint
-        return Objects.hash(projectId, modelId);
+        return Objects.hash(projectId, modelId, RERANK_RATE_LIMIT_ENDPOINT_ID);
     }
 }

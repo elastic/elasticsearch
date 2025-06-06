@@ -19,13 +19,11 @@ public class PatternedTextBlockLoader extends BlockDocValuesReader.DocValuesBloc
 
     private final String name;
     private final String templateFieldName;
-    private final String timestampFieldName;
     private final String argsFieldName;
 
-    PatternedTextBlockLoader(String name, String templateFieldName, String timestampFieldName, String argsFieldName) {
+    PatternedTextBlockLoader(String name, String templateFieldName, String argsFieldName) {
         this.name = name;
         this.templateFieldName = templateFieldName;
-        this.timestampFieldName = timestampFieldName;
         this.argsFieldName = argsFieldName;
     }
 
@@ -54,11 +52,11 @@ public class PatternedTextBlockLoader extends BlockDocValuesReader.DocValuesBloc
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-        return PatternedTextDocValues.from(context.reader(), templateFieldName, timestampFieldName, argsFieldName);
+        return PatternedTextDocValues.from(context.reader(), templateFieldName, argsFieldName);
     }
 
     @Override
     public String toString() {
-        return "BytesRefsFromOrds[" + name + "]";
+        return "PatternedTextBlockLoader[" + name + "]";
     }
 }

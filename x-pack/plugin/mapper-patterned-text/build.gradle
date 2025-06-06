@@ -21,6 +21,7 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   implementation project(':modules:mapper-extras')
+}
 
 if (buildParams.getSnapshotBuild() == false) {
   tasks.named("test").configure {

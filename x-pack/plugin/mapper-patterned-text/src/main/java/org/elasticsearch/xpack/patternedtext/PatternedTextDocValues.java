@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.patternedtext;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 
@@ -20,22 +19,16 @@ import java.util.List;
 public class PatternedTextDocValues extends SortedSetDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
-    private final SortedSetDocValues[] optimizedArgsDocValues;
-    private final SortedNumericDocValues timestampDocValues;
 
     PatternedTextDocValues(
         SortedSetDocValues templateDocValues,
-        SortedSetDocValues argsDocValues,
-        SortedSetDocValues[] optimizedArgsDocValues,
-        SortedNumericDocValues timestampDocValues
+        SortedSetDocValues argsDocValues
     ) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
-        this.optimizedArgsDocValues = optimizedArgsDocValues;
-        this.timestampDocValues = timestampDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String timestampFieldName, String argsFieldName)
+    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName)
         throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         if (templateDocValues.getValueCount() == 0) {
@@ -43,12 +36,10 @@ public class PatternedTextDocValues extends SortedSetDocValues {
         }
 
         SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
-        SortedSetDocValues[] optimizedArgsDocValues = new SortedSetDocValues[PatternedTextFieldMapper.OPTIMIZED_ARG_COUNT];
-        for (int i = 0; i < optimizedArgsDocValues.length; i++) {
-            optimizedArgsDocValues[i] = DocValues.getSortedSet(leafReader, argsFieldName + "." + i);
-        }
-        SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(leafReader, timestampFieldName);
-        return new PatternedTextDocValues(templateDocValues, argsDocValues, optimizedArgsDocValues, timestampDocValues);
+
+        assert templateDocValues.getValueCount() <= 1;
+        assert argsDocValues.getValueCount() <= 1;
+        return new PatternedTextDocValues(templateDocValues, argsDocValues);
     }
 
     @Override
@@ -68,17 +59,10 @@ public class PatternedTextDocValues extends SortedSetDocValues {
 
     String lookupOrdAsString(long l) throws IOException {
         String template = templateDocValues.lookupOrd(l).utf8ToString();
-        Long timestamp = PatternedTextValueProcessor.hasTimestamp(template) ? timestampDocValues.nextValue() : null;
-
         int argsCount = PatternedTextValueProcessor.countArgs(template);
         List<String> args = new ArrayList<>(argsCount);
-        for (int j = 0; j < Integer.min(argsCount, PatternedTextFieldMapper.OPTIMIZED_ARG_COUNT); j++) {
-            args.add(optimizedArgsDocValues[j].lookupOrd(argsDocValues.nextOrd()).utf8ToString());
-        }
-        if (argsCount > PatternedTextFieldMapper.OPTIMIZED_ARG_COUNT) {
-            PatternedTextValueProcessor.addRemainingArgs(args, argsDocValues.lookupOrd(argsDocValues.nextOrd()).utf8ToString());
-        }
-        return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, timestamp, args, null));
+        PatternedTextValueProcessor.addRemainingArgs(args, argsDocValues.lookupOrd(argsDocValues.nextOrd()).utf8ToString());
+        return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args, null));
     }
 
     @Override
@@ -88,11 +72,7 @@ public class PatternedTextDocValues extends SortedSetDocValues {
 
     @Override
     public boolean advanceExact(int i) throws IOException {
-        timestampDocValues.advanceExact(i);
         argsDocValues.advanceExact(i);
-        for (var optimizedArg : optimizedArgsDocValues) {
-            optimizedArg.advanceExact(i);
-        }
         return templateDocValues.advanceExact(i);
     }
 
@@ -113,6 +93,6 @@ public class PatternedTextDocValues extends SortedSetDocValues {
 
     @Override
     public long cost() {
-        return templateDocValues.cost() + argsDocValues.cost() + timestampDocValues.cost();
+        return templateDocValues.cost() + argsDocValues.cost();
     }
 }

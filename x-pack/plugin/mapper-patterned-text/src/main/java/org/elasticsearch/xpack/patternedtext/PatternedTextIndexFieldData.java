@@ -35,40 +35,26 @@ public class PatternedTextIndexFieldData extends AbstractIndexOrdinalsFieldData 
 
     final SortedSetOrdinalsIndexFieldData templateFieldData;
     final SortedSetOrdinalsIndexFieldData argsFieldData;
-    final SortedSetOrdinalsIndexFieldData[] optimizedArgsFieldData;
-    final SortedNumericIndexFieldData timestampFieldData;
 
     static class Builder implements IndexFieldData.Builder {
 
         final String name;
         final SortedSetOrdinalsIndexFieldData.Builder templateFieldDataBuilder;
         final SortedSetOrdinalsIndexFieldData.Builder argsFieldDataBuilder;
-        final SortedSetOrdinalsIndexFieldData.Builder[] optimizedArgsFieldDataBuilder;
-        final SortedNumericIndexFieldData.Builder timestampFieldDataBuilder;
 
         Builder(
             String name,
             SortedSetOrdinalsIndexFieldData.Builder templateFieldData,
-            SortedSetOrdinalsIndexFieldData.Builder argsFieldData,
-            SortedSetOrdinalsIndexFieldData.Builder[] optimizedArgsFieldData,
-            SortedNumericIndexFieldData.Builder timestampFieldData
+            SortedSetOrdinalsIndexFieldData.Builder argsFieldData
         ) {
             this.name = name;
             this.templateFieldDataBuilder = templateFieldData;
             this.argsFieldDataBuilder = argsFieldData;
-            this.optimizedArgsFieldDataBuilder = optimizedArgsFieldData;
-            this.timestampFieldDataBuilder = timestampFieldData;
         }
 
         public PatternedTextIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             SortedSetOrdinalsIndexFieldData templateFieldData = templateFieldDataBuilder.build(cache, breakerService);
             SortedSetOrdinalsIndexFieldData argsFieldData = argsFieldDataBuilder.build(cache, breakerService);
-            SortedSetOrdinalsIndexFieldData[] optimizedArgsFieldData =
-                new SortedSetOrdinalsIndexFieldData[optimizedArgsFieldDataBuilder.length];
-            for (int i = 0; i < optimizedArgsFieldData.length; i++) {
-                optimizedArgsFieldData[i] = optimizedArgsFieldDataBuilder[i].build(cache, breakerService);
-            }
-            SortedNumericIndexFieldData timestampFieldData = timestampFieldDataBuilder.build(cache, breakerService);
             ToScriptFieldFactory<SortedSetDocValues> factory = (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n);
             return new PatternedTextIndexFieldData(
                 name,
@@ -76,9 +62,7 @@ public class PatternedTextIndexFieldData extends AbstractIndexOrdinalsFieldData 
                 breakerService,
                 factory,
                 templateFieldData,
-                argsFieldData,
-                optimizedArgsFieldData,
-                timestampFieldData
+                argsFieldData
             );
         }
     }
@@ -89,15 +73,11 @@ public class PatternedTextIndexFieldData extends AbstractIndexOrdinalsFieldData 
         CircuitBreakerService breakerService,
         ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory,
         SortedSetOrdinalsIndexFieldData templateFieldData,
-        SortedSetOrdinalsIndexFieldData argsFieldData,
-        SortedSetOrdinalsIndexFieldData[] optimizedArgsFieldData,
-        SortedNumericIndexFieldData timestampFieldData
+        SortedSetOrdinalsIndexFieldData argsFieldData
     ) {
         super(name, KEYWORD, cache, breakerService, toScriptFieldFactory);
         this.templateFieldData = templateFieldData;
         this.argsFieldData = argsFieldData;
-        this.optimizedArgsFieldData = optimizedArgsFieldData;
-        this.timestampFieldData = timestampFieldData;
     }
 
     @Override
@@ -109,23 +89,13 @@ public class PatternedTextIndexFieldData extends AbstractIndexOrdinalsFieldData 
     public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
         LeafOrdinalsFieldData leafTemplateFieldData = templateFieldData.loadDirect(context);
         LeafOrdinalsFieldData leafArgsFieldData = argsFieldData.loadDirect(context);
-        LeafOrdinalsFieldData[] leafOptimizedArgsFieldData = new LeafOrdinalsFieldData[optimizedArgsFieldData.length];
-        LeafNumericFieldData leafTimestampFieldData = timestampFieldData.loadDirect(context);
-        for (int i = 0; i < leafOptimizedArgsFieldData.length; i++) {
-            leafOptimizedArgsFieldData[i] = optimizedArgsFieldData[i].loadDirect(context);
-        }
 
         return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
             @Override
             public SortedSetDocValues getOrdinalsValues() {
                 SortedSetDocValues templateDocValues = leafTemplateFieldData.getOrdinalsValues();
                 SortedSetDocValues argsDocValues = leafArgsFieldData.getOrdinalsValues();
-                SortedSetDocValues[] optimizedArgsDocValues = new SortedSetDocValues[PatternedTextFieldMapper.OPTIMIZED_ARG_COUNT];
-                SortedNumericDocValues timestampDocValues = leafTimestampFieldData.getLongValues();
-                for (int i = 0; i < optimizedArgsDocValues.length; i++) {
-                    optimizedArgsDocValues[i] = leafOptimizedArgsFieldData[i].getOrdinalsValues();
-                }
-                return new PatternedTextDocValues(templateDocValues, argsDocValues, optimizedArgsDocValues, timestampDocValues);
+                return new PatternedTextDocValues(templateDocValues, argsDocValues);
             }
 
             @Override

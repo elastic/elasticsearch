@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.patternedtext;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -31,11 +30,8 @@ import java.util.Map;
  */
 public class PatternedTextFieldMapper extends FieldMapper {
 
-    static final int OPTIMIZED_ARG_COUNT = 0;
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
-        public static final FieldType TEMPLATE_TYPE;
 
         static {
             final FieldType ft = new FieldType();
@@ -46,17 +42,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
             ft.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
-
-        static {
-            final FieldType ft = new FieldType();
-            ft.setTokenized(true);
-            ft.setStored(false);
-            ft.setStoreTermVectors(false);
-            ft.setOmitNorms(true);
-            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            TEMPLATE_TYPE = freezeAndDeduplicateFieldType(ft);
-        }
-
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -110,7 +95,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final NamedAnalyzer indexAnalyzer;
     private final int positionIncrementGap;
     private final FieldType fieldType;
-    private final FieldType templateFieldType;
 
     private PatternedTextFieldMapper(
         String simpleName,
@@ -122,7 +106,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
         assert mappedFieldPatternedTextFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldPatternedTextFieldType.hasDocValues();
         this.fieldType = Defaults.FIELD_TYPE;
-        this.templateFieldType = Defaults.TEMPLATE_TYPE;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
@@ -152,23 +135,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
         // Add template and args index.
         context.doc().add(new Field(fieldType().name(), parts.indexed(), fieldType));
 
-        // Add template docvalues and index.
+        // Add template doc_values
         context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
-        // todo: calling templateStripped() right after split() seems like a waste, would be better to do it in the split() method
-        context.doc().add(new Field(fieldType().templateFieldName(), parts.templateStripped(), templateFieldType));
 
-        // Add timestamp docvalues.
-        if (parts.timestamp() != null) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().timestampFieldName(), parts.timestamp()));
-        }
-
-        // Add args docvalues.
-        for (int i = 0; i < Integer.min(parts.args().size(), OPTIMIZED_ARG_COUNT); i++) {
-            String argFieldname = fieldType().argsFieldName() + "." + i;
-            context.doc().add(new SortedSetDocValuesField(argFieldname, new BytesRef(parts.args().get(i))));
-        }
-        if (parts.args().size() > OPTIMIZED_ARG_COUNT) {
-            String remainingArgs = PatternedTextValueProcessor.mergeRemainingArgs(parts, OPTIMIZED_ARG_COUNT);
+        // Add args doc_values
+        if (parts.args().isEmpty() == false) {
+            String remainingArgs = PatternedTextValueProcessor.mergeRemainingArgs(parts, 0);
             context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
         }
     }
@@ -191,7 +163,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 fullPath(),
                 new PatternedTextSyntheticFieldLoaderLayer(
                     fieldType().templateFieldName(),
-                    fieldType().timestampFieldName(),
                     fieldType().argsFieldName()
                 )
             )

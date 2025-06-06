@@ -32,8 +32,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocValueFetcher;
@@ -46,7 +44,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 
 import java.io.IOException;
@@ -59,11 +56,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.KEYWORD;
 
-class PatternedTextFieldType extends StringFieldType implements DynamicFieldType {
+public class PatternedTextFieldType extends StringFieldType implements DynamicFieldType {
 
     private static final String TEMPLATE_SUFFIX = ".template";
     private static final String ARGS_SUFFIX = ".args";
-    private static final String TIMESTAMP_SUFFIX = ".ts";
 
     static final String CONTENT_TYPE = "patterned_text";
 
@@ -260,7 +256,7 @@ class PatternedTextFieldType extends StringFieldType implements DynamicFieldType
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new PatternedTextBlockLoader(name(), templateFieldName(), timestampFieldName(), argsFieldName());
+        return new PatternedTextBlockLoader(name(), templateFieldName(), argsFieldName());
     }
 
     @Override
@@ -275,26 +271,10 @@ class PatternedTextFieldType extends StringFieldType implements DynamicFieldType
             KEYWORD,
             (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
         );
-        var optimizedArgsDataBuilder = new SortedSetOrdinalsIndexFieldData.Builder[PatternedTextFieldMapper.OPTIMIZED_ARG_COUNT];
-        for (int i = 0; i < optimizedArgsDataBuilder.length; i++) {
-            optimizedArgsDataBuilder[i] = new SortedSetOrdinalsIndexFieldData.Builder(
-                argsFieldName() + "." + i,
-                KEYWORD,
-                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-            );
-        }
-        var timestampDataBuilder = new SortedNumericIndexFieldData.Builder(
-            timestampFieldName(),
-            IndexNumericFieldData.NumericType.LONG,
-            DateMillisDocValuesField::new,
-            false
-        );
         return new PatternedTextIndexFieldData.Builder(
             name(),
             templateDataBuilder,
-            argsDataBuilder,
-            optimizedArgsDataBuilder,
-            timestampDataBuilder
+            argsDataBuilder
         );
     }
 
@@ -306,7 +286,4 @@ class PatternedTextFieldType extends StringFieldType implements DynamicFieldType
         return name() + ARGS_SUFFIX;
     }
 
-    String timestampFieldName() {
-        return name() + TIMESTAMP_SUFFIX;
-    }
 }

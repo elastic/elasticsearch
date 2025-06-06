@@ -28,10 +28,19 @@ import java.util.SplittableRandom;
 
 public class SampleOperator implements Operator {
 
-    public record Factory(double probability, Integer seed) implements OperatorFactory {
+    public static class Factory implements OperatorFactory {
+
+        private final double probability;
+        private final Integer seed;
 
         public Factory(double probability) {
             this(probability, null);
+        }
+
+        // visible for testing
+        Factory(double probability, Integer seed) {
+            this.probability = probability;
+            this.seed = seed;
         }
 
         @Override

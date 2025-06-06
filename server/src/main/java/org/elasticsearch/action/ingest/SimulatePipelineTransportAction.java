@@ -18,11 +18,13 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -51,6 +53,8 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final SimulateExecutionService executionService;
     private final TransportService transportService;
     private final ProjectResolver projectResolver;
+    private final ClusterService clusterService;
+    private final FeatureService featureService;
     private volatile TimeValue ingestNodeTransportActionTimeout;
     // ThreadLocal because our unit testing framework does not like sharing Randoms across threads
     private final ThreadLocal<Random> random = ThreadLocal.withInitial(Randomness::get);
@@ -61,7 +65,9 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         TransportService transportService,
         ActionFilters actionFilters,
         IngestService ingestService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(
             SimulatePipelineAction.NAME,
@@ -74,6 +80,8 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         this.executionService = new SimulateExecutionService(threadPool);
         this.transportService = transportService;
         this.projectResolver = projectResolver;
+        this.clusterService = clusterService;
+        this.featureService = featureService;
         this.ingestNodeTransportActionTimeout = INGEST_NODE_TRANSPORT_ACTION_TIMEOUT.get(ingestService.getClusterService().getSettings());
         ingestService.getClusterService()
             .getClusterSettings()
@@ -117,7 +125,8 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                         source,
                         request.isVerbose(),
                         ingestService,
-                        request.getRestApiVersion()
+                        request.getRestApiVersion(),
+                        (feature) -> featureService.clusterHasFeature(clusterService.state(), feature)
                     );
                 }
                 executionService.execute(simulateRequest, listener);

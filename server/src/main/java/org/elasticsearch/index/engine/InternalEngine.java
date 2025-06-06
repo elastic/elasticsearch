@@ -2909,7 +2909,8 @@ public class InternalEngine extends Engine {
         ShardId shardId,
         IndexSettings indexSettings,
         @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-        MergeMetrics mergeMetrics) {
+        MergeMetrics mergeMetrics
+    ) {
         if (threadPoolMergeExecutorService != null) {
             return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
         } else {
@@ -2922,7 +2923,8 @@ public class InternalEngine extends Engine {
             ShardId shardId,
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-            MergeMetrics mergeMetrics) {
+            MergeMetrics mergeMetrics
+        ) {
             super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes, mergeMetrics);
         }
 

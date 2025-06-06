@@ -13,14 +13,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -122,7 +122,7 @@ public final class FetchPhase {
         // - Speed up retrieval of the synthetic source
         // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
         // but they are typically accessed through doc values instead (e.g: re-scorer).
-        SourceFilter sourceFilter = maybeExcludeNonSemanticTextVectors(context);
+        SourceFilter sourceFilter = maybeExcludeNonSemanticTextVectorFields(context);
         SourceLoader sourceLoader = context.newSourceLoader(sourceFilter);
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
@@ -461,24 +461,53 @@ public final class FetchPhase {
      * unless vectors are explicitly requested to be included in the source.
      * Returns {@code null} when vectors should not be filtered out.
      */
-    private static SourceFilter maybeExcludeNonSemanticTextVectors(SearchContext context) {
+    private static SourceFilter maybeExcludeNonSemanticTextVectorFields(SearchContext context) {
         if (shouldExcludeVectorsFromSource(context) == false) {
             return null;
         }
         var lookup = context.getSearchExecutionContext().getMappingLookup();
-        List<String> inferencePatterns = lookup.inferenceFields().isEmpty()
-            ? null
-            : lookup.inferenceFields().keySet().stream().map(f -> f + "*").toList();
-        var excludes = lookup.getFullNameToFieldType()
-            .values()
-            .stream()
-            .filter(
-                f -> f instanceof DenseVectorFieldMapper.DenseVectorFieldType || f instanceof SparseVectorFieldMapper.SparseVectorFieldType
+        var fetchFieldsAut = context.fetchFieldsContext() != null && context.fetchFieldsContext().fields().size() > 0
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(context.fetchFieldsContext().fields().stream().map(f -> f.field).toArray(String[]::new))
             )
+            : null;
+        var inferenceFieldsAut = lookup.inferenceFields().size() > 0
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(lookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
+            )
+            : null;
+
+        List<String> lateExcludes = new ArrayList<>();
+        var excludes = lookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+            // Exclude the field specified by the `fields` option
+            if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
+                lateExcludes.add(f.name());
+                return false;
+            }
             // Exclude vectors from semantic text fields, as they are processed separately
-            .filter(f -> Regex.simpleMatch(inferencePatterns, f.name()) == false)
-            .map(f -> f.name())
-            .collect(Collectors.toList());
+            return inferenceFieldsAut == null || inferenceFieldsAut.run(f.name()) == false;
+        }).map(f -> f.name()).collect(Collectors.toList());
+
+        if (lateExcludes.size() > 0) {
+            /**
+             * Adds the vector field specified by the `fields` option to the excludes list of the fetch source context.
+             * This ensures that vector fields are available to sub-fetch phases, but excluded during the {@link FetchSourcePhase}.
+             */
+            if (context.fetchSourceContext() != null && context.fetchSourceContext().excludes() != null) {
+                for (var exclude : context.fetchSourceContext().excludes()) {
+                    lateExcludes.add(exclude);
+                }
+            }
+            var fetchSourceContext = context.fetchSourceContext() == null
+                ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
+                : FetchSourceContext.of(
+                    context.fetchSourceContext().fetchSource(),
+                    context.fetchSourceContext().includeVectors(),
+                    context.fetchSourceContext().includes(),
+                    lateExcludes.toArray(String[]::new)
+                );
+            context.fetchSourceContext(fetchSourceContext);
+        }
         return excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
     }
 }

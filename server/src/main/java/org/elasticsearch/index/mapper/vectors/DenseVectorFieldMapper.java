@@ -58,6 +58,7 @@ import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -75,6 +76,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
@@ -2285,6 +2287,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
+            if (context.getMappingLookup().isSourceSynthetic()) {
+                return new DocValueFetcher(
+                    docValueFormat(null, null),
+                    context.getForField(this, FielddataOperation.SEARCH),
+                    StoredFieldsSpec.NO_REQUIREMENTS
+                );
+            }
             return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
@@ -2301,6 +2310,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isAggregatable() {
             return false;
+        }
+
+        @Override
+        public boolean isVectorEmbedding() {
+            return true;
         }
 
         @Override

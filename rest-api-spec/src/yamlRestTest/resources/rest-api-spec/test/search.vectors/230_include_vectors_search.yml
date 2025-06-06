@@ -174,3 +174,52 @@ setup:
   - match:      { hits.hits.3._source.nested.1.paragraph_id: 1 }
   - exists:       hits.hits.3._source.nested.2.vector
   - match:      { hits.hits.3._source.nested.2.paragraph_id: 2 }
+
+---
+"exclude vectors with fields":
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            include_vectors: false
+          sort: ["name"]
+          fields: [vector, sparse_vector, nested.*]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - not_exists:   hits.hits.0._source.vector
+  - exists:       hits.hits.0.fields.vector
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - not_exists:   hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
+  - not_exists:   hits.hits.1._source.nested.2.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: 3 }
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - not_exists:   hits.hits.2._source.vector
+  - exists:       hits.hits.2.fields.vector
+  - not_exists:   hits.hits.2._source.sparse_vector
+  - exists:       hits.hits.2.fields.sparse_vector
+
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - not_exists:   hits.hits.3._source.nested.0.vector
+  - exists:       hits.hits.3.fields.nested.0.vector
+  - not_exists:   hits.hits.3._source.nested.0.sparse_vector
+  - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
+  - exists:       hits.hits.3.fields.nested.0.sparse_vector
+  - not_exists:   hits.hits.3._source.nested.1.sparse_vector
+  - match:      { hits.hits.3._source.nested.1.paragraph_id: 1 }
+  - exists:       hits.hits.3.fields.nested.1.sparse_vector
+  - not_exists:   hits.hits.3._source.nested.2.vector
+  - match:      { hits.hits.3._source.nested.2.paragraph_id: 2 }
+  - exists:       hits.hits.3.fields.nested.2.vector

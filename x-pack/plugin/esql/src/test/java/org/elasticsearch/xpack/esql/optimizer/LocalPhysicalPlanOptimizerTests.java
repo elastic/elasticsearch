@@ -1999,10 +1999,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(2, projections.size());
         FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
         assertEquals(DATE_NANOS, fa.dataType());
-        assertEquals("date_and_date_nanos", fa.fieldName());
+        assertEquals("date_and_date_nanos", fa.fieldName().string());
         assertTrue(isMultiTypeEsField(fa)); // mixed date and date_nanos are auto-casted
         UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
-        assertEquals("date_and_date_nanos_and_long", ua.fieldName());
+        assertEquals("date_and_date_nanos_and_long", ua.fieldName().string());
         var limit = as(project.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         project = as(exchange.child(), ProjectExec.class);
@@ -2013,7 +2013,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         GreaterThanOrEqual gt = as(filter.condition(), GreaterThanOrEqual.class);
         fa = as(gt.left(), FieldAttribute.class);
         assertTrue(isMultiTypeEsField(fa));
-        assertEquals("date_and_date_nanos_and_long", fa.fieldName());
+        assertEquals("date_and_date_nanos_and_long", fa.fieldName().string());
         fieldExtract = as(filter.child(), FieldExtractExec.class); // extract date_and_date_nanos_and_long
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         var source = ((SingleValueQuery.Builder) esQuery.query()).source();

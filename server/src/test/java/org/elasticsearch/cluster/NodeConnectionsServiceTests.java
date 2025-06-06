@@ -296,7 +296,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     Level.WARN,
                     "reopened transport connection to node ["
                         + gracefulClose.descriptionWithoutAttributes()
-                        + "] which disconnected gracefully [" + reconnectIntervalSeconds + "s/" + reconnectIntervalMillis + "ms] ago "
+                        + "] which disconnected gracefully ["
+                        + reconnectIntervalSeconds
+                        + "s/"
+                        + reconnectIntervalMillis
+                        + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
                         + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
@@ -308,7 +312,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     Level.WARN,
                     "reopened transport connection to node ["
                         + exceptionalClose.descriptionWithoutAttributes()
-                        + "] which disconnected exceptionally [" + reconnectIntervalSeconds + "s/" + reconnectIntervalMillis + "ms] ago "
+                        + "] which disconnected exceptionally ["
+                        + reconnectIntervalSeconds
+                        + "s/"
+                        + reconnectIntervalMillis
+                        + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
                         + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )

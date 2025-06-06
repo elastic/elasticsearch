@@ -1,0 +1,5 @@
+pr: 128974
+summary: Fix NPE when `date_buckets` aggregation is missing in the response
+area: Machine Learning
+type: bug
+issues: []

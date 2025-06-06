@@ -100,7 +100,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             throw new IllegalStateException("PIT is required");
         }
 
-        T rewritten = doRewrite(ctx);
+        RetrieverBuilder rewritten = doRewrite(ctx);
         if (rewritten != this) {
             return rewritten;
         }
@@ -334,11 +334,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * Perform any custom rewrite logic necessary
      *
      * @param ctx The query rewrite context
-     * @return T the rewritten retriever
+     * @return RetrieverBuilder the rewritten retriever
      */
-    @SuppressWarnings("unchecked")
-    protected T doRewrite(QueryRewriteContext ctx) {
-        return (T) this;
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        return this;
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

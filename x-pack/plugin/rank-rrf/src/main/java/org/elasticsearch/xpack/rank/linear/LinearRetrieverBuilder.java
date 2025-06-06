@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -280,8 +282,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     @Override
-    protected LinearRetrieverBuilder doRewrite(QueryRewriteContext ctx) {
-        LinearRetrieverBuilder rewritten = this;
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        RetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && query != null) {
@@ -290,6 +292,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
                     "[" + NAME + "] does not support the simplified query format when querying multiple indices"
+                );
+            } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] does not support the simplified query format when querying remote indices"
                 );
             }
 
@@ -319,13 +325,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 }
             ).stream().map(CompoundRetrieverBuilder::convertToRetrieverSource).toList();
 
-            float[] weights = new float[fieldsInnerRetrievers.size()];
-            Arrays.fill(weights, DEFAULT_WEIGHT);
+            if (fieldsInnerRetrievers.isEmpty() == false) {
+                float[] weights = new float[fieldsInnerRetrievers.size()];
+                Arrays.fill(weights, DEFAULT_WEIGHT);
 
-            ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
-            Arrays.fill(normalizers, normalizer);
+                ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
+                Arrays.fill(normalizers, normalizer);
 
-            rewritten = new LinearRetrieverBuilder(fieldsInnerRetrievers, null, null, normalizer, rankWindowSize, weights, normalizers);
+                rewritten = new LinearRetrieverBuilder(fieldsInnerRetrievers, null, null, normalizer, rankWindowSize, weights, normalizers);
+            } else {
+                // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
+                rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
+            }
         }
 
         return rewritten;

@@ -202,10 +202,13 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             )
         );
 
-        LinearRetrieverBuilder rewritten = retriever.doRewrite(ctx);
+        RetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
-        assertEquals(retriever.rankWindowSize(), rewritten.rankWindowSize());
-        assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewritten));
+        assertTrue(rewritten instanceof LinearRetrieverBuilder);
+
+        LinearRetrieverBuilder rewrittenLinear = (LinearRetrieverBuilder) rewritten;
+        assertEquals(retriever.rankWindowSize(), rewrittenLinear.rankWindowSize());
+        assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewrittenLinear));
     }
 
     private static Set<InnerRetriever> getInnerRetrieversAsSet(LinearRetrieverBuilder retriever) {

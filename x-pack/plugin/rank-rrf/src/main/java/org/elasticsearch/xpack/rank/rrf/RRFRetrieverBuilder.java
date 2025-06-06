@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -214,8 +216,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder doRewrite(QueryRewriteContext ctx) {
-        RRFRetrieverBuilder rewritten = this;
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        RetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && query != null) {
@@ -224,6 +226,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
                     "[" + NAME + "] does not support the simplified query format when querying multiple indices"
+                );
+            } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] does not support the simplified query format when querying remote indices"
                 );
             }
 
@@ -246,7 +252,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 }
             ).stream().map(CompoundRetrieverBuilder::convertToRetrieverSource).toList();
 
-            rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, rankWindowSize, rankConstant);
+            if (fieldsInnerRetrievers.isEmpty() == false) {
+                rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, rankWindowSize, rankConstant);
+            } else {
+                // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
+                rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
+            }
         }
 
         return rewritten;

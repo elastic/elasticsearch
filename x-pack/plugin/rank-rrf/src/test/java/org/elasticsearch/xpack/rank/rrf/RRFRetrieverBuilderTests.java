@@ -229,11 +229,14 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             }).toArray())
         );
 
-        RRFRetrieverBuilder rewritten = retriever.doRewrite(ctx);
+        RetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
-        assertEquals(retriever.rankWindowSize(), rewritten.rankWindowSize());
-        assertEquals(retriever.rankConstant(), rewritten.rankConstant());
-        assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewritten));
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+
+        RRFRetrieverBuilder rewrittenRrf = (RRFRetrieverBuilder) rewritten;
+        assertEquals(retriever.rankWindowSize(), rewrittenRrf.rankWindowSize());
+        assertEquals(retriever.rankConstant(), rewrittenRrf.rankConstant());
+        assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewrittenRrf));
     }
 
     private static Set<Object> getInnerRetrieversAsSet(RRFRetrieverBuilder retriever) {

@@ -12,10 +12,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,12 +64,10 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         CleanupShrinkIndexStep cleanupShrinkIndexStep = createRandomInstance();
-        cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
+        cleanupShrinkIndexStep.performAction(indexMetadata, state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {}
 
@@ -97,14 +95,12 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getDeleteIndexRequestAssertingClient(threadPool, shrinkIndexName);
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
+            step.performAction(indexMetadata, state, null, ActionListener.noop());
         }
     }
 
@@ -124,14 +120,12 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata shrunkIndexMetadata = shrunkIndexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(shrunkIndexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(shrunkIndexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getFailingIfCalledClient(threadPool);
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(shrunkIndexMetadata, clusterState, null, ActionListener.noop());
+            step.performAction(shrunkIndexMetadata, state, null, ActionListener.noop());
         }
     }
 

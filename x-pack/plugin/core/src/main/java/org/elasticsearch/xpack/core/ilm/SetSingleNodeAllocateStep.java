@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -60,7 +60,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -71,7 +71,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(
                 new FilterAllocationDecider(
-                    clusterState.getMetadata().settings(),
+                    currentState.cluster().getMetadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ),
                 DataTierAllocationDecider.INSTANCE,
@@ -81,10 +81,10 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 new NodeReplacementAllocationDecider()
             )
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, currentState.cluster(), null, null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
-        final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
+        final Map<ShardId, List<ShardRouting>> routingsByShardId = currentState.routingTable()
             .allShards(indexName)
             .stream()
             .collect(Collectors.groupingBy(ShardRouting::shardId));

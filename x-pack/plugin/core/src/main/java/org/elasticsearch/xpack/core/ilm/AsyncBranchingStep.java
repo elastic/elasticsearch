@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 import java.util.Objects;
@@ -52,7 +52,7 @@ public class AsyncBranchingStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {

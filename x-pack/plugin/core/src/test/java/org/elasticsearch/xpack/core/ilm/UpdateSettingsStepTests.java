@@ -72,7 +72,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null);
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -94,7 +94,10 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
+        assertSame(
+            exception,
+            expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null))
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

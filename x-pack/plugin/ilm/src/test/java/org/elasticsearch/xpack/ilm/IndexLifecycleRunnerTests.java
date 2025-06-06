@@ -961,7 +961,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         @Override
         public void performAction(
             IndexMetadata indexMetadata,
-            ClusterState currentState,
+            ProjectState currentState,
             ClusterStateObserver observer,
             ActionListener<Void> listener
         ) {

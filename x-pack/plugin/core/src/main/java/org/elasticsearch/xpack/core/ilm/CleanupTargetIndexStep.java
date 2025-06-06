@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -59,11 +59,11 @@ public class CleanupTargetIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         final String sourceIndexName = sourceIndexNameSupplier.apply(indexMetadata);
         if (Strings.isNullOrEmpty(sourceIndexName) == false) {
             // the current managed index is the target index
-            if (currentClusterState.metadata().getProject().index(sourceIndexName) == null) {
+            if (currentProject.index(sourceIndexName) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) target index as that will cause data loss
                 String policyName = indexMetadata.getLifecyclePolicyName();

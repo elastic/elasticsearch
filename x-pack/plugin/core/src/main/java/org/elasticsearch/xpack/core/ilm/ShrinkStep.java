@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +55,7 @@ public class ShrinkStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -65,7 +65,7 @@ public class ShrinkStep extends AsyncActionStep {
         }
 
         String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
-        if (currentState.metadata().getProject().index(shrunkenIndexName) != null) {
+        if (currentState.metadata().index(shrunkenIndexName) != null) {
             logger.warn(
                 "skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME,

@@ -93,7 +93,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null);
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -116,7 +116,10 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
+        assertSame(
+            exception,
+            expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null))
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

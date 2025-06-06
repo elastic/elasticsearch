@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -118,8 +117,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         IndexMetadata indexMetadata = getIndexMetadata(index, lifecycleName, step);
         mockClientDownsampleCall(index);
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     public void testPerformActionFailureInvalidExecutionState() {
@@ -141,7 +140,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
 
         String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
-        step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {
+        step.performAction(indexMetadata, projectStateWithEmptyProject(), null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 fail("expecting a failure as the index doesn't have any downsample index name in its ILM execution state");
@@ -167,10 +166,12 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
 
         mockClientDownsampleCall(backingIndexName);
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
-            .build();
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex())))
+                .put(indexMetadata, true)
+        );
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     /**
@@ -210,11 +211,11 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .numberOfReplicas(0)
             .build();
         Map<String, IndexMetadata> indices = Map.of(downsampleIndex, indexMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices));
         mockClientDownsampleCall(sourceIndexName);
 
         final AtomicBoolean listenerIsCalled = new AtomicBoolean(false);
-        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
+        step.performAction(sourceIndexMetadata, state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 listenerIsCalled.set(true);
@@ -247,9 +248,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(sourceIndexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(sourceIndexMetadata, true));
         {
             try (var threadPool = createThreadPool()) {
                 final var client = new NoOpClient(threadPool);
@@ -261,7 +260,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                         listener.onResponse(null);
                     }
                 };
-                completeStep.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
+                completeStep.performAction(sourceIndexMetadata, state, null, ActionListener.noop());
                 assertThat(completeStep.getNextStepKey(), is(nextKey));
             }
         }
@@ -290,7 +289,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                         );
                     }
                 };
-                doubleInvocationStep.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
+                doubleInvocationStep.performAction(sourceIndexMetadata, state, null, ActionListener.noop());
                 assertThat(doubleInvocationStep.getNextStepKey(), is(nextKey));
             }
         }

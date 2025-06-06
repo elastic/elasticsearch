@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -135,14 +135,12 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 .numberOfReplicas(randomIntBetween(0, 5));
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> performActionAndWait(mountSnapshotStep, indexMetadata, clusterState, null)
+                () -> performActionAndWait(mountSnapshotStep, indexMetadata, state, null)
             );
             assertThat(
                 e.getMessage(),
@@ -161,14 +159,12 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> performActionAndWait(mountSnapshotStep, indexMetadata, clusterState, null)
+                () -> performActionAndWait(mountSnapshotStep, indexMetadata, state, null)
             );
             assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
@@ -190,9 +186,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getRestoreSnapshotRequestAssertingClient(
@@ -215,7 +209,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 null,
                 0
             );
-            performActionAndWait(step, indexMetadata, clusterState, null);
+            performActionAndWait(step, indexMetadata, state, null);
         }
     }
 
@@ -235,9 +229,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         {
             RestoreSnapshotResponse responseWithOKStatus = new RestoreSnapshotResponse(new RestoreInfo("test", List.of(), 1, 1));
@@ -252,7 +244,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     null,
                     0
                 );
-                performActionAndWait(step, indexMetadata, clusterState, null);
+                performActionAndWait(step, indexMetadata, state, null);
             }
         }
 
@@ -269,7 +261,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     null,
                     0
                 );
-                performActionAndWait(step, indexMetadata, clusterState, null);
+                performActionAndWait(step, indexMetadata, state, null);
             }
         }
     }
@@ -321,9 +313,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getRestoreSnapshotRequestAssertingClient(
@@ -346,7 +336,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 null,
                 0
             );
-            performActionAndWait(step, indexMetadata, clusterState, null);
+            performActionAndWait(step, indexMetadata, state, null);
         }
     }
 
@@ -366,9 +356,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getRestoreSnapshotRequestAssertingClient(
@@ -393,7 +381,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 null,
                 0
             );
-            performActionAndWait(step, indexMetadata, clusterState, null);
+            performActionAndWait(step, indexMetadata, state, null);
         }
     }
 
@@ -413,9 +401,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getRestoreSnapshotRequestAssertingClient(
@@ -438,7 +424,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 null,
                 0
             );
-            performActionAndWait(step, indexMetadata, clusterState, null);
+            performActionAndWait(step, indexMetadata, state, null);
         }
     }
 
@@ -458,9 +444,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         final Integer totalShardsPerNode = randomTotalShardsPerNode(false);
         final int replicas = randomIntBetween(1, 5);
@@ -486,7 +470,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 totalShardsPerNode,
                 replicas
             );
-            performActionAndWait(step, indexMetadata, clusterState, null);
+            performActionAndWait(step, indexMetadata, state, null);
         }
     }
 
@@ -506,9 +490,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         final Integer totalShardsPerNode = randomTotalShardsPerNode(false);
         final int replicas = randomIntBetween(1, 5);
@@ -534,7 +516,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 totalShardsPerNode,
                 replicas
             );
-            performActionAndWait(step, indexMetadata, clusterState, null);
+            performActionAndWait(step, indexMetadata, state, null);
         }
     }
 

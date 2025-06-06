@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.core.TimeValue;
@@ -54,7 +54,7 @@ public class DownsampleStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -66,7 +66,7 @@ public class DownsampleStep extends AsyncActionStep {
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
         final String downsampleIndexName = lifecycleState.downsampleIndexName();
-        IndexMetadata downsampleIndexMetadata = currentState.metadata().getProject().index(downsampleIndexName);
+        IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 downsampleIndexMetadata.getSettings()

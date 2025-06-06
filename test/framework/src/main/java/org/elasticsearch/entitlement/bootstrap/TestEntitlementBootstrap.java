@@ -42,11 +42,6 @@ public class TestEntitlementBootstrap {
         }
 
         @Override
-        public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
-            throw notYetImplemented();
-        }
-
-        @Override
         public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
             throw notYetImplemented();
         }

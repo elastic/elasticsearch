@@ -1744,18 +1744,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         @Deprecated(forRemoval = true)
-        public Builder removeProjectCustom(String type) {
-            getSingleProject().removeCustom(type);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder removeProjectCustomIf(BiPredicate<String, ? super ProjectCustom> p) {
-            getSingleProject().removeCustomIf(p);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
         public Builder projectCustoms(Map<String, ProjectCustom> projectCustoms) {
             projectCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
             getSingleProject().customs(projectCustoms);

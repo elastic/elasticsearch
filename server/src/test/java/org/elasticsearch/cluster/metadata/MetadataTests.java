@@ -1391,20 +1391,6 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.custom("custom2"), sameInstance(custom2));
     }
 
-    public void testBuilderRemoveProjectCustomIf() {
-        var custom1 = new TestProjectCustomMetadata();
-        var custom2 = new TestProjectCustomMetadata();
-        var builder = Metadata.builder();
-        builder.putCustom("custom1", custom1);
-        builder.putCustom("custom2", custom2);
-
-        builder.removeProjectCustomIf((key, value) -> Objects.equals(key, "custom1"));
-
-        var metadata = builder.build();
-        assertThat(metadata.getProject().custom("custom1"), nullValue());
-        assertThat(metadata.getProject().custom("custom2"), sameInstance(custom2));
-    }
-
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();

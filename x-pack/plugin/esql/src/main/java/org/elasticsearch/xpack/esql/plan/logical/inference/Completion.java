@@ -138,7 +138,7 @@ public class Completion extends InferencePlan<Completion>
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && prompt.resolved();
+        return super.expressionsResolved() && prompt.resolved() && targetField.resolved();
     }
 
     @Override

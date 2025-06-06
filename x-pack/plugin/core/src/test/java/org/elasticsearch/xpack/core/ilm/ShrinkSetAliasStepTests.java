@@ -93,9 +93,12 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        final var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).aliases(Mockito.any(), Mockito.any());
     }
@@ -116,9 +119,12 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
+        final var state = projectStateWithEmptyProject();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).aliases(Mockito.any(), Mockito.any());
     }

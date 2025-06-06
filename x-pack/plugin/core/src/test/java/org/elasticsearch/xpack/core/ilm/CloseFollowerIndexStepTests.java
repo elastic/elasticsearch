@@ -44,7 +44,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null);
     }
 
     public void testRequestNotAcknowledged() {
@@ -60,7 +60,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null));
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null));
         assertThat(e.getMessage(), is("close index request failed to be acknowledged"));
     }
 
@@ -78,7 +78,10 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
+        assertSame(
+            error,
+            expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null))
+        );
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
     }
@@ -92,7 +95,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             .numberOfReplicas(0)
             .build();
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null);
         Mockito.verifyNoMoreInteractions(client);
     }
 

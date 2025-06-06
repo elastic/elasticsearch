@@ -1,0 +1,5 @@
+pr: 129068
+summary: Move per-project settings out of `ProjectMetadata`
+area: Infra/Settings
+type: enhancement
+issues: []

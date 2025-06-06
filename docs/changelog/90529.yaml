@@ -1,0 +1,18 @@
+pr: 90529
+summary: Update the response format when detailed error information is disabled
+area: Infra/Core
+type: breaking
+issues:
+  - 89387
+breaking:
+  title: Update the response format when detailed error information is disabled
+  area: REST API
+  details: |
+    Previously, if `http.detailed_errors.enabled` was set to `false`, error responses would
+    lack `type` and `reason` fields. Now, errors will always have these fields,
+    regardless of the `detailed_errors` setting.
+  impact: |
+    If using `http.detailed_errors.enabled: false`, ensure that anything
+    interacting with the REST API will be able to handle the added presence of
+    `type` and `reason` fields for errors.
+  notable: false

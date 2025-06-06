@@ -1,0 +1,122 @@
+setup:
+  - requires:
+      cluster_features: [ "simplified_retriever_format" ]
+      reason: "Simplified retriever format"
+      test_runner_features: [ "close_to", "headers" ]
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              inference_1:
+                type: semantic_text
+                inference_id: dense-inference-id
+              inference_2:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              text_1:
+                type: text
+              text_2:
+                type: text
+              timestamp:
+                type: date
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index": {"_id": "1"}}
+          {"keyword": "keyword match 1", "inference_1": "inference_1 match 1", "inference_2": "inference_2 match 1", "text_1": "foo match 1", "text_2": "x match 1", "timestamp": "2000-03-30", "vector": [1]}
+          {"index": {"_id": "2"}}
+          {"keyword": "keyword match 2", "inference_1": "inference_1 match 2", "inference_2": "inference_2 match 2", "text_1": "bar match 2", "text_2": "y match 2", "timestamp": "2010-02-08", "vector": [2]}
+          {"index": {"_id": "3"}}
+          {"keyword": "keyword match 3", "inference_1": "inference_1 match 3", "inference_2": "inference_2 match 3", "text_1": "baz match 3", "text_2": "z match 3", "timestamp": "2024-08-08", "vector": [3]}
+
+---
+"Query all fields using the simplified format":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - lte: { hits.hits.0._score: 2.0 }
+  - match: { hits.hits.1._id: "2" }
+  - lte: { hits.hits.1._score: 2.0 }
+  - match: { hits.hits.2._id: "3" }
+  - lte: { hits.hits.2._score: 2.0 }
+
+---
+"Lexical match per-field boosting using the simplified format":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: ["text_1", "text_2^2"]
+              query: "foo z"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "3" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - match: { hits.hits.1._id: "1" }
+  - lt: { hits.hits.1._score: 1.0 }
+

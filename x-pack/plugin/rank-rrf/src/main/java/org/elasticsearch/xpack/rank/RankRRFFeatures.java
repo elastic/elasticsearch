@@ -18,6 +18,7 @@ import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_R
 public class RankRRFFeatures implements FeatureSpecification {
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
+    public static final NodeFeature SIMPLIFIED_RETRIEVER_FORMAT = new NodeFeature("simplified_retriever_format");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -26,6 +27,6 @@ public class RankRRFFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT, LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX);
+        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT, LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX, SIMPLIFIED_RETRIEVER_FORMAT);
     }
 }

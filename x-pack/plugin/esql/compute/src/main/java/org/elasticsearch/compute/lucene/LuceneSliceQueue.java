@@ -31,8 +31,47 @@ import java.util.function.Function;
 
 /**
  * Shared Lucene slices between Lucene operators.
+ * <p>
+ *     Each shard is {@link #create built} with a list of queries to run and
+ *     tags to add to the queries ({@code List<QueryAndTags>}). Some examples:
+ * </p>
+ * <ul>
+ *     <li>
+ *         For queries like {@code FROM foo} we'll use a one element list
+ *         containing {@code match_all, []}. It loads all documents in the
+ *         index and append no extra fields to the loaded documents.
+ *     </li>
+ *     <li>
+ *         For queries like {@code FROM foo | WHERE a > 10} we'll use a one
+ *         element list containing {@code +single_value(a) +(a > 10), []}.
+ *         It loads all documents where {@code a} is single valued and
+ *         greater than 10.
+ *     </li>
+ *     <li>
+ *         For queries like {@code FROM foo | STATS MAX(b) BY ROUND_TO(a, 0, 100)}
+ *         we'll use a two element list containing
+ *         <ul>
+ *             <li>{@code +single_value(a) +(a < 100), [0]}</li>
+ *             <li>{@code +single_value(a) +(a >= 100), [100]}</li>
+ *         </ul>
+ *         It loads all documents in the index where {@code a} is single
+ *         valued and adds a constant {@code 0} to the documents where
+ *         {@code a < 100} and the constant {@code 100} to the documents
+ *         where {@code a >= 100}.
+ *     </li>
+ * </ul>
+ * <p>
+ *     IMPORTANT: Runners make no effort to deduplicate the results from multiple
+ *     queries. If you need to only see each document one time then make sure the
+ *     queries are mutually exclusive.
+ * </p>
  */
 public final class LuceneSliceQueue {
+    /**
+     * Query to run and tags to add to the results.
+     */
+    public record QueryAndTags(Query query, List<Object> tags) {}
+
     public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
@@ -64,7 +103,7 @@ public final class LuceneSliceQueue {
 
     public static LuceneSliceQueue create(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
         int taskConcurrency,
@@ -73,27 +112,29 @@ public final class LuceneSliceQueue {
         List<LuceneSlice> slices = new ArrayList<>();
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
         for (ShardContext ctx : contexts) {
-            Query query = queryFunction.apply(ctx);
-            query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-            /*
-             * Rewrite the query on the local index so things like fully
-             * overlapping range queries become match all. It's important
-             * to do this before picking the partitioning strategy so we
-             * can pick more aggressive strategies when the query rewrites
-             * into MatchAll.
-             */
-            try {
-                query = ctx.searcher().rewrite(query);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
-            partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
-            List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
-            Weight weight = weight(ctx, query, scoreMode);
-            for (List<PartialLeafReaderContext> group : groups) {
-                if (group.isEmpty() == false) {
-                    slices.add(new LuceneSlice(ctx, group, weight));
+            for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
+                Query query = queryAndExtra.query;
+                query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                /*
+                 * Rewrite the query on the local index so things like fully
+                 * overlapping range queries become match all. It's important
+                 * to do this before picking the partitioning strategy so we
+                 * can pick more aggressive strategies when the query rewrites
+                 * into MatchAll.
+                 */
+                try {
+                    query = ctx.searcher().rewrite(query);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+                partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
+                List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
+                Weight weight = weight(ctx, query, scoreMode);
+                for (List<PartialLeafReaderContext> group : groups) {
+                    if (group.isEmpty() == false) {
+                        slices.add(new LuceneSlice(ctx, group, weight, queryAndExtra.tags));
+                    }
                 }
             }
         }

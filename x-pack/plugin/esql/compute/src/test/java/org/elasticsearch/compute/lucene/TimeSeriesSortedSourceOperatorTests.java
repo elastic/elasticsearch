@@ -243,7 +243,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                     randomIntBetween(1, 1024),
                     1,
                     List.of(ctx),
-                    unused -> query
+                    unused -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of()))
                 );
                 var driverContext = driverContext();
                 List<Page> results = new ArrayList<>();
@@ -359,7 +359,9 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             throw new UncheckedIOException(e);
         }
         var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-        Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
+            new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
+        );
         return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
     }
 

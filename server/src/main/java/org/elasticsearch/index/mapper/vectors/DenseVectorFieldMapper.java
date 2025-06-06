@@ -52,7 +52,7 @@ import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es910.ES910HnswReducedHeapVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es910.ES910HnswVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -2004,7 +2004,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (elementType == ElementType.BIT) {
                 return new ES815HnswBitVectorsFormat(m, efConstruction);
             }
-            return new ES910HnswReducedHeapVectorsFormat(m, efConstruction, 1, null);
+            return new ES910HnswVectorsFormat(m, efConstruction, 1, null);
         }
 
         @Override

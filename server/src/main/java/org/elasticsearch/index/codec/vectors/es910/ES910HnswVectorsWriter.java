@@ -62,15 +62,15 @@ import java.util.Objects;
 
 import static org.apache.lucene.codecs.KnnVectorsWriter.MergedVectorValues.hasVectorValues;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.es910.ES910HnswReducedHeapVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.vectors.es910.ES910HnswVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10.3.0
  */
 @SuppressForbidden(reason = "Lucene classes")
-public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
+public class ES910HnswVectorsWriter extends KnnVectorsWriter {
 
-    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES910HnswReducedHeapVectorsWriter.class);
+    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES910HnswVectorsWriter.class);
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
     private final int M;
@@ -79,10 +79,10 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
     private final int numMergeWorkers;
     private final TaskExecutor mergeExec;
 
-    private final List<ES910HnswReducedHeapVectorsWriter.FieldWriter<?>> fields = new ArrayList<>();
+    private final List<ES910HnswVectorsWriter.FieldWriter<?>> fields = new ArrayList<>();
     private boolean finished;
 
-    public ES910HnswReducedHeapVectorsWriter(
+    public ES910HnswVectorsWriter(
         SegmentWriteState state,
         int M,
         int beamWidth,
@@ -100,13 +100,13 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ES910HnswReducedHeapVectorsFormat.META_EXTENSION
+            ES910HnswVectorsFormat.META_EXTENSION
         );
 
         String indexDataFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            ES910HnswReducedHeapVectorsFormat.VECTOR_INDEX_EXTENSION
+            ES910HnswVectorsFormat.VECTOR_INDEX_EXTENSION
         );
 
         boolean success = false;
@@ -116,14 +116,14 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
 
             CodecUtil.writeIndexHeader(
                 meta,
-                ES910HnswReducedHeapVectorsFormat.META_CODEC_NAME,
+                ES910HnswVectorsFormat.META_CODEC_NAME,
                 Lucene99HnswVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
             CodecUtil.writeIndexHeader(
                 vectorIndex,
-                ES910HnswReducedHeapVectorsFormat.VECTOR_INDEX_CODEC_NAME,
+                ES910HnswVectorsFormat.VECTOR_INDEX_CODEC_NAME,
                 Lucene99HnswVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
@@ -138,7 +138,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        ES910HnswReducedHeapVectorsWriter.FieldWriter<?> newField = ES910HnswReducedHeapVectorsWriter.FieldWriter.create(
+        ES910HnswVectorsWriter.FieldWriter<?> newField = ES910HnswVectorsWriter.FieldWriter.create(
             flatVectorWriter.getFlatVectorScorer(),
             flatVectorWriter.addField(fieldInfo),
             fieldInfo,
@@ -153,7 +153,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         flatVectorWriter.flush(maxDoc, sortMap);
-        for (ES910HnswReducedHeapVectorsWriter.FieldWriter<?> field : fields) {
+        for (ES910HnswVectorsWriter.FieldWriter<?> field : fields) {
             if (sortMap == null) {
                 writeField(field);
             } else {
@@ -183,14 +183,14 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
     @Override
     public long ramBytesUsed() {
         long total = SHALLOW_RAM_BYTES_USED;
-        for (ES910HnswReducedHeapVectorsWriter.FieldWriter<?> field : fields) {
+        for (ES910HnswVectorsWriter.FieldWriter<?> field : fields) {
             // the field tracks the delegate field usage
             total += field.ramBytesUsed();
         }
         return total;
     }
 
-    private void writeField(ES910HnswReducedHeapVectorsWriter.FieldWriter<?> fieldData) throws IOException {
+    private void writeField(ES910HnswVectorsWriter.FieldWriter<?> fieldData) throws IOException {
         // write graph
         long vectorIndexOffset = vectorIndex.getFilePointer();
         OnHeapHnswGraph graph = fieldData.getGraph();
@@ -207,7 +207,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
         );
     }
 
-    private void writeSortingField(ES910HnswReducedHeapVectorsWriter.FieldWriter<?> fieldData, Sorter.DocMap sortMap) throws IOException {
+    private void writeSortingField(ES910HnswVectorsWriter.FieldWriter<?> fieldData, Sorter.DocMap sortMap) throws IOException {
         final int[] ordMap = new int[fieldData.getDocsWithFieldSet().cardinality()]; // new ord to old ord
         final int[] oldOrdMap = new int[fieldData.getDocsWithFieldSet().cardinality()]; // old ord to new ord
 
@@ -540,7 +540,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
     private static class FieldWriter<T> extends KnnFieldVectorsWriter<T> {
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(
-            ES910HnswReducedHeapVectorsWriter.FieldWriter.class
+            ES910HnswVectorsWriter.FieldWriter.class
         );
 
         private final FieldInfo fieldInfo;
@@ -551,7 +551,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
         private UpdateableRandomVectorScorer scorer;
 
         @SuppressWarnings("unchecked")
-        static ES910HnswReducedHeapVectorsWriter.FieldWriter<?> create(
+        static ES910HnswVectorsWriter.FieldWriter<?> create(
             FlatVectorsScorer scorer,
             FlatFieldVectorsWriter<?> flatFieldVectorsWriter,
             FieldInfo fieldInfo,
@@ -560,7 +560,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
             InfoStream infoStream
         ) throws IOException {
             return switch (fieldInfo.getVectorEncoding()) {
-                case BYTE -> new ES910HnswReducedHeapVectorsWriter.FieldWriter<>(
+                case BYTE -> new ES910HnswVectorsWriter.FieldWriter<>(
                     scorer,
                     (FlatFieldVectorsWriter<byte[]>) flatFieldVectorsWriter,
                     fieldInfo,
@@ -568,7 +568,7 @@ public class ES910HnswReducedHeapVectorsWriter extends KnnVectorsWriter {
                     beamWidth,
                     infoStream
                 );
-                case FLOAT32 -> new ES910HnswReducedHeapVectorsWriter.FieldWriter<>(
+                case FLOAT32 -> new ES910HnswVectorsWriter.FieldWriter<>(
                     scorer,
                     (FlatFieldVectorsWriter<float[]>) flatFieldVectorsWriter,
                     fieldInfo,

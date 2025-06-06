@@ -19,7 +19,7 @@ import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
-import org.elasticsearch.index.codec.vectors.es910.ES910HnswReducedHeapVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es910.ES910HnswVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
@@ -66,11 +66,11 @@ public class Elasticsearch910Lucene102Codec extends CodecService.DeduplicateFiel
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch910Lucene102Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch910Lucene102", new Lucene101Codec());
+        super("Elasticsearch900Lucene101", new Lucene101Codec());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
-        this.defaultKnnVectorsFormat = new ES910HnswReducedHeapVectorsFormat();
+        this.defaultKnnVectorsFormat = new ES910HnswVectorsFormat();
     }
 
     @Override

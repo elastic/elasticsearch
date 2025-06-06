@@ -14,14 +14,14 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 
-public class ES910HnswReducedHeapVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES910HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES910HnswReducedHeapVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES910HnswVectorsFormat());
 
     @Override
     protected Codec getCodec() {

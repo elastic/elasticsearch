@@ -57,6 +57,8 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     private final HollowShardsService hollowShardsService;
     private final ShardFieldStats shardFieldStats;
     private final DocsStats docsStats;
+    private final List<ReferenceManager.RefreshListener> externalRefreshListeners;
+    private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
 
     @SuppressWarnings("this-escape")
     public HollowIndexEngine(
@@ -69,6 +71,8 @@ public class HollowIndexEngine extends ReadOnlyEngine {
         super(config, null, new TranslogStats(), false, Function.identity(), true, true);
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
+        this.externalRefreshListeners = config.getExternalRefreshListener();
+        this.internalRefreshListeners = config.getInternalRefreshListener();
         try (DirectoryReader reader = openDirectory(store.directory())) {
             shardFieldStats = shardFieldStats(reader.getContext().leaves());
             docsStats = docsStats(reader);
@@ -152,19 +156,8 @@ public class HollowIndexEngine extends ReadOnlyEngine {
         return new SparseVectorStats();
     }
 
-    public void callRefreshListeners() {
-        for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
-            try {
-                listener.beforeRefresh();
-                listener.afterRefresh(true);
-            } catch (IOException e) {
-                throw new IllegalStateException("Unable to refresh hollow shard", e);
-            }
-        }
-    }
-
     @Override
-    public void prepareForEngineReset() throws IOException {
+    public void prepareForEngineReset() {
         hollowShardsService.ensureHollowShard(shardId, true, "hollow index engine requires the shard to be hollow");
         logger.debug(() -> "preparing to reset hollow index engine for shard " + shardId);
     }
@@ -172,12 +165,30 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     @Override
     public RefreshResult refresh(String source) {
         // The reader is opened at hollowing time once and is never refreshed internally.
+        // We should still call the refresh listeners as some downstream logic depends on refresh listeners being invoked
+        // to populate internal data structures.
+        callRefreshListeners(externalRefreshListeners);
+        callRefreshListeners(internalRefreshListeners);
         return new RefreshResult(false, config().getPrimaryTermSupplier().getAsLong(), getLastCommittedSegmentInfos().getGeneration());
     }
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
         ActionListener.completeWith(listener, () -> refresh(source));
+    }
+
+    private void callRefreshListeners(List<ReferenceManager.RefreshListener> refreshListeners) {
+        if (refreshListeners != null) {
+            for (ReferenceManager.RefreshListener listener : refreshListeners) {
+                try {
+                    // A refresh in a hollow engine is a no-op, thus didRefresh will be always false.
+                    listener.beforeRefresh();
+                    listener.afterRefresh(false);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
     }
 
     @Override

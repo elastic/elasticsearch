@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.convertToRetrieverSource;
 
 /** Tests for the rrf retriever. */
@@ -101,7 +102,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo",
-            10,
+            DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
         );
         assertSimplifiedParamsRewrite(
@@ -112,12 +113,28 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "foo"
         );
 
+        // Non-default rank window size and rank constant
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo2",
+            DEFAULT_RANK_WINDOW_SIZE * 2,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2
+        );
+        assertSimplifiedParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 1.0f, "field_2", 1.0f),
+            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
+            "foo2"
+        );
+
         // Glob matching on inference and non-inference fields
         rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_*", "*_field_1"),
             "bar",
-            10,
+            DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
         );
         assertSimplifiedParamsRewrite(
@@ -129,7 +146,13 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // All-fields wildcard
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(null, List.of("*"), "baz", 10, RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT);
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("*"),
+            "baz",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+        );
         assertSimplifiedParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
@@ -208,6 +231,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
 
         RRFRetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
+        assertEquals(retriever.rankWindowSize(), rewritten.rankWindowSize());
+        assertEquals(retriever.rankConstant(), rewritten.rankConstant());
         assertEquals(expectedInnerRetrievers, getInnerRetrieversAsSet(rewritten));
     }
 
@@ -215,6 +240,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         Set<Object> innerRetrieversSet = new HashSet<>();
         for (CompoundRetrieverBuilder.RetrieverSource innerRetriever : retriever.innerRetrievers()) {
             if (innerRetriever.retriever() instanceof RRFRetrieverBuilder innerRrfRetriever) {
+                assertEquals(retriever.rankWindowSize(), innerRrfRetriever.rankWindowSize());
+                assertEquals(retriever.rankConstant(), innerRrfRetriever.rankConstant());
                 innerRetrieversSet.add(getInnerRetrieversAsSet(innerRrfRetriever));
             } else {
                 innerRetrieversSet.add(innerRetriever);

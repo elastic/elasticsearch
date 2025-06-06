@@ -10,9 +10,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -29,10 +28,6 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected Client client;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
-
-    public static ClusterState emptyClusterState() {
-        return ClusterState.builder(ClusterName.DEFAULT).build();
-    }
 
     @Before
     public void setupClient() {
@@ -78,11 +73,11 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected void performActionAndWait(
         AsyncActionStep step,
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer
     ) throws Exception {
         final var future = new PlainActionFuture<Void>();
-        step.performAction(indexMetadata, currentClusterState, observer, future);
+        step.performAction(indexMetadata, currentState, observer, future);
         try {
             future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {

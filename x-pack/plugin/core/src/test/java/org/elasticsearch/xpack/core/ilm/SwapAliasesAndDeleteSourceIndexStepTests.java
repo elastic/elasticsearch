@@ -13,11 +13,12 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -117,16 +118,16 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
 
-            ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(sourceIndexMetadata, true).put(targetIndexMetadataBuilder).build())
-                .build();
+            ProjectState state = projectStateFromProject(
+                ProjectMetadata.builder(randomProjectIdOrDefault()).put(sourceIndexMetadata, true).put(targetIndexMetadataBuilder)
+            );
 
-            step.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
+            step.performAction(sourceIndexMetadata, state, null, ActionListener.noop());
         }
     }
 
     private NoOpClient getIndicesAliasAssertingClient(ThreadPool threadPool, List<AliasActions> expectedAliasActions) {
-        return new NoOpClient(threadPool) {
+        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

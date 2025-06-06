@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -36,11 +36,11 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         final String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(indexMetadata.getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource) == false) {
             // the current managed index is a shrunk index
-            if (currentClusterState.metadata().getProject().index(shrunkenIndexSource) == null) {
+            if (currentProject.index(shrunkenIndexSource) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
                 String policyName = indexMetadata.getLifecyclePolicyName();
@@ -64,7 +64,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
             listener.onResponse(null);
             return;
         }
-        getClient().admin()
+        getClient(currentProject.id()).admin()
             .indices()
             .delete(new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE), new ActionListener<>() {
                 @Override

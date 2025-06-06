@@ -571,7 +571,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     static class PriorityBlockingQueueWithBudget<E> {
         private final ToLongFunction<? super E> budgetFunction;
         protected final PriorityQueue<E> enqueuedByBudget;
-        private final IdentityHashMap<Wrap<E>, Long> unreleasedBudgetPerElement;
+        private final IdentityHashMap<ElementWithReleasableBudget, Long> unreleasedBudgetPerElement;
         private final ReentrantLock lock;
         private final Condition elementAvailable;
         protected long availableBudget;
@@ -612,7 +612,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                     elementAvailable.await();
                 }
                 // deducts and holds up that element's budget from the available budget
-                return new ElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
+                return newElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
             } finally {
                 lock.unlock();
             }
@@ -647,23 +647,40 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             return enqueuedByBudget.size();
         }
 
-        class ElementWithReleasableBudget implements Releasable {
-            private final Wrap<E> wrappedElement;
+        private ElementWithReleasableBudget newElementWithReleasableBudget(E element, long budget) {
+            ElementWithReleasableBudget elementWithReleasableBudget = new ElementWithReleasableBudget(element);
+            assert this.lock.isHeldByCurrentThread();
+            // the taken element holds up some budget
+            var prev = this.unreleasedBudgetPerElement.put(elementWithReleasableBudget, budget);
+            assert prev == null;
+            this.availableBudget -= budget;
+            assert this.availableBudget >= 0L;
+            return elementWithReleasableBudget;
+        }
 
-            private ElementWithReleasableBudget(E element, long budget) {
-                // Wrap the element in a brand-new instance that's used as the key in the
-                // {@link PriorityBlockingQueueWithBudget#unreleasedBudgetPerElement} identity map.
-                // This allows the same exact "element" instance to hold budgets multiple times concurrently.
-                // This way we allow to re-enqueue and re-take an element before a previous take completed and
-                // released the budget.
-                this.wrappedElement = new Wrap<>(element);
-                assert PriorityBlockingQueueWithBudget.this.lock.isHeldByCurrentThread();
-                // the taken element holds up some budget
-                var prev = PriorityBlockingQueueWithBudget.this.unreleasedBudgetPerElement.put(wrappedElement, budget);
-                assert prev == null;
-                assert isClosed() == false;
-                PriorityBlockingQueueWithBudget.this.availableBudget -= budget;
-                assert PriorityBlockingQueueWithBudget.this.availableBudget >= 0L;
+        private void release(ElementWithReleasableBudget elementWithReleasableBudget) {
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                assert elementWithReleasableBudget.isClosed() == false;
+                // when the taken element is not used anymore, it will not influence subsequent computations for available budget,
+                // but its allotted budget is not yet released
+                var val = unreleasedBudgetPerElement.remove(elementWithReleasableBudget);
+                assert val != null;
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private boolean isReleased(ElementWithReleasableBudget elementWithReleasableBudget) {
+            return unreleasedBudgetPerElement.containsKey(elementWithReleasableBudget) == false;
+        }
+
+        class ElementWithReleasableBudget implements Releasable {
+            private final E element;
+
+            private ElementWithReleasableBudget(E element) {
+                this.element = element;
             }
 
             /**
@@ -673,27 +690,17 @@ public class ThreadPoolMergeExecutorService implements Closeable {
              */
             @Override
             public void close() {
-                final ReentrantLock lock = PriorityBlockingQueueWithBudget.this.lock;
-                lock.lock();
-                try {
-                    assert isClosed() == false;
-                    // when the taken element is not used anymore, it will not influence subsequent available budget computations
-                    unreleasedBudgetPerElement.remove(wrappedElement);
-                } finally {
-                    lock.unlock();
-                }
+                PriorityBlockingQueueWithBudget.this.release(this);
             }
 
             boolean isClosed() {
-                return unreleasedBudgetPerElement.containsKey(wrappedElement) == false;
+                return PriorityBlockingQueueWithBudget.this.isReleased(this);
             }
 
             E element() {
-                return wrappedElement.element();
+                return element;
             }
         }
-
-        private record Wrap<E>(E element) {}
     }
 
     private static long newTargetIORateBytesPerSec(

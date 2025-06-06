@@ -26,6 +26,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -36,9 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -102,6 +101,11 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         bFileStore = null;
         testThreadPool.close();
         nodeEnvironment.close();
+    }
+
+    @After
+    public void cleanupThreadPool() {
+        testThreadPool.scheduledTasks.clear();
     }
 
     static class CapturingThreadPool extends TestThreadPool {
@@ -295,7 +299,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertThat(availableDiskSpaceUpdates.size(), is(1));
             assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(Long.MAX_VALUE));
             // updating monitoring interval should enable the monitor
-            String intervalSettingValue = randomFrom("1s", "123ms", "5ns", "2h");
+            String intervalSettingValue = randomFrom("1s", "123ms", "5nanos", "2h");
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), intervalSettingValue)
@@ -303,6 +307,15 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             );
             assertThat(diskSpacePeriodicMonitor.isScheduled(), is(true));
             assertThat(testThreadPool.scheduledTasks.size(), is(1));
+            assertThat(
+                testThreadPool.scheduledTasks.getLast().v1(),
+                is(
+                    TimeValue.parseTimeValue(
+                        intervalSettingValue,
+                        ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey()
+                    )
+                )
+            );
         }
         aFileStore.throwIoException = false;
         bFileStore.throwIoException = false;

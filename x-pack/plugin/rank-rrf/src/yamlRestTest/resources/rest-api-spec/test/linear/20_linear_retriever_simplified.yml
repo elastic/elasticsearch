@@ -213,3 +213,91 @@ setup:
   - lt: { hits.hits.1._score: 1.0 }
   - match: { hits.hits.2._id: "1" }
   - lt: { hits.hits.2._score: 1.0 }
+
+---
+"Can query keyword fields":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "keyword" ]
+              query: "keyword match 1"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Can query date fields":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "timestamp" ]
+              query: "2010-02-08"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Wildcard index patterns that do not resolve to any index are handled gracefully":
+  - do:
+      search:
+        index: wildcard-*
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
+"Multi-index searches are not allowed":
+  - do:
+      indices.create:
+        index: test-index-2
+
+  - do:
+      catch: bad_request
+      search:
+        index: [ test-index, test-index-2 ]
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { error.root_cause.0.reason: "[linear] does not support the simplified query format when querying multiple indices" }
+
+---
+"Wildcard field patterns that do not resolve to any field are handled gracefully":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "wildcard-*" ]
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+

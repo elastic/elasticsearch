@@ -559,10 +559,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "data_stream_aliases": {}
                       },
-                      "settings": {
-                         "project.setting.value": "43"
-                       },
-                       "reserved_state": {}
+                      "reserved_state": {}
                     }
                     """,
                 IndexVersion.current(),

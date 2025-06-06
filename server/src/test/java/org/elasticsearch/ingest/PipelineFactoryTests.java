@@ -244,10 +244,7 @@ public class PipelineFactoryTests extends ESTestCase {
                 nodeFeature -> DataStream.LOGS_STREAM_FEATURE_FLAG
             )
         );
-        assertThat(
-            e.getMessage(),
-            equalTo("pipeline [_id] doesn't support value of [random] for parameter [field_access_pattern]")
-        );
+        assertThat(e.getMessage(), equalTo("pipeline [_id] doesn't support value of [random] for parameter [field_access_pattern]"));
     }
 
     public void testCreateUnsupportedPipelineOptions() throws Exception {

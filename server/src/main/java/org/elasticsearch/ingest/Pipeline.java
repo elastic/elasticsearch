@@ -123,9 +123,7 @@ public final class Pipeline {
         String fieldAccessPatternRaw = ConfigurationUtils.readOptionalStringProperty(null, null, config, FIELD_ACCESS_PATTERN);
         if (fieldAccessPatternRaw != null && hasFeature.test(IngestService.FIELD_ACCESS_PATTERN) == false) {
             throw new ElasticsearchParseException(
-                "pipeline ["
-                    + id
-                    + "] doesn't support one or more provided configuration parameters [field_access_pattern]"
+                "pipeline [" + id + "] doesn't support one or more provided configuration parameters [field_access_pattern]"
             );
         } else if (fieldAccessPatternRaw != null && IngestPipelineFieldAccessPattern.isValidAccessPattern(fieldAccessPatternRaw) == false) {
             throw new ElasticsearchParseException(

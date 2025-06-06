@@ -1,7 +1,7 @@
 pr: 126623
 summary: Enable synthetic source on normalized keyword mappings
 area: Mapping
-type: "breaking, enhancement"
+type: breaking
 issues:
  - 124369
  - 121358

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -156,8 +155,7 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     Index getIndex(ClusterState state) {
-        final ProjectMetadata project = state.getMetadata().getProject();
-        final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
+        final SortedMap<String, IndexAbstraction> indicesLookup = state.metadata().getIndicesLookup();
 
         IndexAbstraction indexAbstraction = indicesLookup.get(ALIAS_NAME);
         if (indexAbstraction == null) {

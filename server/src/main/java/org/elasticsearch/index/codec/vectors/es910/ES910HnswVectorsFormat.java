@@ -131,14 +131,7 @@ public class ES910HnswVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES910HnswVectorsWriter(
-            state,
-            maxConn,
-            beamWidth,
-            flatVectorsFormat.fieldsWriter(state),
-            numMergeWorkers,
-            mergeExec
-        );
+        return new ES910HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
     }
 
     @Override

@@ -54,6 +54,7 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -273,8 +274,10 @@ public class DeepSeekServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Received an unsuccessful status code for request from inference entity id [inference-id] status"
-                    + " [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]"
+                "Resource not found at ["
+                    + getUrl(webServer)
+                    + "] for request from inference entity id [inference-id]"
+                    + " status [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]"
             )
         );
     }

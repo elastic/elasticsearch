@@ -78,6 +78,14 @@ public record UnifiedCompletionRequest(
      * {@link #MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
      */
     private static final String MAX_TOKENS_PARAM = "max_tokens_field";
+    /**
+     * Indicates whether to include the `stream_options` field in the JSON output.
+     * Some providers do not support this field. In such cases, this parameter should be set to "false",
+     * and the `stream_options` field will be excluded from the output.
+     * For providers that do support stream options, this parameter is left unset (default behavior),
+     * which implicitly includes the `stream_options` field in the output.
+     */
+    public static final String INCLUDE_STREAM_OPTIONS_PARAM = "include_stream_options";
 
     /**
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
@@ -87,6 +95,23 @@ public record UnifiedCompletionRequest(
     public static Params withMaxTokens(String modelId, Params params) {
         return new DelegatingMapParams(
             Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MODEL_FIELD}, Value: modelId
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
+     * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
+     */
+    public static Params withMaxTokensAndSkipStreamOptionsField(String modelId, Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(
+                Map.entry(MODEL_ID_PARAM, modelId),
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
+            ),
             params
         );
     }

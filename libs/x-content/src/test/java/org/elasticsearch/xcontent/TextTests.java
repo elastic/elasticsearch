@@ -12,6 +12,7 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class TextTests extends ESTestCase {
     public void testConvertToBytes() {
@@ -136,7 +137,8 @@ public class TextTests extends ESTestCase {
         byte[] encodedArr2 = value2.getBytes(StandardCharsets.UTF_8);
         var encoded2 = new XContentString.UTF8Bytes(encodedArr2);
 
-        int compSign = (int) Math.signum(encoded1.compareTo(encoded2));
+        // String.compareTo() wasn't handling surrogate pairs very well, so here we compare the full 32-bit codepoints
+        int compSign = (int) Math.signum(Arrays.compare(value1.codePoints().toArray(), value2.codePoints().toArray()));
 
         {
             var text1 = new Text(value1);

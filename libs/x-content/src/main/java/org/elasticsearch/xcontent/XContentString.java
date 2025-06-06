@@ -10,6 +10,7 @@
 package org.elasticsearch.xcontent;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public interface XContentString {
     record UTF8Bytes(byte[] bytes, int offset, int length) implements Comparable<UTF8Bytes> {
@@ -23,7 +24,7 @@ public interface XContentString {
                 return 0;
             }
 
-            return ByteBuffer.wrap(bytes, offset, length).compareTo(ByteBuffer.wrap(o.bytes, o.offset, o.length));
+            return Arrays.compareUnsigned(bytes, offset, offset + length, o.bytes, o.offset, o.offset + o.length);
         }
 
         @Override

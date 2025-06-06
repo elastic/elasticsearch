@@ -25,7 +25,8 @@ public abstract class BlockAwareNumericDocValues extends NumericDocValues {
 
     public abstract void loadDoc(BlockLoader.IntBuilder builder, int docId) throws IOException;
 
-    public abstract void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble) throws IOException;
+    public abstract void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
+        throws IOException;
 
     public abstract void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble) throws IOException;
 }

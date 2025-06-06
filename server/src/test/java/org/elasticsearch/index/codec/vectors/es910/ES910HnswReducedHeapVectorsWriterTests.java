@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.es910;
 
-
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;

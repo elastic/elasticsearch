@@ -1,0 +1,125 @@
+###############################################
+# Tests for Score function
+#
+
+scoreSingle
+required_capability: metadata_score
+required_capability: score_function
+
+// tag::score-single[]
+FROM books METADATA _score
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL first_score = score(match(title, "Return")) 
+// end::score-single[]
+| KEEP book_no, author, _score, first_score
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::score-single-result[]
+book_no:keyword | author:text | _score:double | first _score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 0 | 0 
+7350            | Return of the Shadow  | 0 | 0
+// end::score-single-result[]
+;
+
+scoreSingleNoMetadata
+required_capability: metadata_score
+required_capability: score_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL first_score = score(match(title, "Return")) 
+| KEEP book_no, author, first_score
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text | first _score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 0
+7350            | Return of the Shadow  | 0
+;
+
+scoreWithQueryExpressions
+required_capability: score_function 
+required_capability: metadata_score
+
+from books 
+FROM books METADATA _score
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL first_score =  score(match(title, CONCAT("Return ", " King")))  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text | _score:double | first _score:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings  | 0 | 0
+7350            | Return of the Shadow  | 0 | 0
+;
+
+scoreAfterEval
+required_capability: score_function
+required_capability: metadata_score
+
+from books METADATA _score
+| eval stars = to_long(ratings / 2.0)
+| eval s1 = score(match(author, "William")) 
+| where match(author, "Faulkner")
+| sort book_no 
+| keep book_no, author, stars, s1
+| limit 5;
+
+book_no:keyword | author:text                                           | stars:long | s1:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]    | 3          | 0.0
+2713            | William Faulkner                                      | 2          | 0.9
+2847            | Colleen Faulkner                                      | 3          | 0.0
+2883            | William Faulkner                                      | 2          | 0.9
+3293            | Danny Faulkner                                        | 2          | 0.0
+;
+
+matchWithConjunction
+required_capability: score_function
+required_capability: metadata_score
+
+from books 
+| eval s1 = score(match(title, "Rings") and ratings > 4.6)
+| keep book_no, title, s1;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                                                 |s1:double
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 0.0
+7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)                  | 0.0
+;
+
+scoreWithDisjunction
+required_capability: metadata_score
+required_capability: score_function
+
+from books
+| eval s1 = score(match(author, "Vonnegut") or match(author, "Guinane"))
+| where match(author, "Vonnegut") 
+| keep book_no, author, s1;
+ignoreOrder:true
+
+book_no:keyword | author:text    | s1:double
+2464            | Kurt Vonnegut  | 0.0
+6970            | Edith Vonnegut | 0.0
+8956            | Kurt Vonnegut  | 0.0
+3950            | Kurt Vonnegut  | 0.0
+;
+
+matchWithDisjunctionAndFiltersConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| eval s1 = score((match(author, "Vonnegut") or match(author, "Guinane")) and year > 1997)
+| where match(author, "Vonnegut") 
+| keep book_no, author, year, s1;
+ignoreOrder:true
+
+book_no:keyword | author:text       | year:integer | s1:double
+2464            | Kurt Vonnegut     | 1998         | 0.0
+6970            | Edith Vonnegut    | 1998         | 0.0
+8956            | Kurt Vonnegut     | 1998         | 0.0
+3950            | Kurt Vonnegut     | 1998         | 0.0
+;

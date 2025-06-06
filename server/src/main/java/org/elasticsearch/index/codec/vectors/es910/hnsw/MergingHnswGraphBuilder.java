@@ -56,8 +56,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *
  * <p>We expect the size of join set `j` to be small, around 1/5 to 1/2 of the size of gS. For the
  * rest of the nodes in gS, we expect savings by performing lighter searches in gL.
- *
- * @lucene.experimental
  */
 public final class MergingHnswGraphBuilder extends HnswGraphBuilder {
     private final HnswGraph[] graphs;

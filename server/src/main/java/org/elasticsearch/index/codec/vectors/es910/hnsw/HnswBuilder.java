@@ -26,8 +26,6 @@ import java.io.IOException;
 
 /**
  * Interface for builder building the {@link org.apache.lucene.util.hnsw.OnHeapHnswGraph}
- *
- * @lucene.experimental
  */
 public interface HnswBuilder {
 

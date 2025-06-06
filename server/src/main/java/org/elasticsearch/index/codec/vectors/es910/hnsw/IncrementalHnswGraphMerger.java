@@ -41,8 +41,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * This merges multiple graphs in a single thread in incremental fashion.
- *
- * @lucene.experimental
  */
 public class IncrementalHnswGraphMerger implements HnswGraphMerger {
 

@@ -31,8 +31,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * This creates a graph builder that is initialized with the provided HnswGraph. This is useful for
  * merging HnswGraphs from multiple segments.
- *
- * @lucene.experimental
  */
 public final class InitializedHnswGraphBuilder extends HnswGraphBuilder {
 

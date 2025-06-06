@@ -29,8 +29,6 @@ import java.io.IOException;
 
 /**
  * Abstraction of merging multiple graphs into one on-heap graph
- *
- * @lucene.experimental
  */
 public interface HnswGraphMerger {
 

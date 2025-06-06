@@ -35,8 +35,6 @@ import java.util.Arrays;
  * of growable arrays. Nodes are arranged in the sorted order of their scores in descending order
  * (if scoresDescOrder is true), or in the ascending order of their scores (if scoresDescOrder is
  * false)
- *
- * @lucene.internal
  */
 public class NeighborArray implements Accountable {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NeighborArray.class);
@@ -171,8 +169,6 @@ public class NeighborArray implements Accountable {
 
     /**
      * Direct access to the internal list of node ids; provided for efficient writing of the graph
-     *
-     * @lucene.internal
      */
     public int[] nodes() {
         return nodes.buffer;

@@ -29,8 +29,6 @@ import static org.elasticsearch.index.codec.vectors.es910.internal.hppc.HashCont
 
 /**
  * An array-backed list of {@code int} with a maximum size limit.
- *
- * @lucene.internal
  */
 public class MaxSizedIntArrayList extends IntArrayList {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MaxSizedIntArrayList.class);

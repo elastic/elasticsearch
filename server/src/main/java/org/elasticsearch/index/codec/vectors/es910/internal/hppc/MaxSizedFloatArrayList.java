@@ -29,8 +29,6 @@ import static org.elasticsearch.index.codec.vectors.es910.internal.hppc.HashCont
 
 /**
  * An array-backed list of {@code float} with a maximum size limit.
- *
- * @lucene.internal
  */
 public class MaxSizedFloatArrayList extends FloatArrayList {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MaxSizedFloatArrayList.class);

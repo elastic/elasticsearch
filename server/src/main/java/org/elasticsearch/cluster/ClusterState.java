@@ -1359,17 +1359,18 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
-        private static final DiffableUtils.ValueSerializer<ProjectId, Settings> SETTINGS_SERIALIZER = new DiffableUtils.DiffableValueSerializer<>() {
-            @Override
-            public Settings read(StreamInput in, ProjectId key) throws IOException {
-                return Settings.readSettingsFromStream(in);
-            }
+        private static final DiffableUtils.ValueSerializer<ProjectId, Settings> SETTINGS_SERIALIZER =
+            new DiffableUtils.DiffableValueSerializer<>() {
+                @Override
+                public Settings read(StreamInput in, ProjectId key) throws IOException {
+                    return Settings.readSettingsFromStream(in);
+                }
 
-            @Override
-            public Diff<Settings> readDiff(StreamInput in, ProjectId key) throws IOException {
-                return Settings.readSettingsDiffFromStream(in);
-            }
-        };
+                @Override
+                public Diff<Settings> readDiff(StreamInput in, ProjectId key) throws IOException {
+                    return Settings.readSettingsDiffFromStream(in);
+                }
+            };
 
         private final long toVersion;
 
@@ -1411,7 +1412,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            projectsSettings = DiffableUtils.diff(before.projectsSettings, after.projectsSettings, ProjectId.PROJECT_ID_SERIALIZER, SETTINGS_SERIALIZER);
+            projectsSettings = DiffableUtils.diff(
+                before.projectsSettings,
+                after.projectsSettings,
+                ProjectId.PROJECT_ID_SERIALIZER,
+                SETTINGS_SERIALIZER
+            );
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {

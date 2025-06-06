@@ -2192,7 +2192,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.put(ReservedStateMetadata.readFrom(in));
         }
 
-        if (in.getTransportVersion().between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+        if (in.getTransportVersion()
+            .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
             Settings.readSettingsFromStream(in);
         }
 
@@ -2237,7 +2238,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         VersionedNamedWriteable.writeVersionedWriteables(out, filteredCustoms);
         out.writeCollection(reservedStateMetadata.values());
 
-        if (out.getTransportVersion().between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+        if (out.getTransportVersion()
+            .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
             Settings.EMPTY.writeTo(out);
         }
     }
@@ -2304,7 +2306,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 DiffableUtils.getStringKeySerializer(),
                 RESERVED_DIFF_VALUE_READER
             );
-            if (in.getTransportVersion().between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            if (in.getTransportVersion()
+                .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
                 Settings.readSettingsDiffFromStream(in);
             }
         }
@@ -2331,17 +2334,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             templates.writeTo(out);
             customs.writeTo(out);
             reservedStateMetadata.writeTo(out);
-            if (out.getTransportVersion().between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            if (out.getTransportVersion()
+                .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
                 Settings.EMPTY_DIFF.writeTo(out);
             }
         }
 
         @Override
         public ProjectMetadata apply(ProjectMetadata part) {
-            if (indices.isEmpty()
-                && templates.isEmpty()
-                && customs.isEmpty()
-                && reservedStateMetadata.isEmpty()) {
+            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty() && reservedStateMetadata.isEmpty()) {
                 // nothing to do
                 return part;
             }

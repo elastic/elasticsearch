@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.knn;
 
+import com.sun.management.ThreadMXBean;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
@@ -27,6 +29,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.InputStream;
+import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -174,6 +177,14 @@ public class KnnIndexTester {
                     cmdLineArgs.vectorSpace(),
                     cmdLineArgs.numDocs()
                 );
+                if (Files.exists(indexPath) == false) {
+                    if (cmdLineArgs.reindex() == false) {
+                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
+                    }
+                    if (cmdLineArgs.forceMerge()) {
+                        throw new IllegalArgumentException("Force merging without an existing index in: " + indexPath);
+                    }
+                }
                 if (cmdLineArgs.reindex()) {
                     knnIndexer.createIndex(result);
                 }
@@ -210,6 +221,8 @@ public class KnnIndexTester {
                 "force_merge_time(ms)",
                 "num_segments",
                 "latency(ms)",
+                "net_cpu_time(ms)",
+                "avg_cpu_count",
                 "QPS",
                 "recall",
                 "visited" };
@@ -238,6 +251,8 @@ public class KnnIndexTester {
                     Long.toString(result.forceMergeTimeMS),
                     Integer.toString(result.numSegments),
                     String.format(Locale.ROOT, "%.2f", result.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", result.netCpuTimeMS),
+                    String.format(Locale.ROOT, "%.2f", result.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", result.qps),
                     String.format(Locale.ROOT, "%.2f", result.avgRecall),
                     String.format(Locale.ROOT, "%.2f", result.averageVisited) };
@@ -282,6 +297,8 @@ public class KnnIndexTester {
                     Long.toString(result.forceMergeTimeMS),
                     Integer.toString(result.numSegments),
                     String.format(Locale.ROOT, "%.2f", result.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", result.netCpuTimeMS),
+                    String.format(Locale.ROOT, "%.2f", result.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", result.qps),
                     String.format(Locale.ROOT, "%.2f", result.avgRecall),
                     String.format(Locale.ROOT, "%.2f", result.averageVisited) };
@@ -305,6 +322,8 @@ public class KnnIndexTester {
         double qps;
         double avgRecall;
         double averageVisited;
+        double netCpuTimeMS;
+        double avgCpuCount;
 
         Results(String indexType, int numDocs) {
             this.indexType = indexType;
@@ -360,6 +379,21 @@ public class KnnIndexTester {
             if (LOG_LEVEL == Level.TRACE) {
                 System.out.println(String.format(Locale.ROOT, message, params));
             }
+        }
+    }
+
+    static final class ThreadDetails {
+        private static final ThreadMXBean threadBean = (ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        public final long[] threadIDs;
+        public final long[] cpuTimesNS;
+        public final ThreadInfo[] threadInfos;
+        public final long ns;
+
+        ThreadDetails() {
+            ns = System.nanoTime();
+            threadIDs = threadBean.getAllThreadIds();
+            cpuTimesNS = threadBean.getThreadCpuTime(threadIDs);
+            threadInfos = threadBean.getThreadInfo(threadIDs);
         }
     }
 }

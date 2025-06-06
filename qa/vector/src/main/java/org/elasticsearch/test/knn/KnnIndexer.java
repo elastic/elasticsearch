@@ -127,7 +127,7 @@ class KnnIndexer {
         if (Files.exists(indexPath)) {
             logger.debug("KnnIndexer: existing index at %s", indexPath);
         } else {
-            Files.createDirectory(indexPath);
+            Files.createDirectories(indexPath);
         }
 
         long start = System.nanoTime();

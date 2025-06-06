@@ -16,4 +16,5 @@ module org.elasticsearch.test.knn {
     requires org.apache.lucene.queries;
     requires org.elasticsearch.logging;
     requires java.management;
+    requires jdk.management;
 }

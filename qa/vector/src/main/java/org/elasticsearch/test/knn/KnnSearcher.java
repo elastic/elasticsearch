@@ -51,8 +51,6 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
@@ -132,8 +130,6 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding);
             long startNS;
-            ThreadMXBean bean = ManagementFactory.getThreadMXBean();
-            long cpuTimeStartNs;
             try (MMapDirectory dir = new MMapDirectory(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchThreads > 1 ? new IndexSearcher(reader, executorService) : new IndexSearcher(reader);
@@ -151,7 +147,7 @@ class KnnSearcher {
                     }
                     targetReader.reset();
                     startNS = System.nanoTime();
-                    cpuTimeStartNs = bean.getCurrentThreadCpuTime();
+                    KnnIndexTester.ThreadDetails startThreadDetails = new KnnIndexTester.ThreadDetails();
                     for (int i = 0; i < numQueryVectors; i++) {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             targetReader.next(targetBytes);
@@ -161,8 +157,22 @@ class KnnSearcher {
                             results[i] = doVectorQuery(target, searcher);
                         }
                     }
-                    totalCpuTimeMS = TimeUnit.NANOSECONDS.toMillis(bean.getCurrentThreadCpuTime() - cpuTimeStartNs);
+                    KnnIndexTester.ThreadDetails endThreadDetails = new KnnIndexTester.ThreadDetails();
                     elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS);
+                    long startCPUTimeNS = 0;
+                    long endCPUTimeNS = 0;
+                    for (int i = 0; i < startThreadDetails.threadInfos.length; i++) {
+                        if (startThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher-Thread")) {
+                            startCPUTimeNS += startThreadDetails.cpuTimesNS[i];
+                        }
+                    }
+
+                    for (int i = 0; i < endThreadDetails.threadInfos.length; i++) {
+                        if (endThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher-Thread")) {
+                            endCPUTimeNS += endThreadDetails.cpuTimesNS[i];
+                        }
+                    }
+                    totalCpuTimeMS = TimeUnit.NANOSECONDS.toMillis(endCPUTimeNS - startCPUTimeNS);
 
                     // Fetch, validate and write result document ids.
                     StoredFields storedFields = reader.storedFields();
@@ -186,6 +196,8 @@ class KnnSearcher {
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
         finalResults.averageVisited = (double) totalVisited / numQueryVectors;
+        finalResults.netCpuTimeMS = (double) totalCpuTimeMS / numQueryVectors;
+        finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
     }
 
     private int[][] getOrCalculateExactNN() throws IOException {

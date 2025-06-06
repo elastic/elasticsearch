@@ -23,6 +23,7 @@ import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -81,7 +82,7 @@ public class EntitlementInitialization {
      * @param pluginPolicies
      * @param scopeResolver
      * @param pathLookup
-     * @param sourcePaths
+     * @param pluginSourcePaths
      * @param suppressFailureLogPackages
      */
     public record InitializeArgs(
@@ -89,14 +90,14 @@ public class EntitlementInitialization {
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         PathLookup pathLookup,
-        Map<String, Path> sourcePaths,
+        Map<String, Collection<Path>> pluginSourcePaths,
         Set<Package> suppressFailureLogPackages
     ) {
         public InitializeArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(scopeResolver);
             requireNonNull(pathLookup);
-            requireNonNull(sourcePaths);
+            requireNonNull(pluginSourcePaths);
             requireNonNull(suppressFailureLogPackages);
         }
     }
@@ -121,7 +122,7 @@ public class EntitlementInitialization {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             initializeArgs.scopeResolver(),
-            initializeArgs.sourcePaths(),
+            initializeArgs.pluginSourcePaths(),
             pathLookup
         );
     }

@@ -21,6 +21,7 @@ import java.lang.module.ModuleReference;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -141,17 +142,22 @@ public class PolicyManager {
         }
     }
 
-    private FileAccessTree getDefaultFileAccess(Path componentPath) {
-        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPath);
+    private FileAccessTree getDefaultFileAccess(Collection<Path> componentPaths) {
+        return FileAccessTree.withoutExclusivePaths(FilesEntitlement.EMPTY, pathLookup, componentPaths);
     }
 
     // pkg private for testing
-    ModuleEntitlements defaultEntitlements(String componentName, Path componentPath, String moduleName) {
-        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPath), getLogger(componentName, moduleName));
+    ModuleEntitlements defaultEntitlements(String componentName, Collection<Path> componentPaths, String moduleName) {
+        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPaths), getLogger(componentName, moduleName));
     }
 
     // pkg private for testing
-    ModuleEntitlements policyEntitlements(String componentName, Path componentPath, String moduleName, List<Entitlement> entitlements) {
+    ModuleEntitlements policyEntitlements(
+        String componentName,
+        Collection<Path> componentPaths,
+        String moduleName,
+        List<Entitlement> entitlements
+    ) {
         FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
         for (Entitlement entitlement : entitlements) {
             if (entitlement instanceof FilesEntitlement) {
@@ -161,7 +167,7 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths),
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths),
             getLogger(componentName, moduleName)
         );
     }
@@ -203,7 +209,7 @@ public class PolicyManager {
         .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
         .collect(Collectors.toUnmodifiableSet());
 
-    private final Map<String, Path> sourcePaths;
+    private final Map<String, Collection<Path>> pluginSourcePaths;
 
     /**
      * Paths that are only allowed for a single module. Used to generate
@@ -217,7 +223,7 @@ public class PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Path> sourcePaths,
+        Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -226,7 +232,7 @@ public class PolicyManager {
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.scopeResolver = scopeResolver;
-        this.sourcePaths = sourcePaths;
+        this.pluginSourcePaths = pluginSourcePaths;
         this.pathLookup = requireNonNull(pathLookup);
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
@@ -302,14 +308,14 @@ public class PolicyManager {
                     serverEntitlements,
                     moduleName,
                     SERVER.componentName,
-                    getComponentPathFromClass(requestingClass)
+                    getComponentPathsFromClass(requestingClass)
                 );
             }
             case APM_AGENT -> {
                 // The APM agent is the only thing running non-modular in the system classloader
                 return policyEntitlements(
                     APM_AGENT.componentName,
-                    getComponentPathFromClass(requestingClass),
+                    getComponentPathsFromClass(requestingClass),
                     ALL_UNNAMED,
                     apmAgentEntitlements
                 );
@@ -321,22 +327,22 @@ public class PolicyManager {
                 assert policyScope.kind() == PLUGIN;
                 var pluginEntitlements = pluginsEntitlements.get(componentName);
                 if (pluginEntitlements == null) {
-                    return defaultEntitlements(componentName, sourcePaths.get(componentName), moduleName);
+                    return defaultEntitlements(componentName, pluginSourcePaths.get(componentName), moduleName);
                 } else {
-                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, sourcePaths.get(componentName));
+                    return getModuleScopeEntitlements(pluginEntitlements, moduleName, componentName, pluginSourcePaths.get(componentName));
                 }
             }
         }
     }
 
     // pkg private for testing
-    static Path getComponentPathFromClass(Class<?> requestingClass) {
+    static Collection<Path> getComponentPathsFromClass(Class<?> requestingClass) {
         var codeSource = requestingClass.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
-            return null;
+            return List.of();
         }
         try {
-            return Paths.get(codeSource.getLocation().toURI());
+            return List.of(Paths.get(codeSource.getLocation().toURI()));
         } catch (Exception e) {
             // If we get a URISyntaxException, or any other Exception due to an invalid URI, we return null to safely skip this location
             generalLogger.info(
@@ -344,7 +350,7 @@ public class PolicyManager {
                 requestingClass.getName(),
                 codeSource.getLocation().toString()
             );
-            return null;
+            return List.of();
         }
     }
 
@@ -352,13 +358,13 @@ public class PolicyManager {
         Map<String, List<Entitlement>> scopeEntitlements,
         String scopeName,
         String componentName,
-        Path componentPath
+        Collection<Path> componentPaths
     ) {
         var entitlements = scopeEntitlements.get(scopeName);
         if (entitlements == null) {
-            return defaultEntitlements(componentName, componentPath, scopeName);
+            return defaultEntitlements(componentName, componentPaths, scopeName);
         }
-        return policyEntitlements(componentName, componentPath, scopeName, entitlements);
+        return policyEntitlements(componentName, componentPaths, scopeName, entitlements);
     }
 
     /**

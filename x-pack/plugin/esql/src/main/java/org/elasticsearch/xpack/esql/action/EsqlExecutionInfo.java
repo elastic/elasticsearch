@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -64,16 +63,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final Map<String, Cluster> clusterInfo;
-    private TimeValue overallTook;
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
 
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipUnavailablePredicate;
-    private final transient Long relativeStartNanos;  // start time for an ESQL query for calculating took times
-    private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
+
+    // start time for the ESQL query for calculating time spans relative to the beginning of the query
+    private final transient TimeSpan.Builder relativeStart;
+    private transient TimeSpan overallTimeSpan;
+    private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
+    private TimeValue overallTook;
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
@@ -87,18 +89,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.clusterInfo = ConcurrentCollections.newConcurrentMap();
         this.skipUnavailablePredicate = skipUnavailablePredicate;
         this.includeCCSMetadata = includeCCSMetadata;
-        this.relativeStartNanos = System.nanoTime();
+        this.relativeStart = TimeSpan.start();
     }
 
     /**
      * For testing use with fromXContent parsing only
-     * @param clusterInfo
      */
     EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
         this.clusterInfo = clusterInfo;
         this.includeCCSMetadata = includeCCSMetadata;
         this.skipUnavailablePredicate = Predicates.always();
-        this.relativeStartNanos = null;
+        this.relativeStart = null;
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -124,7 +125,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
 
         this.skipUnavailablePredicate = Predicates.always();
-        this.relativeStartNanos = null;
+        this.relativeStart = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
+            this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
+            this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
+        }
     }
 
     @Override
@@ -141,14 +146,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
             out.writeBoolean(isPartial);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
+            out.writeOptionalWriteable(overallTimeSpan);
+            out.writeOptionalWriteable(planningTimeSpan);
+        }
     }
 
     public boolean includeCCSMetadata() {
         return includeCCSMetadata;
-    }
-
-    public Long getRelativeStartNanos() {
-        return relativeStartNanos;
     }
 
     /**
@@ -157,21 +162,22 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
      */
     public void markEndPlanning() {
-        assert planningTookTime == null : "markEndPlanning should only be called once";
-        assert relativeStartNanos != null : "Relative start time must be set when markEndPlanning is called";
-        planningTookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
+        assert planningTimeSpan == null : "markEndPlanning should only be called once";
+        assert relativeStart != null : "Relative start time must be set when markEndPlanning is called";
+        planningTimeSpan = relativeStart.stop();
     }
 
     public TimeValue planningTookTime() {
-        return planningTookTime;
+        return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
     }
 
     /**
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
     public void markEndQuery() {
-        assert relativeStartNanos != null : "Relative start time must be set when markEndQuery is called";
-        overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
+        assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
+        overallTimeSpan = relativeStart.stop();
+        overallTook = overallTimeSpan.toTimeValue();
     }
 
     // for testing only - use markEndQuery in production code
@@ -187,11 +193,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * How much time the query took since starting.
      */
     public TimeValue tookSoFar() {
-        if (relativeStartNanos == null) {
-            return new TimeValue(0);
-        } else {
-            return new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
-        }
+        return relativeStart != null ? relativeStart.stop().toTimeValue() : TimeValue.ZERO;
+    }
+
+    public TimeSpan overallTimeSpan() {
+        return overallTimeSpan;
+    }
+
+    public TimeSpan planningTimeSpan() {
+        return planningTimeSpan;
     }
 
     public Set<String> clusterAliases() {

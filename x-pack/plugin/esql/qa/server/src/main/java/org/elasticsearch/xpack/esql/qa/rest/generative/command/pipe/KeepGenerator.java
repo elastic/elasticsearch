@@ -72,8 +72,10 @@ public class KeepGenerator implements CommandGenerator {
             return VALIDATION_OK;
         }
 
-        // TODO awaits fix https://github.com/elastic/elasticsearch/issues/120272
-        // return CommandGenerator.expectSameRowCount(previousOutput, output);
+        if (previousColumns.size() < columns.size()) {
+            return new ValidationResult(false, "Expecting at most [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
+        }
+
         return VALIDATION_OK;
     }
 

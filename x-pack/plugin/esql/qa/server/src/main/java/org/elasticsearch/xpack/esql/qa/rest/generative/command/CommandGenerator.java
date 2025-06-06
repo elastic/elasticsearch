@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Implement this if you want to your command to be tested by the random query generator.
  * Then add it to the right list in {@link EsqlQueryGenerator}
- *
+ * <p>
  * The i
  */
 public interface CommandGenerator {
@@ -68,8 +68,8 @@ public interface CommandGenerator {
      * See also {@link CommandDescription}
      *
      * @param previousCommands the list of the previous commands in the query
-     * @param previousOutput the output returned by the query so far.
-     * @param schema The columns returned by the query so far. It contains name and type information for each column.
+     * @param previousOutput   the output returned by the query so far.
+     * @param schema           The columns returned by the query so far. It contains name and type information for each column.
      * @return All the details about the generated command. See {@link CommandDescription}.
      * If something goes wrong and for some reason you can't generate a command, you should return {@link CommandGenerator#EMPTY_DESCRIPTION}
      */
@@ -82,14 +82,15 @@ public interface CommandGenerator {
     /**
      * This will be invoked after the query execution.
      * You are expected to put validation logic in here.
+     *
      * @param previousCommands The list of commands before the last generated one.
-     * @param command The description of the command you just generated.
-     *                It also contains the context information you stored during command generation.
-     * @param previousColumns The output schema of the original query (without last generated command).
-     *                        It contains name and type information for each column, see {@link EsqlQueryGenerator.Column}
-     * @param previousOutput The output of the original query (without last generated command), as a list (rows) of lists (columns) of values
-     * @param columns The output schema of the full query (WITH last generated command).
-     * @param output The output of the full query (WITH last generated command), as a list (rows) of lists (columns) of values
+     * @param command          The description of the command you just generated.
+     *                         It also contains the context information you stored during command generation.
+     * @param previousColumns  The output schema of the original query (without last generated command).
+     *                         It contains name and type information for each column, see {@link EsqlQueryGenerator.Column}
+     * @param previousOutput   The output of the original query (without last generated command), as a list (rows) of lists (columns) of values
+     * @param columns          The output schema of the full query (WITH last generated command).
+     * @param output           The output of the full query (WITH last generated command), as a list (rows) of lists (columns) of values
      * @return The result of the output validation. If the validation succeeds, you should return {@link CommandGenerator#VALIDATION_OK}.
      * Also, if for some reason you can't validate the output, just return {@link CommandGenerator#VALIDATION_OK}; for a command, having a generator without
      * validation is much better than having no generator at all.
@@ -103,10 +104,16 @@ public interface CommandGenerator {
         List<List<Object>> output
     );
 
-    static ValidationResult expectSameRowCount(List<List<Object>> previousOutput, List<List<Object>> output) {
-        if (output.size() != previousOutput.size()) {
-            return new ValidationResult(false, "Expecting [" + previousOutput.size() + "] rows, but got [" + output.size() + "]");
-        }
+    static ValidationResult expectSameRowCount(
+        List<CommandDescription> previousCommands,
+        List<List<Object>> previousOutput,
+        List<List<Object>> output
+    ) {
+
+        // ES|QL is quite non-deterministic in this sense, we can't guarantee it for now
+        // if (output.size() != previousOutput.size()) {
+        // return new ValidationResult(false, "Expecting [" + previousOutput.size() + "] rows, but got [" + output.size() + "]");
+        // }
 
         return VALIDATION_OK;
     }
@@ -121,16 +128,14 @@ public interface CommandGenerator {
             return new ValidationResult(false, "Expecting [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
 
-        // TODO awaits fix: https://github.com/elastic/elasticsearch/issues/129000
-        // List<String> prevColNames = previousColumns.stream().map(EsqlQueryGenerator.Column::name).toList();
-        // List<String> newColNames = columns.stream().map(EsqlQueryGenerator.Column::name).toList();
-        // if (prevColNames.equals(newColNames) == false) {
-        // return new ValidationResult(false,
-        // "Expecting the following columns ["
-        // + String.join(", ", prevColNames)
-        // + "] columns, got ["
-        // + String.join(", ", newColNames) + "]");
-        // }
+        List<String> prevColNames = previousColumns.stream().map(EsqlQueryGenerator.Column::name).toList();
+        List<String> newColNames = columns.stream().map(EsqlQueryGenerator.Column::name).toList();
+        if (prevColNames.equals(newColNames) == false) {
+            return new ValidationResult(
+                false,
+                "Expecting the following columns [" + String.join(", ", prevColNames) + "], got [" + String.join(", ", newColNames) + "]"
+            );
+        }
 
         return VALIDATION_OK;
     }

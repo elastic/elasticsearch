@@ -48,11 +48,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Field '.*' shadowed by field at line .*",
         "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
 
-        // Awaiting fixes
+        // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
-        "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
+        "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
+
+        // Awaiting fixes for correctness
+        "Expecting the following columns \\[.*\\], got" // https://github.com/elastic/elasticsearch/issues/129000
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -95,9 +98,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
             if (result.exception() != null) {
                 checkException(result);
-                continue;
+                break;
             }
-            checkResults(List.of(), commandGenerator, desc, null, result);
+            if (checkResults(List.of(), commandGenerator, desc, null, result).success() == false) {
+                break;
+            }
             previousResult = result;
             previousCommands.add(desc);
             for (int j = 0; j < MAX_DEPTH; j++) {
@@ -115,14 +120,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                     checkException(result);
                     break;
                 }
-                checkResults(previousCommands, commandGenerator, desc, previousResult, result);
+                if (checkResults(previousCommands, commandGenerator, desc, previousResult, result).success() == false) {
+                    break;
+                }
                 previousCommands.add(desc);
                 previousResult = result;
             }
         }
     }
 
-    private static void checkResults(
+    private static CommandGenerator.ValidationResult checkResults(
         List<CommandGenerator.CommandDescription> previousCommands,
         CommandGenerator commandGenerator,
         CommandGenerator.CommandDescription commandDescription,
@@ -138,8 +145,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             result.result()
         );
         if (outputValidation.success() == false) {
+            for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                    return outputValidation;
+                }
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
+        return outputValidation;
     }
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {

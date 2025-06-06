@@ -53,8 +53,10 @@ public class LookupJoinGenerator implements CommandGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-        if (previousOutput.size() > output.size()) {
-            return new ValidationResult(false, "Expecting at least [" + previousOutput.size() + "] records, got [" + output.size() + "]");
+
+        // the -1 is for the additional RENAME, that could drop one column
+        if (previousColumns.size() - 1 > columns.size()) {
+            return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
         return VALIDATION_OK;
     }

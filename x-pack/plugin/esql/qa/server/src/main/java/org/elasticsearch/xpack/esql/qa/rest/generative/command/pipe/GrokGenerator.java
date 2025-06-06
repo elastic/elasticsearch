@@ -67,7 +67,9 @@ public class GrokGenerator implements CommandGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-        // TODO validate columns
-        return CommandGenerator.expectSameRowCount(previousOutput, output);
+        if (previousColumns.size() > columns.size()) {
+            return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
+        }
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
     }
 }

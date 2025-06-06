@@ -55,9 +55,6 @@ public class SortGenerator implements CommandGenerator {
         List<EsqlQueryGenerator.Column> columns,
         List<List<Object>> output
     ) {
-        if (previousOutput.size() != output.size()) {
-            return new ValidationResult(false, "Expecting [" + previousOutput.size() + "] records, got [" + output.size() + "]");
-        }
         return CommandGenerator.expectSameColumns(previousColumns, columns);
     }
 }

@@ -38,3 +38,6 @@ All you have to do is:
 * Add your class to `EsqlQueryGenerator.SOURCE_COMMANDS` (if it's a source command) or `EsqlQueryGenerator.PIPE_COMMANDS` (if it's a pipe command).
 * Run `GenerativeIT` at least a couple of times: these tests can be pretty noisy.
 * If you get unexpected errors (real bugs in ES|QL), please open an issue and add the error to `GenerativeRestTest.ALLOWED_ERRORS`. Run tests again until everything works fine.
+
+
+IMPORTANT: be careful when validating the output (Eg. the row count), as ES|QL can be quite non-deterministic when there are no SORTs

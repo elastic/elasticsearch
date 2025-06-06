@@ -84,7 +84,7 @@ public class EvalGenerator implements CommandGenerator {
             );
         }
 
-        return CommandGenerator.expectSameRowCount(previousOutput, output);
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
     }
 
     private static String unquote(String colName) {

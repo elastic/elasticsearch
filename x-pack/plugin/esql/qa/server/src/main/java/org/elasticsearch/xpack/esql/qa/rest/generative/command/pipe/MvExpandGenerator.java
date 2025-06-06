@@ -45,9 +45,6 @@ public class MvExpandGenerator implements CommandGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-        if (previousOutput.size() > output.size()) {
-            return new ValidationResult(false, "Expecting at least [" + previousOutput.size() + "] records, got [" + output.size() + "]");
-        }
         return CommandGenerator.expectSameColumns(previousColumns, columns);
     }
 

@@ -97,7 +97,7 @@ public class RenameGenerator implements CommandGenerator {
         if (previousColumns.size() < columns.size()) {
             return new ValidationResult(false, "Expecting at most [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
-        return CommandGenerator.expectSameRowCount(previousOutput, output);
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
     }
 
 }

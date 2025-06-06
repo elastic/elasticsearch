@@ -58,9 +58,6 @@ public class WhereGenerator implements CommandGenerator {
         List<EsqlQueryGenerator.Column> columns,
         List<List<Object>> output
     ) {
-        if (previousOutput.size() < output.size()) {
-            return new ValidationResult(false, "Expecting at most [" + previousOutput.size() + "] records, got [" + output.size() + "]");
-        }
         return CommandGenerator.expectSameColumns(previousColumns, columns);
     }
 }

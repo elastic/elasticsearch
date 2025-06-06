@@ -295,14 +295,14 @@ It is both allowed to submit documents that don’t have a value for the field o
 ```console
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch",
   "level": "debug"
 }
 
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch"
 }
 ```

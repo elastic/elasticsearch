@@ -26,6 +26,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -51,6 +53,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
@@ -64,6 +67,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -697,5 +701,69 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
             )
         );
+    }
+
+    public void testTopHitsOnParentChild() throws Exception {
+        assertAcked(
+            prepareCreate("idx").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("parent", new String[] { "child1", "child2" })
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen("idx");
+
+        List<IndexRequestBuilder> requestBuilders = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(10, 100);
+        int child1 = 0;
+        int child2 = 0;
+        int[] child1InnerObjects = new int[numDocs];
+        int[] child2InnerObjects = new int[numDocs];
+        for (int parent = 0; parent < numDocs; parent++) {
+            String parentId = String.format(Locale.ENGLISH, "p_%03d", parent);
+            requestBuilders.add(createIndexRequest("idx", "parent", parentId, null));
+
+            int numChildDocs = child1InnerObjects[parent] = scaledRandomIntBetween(1, numDocs);
+            int limit = child1 + numChildDocs;
+            for (; child1 < limit; child1++) {
+                requestBuilders.add(createIndexRequest("idx", "child1", String.format(Locale.ENGLISH, "c1_%04d", child1), parentId));
+            }
+            numChildDocs = child2InnerObjects[parent] = scaledRandomIntBetween(1, numDocs);
+            limit = child2 + numChildDocs;
+            for (; child2 < limit; child2++) {
+                requestBuilders.add(createIndexRequest("idx", "child2", String.format(Locale.ENGLISH, "c2_%04d", child2), parentId));
+            }
+        }
+
+        indexRandom(true, requestBuilders);
+        ensureSearchable();
+
+        QueryBuilder hasChildQuery = hasChildQuery("child2", matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder().setSize(2));
+        AggregationBuilder topHitsAgg = topHits("top-children").size(3);
+
+        assertNoFailuresAndResponse(prepareSearch("idx").setQuery(hasChildQuery).addAggregation(topHitsAgg), response -> {
+            assertHitCount(response, numDocs);
+
+            TopHits topHits = response.getAggregations().get("top-children");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(3));
+
+            for (SearchHit hit : hits) {
+                SearchHits innerHits = hit.getInnerHits().get("child2");
+                assertThat(innerHits.getHits().length, lessThanOrEqualTo(2));
+            }
+        });
     }
 }

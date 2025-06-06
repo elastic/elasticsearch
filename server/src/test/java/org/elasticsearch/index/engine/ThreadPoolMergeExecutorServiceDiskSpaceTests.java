@@ -293,6 +293,9 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             if (aErrorsFirst) {
                 // the "b" file system will also now error when collecting stats
                 bFileStore.throwIoException = true;
+            } else {
+                // the "a" file system will also now error when collecting stats
+                aFileStore.throwIoException = true;
             }
             assertBusy(() -> {
                 synchronized (availableDiskSpaceUpdates) {
@@ -304,6 +307,9 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             if (aErrorsFirst) {
                 // "a" fs stats collection recovered
                 aFileStore.throwIoException = false;
+            } else {
+                // "b" fs stats collection recovered
+                bFileStore.throwIoException = false;
             }
             assertBusy(() -> {
                 synchronized (availableDiskSpaceUpdates) {

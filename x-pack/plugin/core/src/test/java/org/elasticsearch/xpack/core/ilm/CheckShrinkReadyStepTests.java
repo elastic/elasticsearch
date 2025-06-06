@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -412,11 +415,11 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testExecuteIndexMissing() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
+        ProjectState state = emptyProjectState();
 
         CheckShrinkReadyStep step = createRandomInstance();
 
-        ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
+        ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, state);
         assertFalse(actualResult.complete());
         assertNull(actualResult.informationContext());
     }
@@ -448,13 +451,14 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .numberOfReplicas(1)
                 .build();
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
             final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
-            ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .indices(indices)
+                        .put(project)
                         .putCustom(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
@@ -492,10 +496,11 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                                 .build()
                         )
                 )
-                .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-                .build();
+                .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+                .build()
+                .projectState(project.id());
             assertTrue(step.isCompletable());
-            ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
+            ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, state);
             assertTrue(actualResult.complete());
             assertTrue(step.isCompletable());
         }
@@ -528,13 +533,14 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .numberOfReplicas(1)
                 .build();
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
+            var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
             final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
-            ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(
                     Metadata.builder()
-                        .indices(indices)
+                        .put(project)
                         .putCustom(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
@@ -572,10 +578,11 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                                 .build()
                         )
                 )
-                .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-                .build();
+                .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+                .build()
+                .projectState(project.id());
             assertTrue(step.isCompletable());
-            ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
+            ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, state);
             assertFalse(actualResult.complete());
             assertThat(
                 Strings.toString(actualResult.informationContext()),
@@ -602,9 +609,10 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .numberOfReplicas(replicas)
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        ProjectState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(project)
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -624,9 +632,10 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                             .build()
                     )
             )
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
-        ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
+        ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, state);
         assertEquals(expectedResult.complete(), actualResult.complete());
         assertEquals(expectedResult.informationContext(), actualResult.informationContext());
     }

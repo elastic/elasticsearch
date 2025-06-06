@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -69,13 +71,13 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         String tierPreference = String.join(",", includedTiers);
         WaitForDataTierStep step = new WaitForDataTierStep(randomStepKey(), randomStepKey(), tierPreference);
 
-        verify(step, ClusterState.EMPTY_STATE, false, "no nodes for tiers [" + tierPreference + "] available");
+        verify(step, emptyProjectState(), false, "no nodes for tiers [" + tierPreference + "] available");
         verify(step, state(List.of(notIncludedTier)), false, "no nodes for tiers [" + tierPreference + "] available");
         verify(step, state(includedTiers), true, null);
         verify(step, state(List.of(DiscoveryNodeRole.DATA_ROLE.roleName())), true, null);
     }
 
-    private void verify(WaitForDataTierStep step, ClusterState state, boolean complete, String message) {
+    private void verify(WaitForDataTierStep step, ProjectState state, boolean complete, String message) {
         ClusterStateWaitStep.Result result = step.isConditionMet(null, state);
         assertThat(result.complete(), is(complete));
         if (message != null) {
@@ -85,7 +87,7 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         }
     }
 
-    private ClusterState state(Collection<String> roles) {
+    private ProjectState state(Collection<String> roles) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         IntStream.range(0, between(1, 5))
             .mapToObj(
@@ -99,6 +101,7 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
                     .build()
             )
             .forEach(builder::add);
-        return ClusterState.builder(ClusterName.DEFAULT).nodes(builder).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(builder).putProjectMetadata(project).build().projectState(project.id());
     }
 }

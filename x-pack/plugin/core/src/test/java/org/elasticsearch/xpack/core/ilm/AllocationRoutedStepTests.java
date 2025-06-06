@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -158,8 +161,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         Settings clusterSettings = Settings.builder().put("cluster.routing.allocation.exclude._id", "node1").build();
         Settings.Builder nodeSettingsBuilder = Settings.builder();
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices).transientSettings(clusterSettings))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(project).transientSettings(clusterSettings))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -175,9 +179,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                             .build()
                     )
             )
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
-        Result actualResult = step.isConditionMet(index, clusterState);
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
+        Result actualResult = step.isConditionMet(index, state);
 
         Result expectedResult = new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(1, 1));
         assertEquals(expectedResult.complete(), actualResult.complete());
@@ -489,11 +494,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExecuteIndexMissing() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
+        ProjectState state = emptyProjectState();
 
         AllocationRoutedStep step = createRandomInstance();
 
-        Result actualResult = step.isConditionMet(index, clusterState);
+        Result actualResult = step.isConditionMet(index, state);
         assertFalse(actualResult.complete());
         assertNull(actualResult.informationContext());
     }
@@ -516,8 +521,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -533,9 +539,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                             .build()
                     )
             )
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
-        Result actualResult = step.isConditionMet(index, clusterState);
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
+        Result actualResult = step.isConditionMet(index, state);
         assertEquals(expectedResult.complete(), actualResult.complete());
         assertEquals(expectedResult.informationContext(), actualResult.informationContext());
     }

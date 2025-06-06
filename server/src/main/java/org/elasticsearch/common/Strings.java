@@ -173,6 +173,24 @@ public class Strings {
     }
 
     /**
+     * Trim all occurrences of the supplied trailing character from the given String.
+     *
+     * @param str              the String to check
+     * @param trailingCharacter the trailing character to be trimmed
+     * @return the trimmed String
+     */
+    public static String trimTrailingCharacter(String str, char trailingCharacter) {
+        if (hasLength(str) == false) {
+            return str;
+        }
+        int i = str.length();
+        while (i > 0 && str.charAt(i - 1) == trailingCharacter) {
+            i--;
+        }
+        return str.substring(0, i);
+    }
+
+    /**
      * Test whether the given string matches the given substring
      * at the given index.
      *

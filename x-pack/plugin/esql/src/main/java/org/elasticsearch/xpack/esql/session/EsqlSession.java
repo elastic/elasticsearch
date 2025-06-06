@@ -479,7 +479,7 @@ public class EsqlSession {
                 skipClusterOrError(
                     clusterAlias,
                     executionInfo,
-                    "Lookup index [" + indexName + "] has index mode [" + indexMode + "], expected [" + IndexMode.LOOKUP + "]"
+                    "invalid [" + indexName + "] resolution in lookup mode to an index in [" + indexMode + "] mode"
                 );
             }
             // Each cluster should have only one resolution for the lookup index
@@ -487,7 +487,7 @@ public class EsqlSession {
                 skipClusterOrError(
                     clusterAlias,
                     executionInfo,
-                    "Multiple resolutions for lookup index [" + index + "] " + EsqlCCSUtils.inClusterName(clusterAlias)
+                    "multiple resolutions for lookup index [" + index + "] " + EsqlCCSUtils.inClusterName(clusterAlias)
                 );
             } else {
                 clustersWithResolvedIndices.put(clusterAlias, indexName);

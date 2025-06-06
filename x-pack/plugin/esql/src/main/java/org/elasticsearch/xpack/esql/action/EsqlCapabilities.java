@@ -1188,6 +1188,11 @@ public class EsqlCapabilities {
         RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
 
         /**
+         * Enable support for cross-cluster lookup joins.
+         */
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION,

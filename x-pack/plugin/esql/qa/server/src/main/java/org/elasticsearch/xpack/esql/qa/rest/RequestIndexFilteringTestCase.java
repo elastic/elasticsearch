@@ -213,7 +213,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
 
-        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
+        if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled()) {
             var pattern = from("test1");
             e = expectThrows(
                 ResponseException.class,
@@ -225,7 +225,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 // currently we don't support remote clusters in LOOKUP JOIN
                 // this check happens before resolving actual indices and results in a different error message
                 RemoteClusterAware.isRemoteIndexName(pattern)
-                    ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported"))
+                    ? allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
                     : allOf(containsString("verification_exception"), containsString("Unknown index [foo]"))
             );
         }

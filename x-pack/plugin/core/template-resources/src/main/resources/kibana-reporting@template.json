@@ -85,6 +85,9 @@
         "status": {
           "type": "keyword"
         },
+        "space_id": {
+          "type": "keyword"
+        },
         "parent_id": {
           "type": "keyword"
         },

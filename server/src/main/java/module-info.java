@@ -8,6 +8,7 @@
  */
 
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
@@ -411,7 +412,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
-    uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses ReservedStateHandlerProvider;
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
@@ -454,7 +455,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with
@@ -476,4 +478,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
+    exports org.elasticsearch.lucene.search;
 }

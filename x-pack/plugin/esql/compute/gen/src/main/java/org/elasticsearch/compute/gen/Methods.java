@@ -38,6 +38,9 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
@@ -60,19 +63,30 @@ public class Methods {
         NameMatcher nameMatcher,
         ArgumentMatcher argumentMatcher
     ) {
+        ExecutableElement method = optionalStaticMethod(declarationType, returnTypeMatcher, nameMatcher, argumentMatcher);
+        if (method == null) {
+            var message = nameMatcher.names.size() == 1 ? "Requires method: " : "Requires one of methods: ";
+            var signatures = nameMatcher.names.stream()
+                .map(name -> "public static " + returnTypeMatcher + " " + declarationType + "#" + name + "(" + argumentMatcher + ")")
+                .collect(joining(" or "));
+            throw new IllegalArgumentException(message + signatures);
+        }
+        return method;
+    }
+
+    static ExecutableElement optionalStaticMethod(
+        TypeElement declarationType,
+        TypeMatcher returnTypeMatcher,
+        NameMatcher nameMatcher,
+        ArgumentMatcher argumentMatcher
+    ) {
         return typeAndSuperType(declarationType).flatMap(type -> ElementFilter.methodsIn(type.getEnclosedElements()).stream())
             .filter(method -> method.getModifiers().contains(Modifier.STATIC))
             .filter(method -> nameMatcher.test(method.getSimpleName().toString()))
             .filter(method -> returnTypeMatcher.test(TypeName.get(method.getReturnType())))
             .filter(method -> argumentMatcher.test(method.getParameters().stream().map(it -> TypeName.get(it.asType())).toList()))
             .findFirst()
-            .orElseThrow(() -> {
-                var message = nameMatcher.names.size() == 1 ? "Requires method: " : "Requires one of methods: ";
-                var signatures = nameMatcher.names.stream()
-                    .map(name -> "public static " + returnTypeMatcher + " " + declarationType + "#" + name + "(" + argumentMatcher + ")")
-                    .collect(joining(" or "));
-                return new IllegalArgumentException(message + signatures);
-            });
+            .orElse(null);
     }
 
     static NameMatcher requireName(String... names) {
@@ -205,6 +219,9 @@ public class Methods {
         if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "appendDouble";
         }
+        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
+            return "appendFloat";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -255,6 +272,15 @@ public class Methods {
         if (t.equals(DOUBLE_VECTOR_FIXED_BUILDER)) {
             return "newDoubleVectorFixedBuilder";
         }
+        if (t.equals(FLOAT_BLOCK_BUILDER)) {
+            return "newFloatBlockBuilder";
+        }
+        if (t.equals(FLOAT_VECTOR_BUILDER)) {
+            return "newFloatVectorBuilder";
+        }
+        if (t.equals(FLOAT_VECTOR_FIXED_BUILDER)) {
+            return "newFloatVectorFixedBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -277,6 +303,9 @@ public class Methods {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return "getDouble";
+        }
+        if (elementType.equals(TypeName.FLOAT)) {
+            return "getFloat";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

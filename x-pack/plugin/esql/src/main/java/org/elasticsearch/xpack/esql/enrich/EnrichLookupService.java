@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,12 +25,15 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -66,16 +70,20 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     public EnrichLookupService(
         ClusterService clusterService,
+        IndicesService indicesService,
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
+            indicesService,
             lookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory,
             true,
@@ -102,15 +110,16 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     protected QueryList queryList(
         TransportRequest request,
         SearchExecutionContext context,
+        AliasFilter aliasFilter,
         Block inputBlock,
-        DataType inputDataType,
+        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
@@ -128,8 +137,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         return new LookupResponse(in, blockFactory);
     }
 
-    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+    private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType && inputDataType != null) {
             // For range policy types, the ENRICH index field type will be one of a list of supported range types,
             // which need to match the input data type (eg. ip-range -> ip, date-range -> date, etc.)
             if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
@@ -142,7 +151,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         // For geo_match, type validation is done earlier, in the Analyzer.
     }
 
-    private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+    private static boolean rangeTypesCompatible(RangeType rangeType, @Nullable DataType inputDataType) {
         if (inputDataType.noText() == DataType.KEYWORD) {
             // We allow runtime parsing of string types to numeric types
             return true;
@@ -169,7 +178,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -190,7 +199,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, shardId.getIndexName(), inputDataType, inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }

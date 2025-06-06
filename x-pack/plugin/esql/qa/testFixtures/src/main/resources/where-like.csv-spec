@@ -319,3 +319,117 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 emp_no:integer | job_positions:keyword 
 10025          | Accountant 
 ;
+
+likeWithUpperTurnedInsensitive
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) LIKE "GEOR*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+likeWithLowerTurnedInsensitive
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(TO_UPPER(first_name)) LIKE "geor*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+likeWithLowerConflictingFolded
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) LIKE "geor*"
+;
+
+emp_no:integer |first_name:keyword
+;
+
+likeWithLowerTurnedInsensitiveNotPushedDown
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(first_name) LIKE "geor*" OR emp_no + 1 IN (10002, 10056)
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+rlikeWithUpperTurnedInsensitive
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) RLIKE "GEOR.*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+rlikeWithLowerTurnedInsensitive
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE "geor.*"
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+rlikeWithLowerConflictingFolded
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_UPPER(first_name) RLIKE "geor.*"
+;
+
+emp_no:integer |first_name:keyword
+;
+
+negatedRLikeWithLowerTurnedInsensitive
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(TO_UPPER(first_name)) NOT RLIKE "geor.*"
+| STATS c = COUNT()
+;
+
+c:long
+88
+;
+
+rlikeWithLowerTurnedInsensitiveNotPushedDown
+FROM employees
+| KEEP emp_no, first_name
+| SORT emp_no
+| WHERE TO_LOWER(first_name) RLIKE "geor.*" OR emp_no + 1 IN (10002, 10056)
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+# test for https://github.com/elastic/elasticsearch/issues/128813
+rlikeWithEmptyLanguagePattern
+required_capability: rlike_with_empty_language_pattern
+ROW x = "abc" | EVAL bool = x RLIKE "#"
+;
+
+x:keyword | bool:boolean
+abc       | false
+;

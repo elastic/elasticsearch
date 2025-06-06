@@ -13,6 +13,7 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql:tools'))
+  javaRestTestImplementation project(xpackModule('esql'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 
   javaRestTestImplementation('org.apache.arrow:arrow-vector:16.1.0')
@@ -34,7 +35,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
   }
   restTests {
     includeXpack 'esql'

@@ -40,7 +40,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.reservedstate.ActionWithReservedState;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -109,19 +109,18 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
     }
 
-    private <T> TransformState<T> processJSON(
-        ReservedClusterStateHandler<T, ReservedComposableIndexTemplateAction.ComponentsAndComposables> action,
-        TransformState<T> prevState,
+    private <T> TransformState processJSON(
+        ReservedProjectStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> action,
+        TransformState prevState,
         String json
     ) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            return action.transform(projectId, action.fromXContent(parser), prevState);
         }
     }
 
     public void testComponentValidation() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        TransformState<ProjectMetadata> prevState = new TransformState<>(project, Collections.emptySet());
+        TransformState prevState = transformState();
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String badComponentJSON = """
@@ -148,8 +147,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testComposableIndexValidation() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        TransformState<ProjectMetadata> prevState = new TransformState<>(project, Collections.emptySet());
+        TransformState prevState = transformState();
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String badComponentJSON = """
@@ -239,17 +237,13 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testAddRemoveComponentTemplates() throws Exception {
-        TransformState<ProjectMetadata> prevState = new TransformState<>(
-            ProjectMetadata.builder(projectId).build(),
-            Collections.emptySet()
-        );
+        TransformState prevState = transformState();
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
-        TransformState<ProjectMetadata> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
-        assertEquals(prevState.state(), updatedState.state());
 
         String settingsJSON = """
             {
@@ -316,17 +310,13 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testAddRemoveIndexTemplates() throws Exception {
-        TransformState<ProjectMetadata> prevState = new TransformState<>(
-            ProjectMetadata.builder(projectId).build(),
-            Collections.emptySet()
-        );
+        TransformState prevState = transformState();
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
-        TransformState<ProjectMetadata> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
-        assertEquals(prevState.state(), updatedState.state());
 
         String settingsJSON = """
             {
@@ -510,17 +500,13 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testAddRemoveIndexTemplatesWithOverlap() throws Exception {
-        TransformState<ProjectMetadata> prevState = new TransformState<>(
-            ProjectMetadata.builder(projectId).build(),
-            Collections.emptySet()
-        );
+        TransformState prevState = transformState();
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
-        TransformState<ProjectMetadata> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
-        assertEquals(prevState.state(), updatedState.state());
 
         // Adding two composable index templates with same index patterns will fail
         String settingsJSON = """
@@ -746,10 +732,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testBlockUsingReservedComponentTemplates() throws Exception {
-        TransformState<ProjectMetadata> prevState = new TransformState<>(
-            ProjectMetadata.builder(projectId).build(),
-            Collections.emptySet()
-        );
+        TransformState prevState = transformState();
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String settingsJSON = """
@@ -771,7 +754,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         var updatedState = processJSON(action, prevState, settingsJSON);
 
-        ProjectMetadata withReservedState = ProjectMetadata.builder(updatedState.state())
+        ProjectMetadata withReservedState = ProjectMetadata.builder(updatedState.state().getMetadata().getProject(projectId))
             .put(
                 ReservedStateMetadata.builder("test")
                     .putHandler(new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys()))
@@ -924,10 +907,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         // we should see the weird composable name prefixed 'validate_template'
         assertThat(project.templatesV2(), allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName))));
 
-        TransformState<ProjectMetadata> prevState = new TransformState<>(project, Collections.emptySet());
+        TransformState prevState = transformState(project);
         var action = new ReservedComposableIndexTemplateAction(mockedTemplateService, indexScopedSettings);
 
-        TransformState<ProjectMetadata> updatedState = processJSON(action, prevState, composableTemplate);
+        TransformState updatedState = processJSON(action, prevState, composableTemplate);
 
         // only one reserved key for 'validate_template'
         assertThat(updatedState.keys(), containsInAnyOrder(reservedComposableIndexName(conflictingTemplateName)));
@@ -935,11 +918,11 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         // added that weird name 'composable_index_template:validate_template', using this prefix in the name shouldn't make us fail
         // any reservation validation
         assertThat(
-            updatedState.state().templatesV2(),
+            updatedState.state().getMetadata().getProject(projectId).templatesV2(),
             allOf(aMapWithSize(2), hasKey(reservedComposableIndexName(conflictingTemplateName)), hasKey(conflictingTemplateName))
         );
 
-        ProjectMetadata withReservedMetadata = ProjectMetadata.builder(updatedState.state())
+        ProjectMetadata withReservedMetadata = ProjectMetadata.builder(updatedState.state().getMetadata().getProject(projectId))
             .put(
                 new ReservedStateMetadata.Builder("file_settings").putHandler(
                     new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys())
@@ -994,6 +977,17 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             ReservedComposableIndexTemplateAction.NAME,
             modifiedKeysOK,
             prOK.name()
+        );
+    }
+
+    private TransformState transformState() {
+        return transformState(ProjectMetadata.builder(projectId).build());
+    }
+
+    private TransformState transformState(ProjectMetadata projectMetadata) {
+        return new TransformState(
+            ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build(),
+            Collections.emptySet()
         );
     }
 }

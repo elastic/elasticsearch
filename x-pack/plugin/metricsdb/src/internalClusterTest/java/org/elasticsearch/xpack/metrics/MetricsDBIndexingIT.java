@@ -7,11 +7,18 @@
 
 package org.elasticsearch.xpack.metrics;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
+import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableGaugeData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
+import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -42,6 +49,7 @@ import static org.hamcrest.Matchers.not;
 
 public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
 
+    private OtlpHttpMetricExporter exporter;
     private SdkMeterProvider meterProvider;
 
     @Override
@@ -66,10 +74,7 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        OtlpHttpMetricExporter exporter = OtlpHttpMetricExporter.builder()
-            .setEndpoint("http://localhost:" + getHttpPort() + "/_otlp/v1/metrics")
-            .build();
-
+        exporter = OtlpHttpMetricExporter.builder().setEndpoint("http://localhost:" + getHttpPort() + "/_otlp/v1/metrics").build();
         meterProvider = SdkMeterProvider.builder()
             .registerMetricReader(
                 PeriodicMetricReader.builder(exporter)
@@ -98,7 +103,7 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testIngestMetric() {
+    public void testIngestMetricViaMeterProvider() throws Exception {
         Meter sampleMeter = meterProvider.get("io.opentelemetry.example.metrics");
 
         sampleMeter.gaugeBuilder("jvm.memory.total")
@@ -107,6 +112,42 @@ public class MetricsDBIndexingIT extends ESSingleNodeTestCase {
             .buildWithCallback(result -> result.record(Runtime.getRuntime().totalMemory(), Attributes.empty()));
 
         var result = meterProvider.forceFlush().join(1, TimeUnit.SECONDS);
+        assertThat(result.isSuccess(), is(true));
+
+        admin().indices().prepareRefresh().execute().actionGet();
+        String[] indices = admin().indices().prepareGetIndex(TimeValue.timeValueSeconds(1)).setIndices("metrics*").get().indices();
+        assertThat(indices, not(emptyArray()));
+
+        try (EsqlQueryResponse resp = query("""
+            FROM metrics*
+             | STATS avg(value_double) WHERE metric_name == "jvm.memory.total"
+            """)) {
+            double avgJvmMemoryTotal = (double) resp.column(0).next();
+            assertThat(avgJvmMemoryTotal, greaterThan(0.0));
+        }
+    }
+
+    @Test
+    public void testIngestMetricDataViaMetricExporter() throws Exception {
+        MetricData jvmMemoryMetricData = ImmutableMetricData.createDoubleGauge(
+            Resource.create(Attributes.of(AttributeKey.stringKey("service.name"), "elasticsearch")),
+            InstrumentationScopeInfo.create("io.opentelemetry.example.metrics"),
+            "jvm.memory.total",
+            "Reports JVM memory usage.",
+            "By",
+            ImmutableGaugeData.create(
+                List.of(
+                    ImmutableDoublePointData.create(
+                        System.currentTimeMillis(),
+                        System.currentTimeMillis(),
+                        Attributes.empty(),
+                        Runtime.getRuntime().totalMemory()
+                    )
+                )
+            )
+        );
+
+        var result = exporter.export(List.of(jvmMemoryMetricData)).join(1, TimeUnit.SECONDS);
         assertThat(result.isSuccess(), is(true));
 
         admin().indices().prepareRefresh().execute().actionGet();

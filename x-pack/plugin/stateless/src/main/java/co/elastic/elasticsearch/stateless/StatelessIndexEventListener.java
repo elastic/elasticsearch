@@ -370,9 +370,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                     } else {
                         engine.flush(true, true, l.map(f -> null));
                     }
-                } else if (engineOrNull instanceof HollowIndexEngine hollowIndexEngine) {
+                } else if (engineOrNull instanceof HollowIndexEngine) {
                     hollowShardsService.addHollowShard(indexShard, "recovery");
-                    hollowIndexEngine.callRefreshListeners();
                     l.onResponse(null);
                 } else if (engineOrNull == null) {
                     throw new AlreadyClosedException("engine is closed");

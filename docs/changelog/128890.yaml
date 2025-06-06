@@ -1,0 +1,5 @@
+pr: 128890
+summary: Improve cache invalidation in IdP SP cache
+area: IdentityProvider
+type: bug
+issues: []

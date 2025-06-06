@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -318,6 +319,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         initIndexes(group);
         initData(group);
         for (TestConfig config : testConfigurations.get(group).configs.values()) {
+            if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
+                continue;
+            }
             String query = String.format(
                 Locale.ROOT,
                 "FROM index | LOOKUP JOIN %s ON %s | KEEP other",
@@ -571,5 +575,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             );
             assertion().accept(e);
         }
+    }
+
+    private boolean isValidDataType(DataType dataType) {
+        return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
     }
 }

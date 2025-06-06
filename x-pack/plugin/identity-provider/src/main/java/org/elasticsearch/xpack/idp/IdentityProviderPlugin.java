@@ -107,6 +107,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             index,
             serviceProviderFactory
         );
+        services.clusterService().addListener(registeredServiceProviderResolver);
+
         final WildcardServiceProviderResolver wildcardServiceProviderResolver = WildcardServiceProviderResolver.create(
             services.environment(),
             services.resourceWatcherService(),

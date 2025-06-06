@@ -72,22 +72,25 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) {
-            if (caseInsensitive()) {
-                // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
-                // the serialization of the boolean would result in wrong results.
-                throw new EsqlIllegalArgumentException(
-                    name() + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
-                    out.getTransportVersion(),
-                    TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
-                );
-            } // else: write nothing, the remote peer can execute the case-sensitive query
-        } else {
+        var transportVersion = out.getTransportVersion();
+        if (transportVersion.onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)
+            || transportVersion.isPatchFrom(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19)) {
             out.writeBoolean(caseInsensitive());
-        }
+        } else if (caseInsensitive()) {
+            // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
+            // the serialization of the boolean would result in wrong results.
+            throw new EsqlIllegalArgumentException(
+                name() + " with case insensitivity is not supported in peer node's version [{}]. Upgrade to version [{}, {}] or newer.",
+                transportVersion,
+                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19,
+                TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY
+            );
+        } // else: write nothing, the remote peer can execute the case-sensitive query
     }
 
     static boolean deserializeCaseInsensitivity(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) && in.readBoolean();
+        var transportVersion = in.getTransportVersion();
+        return (transportVersion.onOrAfter(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)
+            || transportVersion.isPatchFrom(TransportVersions.ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19)) && in.readBoolean();
     }
 }

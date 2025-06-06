@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -91,7 +90,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
 
-        final OperationMode currentMode = currentILMMode(currentState.metadata().getProject());
+        final var project = currentState.metadata().getProject();
+        final OperationMode currentMode = currentILMMode(project);
         if (currentMode.equals(ilmMode)) {
             // No need for a new state
             return currentState;
@@ -106,12 +106,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         }
 
         logger.info("updating ILM operation mode to {}", newMode);
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(newMode, currentSLMMode(currentState)))
-            )
-            .build();
+        final var updatedMetadata = new LifecycleOperationMetadata(newMode, currentSLMMode(currentState));
+        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(LifecycleOperationMetadata.TYPE, updatedMetadata));
     }
 
     private ClusterState updateSLMState(final ClusterState currentState) {
@@ -119,6 +115,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
 
+        final var project = currentState.metadata().getProject();
         final OperationMode currentMode = currentSLMMode(currentState);
         if (currentMode.equals(slmMode)) {
             // No need for a new state
@@ -134,15 +131,8 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         }
 
         logger.info("updating SLM operation mode to {}", newMode);
-        return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.metadata())
-                    .putCustom(
-                        LifecycleOperationMetadata.TYPE,
-                        new LifecycleOperationMetadata(currentILMMode(currentState.metadata().getProject()), newMode)
-                    )
-            )
-            .build();
+        final var updatedMetadata = new LifecycleOperationMetadata(currentILMMode(project), newMode);
+        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(LifecycleOperationMetadata.TYPE, updatedMetadata));
     }
 
     @Override

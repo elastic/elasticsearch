@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -121,9 +120,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
-                .getProject()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            final var project = currentState.metadata().getProject();
+            SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
                 .get(request.getLifecycleId());
@@ -149,15 +147,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                 logger.info("updating existing snapshot lifecycle [{}]", newLifecycle.getId());
             }
 
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(currentState.metadata())
-                        .putCustom(
-                            SnapshotLifecycleMetadata.TYPE,
-                            new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats())
-                        )
-                )
-                .build();
+            final var updatedMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
+            return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(SnapshotLifecycleMetadata.TYPE, updatedMetadata));
         }
     }
 

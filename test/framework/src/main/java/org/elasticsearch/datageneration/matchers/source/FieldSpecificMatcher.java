@@ -331,7 +331,6 @@ interface FieldSpecificMatcher {
     }
 
     class KeywordMatcher extends GenericMappingAwareMatcher {
-        String normalizer;
 
         KeywordMatcher(
             XContentBuilder actualMappings,
@@ -349,21 +348,24 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            this.normalizer = (String) FieldSpecificMatcher.getMappingParameter("normalizer", actualMapping, expectedMapping);
+            String normalizer = (String) FieldSpecificMatcher.getMappingParameter("normalizer", actualMapping, expectedMapping);
+            // Account for normalization
+            if (normalizer != null) {
+                if (normalizer.equals("lowercase") == false) {
+                    throw new UnsupportedOperationException("Test framework currently only supports lowercase normalizer");
+                }
+                expected = expected.stream()
+                    .map(s -> s instanceof String ? ((String) s).toLowerCase(Locale.ROOT) : s)
+                    .collect(Collectors.toList());
+            }
             return super.match(actual, expected, actualMapping, expectedMapping);
         }
 
         @Override
         Object convert(Object value, Object nullValue) {
             if (value == null) {
-                // Normalization could also be applied to the null value
-                value = nullValue;
+                return nullValue;
             }
-            if (value instanceof String s && this.normalizer != null && this.normalizer.equals("lowercase")) {
-                // Currently, tests only support lowercase for normalization.
-                value = s.toLowerCase(Locale.ROOT);
-            }
-
             return value;
         }
     }

@@ -1282,7 +1282,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         /* NOTE: we allow enabling synthetic source on Keyword fields with a Normalizer, even though the returned synthetic value
-        may not perfectly match the original, pre-normalization, value.
+        may not perfectly match the original, pre-normalization, value. This reduces the storage space required for normalized keyword
+        fields, which otherwise perform quite poorly in terms of storage.
          */
 
         if (fieldType.stored() || hasDocValues) {

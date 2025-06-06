@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
+import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
@@ -44,6 +45,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
@@ -66,7 +68,30 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         this.idp = idp;
     }
 
+    /**
+     * Builds and signs a SAML Response Message with a single assertion for the provided user
+     *
+     * @param user        The user who is authenticated (actually a combination of user+sp)
+     * @param authnState  The authentication state as presented in the SAML request (or {@code null})
+     * @return A SAML Response
+     */
     public Response build(UserServiceAuthentication user, @Nullable SamlAuthenticationState authnState) {
+        return build(user, authnState, null);
+    }
+
+    /**
+     * Builds and signs a SAML Response Message with a single assertion for the provided user
+     *
+     * @param user        The user who is authenticated (actually a combination of user+sp)
+     * @param authnState  The authentication state as presented in the SAML request (or {@code null})
+     * @param customAttributes  Optional custom attributes to include in the response (or {@code null})
+     * @return A SAML Response
+     */
+    public Response build(
+        UserServiceAuthentication user,
+        @Nullable SamlAuthenticationState authnState,
+        @Nullable SamlInitiateSingleSignOnAttributes customAttributes
+    ) {
         logger.debug("Building success response for [{}] from [{}]", user, authnState);
         final Instant now = clock.instant();
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
@@ -87,10 +112,13 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         assertion.setIssueInstant(now);
         assertion.setConditions(buildConditions(now, serviceProvider));
         assertion.setSubject(buildSubject(now, user, authnState));
-        assertion.getAuthnStatements().add(buildAuthnStatement(now, user));
-        final AttributeStatement attributes = buildAttributes(user);
-        if (attributes != null) {
-            assertion.getAttributeStatements().add(attributes);
+
+        final AuthnStatement authnStatement = buildAuthnStatement(now, user);
+        assertion.getAuthnStatements().add(authnStatement);
+
+        final AttributeStatement attributeStatement = buildAttributes(user, customAttributes);
+        if (attributeStatement != null) {
+            assertion.getAttributeStatements().add(attributeStatement);
         }
         response.getAssertions().add(assertion);
         return sign(response);
@@ -179,7 +207,10 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         }
     }
 
-    private AttributeStatement buildAttributes(UserServiceAuthentication user) {
+    private AttributeStatement buildAttributes(
+        UserServiceAuthentication user,
+        @Nullable SamlInitiateSingleSignOnAttributes customAttributes
+    ) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
         final List<Attribute> attributes = new ArrayList<>();
@@ -199,6 +230,16 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (name != null) {
             attributes.add(name);
         }
+        // Add custom attributes if provided
+        if (customAttributes != null && customAttributes.getAttributes().isEmpty() == false) {
+            for (Map.Entry<String, List<String>> entry : customAttributes.getAttributes().entrySet()) {
+                Attribute attribute = buildAttribute(entry.getKey(), null, entry.getValue());
+                if (attribute != null) {
+                    attributes.add(attribute);
+                }
+            }
+        }
+
         if (attributes.isEmpty()) {
             return null;
         }
@@ -206,20 +247,22 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return statement;
     }
 
-    private Attribute buildAttribute(String formalName, String friendlyName, String value) {
+    private Attribute buildAttribute(String formalName, @Nullable String friendlyName, String value) {
         if (Strings.isNullOrEmpty(value)) {
             return null;
         }
         return buildAttribute(formalName, friendlyName, List.of(value));
     }
 
-    private Attribute buildAttribute(String formalName, String friendlyName, Collection<String> values) {
+    private Attribute buildAttribute(String formalName, @Nullable String friendlyName, Collection<String> values) {
         if (values.isEmpty() || Strings.isNullOrEmpty(formalName)) {
             return null;
         }
         final Attribute attribute = samlFactory.object(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
         attribute.setName(formalName);
-        attribute.setFriendlyName(friendlyName);
+        if (Strings.isNullOrEmpty(friendlyName) == false) {
+            attribute.setFriendlyName(friendlyName);
+        }
         attribute.setNameFormat(Attribute.URI_REFERENCE);
         for (String val : values) {
             final XSString string = samlFactory.object(XSString.class, AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);

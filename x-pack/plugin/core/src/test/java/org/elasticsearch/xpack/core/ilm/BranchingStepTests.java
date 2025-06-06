@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -22,11 +21,10 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
 
     public void testPredicateNextStepChange() {
         String indexName = randomAlphaOfLength(5);
-        @FixForMultiProject // Use non-default project ID and pass project directly instead of state
-        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder(indexName).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.id());
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(6), randomAlphaOfLength(6), BranchingStep.NAME);
         StepKey nextSkipKey = new StepKey(randomAlphaOfLength(7), randomAlphaOfLength(7), BranchingStep.NAME);

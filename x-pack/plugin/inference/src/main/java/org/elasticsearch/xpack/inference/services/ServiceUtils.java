@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -80,6 +83,11 @@ public final class ServiceUtils {
      */
     @SuppressWarnings("unchecked")
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type, ValidationException validationException) {
+        if (sourceMap == null) {
+            validationException.addValidationError(Strings.format("Encountered a null input map while parsing field [%s]", key));
+            return null;
+        }
+
         Object o = sourceMap.remove(key);
         if (o == null) {
             return null;
@@ -188,13 +196,29 @@ public final class ServiceUtils {
         }
     }
 
+    public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String field, String scope) {
+        if (settingsMap != null && settingsMap.isEmpty() == false) {
+            throw ServiceUtils.unknownSettingsError(settingsMap, field, scope);
+        }
+    }
+
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String serviceName) {
         // TODO map as JSON
         return new ElasticsearchStatusException(
-            "Model configuration contains settings [{}] unknown to the [{}] service",
+            "Configuration contains settings [{}] unknown to the [{}] service",
             RestStatus.BAD_REQUEST,
             config,
             serviceName
+        );
+    }
+
+    public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String field, String scope) {
+        return new ElasticsearchStatusException(
+            "Configuration contains unknown settings [{}] while parsing field [{}] for settings [{}]",
+            RestStatus.BAD_REQUEST,
+            config,
+            field,
+            scope
         );
     }
 
@@ -247,6 +271,10 @@ public final class ServiceUtils {
 
     public static String mustBeNonEmptyString(String settingName, String scope) {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
+    }
+
+    public static String mustBeNonEmptyMap(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty map. [%s] must be a non-empty map", scope, settingName);
     }
 
     public static String invalidTimeValueMsg(String timeValueStr, String settingName, String scope, String exceptionMsg) {
@@ -420,6 +448,236 @@ public final class ServiceUtils {
         }
 
         return field;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> extractRequiredMap(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Map<String, Object> requiredField = ServiceUtils.removeAsType(map, settingName, Map.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (requiredField == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (requiredField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyMap(settingName, scope));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return requiredField;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> extractOptionalMap(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Map<String, Object> optionalField = ServiceUtils.removeAsType(map, settingName, Map.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return optionalField;
+    }
+
+    public static List<Tuple<String, String>> extractOptionalListOfStringTuples(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        List<?> optionalField = ServiceUtils.removeAsType(map, settingName, List.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (optionalField == null) {
+            return null;
+        }
+
+        var tuples = new ArrayList<Tuple<String, String>>();
+        for (int tuplesIndex = 0; tuplesIndex < optionalField.size(); tuplesIndex++) {
+
+            var tupleEntry = optionalField.get(tuplesIndex);
+            if (tupleEntry instanceof List<?> == false) {
+                validationException.addValidationError(
+                    Strings.format(
+                        "[%s] failed to parse tuple list entry [%d] for setting [%s], expected a list but the entry is [%s]",
+                        scope,
+                        tuplesIndex,
+                        settingName,
+                        tupleEntry.getClass().getSimpleName()
+                    )
+                );
+                throw validationException;
+            }
+
+            var listEntry = (List<?>) tupleEntry;
+            if (listEntry.size() != 2) {
+                validationException.addValidationError(
+                    Strings.format(
+                        "[%s] failed to parse tuple list entry [%d] for setting [%s], the tuple list size must be two, but was [%d]",
+                        scope,
+                        tuplesIndex,
+                        settingName,
+                        listEntry.size()
+                    )
+                );
+                throw validationException;
+            }
+
+            var firstElement = listEntry.get(0);
+            var secondElement = listEntry.get(1);
+            validateString(firstElement, settingName, scope, "the first element", tuplesIndex, validationException);
+            validateString(secondElement, settingName, scope, "the second element", tuplesIndex, validationException);
+            tuples.add(new Tuple<>((String) firstElement, (String) secondElement));
+        }
+
+        return tuples;
+    }
+
+    private static void validateString(
+        Object tupleValue,
+        String settingName,
+        String scope,
+        String elementDescription,
+        int index,
+        ValidationException validationException
+    ) {
+        if (tupleValue instanceof String == false) {
+            validationException.addValidationError(
+                Strings.format(
+                    "[%s] failed to parse tuple list entry [%d] for setting [%s], %s must be a string but was [%s]",
+                    scope,
+                    index,
+                    settingName,
+                    elementDescription,
+                    tupleValue.getClass().getSimpleName()
+                )
+            );
+            throw validationException;
+        }
+    }
+
+    /**
+     * Validates that each value in the map is a {@link String} and returns a new map of {@code Map<String, String>}.
+     */
+    public static Map<String, String> validateMapStringValues(
+        Map<String, ?> map,
+        String settingName,
+        ValidationException validationException,
+        boolean censorValue
+    ) {
+        if (map == null) {
+            return Map.of();
+        }
+
+        validateMapValues(map, List.of(String.class), settingName, validationException, censorValue);
+
+        return map.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+    }
+
+    /**
+     * Ensures the values of the map match one of the supplied types.
+     * @param map Map to validate
+     * @param allowedTypes List of {@link Class} to accept
+     * @param settingName the setting name for the field
+     * @param validationException exception to return if one of the values is invalid
+     * @param censorValue if true the key and value will be included in the exception message
+     */
+    public static void validateMapValues(
+        Map<String, ?> map,
+        List<Class<?>> allowedTypes,
+        String settingName,
+        ValidationException validationException,
+        boolean censorValue
+    ) {
+        if (map == null) {
+            return;
+        }
+
+        for (var entry : map.entrySet()) {
+            var isAllowed = false;
+
+            for (Class<?> allowedType : allowedTypes) {
+                if (allowedType.isInstance(entry.getValue())) {
+                    isAllowed = true;
+                    break;
+                }
+            }
+
+            Function<String[], String> errorMessage = (String[] validTypesAsStrings) -> {
+                if (censorValue) {
+                    return Strings.format(
+                        "Map field [%s] has an entry that is not valid. Value type is not one of [%s].",
+                        settingName,
+                        String.join(", ", validTypesAsStrings)
+                    );
+                } else {
+                    return Strings.format(
+                        "Map field [%s] has an entry that is not valid, [%s => %s]. Value type of [%s] is not one of [%s].",
+                        settingName,
+                        entry.getKey(),
+                        entry.getValue(),
+                        entry.getValue(),
+                        String.join(", ", validTypesAsStrings)
+                    );
+                }
+            };
+
+            if (isAllowed == false) {
+                var validTypesAsStrings = allowedTypes.stream().map(Class::getSimpleName).toArray(String[]::new);
+                Arrays.sort(validTypesAsStrings);
+
+                validationException.addValidationError(errorMessage.apply(validTypesAsStrings));
+                throw validationException;
+            }
+        }
+    }
+
+    public static Map<String, SecureString> convertMapStringsToSecureString(
+        Map<String, ?> map,
+        String settingName,
+        ValidationException validationException
+    ) {
+        if (map == null) {
+            return Map.of();
+        }
+
+        var validatedMap = validateMapStringValues(map, settingName, validationException, true);
+
+        return validatedMap.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SecureString(e.getValue().toCharArray())));
+    }
+
+    /**
+     * Removes null values.
+     */
+    public static Map<String, Object> removeNullValues(Map<String, Object> map) {
+        if (map == null) {
+            return map;
+        }
+
+        map.values().removeIf(Objects::isNull);
+
+        return map;
     }
 
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(

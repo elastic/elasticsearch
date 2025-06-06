@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
-public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
+public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     public LogsUsageRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

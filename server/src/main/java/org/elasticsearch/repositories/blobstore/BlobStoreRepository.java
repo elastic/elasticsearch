@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1749,11 +1750,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         final long repositoryStateId = finalizeSnapshotContext.repositoryStateId();
-        final ShardGenerations shardGenerations = finalizeSnapshotContext.updatedShardGenerations();
         final SnapshotInfo snapshotInfo = finalizeSnapshotContext.snapshotInfo();
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN
             : "Must finalize based on a valid repository generation but received [" + repositoryStateId + "]";
-        final Collection<IndexId> indices = shardGenerations.indices();
+        final Collection<IndexId> indices = finalizeSnapshotContext.updatedShardGenerations().liveIndices().indices();
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
         // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
@@ -1867,7 +1867,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     existingRepositoryData.addSnapshot(
                         snapshotId,
                         snapshotDetails,
-                        shardGenerations,
+                        finalizeSnapshotContext.updatedShardGenerations(),
                         metadataWriteResult.indexMetas(),
                         metadataWriteResult.indexMetaIdentifiers()
                     ),
@@ -2407,12 +2407,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
             throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
         }
+        final var project = currentState.metadata().getDefaultProject();
         return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.getMetadata())
-                    .putDefaultProjectCustom(
+            .putProjectMetadata(
+                ProjectMetadata.builder(project)
+                    .putCustom(
                         RepositoriesMetadata.TYPE,
-                        RepositoriesMetadata.get(currentState)
+                        RepositoriesMetadata.get(project)
                             .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
                     )
             )
@@ -2926,16 +2927,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 + "]"
                         );
                     }
-                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(currentState)
+                    final var project = currentState.metadata().getDefaultProject();
+                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(project)
                         .withUpdatedGeneration(metadata.name(), newGen, newGen);
                     final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
                         ? withGenerations
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
                     final ClusterState newClusterState = stateFilter.apply(
                         ClusterState.builder(currentState)
-                            .metadata(
-                                Metadata.builder(currentState.getMetadata()).putDefaultProjectCustom(RepositoriesMetadata.TYPE, withUuid)
-                            )
+                            .putProjectMetadata(ProjectMetadata.builder(project).putCustom(RepositoriesMetadata.TYPE, withUuid))
                             .build()
                     );
                     return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);

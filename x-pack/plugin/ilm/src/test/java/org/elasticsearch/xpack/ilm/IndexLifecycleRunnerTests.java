@@ -155,7 +155,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        final var metadata = Metadata.builder().put(indexMetadata, true).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build().projectState();
+        runner.runPeriodicStep(policyName, state, indexMetadata);
 
         Mockito.verify(clusterService, times(1)).createTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
@@ -181,7 +183,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        final var metadata = Metadata.builder().put(indexMetadata, true).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build().projectState();
+        runner.runPeriodicStep(policyName, state, indexMetadata);
 
         Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
@@ -296,7 +300,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .putCustom(ILM_CUSTOM_METADATA_KEY, newState.build().asMap())
             .build();
 
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        final var metadata = Metadata.builder().put(indexMetadata, true).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build().projectState();
+        runner.runPeriodicStep(policyName, state, indexMetadata);
 
         Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
@@ -465,7 +471,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (asyncAction) {
             runner.maybeRunAsyncAction(before, indexMetadata, policyName, stepKey);
         } else if (periodicAction) {
-            runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+            runner.runPeriodicStep(policyName, state.projectState(), indexMetadata);
         } else {
             runner.runPolicyAfterStateChange(policyName, indexMetadata);
         }
@@ -641,7 +647,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
         step.setLatch(latch);
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        runner.runPeriodicStep(policyName, state.projectState(), indexMetadata);
         awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         ClusterState after = clusterService.state();
@@ -1007,7 +1013,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
             executeCount++;
             if (latch != null) {
                 latch.countDown();

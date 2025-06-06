@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -34,7 +34,7 @@ public abstract class AsyncWaitStep extends Step {
         return client;
     }
 
-    public abstract void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout);
+    public abstract void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout);
 
     public interface Listener {
 

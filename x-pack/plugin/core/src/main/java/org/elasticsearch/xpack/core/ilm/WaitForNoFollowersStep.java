@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -52,7 +52,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
         XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
         xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
         getClient().execute(XPackInfoFeatureAction.CCR, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
@@ -61,11 +61,11 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
                 listener.onResponse(true, null);
                 return;
             }
-            leaderIndexCheck(metadata, index, listener, masterTimeout);
+            leaderIndexCheck(index, listener);
         }, listener::onFailure));
     }
 
-    private void leaderIndexCheck(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+    private void leaderIndexCheck(Index index, Listener listener) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         String indexName = index.getName();

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -54,6 +55,22 @@ class ValuesBytesRefAggregator {
 
     public static GroupingState initGrouping(BigArrays bigArrays) {
         return new GroupingState(bigArrays);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {
@@ -127,8 +144,8 @@ class ValuesBytesRefAggregator {
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
-        private final LongLongHash values;
-        private final BytesRefHash bytes;
+        final LongLongHash values;
+        BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
             LongLongHash _values = null;

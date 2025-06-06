@@ -1706,3 +1706,808 @@ id:integer | name:keyword | count:long
 13         | lllll        | 2
 14         | mmmmm        | 2
 ;
+
+ImplicitCastingMultiTypedFieldsKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, y = hire_date::datetime, z = hire_date::date_nanos, w = hire_date
+| KEEP x, languages, hire_date, avg_worked_seconds, y, z, w
+| SORT x, z
+| LIMIT 2
+;
+
+x:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |y:datetime               |z:date_nanos             |w:date_nanos
+10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsDropKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, x = hire_date::datetime, y = hire_date
+| DROP salary
+| KEEP emp_no, languages, hire_date, avg_worked_seconds, x, y
+| SORT emp_no, y
+| limit 2
+;
+
+emp_no:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |x:datetime               |y:date_nanos
+10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsRenameKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+from employees, employees_incompatible
+| EVAL emp_no = emp_no::long, avg_worked_seconds = avg_worked_seconds::unsigned_long, languages = languages::integer, x = hire_date::datetime
+| RENAME emp_no as new_emp_no, languages as new_languages, hire_date as new_hire_date, avg_worked_seconds as new_avg_worked_seconds, x as y
+| KEEP new_emp_no, new_languages, new_hire_date, new_avg_worked_seconds, y
+| SORT new_emp_no, new_hire_date
+| limit 2
+;
+
+new_emp_no:long |new_languages:integer |new_hire_date:date_nanos |new_avg_worked_seconds:unsigned_long |y:datetime
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049                            |1986-06-26T00:00:00.000Z
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049                            |1986-06-26T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsDropEvalKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| DROP birth_date
+| EVAL x = emp_no::long + 1, y = hire_date + 1 year, z = hire_date::datetime
+| KEEP x, hire_date, y, z
+| SORT x, hire_date
+| limit 2
+;
+
+x:long |hire_date:date_nanos     |y:date_nanos             |z:date
+10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterEqualKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date == "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterNotEqualKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date != "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10014  | 1985-10-20T00:00:00.000Z
+10014  | 1985-10-20T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterGreaterThanKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date > "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long | hire_date:date_nanos
+10017  | 1995-01-27T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+10020  | 1999-04-30T00:00:00.000Z
+10020  | 1999-04-30T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterGreaterThanOrEqualKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date >= "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10017  | 1995-01-27T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterLessThanKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date < "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10014  | 1985-10-20T00:00:00.000Z
+10014  | 1985-10-20T00:00:00.000Z
+10019  | 1987-04-03T00:00:00.000Z
+10019  | 1987-04-03T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterLessThanOrEqualKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date <= "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long | hire_date:date_nanos
+10014  | 1985-10-20T00:00:00.000Z
+10014  | 1985-10-20T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterLessThanOrEqualNotEqualKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date <= "1993-08-03" AND hire_date != "1985-10-20" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long | hire_date:date_nanos
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+10019  | 1987-04-03T00:00:00.000Z
+10019  | 1987-04-03T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterRangeExcludeLowerExcludeUpperKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date < "1995-01-27"  AND hire_date > "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10045  | 1994-05-21T00:00:00.000Z
+10045  | 1994-05-21T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterRangeIncludeLowerIncludeUpperKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date <= "1995-01-27" AND hire_date >= "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10017  | 1995-01-27T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterRangeExcludeLowerIncludeUpperKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date <= "1995-01-27" AND hire_date > "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10017  | 1995-01-27T00:00:00.000Z
+10017  | 1995-01-27T00:00:00.000Z
+10045  | 1994-05-21T00:00:00.000Z
+10045  | 1994-05-21T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsEvalFilterRangeIncludeLowerExcludeUpperKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no::long + 1, y = hire_date + 1 day
+| WHERE x > 10011 AND hire_date < "1995-01-27" AND hire_date >= "1993-08-03" AND languages::integer < 3 AND height::double > 1.2
+| KEEP x, hire_date
+| SORT x, hire_date
+| limit 4
+;
+
+x:long |hire_date:date_nanos
+10018  | 1993-08-03T00:00:00.000Z
+10018  | 1993-08-03T00:00:00.000Z
+10045  | 1994-05-21T00:00:00.000Z
+10045  | 1994-05-21T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsStatsByNumeric
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS x=max(hire_date), y = min(hire_date) BY languages = languages::integer
+| SORT languages
+;
+
+x:date_nanos             | y:date_nanos             | languages:integer
+1999-04-30T00:00:00.000Z | 1985-02-18T00:00:00.000Z | 1
+1995-01-27T00:00:00.000Z | 1986-03-14T00:00:00.000Z | 2
+1996-11-05T00:00:00.000Z | 1985-02-24T00:00:00.000Z | 3
+1995-03-13T00:00:00.000Z | 1985-05-13T00:00:00.000Z | 4
+1994-04-09T00:00:00.000Z | 1985-11-19T00:00:00.000Z | 5
+1997-05-19T00:00:00.000Z | 1985-11-20T00:00:00.000Z | null
+;
+
+ImplicitCastingMultiTypedFieldsStatsByNumericWithFilter
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS x=max(hire_date) where hire_date < "1993-08-03", y = min(hire_date) where hire_date >= "1993-08-03" BY languages = languages::integer
+| SORT languages
+;
+
+x:date_nanos             | y:date_nanos             | languages:integer
+1990-10-20T00:00:00.000Z | 1994-05-21T00:00:00.000Z | 1
+1991-06-26T00:00:00.000Z | 1993-08-03T00:00:00.000Z | 2
+1993-03-21T00:00:00.000Z | 1994-02-17T00:00:00.000Z | 3
+1993-02-14T00:00:00.000Z | 1995-03-13T00:00:00.000Z | 4
+1992-12-18T00:00:00.000Z | 1994-04-09T00:00:00.000Z | 5
+1991-10-22T00:00:00.000Z | 1995-03-20T00:00:00.000Z | null
+;
+
+ImplicitCastingMultiTypedFieldsStatsByDateNanos
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS x=count(emp_no::long), y=avg(salary_change::double), z=max(height::double) BY hire_date
+| Eval y = round(y, 1), z = round(z, 1)
+| KEEP x, y, z, hire_date
+| SORT hire_date
+| LIMIT 5
+;
+
+x:long | y:double | z:double | hire_date:date_nanos
+2      | null     | 1.9      | 1985-02-18T00:00:00.000Z
+2      | null     | 2.0      | 1985-02-24T00:00:00.000Z
+2      | 3.3      | 2.0      | 1985-05-13T00:00:00.000Z
+2      | 0.2      | 1.8      | 1985-07-09T00:00:00.000Z
+2      | 3.6      | 1.5      | 1985-09-17T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsStatsByDateNanosWithFilter
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS x=count(emp_no::long) where hire_date > "1985-05-01", y=avg(salary_change::double) where hire_date > "1985-05-01", z=max(height::double) where hire_date > "1985-05-01" BY hire_date
+| Eval y = round(y, 1), z = round(z, 1)
+| KEEP x, y, z, hire_date
+| SORT hire_date
+| LIMIT 5
+;
+
+x:long | y:double | z:double | hire_date:date_nanos
+0      | null     | null     | 1985-02-18T00:00:00.000Z
+0      | null     | null     | 1985-02-24T00:00:00.000Z
+2      | 3.3      | 2.0      | 1985-05-13T00:00:00.000Z
+2      | 0.2      | 1.8      | 1985-07-09T00:00:00.000Z
+2      | 3.6      | 1.5      | 1985-09-17T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsMvExpandKeepSort
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| MV_EXPAND nanos
+| SORT nanos
+| LIMIT 4
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+millis:date_nanos              | nanos:date_nanos               | num:long
+1999-10-23T12:15:03.360103847Z | 2023-01-23T13:55:01.543Z       | 0
+1999-10-23T12:15:03.360Z       | 2023-01-23T13:55:01.543123456Z | 0
+1999-10-23T12:15:03.360103847Z | 2023-02-23T13:33:34.937Z       | 0
+1999-10-23T12:15:03.360Z       | 2023-02-23T13:33:34.937193Z    | 0
+;
+
+ImplicitCastingMultiTypedFieldsBackAndForth
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| MV_EXPAND nanos
+| EVAL a = nanos::datetime, b = nanos::date_nanos, c = nanos, d = nanos::datetime::date_nanos, e = nanos::date_nanos::datetime
+| KEEP millis, nanos, a, b, c, d, e
+| SORT nanos, millis
+| LIMIT 14
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+millis:date_nanos              | nanos:date_nanos               | a:datetime               | b:date_nanos                   | c:date_nanos                   | d:date_nanos             | e:datetime
+1999-10-23T12:15:03.360103847Z | 2023-01-23T13:55:01.543Z       | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543Z       | 2023-01-23T13:55:01.543Z       | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360Z       | 2023-01-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360103847Z | 2023-02-23T13:33:34.937Z       | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937Z       | 2023-02-23T13:33:34.937Z       | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937Z
+1999-10-23T12:15:03.360Z       | 2023-02-23T13:33:34.937193Z    | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937193Z    | 2023-02-23T13:33:34.937193Z    | 2023-02-23T13:33:34.937Z | 2023-02-23T13:33:34.937Z
+1999-10-22T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z       | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360Z       | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23T12:15:03.360Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z
+;
+
+ImplicitCastingMultiTypedFieldsInvalidNanosValidMillis
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| EVAL a = nanos::datetime
+| MV_EXPAND a
+| SORT a, millis, nanos
+| LIMIT 14
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+millis:date_nanos              | nanos:date_nanos                                                                                 | num:long            | a:datetime
+2023-10-23T12:15:03.360103847Z | null                                                                                             | 1698063303360103847 | 1923-10-23T12:15:03.360Z
+1999-10-23T12:15:03.360Z       | [2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | 0                   | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360103847Z | [2023-01-23T13:55:01.543Z, 2023-02-23T13:33:34.937Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360Z       | [2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | 0                   | 2023-02-23T13:33:34.937Z
+1999-10-23T12:15:03.360103847Z | [2023-01-23T13:55:01.543Z, 2023-02-23T13:33:34.937Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-02-23T13:33:34.937Z
+1999-10-22T12:15:03.360Z       | [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | [2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | [2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | [2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360Z       | [2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360103847Z | [2023-01-23T13:55:01.543Z, 2023-02-23T13:33:34.937Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z                                                                   | 1698063303360103847 | 2023-10-23T12:15:03.360Z
+;
+
+ImplicitCastingMultiTypedFieldsInvalidNanosValidMillisExplicitCastToNanos
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| EVAL a = nanos::date_nanos::datetime
+| WHERE millis < "2023-10-23T13:00:00"
+| MV_EXPAND a
+| SORT a, millis, nanos
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+millis:date_nanos              | nanos:date_nanos                                                                                 | num:long            | a:datetime              
+1999-10-23T12:15:03.360Z       | [2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | 0                   | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360103847Z | [2023-01-23T13:55:01.543Z, 2023-02-23T13:33:34.937Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-01-23T13:55:01.543Z
+1999-10-23T12:15:03.360Z       | [2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | 0                   | 2023-02-23T13:33:34.937Z
+1999-10-23T12:15:03.360103847Z | [2023-01-23T13:55:01.543Z, 2023-02-23T13:33:34.937Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-02-23T13:33:34.937Z
+1999-10-22T12:15:03.360Z       | [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | [2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | [2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360103847Z | [2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360Z       | [2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | 0                   | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360103847Z | [2023-01-23T13:55:01.543Z, 2023-02-23T13:33:34.937Z, 2023-03-23T12:15:03.360Z]                   | 0                   | 2023-03-23T12:15:03.360Z
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z                                                                   | 1698063303360103847 | 2023-10-23T12:15:03.360Z
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z                                                                   | 1698063303360103847 | 2023-10-23T12:15:03.360Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z                                                                         | 1698063303360103847 | 2023-10-23T12:15:03.360Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z                                                                         | 1698063303360103847 | 2023-10-23T12:15:03.360Z
+2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z                                                                         | 1698064048948000000 | 2023-10-23T12:27:28.948Z
+2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z                                                                         | 1698064048948000000 | 2023-10-23T12:27:28.948Z
+2023-10-23T12:15:03.360103847Z | null                                                                                             | 1698063303360103847 | null
+;
+
+ImplicitCastingMultiTypedMVFieldsEval
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| EVAL nanos = MV_MAX(nanos)
+| SORT nanos, millis
+| LIMIT 4
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+millis:date_nanos              | num:long | nanos:date_nanos
+1999-10-22T12:15:03.360103847Z | 0        | 2023-03-23T12:15:03.360Z
+1999-10-23T12:15:03.360103847Z | 0        | 2023-03-23T12:15:03.360Z
+1999-10-22T12:15:03.360Z       | 0        | 2023-03-23T12:15:03.360103847Z
+1999-10-23T12:15:03.360Z       | 0        | 2023-03-23T12:15:03.360103847Z
+;
+
+ImplicitCastingMultiTypedMVFieldsWhere
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| WHERE millis <= "2023-10-23T13:00:00" AND MV_MAX(nanos) > "2023-03-23T13:00:00"
+| KEEP millis, nanos, num
+| SORT millis
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+millis:date_nanos              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z       | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 1698063303360103847
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z       | 1698063303360103847
+2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z       | 1698064048948000000
+2023-10-23T12:27:28.948Z       | 2023-10-23T12:27:28.948Z       | 1698064048948000000
+;
+
+ImplicitCastingMultiTypedMVFieldsStatsMaxMin
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| STATS max = MAX(millis), min = MIN(nanos)
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+max:date_nanos                 | min:date_nanos
+2023-10-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543Z
+;
+
+ImplicitCastingMultiTypedMVFieldsStatsValues
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM date_nanos, date_nanos_union_types
+| STATS c = MV_COUNT(VALUES(nanos))
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+c:integer
+19
+;
+
+ImplicitCastingMultiTypedDateDiff
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long
+| WHERE emp_no <= 10003
+| EVAL diff_sec_1 = DATE_DIFF("seconds", TO_DATE_NANOS("1986-01-23T12:15:03.360103847Z"), hire_date)
+| EVAL diff_sec_2 = DATE_DIFF("seconds", TO_DATETIME("1986-01-23T12:15:03.360103847Z"), hire_date)
+| KEEP emp_no, hire_date, diff_sec_1, diff_sec_2
+| SORT emp_no, hire_date
+;
+
+emp_no:long | hire_date:date_nanos     | diff_sec_1:integer | diff_sec_2:integer
+10001       | 1986-06-26T00:00:00.000Z | 13261496           | 13261496
+10001       | 1986-06-26T00:00:00.000Z | 13261496           | 13261496
+10002       | 1985-11-21T00:00:00.000Z | -5487303           | -5487303
+10002       | 1985-11-21T00:00:00.000Z | -5487303           | -5487303
+10003       | 1986-08-28T00:00:00.000Z | 18704696           | 18704696
+10003       | 1986-08-28T00:00:00.000Z | 18704696           | 18704696
+;
+
+ImplicitCastingMultiTypedDateFormat
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long
+| WHERE emp_no <= 10003
+| EVAL a = DATE_FORMAT(hire_date), b = DATE_FORMAT("yyyy-MM-dd", hire_date), c = DATE_FORMAT("strict_date_optional_time_nanos", hire_date)
+| KEEP emp_no, hire_date, a, b, c
+| SORT emp_no, hire_date
+;
+
+emp_no:long | hire_date:date_nanos     | a:keyword                | b:keyword  | c:keyword
+10001       | 1986-06-26T00:00:00.000Z | 1986-06-26T00:00:00.000Z | 1986-06-26 | 1986-06-26T00:00:00.000Z
+10001       | 1986-06-26T00:00:00.000Z | 1986-06-26T00:00:00.000Z | 1986-06-26 | 1986-06-26T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-11-21T00:00:00.000Z | 1985-11-21 | 1985-11-21T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-11-21T00:00:00.000Z | 1985-11-21 | 1985-11-21T00:00:00.000Z
+10003       | 1986-08-28T00:00:00.000Z | 1986-08-28T00:00:00.000Z | 1986-08-28 | 1986-08-28T00:00:00.000Z
+10003       | 1986-08-28T00:00:00.000Z | 1986-08-28T00:00:00.000Z | 1986-08-28 | 1986-08-28T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTrunc
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL emp_no = emp_no::long
+| WHERE emp_no <= 10003
+| EVAL yr = DATE_TRUNC(1 year, hire_date), mo = DATE_TRUNC(1 month, hire_date)
+| SORT hire_date DESC
+| KEEP emp_no, hire_date, yr, mo
+;
+
+emp_no:long | hire_date:date_nanos     | yr:date_nanos            | mo:date_nanos
+10003       | 1986-08-28T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-08-01T00:00:00.000Z
+10003       | 1986-08-28T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-08-01T00:00:00.000Z
+10001       | 1986-06-26T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-06-01T00:00:00.000Z
+10001       | 1986-06-26T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-06-01T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z | 1985-11-01T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z | 1985-11-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncStatsBy
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(emp_no::long) BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncStatsByWithFilter
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(emp_no::long) where hire_date > "1996-01-01" BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+0      | 1995-01-01T00:00:00.000Z
+0      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncStatsByWithEval
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL yr = DATE_TRUNC(1 year, hire_date)
+| STATS c = count(emp_no::long) BY yr
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncStatsByWithEvalWithFilter
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| EVAL yr = DATE_TRUNC(1 year, hire_date)
+| STATS c = count(emp_no::long) where hire_date > "1991-01-01" BY yr
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosByYear
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(*) BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+6      | 1993-01-01T00:00:00.000Z
+16     | 1992-01-01T00:00:00.000Z
+12     | 1991-01-01T00:00:00.000Z
+24     | 1990-01-01T00:00:00.000Z
+26     | 1989-01-01T00:00:00.000Z
+18     | 1988-01-01T00:00:00.000Z
+30     | 1987-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z
+22     | 1985-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosByYearWithFilter
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(*) where hire_date > "1991-01-01" BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+6      | 1993-01-01T00:00:00.000Z
+16     | 1992-01-01T00:00:00.000Z
+12     | 1991-01-01T00:00:00.000Z
+0      | 1990-01-01T00:00:00.000Z
+0      | 1989-01-01T00:00:00.000Z
+0      | 1988-01-01T00:00:00.000Z
+0      | 1987-01-01T00:00:00.000Z
+0      | 1986-01-01T00:00:00.000Z
+0      | 1985-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosByMonth
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(*) BY mo = BUCKET(hire_date, 20, "1986-01-01", "1999-12-31")
+| SORT mo DESC, c
+;
+
+c:long | mo:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+6      | 1993-01-01T00:00:00.000Z
+16     | 1992-01-01T00:00:00.000Z
+12     | 1991-01-01T00:00:00.000Z
+24     | 1990-01-01T00:00:00.000Z
+26     | 1989-01-01T00:00:00.000Z
+18     | 1988-01-01T00:00:00.000Z
+30     | 1987-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z
+22     | 1985-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosInBothStatsAndBy
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(*), b = BUCKET(hire_date, 1 year) + 1 year BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | b:date_nanos             | yr:date_nanos
+2      | 2000-01-01T00:00:00.000Z | 1999-01-01T00:00:00.000Z
+2      | 1998-01-01T00:00:00.000Z | 1997-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z | 1996-01-01T00:00:00.000Z
+10     | 1996-01-01T00:00:00.000Z | 1995-01-01T00:00:00.000Z
+8      | 1995-01-01T00:00:00.000Z | 1994-01-01T00:00:00.000Z
+6      | 1994-01-01T00:00:00.000Z | 1993-01-01T00:00:00.000Z
+16     | 1993-01-01T00:00:00.000Z | 1992-01-01T00:00:00.000Z
+12     | 1992-01-01T00:00:00.000Z | 1991-01-01T00:00:00.000Z
+24     | 1991-01-01T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+26     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+18     | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+30     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosInBothStatsAndByWithAlias
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+
+FROM employees, employees_incompatible
+| STATS c = count(*), b = yr + 1 year BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | b:date_nanos             | yr:date_nanos
+2      | 2000-01-01T00:00:00.000Z | 1999-01-01T00:00:00.000Z
+2      | 1998-01-01T00:00:00.000Z | 1997-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z | 1996-01-01T00:00:00.000Z
+10     | 1996-01-01T00:00:00.000Z | 1995-01-01T00:00:00.000Z
+8      | 1995-01-01T00:00:00.000Z | 1994-01-01T00:00:00.000Z
+6      | 1994-01-01T00:00:00.000Z | 1993-01-01T00:00:00.000Z
+16     | 1993-01-01T00:00:00.000Z | 1992-01-01T00:00:00.000Z
+12     | 1992-01-01T00:00:00.000Z | 1991-01-01T00:00:00.000Z
+24     | 1991-01-01T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+26     | 1990-01-01T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+18     | 1989-01-01T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+30     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+;

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
@@ -195,7 +196,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             requestContent,
             false,
             ingestService,
-            RestApiVersion.current()
+            RestApiVersion.current(),
+            (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));
@@ -268,7 +270,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parse(projectId, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parse(
+                projectId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current(),
+                (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            )
         );
         assertThat(e1.getMessage(), equalTo("must specify at least one document in [docs]"));
 
@@ -279,7 +288,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parse(projectId, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parse(
+                projectId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current(),
+                (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            )
         );
         assertThat(e2.getMessage(), equalTo("malformed [docs] section, should include an inner object"));
 
@@ -288,7 +304,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e3 = expectThrows(
             ElasticsearchParseException.class,
-            () -> SimulatePipelineRequest.parse(projectId, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parse(
+                projectId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current(),
+                (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            )
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
     }
@@ -367,7 +390,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             requestContent,
             false,
             ingestService,
-            RestApiVersion.V_8
+            RestApiVersion.V_8,
+            (_) -> DataStream.LOGS_STREAM_FEATURE_FLAG
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));

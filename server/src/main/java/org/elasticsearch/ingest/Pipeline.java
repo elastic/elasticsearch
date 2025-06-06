@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Arrays;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -30,6 +32,7 @@ public final class Pipeline {
     public static final String VERSION_KEY = "version";
     public static final String ON_FAILURE_KEY = "on_failure";
     public static final String META_KEY = "_meta";
+    public static final String FIELD_ACCESS_PATTERN = "field_access_pattern";
     public static final String DEPRECATED_KEY = "deprecated";
 
     private final String id;
@@ -42,6 +45,7 @@ public final class Pipeline {
     private final CompoundProcessor compoundProcessor;
     private final IngestPipelineMetric metrics;
     private final LongSupplier relativeTimeProvider;
+    private final IngestPipelineFieldAccessPattern fieldAccessPattern;
     @Nullable
     private final Boolean deprecated;
 
@@ -52,7 +56,7 @@ public final class Pipeline {
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor
     ) {
-        this(id, description, version, metadata, compoundProcessor, null);
+        this(id, description, version, metadata, compoundProcessor, IngestPipelineFieldAccessPattern.CLASSIC, null);
     }
 
     public Pipeline(
@@ -61,9 +65,10 @@ public final class Pipeline {
         @Nullable Integer version,
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor,
+        IngestPipelineFieldAccessPattern fieldAccessPattern,
         @Nullable Boolean deprecated
     ) {
-        this(id, description, version, metadata, compoundProcessor, System::nanoTime, deprecated);
+        this(id, description, version, metadata, compoundProcessor, System::nanoTime, fieldAccessPattern, deprecated);
     }
 
     // package private for testing
@@ -74,6 +79,7 @@ public final class Pipeline {
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor,
         LongSupplier relativeTimeProvider,
+        IngestPipelineFieldAccessPattern fieldAccessPattern,
         @Nullable Boolean deprecated
     ) {
         this.id = id;
@@ -83,9 +89,14 @@ public final class Pipeline {
         this.version = version;
         this.metrics = new IngestPipelineMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+        this.fieldAccessPattern = fieldAccessPattern;
         this.deprecated = deprecated;
     }
 
+    /**
+     * @deprecated To be removed after Logstash has transitioned fully to the logstash-bridge library. Functionality will be relocated to
+     * there. Use {@link Pipeline#create(String, Map, Map, ScriptService, ProjectId, Predicate)} instead.
+     */
     public static Pipeline create(
         String id,
         Map<String, Object> config,
@@ -93,10 +104,32 @@ public final class Pipeline {
         ScriptService scriptService,
         ProjectId projectId
     ) throws Exception {
+        return create(id, config, processorFactories, scriptService, projectId, IngestService::locallySupportedIngestFeature);
+    }
+
+    public static Pipeline create(
+        String id,
+        Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories,
+        ScriptService scriptService,
+        ProjectId projectId,
+        Predicate<NodeFeature> hasFeature
+    ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         Map<String, Object> metadata = ConfigurationUtils.readOptionalMap(null, null, config, META_KEY);
         Boolean deprecated = ConfigurationUtils.readOptionalBooleanProperty(null, null, config, DEPRECATED_KEY);
+        String fieldAccessPatternRaw = ConfigurationUtils.readOptionalStringProperty(null, null, config, FIELD_ACCESS_PATTERN);
+        if (fieldAccessPatternRaw != null && hasFeature.test(IngestService.FIELD_ACCESS_PATTERN) == false) {
+            throw new ElasticsearchParseException(
+                "pipeline ["
+                    + id
+                    + "] doesn't support one or more provided configuration parameters [field_access_pattern]"
+            );
+        }
+        IngestPipelineFieldAccessPattern accessPattern = fieldAccessPatternRaw == null
+            ? IngestPipelineFieldAccessPattern.CLASSIC
+            : IngestPipelineFieldAccessPattern.getAccessPattern(fieldAccessPatternRaw);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(
             processorConfigs,
@@ -123,7 +156,7 @@ public final class Pipeline {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
-        return new Pipeline(id, description, version, metadata, compoundProcessor, deprecated);
+        return new Pipeline(id, description, version, metadata, compoundProcessor, accessPattern, deprecated);
     }
 
     /**
@@ -213,6 +246,13 @@ public final class Pipeline {
      */
     public IngestPipelineMetric getMetrics() {
         return metrics;
+    }
+
+    /**
+     * The field access pattern that the pipeline will use to retrieve and set fields on documents.
+     */
+    public IngestPipelineFieldAccessPattern getFieldAccessPattern() {
+        return fieldAccessPattern;
     }
 
     public Boolean getDeprecated() {

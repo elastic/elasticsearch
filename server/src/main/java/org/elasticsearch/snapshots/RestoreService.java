@@ -1583,6 +1583,8 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder) {
+            @FixForMultiProject
+            final var projectBuilder = mdBuilder.getProject(ProjectId.DEFAULT);
             if (metadata.persistentSettings() != null) {
                 Settings settings = metadata.persistentSettings();
                 if (request.skipOperatorOnlyState()) {
@@ -1607,13 +1609,13 @@ public final class RestoreService implements ClusterStateApplier {
             if (metadata.getProject().templates() != null) {
                 // TODO: Should all existing templates be deleted first?
                 for (IndexTemplateMetadata cursor : metadata.getProject().templates().values()) {
-                    mdBuilder.put(cursor);
+                    projectBuilder.put(cursor);
                 }
             }
 
             // override existing restorable customs (as there might be nothing in snapshot to override them)
             mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
-            mdBuilder.removeProjectCustomIf((key, value) -> value.isRestorable());
+            projectBuilder.removeCustomIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot
             if (metadata.customs() != null) {
@@ -1630,7 +1632,7 @@ public final class RestoreService implements ClusterStateApplier {
                 for (var entry : metadata.getProject().customs().entrySet()) {
                     if (entry.getValue().isRestorable()) {
                         // Also, don't restore data streams here, we already added them to the metadata builder above
-                        mdBuilder.putCustom(entry.getKey(), entry.getValue());
+                        projectBuilder.putCustom(entry.getKey(), entry.getValue());
                     }
                 }
             }

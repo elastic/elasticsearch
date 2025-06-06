@@ -166,7 +166,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             currentStep.getClass().getSimpleName(),
             currentStep.getKey()
         );
-        ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
+        ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state.projectState());
         // some steps can decide to change the next step to execute after waiting for some time for the condition
         // to be met (eg. {@link LifecycleSettings#LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING}, so it's important we
         // re-evaluate what the next step is after we evaluate the condition
@@ -198,7 +198,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             if (stepInfo == null) {
                 return state;
             }
-            return IndexLifecycleTransition.addStepInfoToClusterState(index, state, stepInfo);
+            return ClusterState.builder(state)
+                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToProject(index, state.metadata().getProject(), stepInfo))
+                .build();
         }
     }
 
@@ -286,7 +288,12 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             ),
             cause
         );
-        return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
+        final var project = state.metadata().getProject();
+        return ClusterState.builder(state)
+            .putProjectMetadata(
+                IndexLifecycleTransition.moveIndexToErrorStep(index, project, cause, nowSupplier, policyStepsRegistry::getStep)
+            )
+            .build();
     }
 
     @Override

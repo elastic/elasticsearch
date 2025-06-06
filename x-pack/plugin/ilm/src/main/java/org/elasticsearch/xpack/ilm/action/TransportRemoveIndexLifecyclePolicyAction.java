@@ -70,7 +70,9 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return IndexLifecycleTransition.removePolicyForIndexes(indices, currentState, failedIndexes);
+                final var project = currentState.metadata().getProject();
+                final var updatedProject = IndexLifecycleTransition.removePolicyForIndexes(indices, project, failedIndexes);
+                return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
             }
 
             @Override

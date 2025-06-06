@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -339,7 +340,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract ConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+    public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(

@@ -1,0 +1,6 @@
+pr: 129005
+summary: Update AbstractXContentParser to support parsers that don't provide text
+  characters
+area: Infra/Core
+type: bug
+issues: []

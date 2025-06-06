@@ -771,9 +771,11 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+                settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 break;
             case LOGSDB:
                 settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
+                settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());

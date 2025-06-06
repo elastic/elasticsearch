@@ -57,14 +57,17 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
 
     @Override
     protected ClusterState doExecute(ClusterState currentState) throws Exception {
-        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
+        final var project = currentState.getMetadata().getProject();
+        IndexMetadata idxMeta = project.index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
         }
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
-            return IndexLifecycleTransition.moveClusterStateToErrorStep(index, currentState, cause, nowSupplier, stepLookupFunction);
+            return ClusterState.builder(currentState)
+                .putProjectMetadata(IndexLifecycleTransition.moveIndexToErrorStep(index, project, cause, nowSupplier, stepLookupFunction))
+                .build();
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

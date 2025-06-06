@@ -1,0 +1,6 @@
+pr: 128989
+summary: Fix NPE in semantic highlighter
+area: Search
+type: bug
+issues:
+ - 128975

@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -391,18 +393,25 @@ public final class BlobStoreTestUtil {
     /**
      * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
      * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state with a {@link RepositoriesMetadata} instance
-     * that contains the given {@code metadata}.
+     * that contains the given {@code repositoryMetadata}.
      *
-     * @param metadata RepositoryMetadata to initialize the cluster state with
+     * @param repositoryMetadata RepositoryMetadata to initialize the cluster state with
      * @return Mock ClusterService
      */
-    public static ClusterService mockClusterService(RepositoryMetadata metadata) {
+    public static ClusterService mockClusterService(RepositoryMetadata repositoryMetadata) {
         return mockClusterService(
             ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
-                        .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(metadata)))
+                        .put(
+                            ProjectMetadata.builder(ProjectId.DEFAULT)
+                                .putCustom(
+                                    RepositoriesMetadata.TYPE,
+                                    new RepositoriesMetadata(Collections.singletonList(repositoryMetadata))
+                                )
+                                .build()
+                        )
                         .build()
                 )
                 .build()

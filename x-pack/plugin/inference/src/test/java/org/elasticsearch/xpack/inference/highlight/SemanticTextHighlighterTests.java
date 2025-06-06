@@ -32,9 +32,12 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,7 +53,6 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.mockito.Mockito;
@@ -170,6 +172,34 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testNoSemanticField() throws Exception {
+        var mapperService = createDefaultMapperService(useLegacyFormat);
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("sparse_vector_1");
+        List<WeightedToken> tokens = readSparseVector(queryMap.get("embeddings"));
+        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_ELSER);
+        SparseVectorQueryBuilder sparseQuery = new SparseVectorQueryBuilder(
+            fieldType.getEmbeddingsField().fullPath(),
+            tokens,
+            null,
+            null,
+            null,
+            null
+        );
+        var query = new BoolQueryBuilder().should(sparseQuery).should(new MatchAllQueryBuilder());
+        var shardRequest = createShardSearchRequest(query);
+        var sourceToParse = new SourceToParse("0", new BytesArray("{}"), XContentType.JSON);
+        assertHighlightOneDoc(
+            mapperService,
+            shardRequest,
+            sourceToParse,
+            SEMANTIC_FIELD_ELSER,
+            10,
+            HighlightBuilder.Order.SCORE,
+            new String[0]
+        );
+    }
+
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
         var settings = Settings.builder()
@@ -264,9 +294,13 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                             new HashMap<>()
                         );
                         var result = highlighter.highlight(context);
-                        assertThat(result.fragments().length, equalTo(expectedPassages.length));
-                        for (int i = 0; i < result.fragments().length; i++) {
-                            assertThat(result.fragments()[i].string(), equalTo(expectedPassages[i]));
+                        if (result == null) {
+                            assertThat(expectedPassages.length, equalTo(0));
+                        } else {
+                            assertThat(result.fragments().length, equalTo(expectedPassages.length));
+                            for (int i = 0; i < result.fragments().length; i++) {
+                                assertThat(result.fragments()[i].string(), equalTo(expectedPassages[i]));
+                            }
                         }
                     }
                 } finally {

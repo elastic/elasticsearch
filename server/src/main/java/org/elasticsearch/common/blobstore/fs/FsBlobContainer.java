@@ -89,6 +89,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
         this.path = path;
     }
 
+    public Path getPath() {
+        return path;
+    }
+
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         return listBlobsByPrefix(purpose, null);

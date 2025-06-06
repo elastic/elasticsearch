@@ -48,8 +48,28 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'com.gradleup.nmcp.aggregation'
+}
+
+version = VersionProperties.elasticsearch
+
+/**
+ * Here we package and aggregation zip file containing all maven artifacts we want to
+ * publish to maven central.
+ * The aggregation is done by picking all projects that have the elasticsearch.publish plugin applied,
+ * indicating the artifact is meant for beeing published to maven central.
+ * */
+nmcpAggregation {
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+tasks.named('zipAggregation').configure {
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }
 
 /**
@@ -295,7 +315,7 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    if(project.path == ':') {
+    if (project.path == ':') {
       resolveJavaToolChain = true
 
       // ensure we have best possible caching of bwc builds
@@ -320,7 +340,7 @@ allprojects {
   }
 
   ext.withReleaseBuild = { Closure config ->
-    if(buildParams.snapshotBuild == false) {
+    if (buildParams.snapshotBuild == false) {
       config.call()
     }
   }

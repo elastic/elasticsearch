@@ -87,11 +87,10 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
     @Override
     protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState currentState) {
         logger.trace("Executing cluster state update");
-        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().getProject().custom(MlMetadata.TYPE));
+        final var project = currentState.metadata().getProject();
+        MlMetadata.Builder builder = new MlMetadata.Builder(project.custom(MlMetadata.TYPE));
         builder.isUpgradeMode(request.enabled());
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
-        return newState.build();
+        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(MlMetadata.TYPE, builder.build()));
     }
 
     protected void upgradeModeSuccessfullyChanged(

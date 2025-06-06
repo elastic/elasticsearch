@@ -56,10 +56,10 @@ processingCommand
     | mvExpandCommand
     | joinCommand
     | changePointCommand
+    | completionCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
@@ -308,7 +308,7 @@ rerankCommand
     ;
 
 completionCommand
-    : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    : COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
     ;
 
 sampleCommand

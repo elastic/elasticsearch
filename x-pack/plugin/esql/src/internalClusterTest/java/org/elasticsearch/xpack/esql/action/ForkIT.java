@@ -588,6 +588,39 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithStatsAfterFork() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | STATS c = count(*)
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertColumnTypes(resp.columns(), List.of("long"));
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(7L));
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithStatsWithWhereAfterFork() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | STATS c = count(*) WHERE _fork == "fork1"
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertColumnTypes(resp.columns(), List.of("long"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(2L));
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testWithConditionOnForkField() {
         var query = """
                 FROM test

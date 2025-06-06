@@ -51,6 +51,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     protected final IntObjectHashMap<FieldEntry> fields;
     private final FlatVectorsReader rawVectorsReader;
 
+    @SuppressWarnings("this-escape")
     protected IVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;

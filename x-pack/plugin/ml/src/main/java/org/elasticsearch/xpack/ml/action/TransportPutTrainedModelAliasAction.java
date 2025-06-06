@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -257,7 +256,6 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
     }
 
     static ClusterState updateModelAlias(final ClusterState currentState, final PutTrainedModelAliasAction.Request request) {
-        final ClusterState.Builder builder = ClusterState.builder(currentState);
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
         String currentModelId = currentMetadata.getModelId(request.getModelAlias());
         final Map<String, ModelAliasMetadata.ModelAliasEntry> newMetadata = new HashMap<>(currentMetadata.modelAliases());
@@ -273,8 +271,8 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         }
         newMetadata.put(request.getModelAlias(), new ModelAliasMetadata.ModelAliasEntry(request.getModelId()));
         final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-        builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build());
-        return builder.build();
+        final var project = currentState.metadata().getProject();
+        return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(ModelAliasMetadata.NAME, modelAliasMetadata));
     }
 
     @Override

@@ -4090,10 +4090,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // Handle the tasks to apply the shard snapshot updates (ShardSnapshotUpdate tasks).
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
 
-            final RegisteredPolicySnapshots.Builder registeredPolicySnapshots = state.metadata()
-                .getProject()
-                .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY)
-                .builder();
+            final var project = state.metadata().getProject();
+            final RegisteredPolicySnapshots.Builder registeredPolicySnapshots = project.custom(
+                RegisteredPolicySnapshots.TYPE,
+                RegisteredPolicySnapshots.EMPTY
+            ).builder();
             // Handle the tasks to create new snapshots (CreateSnapshotTask tasks).
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
@@ -4135,7 +4136,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             return ClusterState.builder(state)
                 .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
-                .metadata(Metadata.builder(state.metadata()).putCustom(RegisteredPolicySnapshots.TYPE, registeredPolicySnapshots.build()))
+                .putProjectMetadata(
+                    ProjectMetadata.builder(project).putCustom(RegisteredPolicySnapshots.TYPE, registeredPolicySnapshots.build())
+                )
                 .build();
         }
 

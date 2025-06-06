@@ -50,7 +50,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -477,7 +476,7 @@ public class AzureBlobStore implements BlobStore {
         final OperationPurpose purpose,
         final String blobName,
         final long blobSize,
-        final CheckedBiFunction<Long, Long, InputStream, IOException> provider,
+        final BlobContainer.BlobMultiPartInputStreamProvider provider,
         final boolean failIfAlreadyExists
     ) throws IOException {
         try {
@@ -559,7 +558,7 @@ public class AzureBlobStore implements BlobStore {
         BlockBlobAsyncClient asyncClient,
         String blobName,
         MultiPart multiPart,
-        CheckedBiFunction<Long, Long, InputStream, IOException> provider
+        BlobContainer.BlobMultiPartInputStreamProvider provider
     ) {
         logger.debug(
             "{}: staging part [{}] of size [{}] from offset [{}]",

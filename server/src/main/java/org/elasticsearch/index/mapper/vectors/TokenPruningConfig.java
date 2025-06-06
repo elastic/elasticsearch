@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.core.ml.search;
+package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,9 +24,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
-
 public class TokenPruningConfig implements Writeable, ToXContentObject {
+    public static final String PRUNING_CONFIG_FIELD = "pruning_config";
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
     public static final ParseField TOKENS_WEIGHT_THRESHOLD = new ParseField("tokens_weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
@@ -150,7 +151,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 ).contains(currentFieldName) == false) {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG_FIELD + "] unknown token [" + currentFieldName + "]"
                     );
                 }
             } else if (token.isValue()) {
@@ -163,13 +164,13 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + PRUNING_CONFIG.getPreferredName() + "] does not support [" + currentFieldName + "]"
+                        "[" + PRUNING_CONFIG_FIELD + "] does not support [" + currentFieldName + "]"
                     );
                 }
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                    "[" + PRUNING_CONFIG_FIELD + "] unknown token [" + token + "] after [" + currentFieldName + "]"
                 );
             }
         }

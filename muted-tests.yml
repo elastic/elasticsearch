@@ -504,6 +504,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {lookup-join.LookupJoinOnTimeSeriesIndex SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129082
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/70_ilm/Test Lifecycle Still There And Indices Are Still Managed}
+  issue: https://github.com/elastic/elasticsearch/issues/129097
 
 # Examples:
 #

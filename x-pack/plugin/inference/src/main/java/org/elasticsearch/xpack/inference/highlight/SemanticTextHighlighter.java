@@ -209,6 +209,9 @@ public class SemanticTextHighlighter implements Highlighter {
         leafQueries.stream().forEach(q -> bq.add(q, BooleanClause.Occur.SHOULD));
         Weight weight = new IndexSearcher(reader).createWeight(bq.build(), ScoreMode.COMPLETE, 1);
         Scorer scorer = weight.scorer(reader.getContext());
+        if (scorer == null) {
+            return List.of();
+        }
         if (previousParent != -1) {
             if (scorer.iterator().advance(previousParent) == DocIdSetIterator.NO_MORE_DOCS) {
                 return List.of();

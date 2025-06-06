@@ -46,6 +46,15 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             version = '1.0'
         """
 
+        subProject(":libs:some-private-lib") << """
+            plugins {
+                id 'elasticsearch.java'
+            }
+
+            group = 'org.acme.xpack'
+            version = '1.0'
+        """
+
         buildFile << """
             plugins {
                 id 'com.gradleup.nmcp.aggregation'
@@ -129,6 +138,49 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             "org/acme/xpack/some-other-lib/1.0/some-other-lib-1.0.pom.sha512"
         ]
 
+        assertXmlEquals(zip.file("org/acme/some-public-lib/1.0/some-public-lib-1.0.pom").read(),"""
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <!-- This module was also published with a richer model, Gradle metadata,  -->
+  <!-- which should be used instead. Do not delete the following line which  -->
+  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+  <!-- that they should prefer consuming it instead. -->
+  <!-- do_not_remove: published-with-gradle-metadata -->
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.acme</groupId>
+  <artifactId>some-public-lib</artifactId>
+  <version>1.0</version>
+  <name>some-public-lib</name>
+  <description/>
+  <url>unknown</url>
+  <scm>
+    <url>unknown</url>
+  </scm>
+  <inceptionYear>2009</inceptionYear>
+  <licenses>
+    <license>
+      <name>Elastic License 2.0</name>
+      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>GNU Affero General Public License Version 3</name>
+      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>Server Side Public License, v 1</name>
+      <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Elastic</name>
+      <url>https://www.elastic.co</url>
+    </developer>
+  </developers>
+</project>
+""")
         assertXmlEquals(zip.file("org/acme/xpack/some-other-lib/1.0/some-other-lib-1.0.pom").read(),"""
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <!-- This module was also published with a richer model, Gradle metadata,  -->

@@ -160,7 +160,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
         result.task(":validateModule").outcome == TaskOutcome.SUCCESS
         result.task(":splitPackagesAudit").outcome == TaskOutcome.SUCCESS
-//        result.task(":validateElasticPom").outcome == TaskOutcome.SUCCESS
         // disabled but check for being on the task graph
         result.task(":forbiddenApisMain").outcome == TaskOutcome.SKIPPED
         result.task(":checkstyleMain").outcome == TaskOutcome.SKIPPED

@@ -15,7 +15,7 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 
-public class ES910HnswReducedHeapVectorsWriterTests extends BaseKnnVectorsFormatTestCase {
+public class ES910HnswReducedHeapVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();

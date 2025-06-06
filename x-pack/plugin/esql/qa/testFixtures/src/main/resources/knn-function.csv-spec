@@ -69,23 +69,23 @@ knnHybridSearch
 required_capability: knn_function
 
 from colors metadata _score 
-| where match(color, "violet") or knn(rgb_vector, [238,130,238], {"boost": 10.0, "k": 140})
+| where match(color, "blue") or knn(rgb_vector, [65,105,225], {"k": 140})
+| where primary == true
 | sort _score desc, color asc
 | keep color, rgb_vector
 | limit 10
 ;
 
-color:text        | rgb_vector:dense_vector
-violet            | [238.0, 130.0, 238.0]
-blue violet       | [138.0, 43.0, 226.0]
-dark violet       | [148.0, 0.0, 211.0]
-pale violet red   | [219.0, 112.0, 147.0]
-medium violet red | [199.0, 21.0, 133.0]
-orchid            | [218.0, 112.0, 214.0]
-plum              | [221.0, 160.0, 221.0]
-hot pink          | [255.0, 105.0, 180.0]
-thistle           | [216.0, 191.0, 216.0]
-light pink        | [255.0, 182.0, 193.0]
+color:text | rgb_vector:dense_vector
+blue       | [0.0, 0.0, 255.0]
+gray       | [128.0, 128.0, 128.0]
+cyan       | [0.0, 255.0, 255.0]
+magenta    | [255.0, 0.0, 255.0]
+green      | [0.0, 128.0, 0.0]
+white      | [255.0, 255.0, 255.0]
+black      | [0.0, 0.0, 0.0]
+red        | [255.0, 0.0, 0.0]
+yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithMultipleFunctions

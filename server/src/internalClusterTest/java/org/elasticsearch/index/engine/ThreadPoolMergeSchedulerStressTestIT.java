@@ -88,13 +88,13 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             protected ElasticsearchMergeScheduler createMergeScheduler(
                 ShardId shardId,
                 IndexSettings indexSettings,
-                @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
-            ) {
+                @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+                MergeMetrics mergeMetrics) {
                 ElasticsearchMergeScheduler mergeScheduler = super.createMergeScheduler(
                     shardId,
                     indexSettings,
-                    threadPoolMergeExecutorService
-                );
+                    threadPoolMergeExecutorService,
+                    mergeMetrics);
                 assertThat(mergeScheduler, instanceOf(ThreadPoolMergeScheduler.class));
                 // assert there is a single merge executor service for all shards
                 mergeExecutorServiceReference.compareAndSet(null, threadPoolMergeExecutorService);

@@ -187,7 +187,6 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
     private final MeanMetric totalFlushTimeExcludingWaitingOnLock = new MeanMetric();
-    private final MergeMetrics mergeMetrics;
 
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
@@ -240,7 +239,6 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
-        this.mergeMetrics = engineConfig.getMergeMetrics();
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
@@ -258,7 +256,8 @@ public class InternalEngine extends Engine {
             mergeScheduler = createMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPoolMergeExecutorService()
+                engineConfig.getThreadPoolMergeExecutorService(),
+                engineConfig.getMergeMetrics()
             );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle(pauseIndexingOnThrottle);
@@ -2909,10 +2908,10 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
-    ) {
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMetrics mergeMetrics) {
         if (threadPoolMergeExecutorService != null) {
-            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
@@ -2922,8 +2921,8 @@ public class InternalEngine extends Engine {
         EngineThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
-        ) {
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            MergeMetrics mergeMetrics) {
             super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes, mergeMetrics);
         }
 

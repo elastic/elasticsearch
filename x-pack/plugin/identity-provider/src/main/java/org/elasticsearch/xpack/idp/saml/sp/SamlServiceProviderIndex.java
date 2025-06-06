@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,6 +53,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,7 +81,26 @@ public class SamlServiceProviderIndex implements Closeable {
     static final String TEMPLATE_VERSION_STRING_DEPRECATED = "idp.template.version_deprecated";
     static final String FINAL_TEMPLATE_VERSION_STRING_DEPRECATED = "8.14.0";
 
-    static final int CURRENT_TEMPLATE_VERSION = 1;
+    /**
+     * The object in the index mapping metadata that contains a version field
+     */
+    private static final String INDEX_META_FIELD = "_meta";
+    /**
+     * The field in the {@link #INDEX_META_FIELD} metadata that contains the version number
+     */
+    private static final String TEMPLATE_VERSION_META_FIELD = "idp-template-version";
+
+    /**
+     * The first version of this template (since it was moved to use {@link org.elasticsearch.xpack.core.template.IndexTemplateRegistry}
+     */
+    private static final int VERSION_ORIGINAL = 1;
+    /**
+     * The version that added the {@code attributes.extensions} field to the SAML SP document
+     */
+    private static final int VERSION_EXTENSION_ATTRIBUTES = 2;
+    static final int CURRENT_TEMPLATE_VERSION = VERSION_EXTENSION_ATTRIBUTES;
+
+    private volatile boolean indexUpToDate = false;
 
     public static final class DocumentVersion {
         public final String id;
@@ -149,6 +171,21 @@ public class SamlServiceProviderIndex implements Closeable {
         this.aliasExists = aliasInfo != null;
         if (aliasExists != previousState) {
             logChangedAliasState(aliasInfo);
+        }
+    }
+
+    Index getIndex(ClusterState state) {
+        final ProjectMetadata project = state.getMetadata().getProject();
+        final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
+
+        IndexAbstraction indexAbstraction = indicesLookup.get(ALIAS_NAME);
+        if (indexAbstraction == null) {
+            indexAbstraction = indicesLookup.get(INDEX_NAME);
+        }
+        if (indexAbstraction == null) {
+            return null;
+        } else {
+            return indexAbstraction.getWriteIndex();
         }
     }
 
@@ -255,7 +292,12 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private void findDocuments(QueryBuilder query, ActionListener<Set<DocumentSupplier>> listener) {
         logger.trace("Searching [{}] for [{}]", ALIAS_NAME, query);
-        final SearchRequest request = client.prepareSearch(ALIAS_NAME).setQuery(query).setSize(1000).setFetchSource(true).request();
+        final SearchRequest request = client.prepareSearch(ALIAS_NAME)
+            .setQuery(query)
+            .setSize(1000)
+            .setFetchSource(true)
+            .seqNoAndPrimaryTerm(true)
+            .request();
         client.search(request, ActionListener.wrap(response -> {
             if (logger.isTraceEnabled()) {
                 logger.trace("Search hits: [{}] [{}]", response.getHits().getTotalHits(), Arrays.toString(response.getHits().getHits()));

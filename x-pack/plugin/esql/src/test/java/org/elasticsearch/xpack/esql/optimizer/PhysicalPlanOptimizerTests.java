@@ -8049,7 +8049,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var plan = physicalPlan("""
             FROM test
-            | SAMPLE +0.1 -234
+            | SAMPLE +0.1
             """);
         var optimized = optimizedPlan(plan);
 
@@ -8063,22 +8063,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = boolQuery.filter();
         var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
         assertThat(randomSampling.probability(), equalTo(0.1));
-        assertThat(randomSampling.seed(), equalTo(-234));
         assertThat(randomSampling.hash(), equalTo(0));
-    }
-
-    public void testSample_seedNotSupportedInOperator() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
-
-        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1"));
-        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1 42"));
-        optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1"));
-
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1 42"))
-        );
-        assertThat(e.getMessage(), equalTo("Found 1 problem\nline 1:47: Seed not supported when sampling can't be pushed down to Lucene"));
     }
 
     @SuppressWarnings("SameParameterValue")

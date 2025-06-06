@@ -592,7 +592,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        waitForConditions(waitConditions, System.currentTimeMillis(), CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
+        waitForConditions(
+            waitConditions,
+            getFirstNode().getLogsDir().toString(),
+            System.currentTimeMillis(),
+            CLUSTER_UP_TIMEOUT,
+            CLUSTER_UP_TIMEOUT_UNIT,
+            this
+        );
     }
 
     @Override

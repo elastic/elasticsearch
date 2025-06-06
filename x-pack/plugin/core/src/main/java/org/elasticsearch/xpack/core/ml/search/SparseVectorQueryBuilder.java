@@ -17,8 +17,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
@@ -132,8 +130,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.fieldName = in.readString();
 
         if (in.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)
-        ) {
+            || in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
             this.shouldPruneTokens = in.readOptionalBoolean();
         } else {
             this.shouldPruneTokens = in.readBoolean();
@@ -189,8 +186,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         out.writeString(fieldName);
 
         if (out.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)
-        ) {
+            || out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
             out.writeBoolean(shouldPruneTokens);
@@ -219,7 +215,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
         if (shouldPruneTokens != null) {
-        builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
+            builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
         }
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG_FIELD.getPreferredName(), tokenPruningConfig);

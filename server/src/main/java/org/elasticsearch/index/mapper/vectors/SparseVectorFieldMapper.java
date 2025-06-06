@@ -83,7 +83,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
     static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersions.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
     static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION = IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
-    static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X = IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
+    static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X =
+        IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 
     public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
 
@@ -180,7 +181,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
             this(name, isStored, meta, null);
         }
 
-        public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta, @Nullable SparseVectorFieldMapper.IndexOptions indexOptions) {
+        public SparseVectorFieldType(
+            String name,
+            boolean isStored,
+            Map<String, String> meta,
+            @Nullable SparseVectorFieldMapper.IndexOptions indexOptions
+        ) {
             super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.indexOptions = indexOptions;
         }
@@ -265,8 +271,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 return new TokenPruningConfig();
             }
 
-            if (indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0))
-            {
+            if (indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
                 // default pruning for 8.19.0+ is true for this index
                 return new TokenPruningConfig();
             }

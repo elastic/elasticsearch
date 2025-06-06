@@ -795,12 +795,6 @@ public class ClusterStateTests extends ESTestCase {
                         "project.setting": "42",
                         "project.setting2": "43"
                       }
-                    },
-                    {
-                      "id": "tb5W0bx765nDVIwqJPw92G",
-                      "settings": {
-                        "project.setting": "1"
-                      }
                     }
                   ]
                 }
@@ -911,7 +905,6 @@ public class ClusterStateTests extends ESTestCase {
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .putProjectSettings(projectId1, Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build())
-            .putProjectSettings(projectId2, Settings.builder().put(PROJECT_SETTING.getKey(), 1).build())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)

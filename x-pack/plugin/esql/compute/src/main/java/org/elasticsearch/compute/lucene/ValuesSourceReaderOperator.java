@@ -566,13 +566,29 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     private void sanityCheckBlock(Object loader, int expectedPositions, Block block, int field) {
         if (block.getPositionCount() != expectedPositions) {
-            throw new IllegalStateException(loader + ": " + block + " didn't have [" + expectedPositions + "] positions");
+            throw new IllegalStateException(
+                sanityCheckBlockErrorPrefix(loader, block, field)
+                    + " has ["
+                    + block.getPositionCount()
+                    + "] positions instead of ["
+                    + expectedPositions
+                    + "]"
+            );
         }
         if (block.elementType() != ElementType.NULL && block.elementType() != fields[field].info.type) {
             throw new IllegalStateException(
-                loader + ": " + block + "'s element_type [" + block.elementType() + "] NOT IN (NULL, " + fields[field].info.type + ")"
+                sanityCheckBlockErrorPrefix(loader, block, field)
+                    + "'s element_type ["
+                    + block.elementType()
+                    + "] NOT IN (NULL, "
+                    + fields[field].info.type
+                    + ")"
             );
         }
+    }
+
+    private String sanityCheckBlockErrorPrefix(Object loader, Block block, int field) {
+        return fields[field].info.name + "[" + loader + "]: " + block;
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {

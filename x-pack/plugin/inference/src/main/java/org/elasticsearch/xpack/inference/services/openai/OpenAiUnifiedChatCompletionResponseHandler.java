@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.StreamingErrorResponse;
 
-import java.util.Locale;
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
@@ -45,64 +44,95 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
+        var openAiProcessor = new OpenAiUnifiedStreamingProcessor(
+            (m, e) -> buildMidStreamChatCompletionError(request.getInferenceEntityId(), m, e)
+        );
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
         return new StreamingUnifiedChatCompletionResults(openAiProcessor);
     }
 
     @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        if (request.isStreaming()) {
-            var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
-            var restStatus = toRestStatus(responseStatusCode);
-            return errorResponse instanceof StreamingErrorResponse oer
-                ? new UnifiedChatCompletionException(restStatus, errorMessage, oer.type(), oer.code(), oer.param())
-                : new UnifiedChatCompletionException(
-                    restStatus,
-                    errorMessage,
-                    createErrorType(errorResponse),
-                    restStatus.name().toLowerCase(Locale.ROOT)
-                );
-        } else {
-            return super.buildError(message, request, result, errorResponse);
-        }
+    protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
+        return buildChatCompletionError(message, request, result, errorResponse, StreamingErrorResponse.class);
     }
 
-    protected static String createErrorType(ErrorResponse errorResponse) {
-        return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
+    /**
+     * Builds a custom {@link UnifiedChatCompletionException} for OpenAI inference endpoints.
+     * This method is called when an error response is received.
+     *
+     * @param errorResponse the parsed error response from the service
+     * @param errorMessage the error message received
+     * @param restStatus the HTTP status code of the error
+     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
+     */
+    @Override
+    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+        ErrorResponse errorResponse,
+        String errorMessage,
+        RestStatus restStatus
+    ) {
+        var streamingError = (StreamingErrorResponse) errorResponse;
+        return new UnifiedChatCompletionException(
+            restStatus,
+            errorMessage,
+            streamingError.type(),
+            streamingError.code(),
+            streamingError.param()
+        );
     }
 
-    protected Exception buildMidStreamError(Request request, String message, Exception e) {
-        return buildMidStreamError(request.getInferenceEntityId(), message, e);
+    /**
+     * Builds a custom mid-stream {@link UnifiedChatCompletionException} for OpenAI inference endpoints.
+     * This method is called when an error response is received during streaming.
+     *
+     * @param inferenceEntityId the ID of the inference entity
+     * @param message the error message received during streaming
+     * @param e the exception that occurred
+     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
+     */
+    @Override
+    public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
+        // Use the custom type StreamingErrorResponse for mid-stream errors
+        return buildMidStreamChatCompletionError(inferenceEntityId, message, e, StreamingErrorResponse.class);
     }
 
-    public static UnifiedChatCompletionException buildMidStreamError(String inferenceEntityId, String message, Exception e) {
-        var errorResponse = StreamingErrorResponse.fromString(message);
-        if (errorResponse instanceof StreamingErrorResponse oer) {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format(
-                    "%s for request from inference entity id [%s]. Error message: [%s]",
-                    SERVER_ERROR_OBJECT,
-                    inferenceEntityId,
-                    errorResponse.getErrorMessage()
-                ),
-                oer.type(),
-                oer.code(),
-                oer.param()
-            );
-        } else if (e != null) {
-            return UnifiedChatCompletionException.fromThrowable(e);
-        } else {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, inferenceEntityId),
-                createErrorType(errorResponse),
-                "stream_error"
-            );
-        }
+    /**
+     * Extracts the mid-stream error response from the message.
+     *
+     * @param message the message containing the error response
+     * @return the extracted {@link ErrorResponse}
+     */
+    @Override
+    protected ErrorResponse extractMidStreamChatCompletionErrorResponse(String message) {
+        return StreamingErrorResponse.fromString(message);
+    }
+
+    /**
+     * Builds a custom mid-stream {@link UnifiedChatCompletionException} for OpenAI inference endpoints.
+     * This method is called when an error response is received during streaming.
+     *
+     * @param inferenceEntityId the ID of the inference entity
+     * @param errorResponse the parsed error response from the service
+     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
+     */
+    @Override
+    protected UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
+        String inferenceEntityId,
+        ErrorResponse errorResponse
+    ) {
+        var streamingError = (StreamingErrorResponse) errorResponse;
+        return new UnifiedChatCompletionException(
+            RestStatus.INTERNAL_SERVER_ERROR,
+            format(
+                "%s for request from inference entity id [%s]. Error message: [%s]",
+                SERVER_ERROR_OBJECT,
+                inferenceEntityId,
+                streamingError.getErrorMessage()
+            ),
+            streamingError.type(),
+            streamingError.code(),
+            streamingError.param()
+        );
     }
 }

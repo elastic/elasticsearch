@@ -39,14 +39,13 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
         var fields = (Map<String, Object>) fieldMapping.get("fields");
         if (fields != null) {
             var keywordMultiFieldMapping = (Map<String, Object>) fields.get("kwd");
-            Object normalizer = fields.get("normalizer");
             boolean docValues = hasDocValues(keywordMultiFieldMapping, true);
             boolean store = keywordMultiFieldMapping.getOrDefault("store", false).equals(true);
             Object ignoreAbove = keywordMultiFieldMapping.get("ignore_above");
 
             // See TextFieldMapper.SyntheticSourceHelper#getKeywordFieldMapperForSyntheticSource
             // and TextFieldMapper#canUseSyntheticSourceDelegateForLoading().
-            boolean usingSyntheticSourceDelegate = normalizer == null && (docValues || store);
+            boolean usingSyntheticSourceDelegate = docValues || store;
             boolean canUseSyntheticSourceDelegateForLoading = usingSyntheticSourceDelegate && ignoreAbove == null;
             if (canUseSyntheticSourceDelegateForLoading) {
                 return KeywordFieldBlockLoaderTests.expectedValue(keywordMultiFieldMapping, value, params, testContext);

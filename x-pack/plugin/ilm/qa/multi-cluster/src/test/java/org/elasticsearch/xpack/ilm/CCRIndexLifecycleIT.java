@@ -12,11 +12,14 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -28,9 +31,11 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,7 +44,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,6 +54,37 @@ import static org.hamcrest.Matchers.nullValue;
 public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);
+    private static final String TSDB_INDEX_TEMPLATE = """
+        {
+            "index_patterns": ["%s*"],
+            "data_stream": {},
+            "template": {
+                "settings":{
+                    "index": {
+                        "number_of_replicas": 0,
+                        "number_of_shards": 1,
+                        "routing_path": ["metricset"],
+                        "mode": "time_series"
+                    },
+                    "index.lifecycle.name": "%s"
+                },
+                "mappings":{
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "volume": {
+                            "type": "double",
+                            "time_series_metric": "gauge"
+                        }
+                    }
+                }
+            }
+        }""";
 
     public void testBasicCCRAndILMIntegration() throws Exception {
         String indexName = "logs-1";
@@ -533,6 +571,94 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
+    @SuppressWarnings({ "checkstyle:LineLength", "unchecked" })
+    public void testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime() throws Exception {
+        String indexPattern = "tsdb-index-";
+        String dataStream = "tsdb-index-cpu";
+        String policyName = "tsdb-policy";
+
+        if ("leader".equals(targetCluster)) {
+            putILMPolicy(policyName, null, 1, null);
+            Request templateRequest = new Request("PUT", "/_index_template/tsdb_template");
+            templateRequest.setJsonEntity(Strings.format(TSDB_INDEX_TEMPLATE, indexPattern, policyName));
+            assertOK(client().performRequest(templateRequest));
+        } else if ("follow".equals(targetCluster)) {
+            putILMPolicy(policyName, null, 1, null);
+
+            Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/tsdb_index_auto_follow_pattern");
+            createAutoFollowRequest.setJsonEntity("""
+                {
+                    "leader_index_patterns": [ ".ds-tsdb-index-*" ],
+                    "remote_cluster": "leader_cluster",
+                    "read_poll_timeout": "1000ms",
+                    "follow_index_pattern": "{{leader_index}}"
+                }""");
+            assertOK(client().performRequest(createAutoFollowRequest));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+                index(leaderClient, dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+                String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);
+                assertBusy(() -> { assertOK(client().performRequest(new Request("HEAD", "/" + backingIndexName))); });
+
+                // rollover
+                Request rolloverRequest = new Request("POST", "/" + dataStream + "/_rollover");
+                rolloverRequest.setJsonEntity("""
+                    {
+                        "conditions": {
+                        "max_docs": "1"
+                        }
+                    }""");
+                leaderClient.performRequest(rolloverRequest);
+
+                assertBusy(() -> {
+                    assertThat(
+                        "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
+                        explainIndex(client(), backingIndexName).get("step"),
+                        is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
+                    );
+
+                    assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+                    assertThat(
+                        (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                        containsString("Waiting until the index's time series end time lapses")
+                    );
+                }, 30, TimeUnit.SECONDS);
+
+                int initialLeaderDocCount = getDocCount(leaderClient, backingIndexName);
+
+                // Add more documents to the leader index while it's in WaitUntilTimeSeriesEndTimePassesStep
+                String futureTimestamp = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName())
+                    .format(Instant.now().plusSeconds(30));
+
+                for (int i = 0; i < 5; i++) {
+                    index(leaderClient, dataStream, "", "@timestamp", futureTimestamp, "volume", 20.0 + i, "metricset", "test-sync-" + i);
+                }
+
+                // Verify that new documents are synced to follower while in WaitUntilTimeSeriesEndTimePassesStep
+                assertBusy(() -> {
+                    int currentLeaderDocCount = getDocCount(leaderClient, backingIndexName);
+                    int currentFollowerDocCount = getDocCount(client(), backingIndexName);
+
+                    assertThat(
+                        "Leader should have more documents than initially",
+                        currentLeaderDocCount,
+                        greaterThan(initialLeaderDocCount)
+                    );
+                    assertThat("Follower should sync new documents from leader", currentFollowerDocCount, equalTo(currentLeaderDocCount));
+
+                    // Also verify the step is still WaitUntilTimeSeriesEndTimePassesStep
+                    assertThat(
+                        "Index should still be in WaitUntilTimeSeriesEndTimePassesStep",
+                        explainIndex(client(), backingIndexName).get("step"),
+                        is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
+                    );
+                }, 30, TimeUnit.SECONDS);
+            }
+        }
+    }
+
     private void configureRemoteClusters(String name, String leaderRemoteClusterSeed) throws IOException {
         logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
         Request request = new Request("PUT", "/_cluster/settings");
@@ -838,5 +964,34 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assert shrunkenIndexName[0] != null
             : "lifecycle execution state must contain the target shrink index name for index [" + originalIndex + "]";
         return shrunkenIndexName[0];
+    }
+
+    private static Map<String, Object> explainIndex(RestClient client, String indexName) throws IOException {
+        RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
+                [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
+                and will be removed in a future release. \
+                See the deprecation documentation for the next major version.""").equals(warnings) == false)
+            .build();
+
+        Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
+        explainRequest.setOptions(consumeWarningsOptions);
+        Response response = client.performRequest(explainRequest);
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+        return indexResponse.get(indexName);
+    }
+
+    private static int getDocCount(RestClient client, String indexName) throws IOException {
+        Request countRequest = new Request("GET", "/" + indexName + "/_count");
+        Response response = client.performRequest(countRequest);
+        Map<String, Object> result = entityAsMap(response);
+        System.out.println("result = " + result);
+        return (int) result.get("count");
     }
 }

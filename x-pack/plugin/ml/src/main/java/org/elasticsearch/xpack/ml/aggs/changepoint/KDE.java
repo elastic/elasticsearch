@@ -38,7 +38,7 @@ final class KDE {
     }
 
     private ValueAndMagnitude evaluate(IntervalComplementFunction complement, KernelFunction kernel, double x) {
-        if (bandwidth == 0.0 || orderedValues.length == 0) {
+        if (orderedValues.length == 0) {
             return new ValueAndMagnitude(1.0, 0.0);
         }
         int a = Math.min(lowerBound(orderedValues, x - 3.0 * bandwidth), orderedValues.length - 1);

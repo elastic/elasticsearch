@@ -10,6 +10,12 @@ description: |
   custom pipelines. All built-in processing occurs in the final
   pipelines.
 processors:
+# Set event.dataset if unset to meet Anomaly Detection requirements
+- set:
+    if: "ctx.data_stream?.dataset != null"
+    field: event.dataset
+    value: "{{{data_stream.dataset}}}"
+    override: false
 # Invoke user-defined custom pipelines, in ascending order of specificity:
 - pipeline:
     name: global@custom

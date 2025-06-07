@@ -32,6 +32,6 @@
   "examples" : [
     "ROW geohex = \"841f059ffffffff\"\n| EVAL geohexLong = ST_GEOHEX_TO_LONG(geohex)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

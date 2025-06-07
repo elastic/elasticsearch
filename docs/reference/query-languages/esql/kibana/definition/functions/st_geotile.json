@@ -50,6 +50,6 @@
   "examples" : [
     "FROM airports\n| EVAL geotile = ST_GEOTILE(location, 2)\n| STATS\n    count = COUNT(*),\n    centroid = ST_CENTROID_AGG(location)\n      BY geotile\n| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)\n| SORT count DESC, geotileString ASC\n| KEEP count, centroid, geotileString"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

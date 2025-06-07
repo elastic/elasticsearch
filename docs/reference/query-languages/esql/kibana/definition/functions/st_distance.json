@@ -44,6 +44,6 @@
   "examples" : [
     "FROM airports\n| WHERE abbrev == \"CPH\"\n| EVAL distance = ST_DISTANCE(location, city_location)\n| KEEP abbrev, name, location, city_location, distance"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

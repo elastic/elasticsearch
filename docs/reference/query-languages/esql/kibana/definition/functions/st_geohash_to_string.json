@@ -32,6 +32,6 @@
   "examples" : [
     "ROW geohash = TO_LONG(13686180)\n| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

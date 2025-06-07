@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -52,6 +53,12 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -60,6 +67,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -132,6 +141,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -179,7 +189,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
-            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
+            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new ImplicitCastAggregateMetricDoubles()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -1642,9 +1653,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
-            // and thereby get used in FieldExtractExec
-            plan = plan.transformDown(EsRelation.class, esr -> {
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+        }
+
+        /**
+         * Add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
+         * and thereby get used in FieldExtractExec
+         */
+        private static LogicalPlan addGeneratedFieldsToEsRelations(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
+            return plan.transformDown(EsRelation.class, esr -> {
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
                     // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
@@ -1664,7 +1681,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return esr;
             });
-            return plan;
         }
 
         private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
@@ -1734,7 +1750,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return convertExpression;
         }
 
-        private Expression createIfDoesNotAlreadyExist(
+        private static Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
             MultiTypeEsField resolvedField,
             List<FieldAttribute> unionFieldAttributes
@@ -1895,5 +1911,103 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
         var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);
         typeResolutions.put(key, concreteConvert);
+    }
+
+    /**
+     * Take InvalidMappedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
+     * are aggregate metric double + any combination of numerics, implicitly cast them to the same type: aggregate metric
+     * double for count, and double for min, max, and sum. Avg gets replaced with its surrogate (Div(Sum, Count))
+     */
+    private static class ImplicitCastAggregateMetricDoubles extends Rule<LogicalPlan, LogicalPlan> {
+
+        private List<FieldAttribute> unionFieldAttributes;
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            unionFieldAttributes = new ArrayList<>();
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(LogicalPlan plan) {
+            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
+            plan = plan.transformExpressionsOnly(e -> switch (e) {
+                case Max max -> resolveMetricFunction(max, AggregateMetricDoubleBlockBuilder.Metric.MAX);
+                case Min min -> resolveMetricFunction(min, AggregateMetricDoubleBlockBuilder.Metric.MIN);
+                case Sum sum -> resolveMetricFunction(sum, AggregateMetricDoubleBlockBuilder.Metric.SUM);
+                case Count count -> resolveMetricFunction(count, AggregateMetricDoubleBlockBuilder.Metric.COUNT);
+                case Avg avg -> substituteSurrogates(avg);
+                default -> e;
+            });
+
+            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
+                return plan;
+            }
+            return ResolveUnionTypes.addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+        }
+
+        private Expression resolveMetricFunction(Expression expression, AggregateMetricDoubleBlockBuilder.Metric metric) {
+            AggregateFunction aggregateFunction = (AggregateFunction) expression;
+            if (aggregateFunction.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+                HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                if (typesShouldBeConverted(imf.types()) == false) {
+                    return expression;
+                }
+                for (DataType type : imf.types()) {
+                    // Effectively the contents of ResolveUnionTypes::typeSpecificConvert(...)
+                    // except convertFunction is not necessarily a ConvertFunction (as in the case of Sum's FromAggregateMetricDouble)
+                    // and we do not substitute surrogates because Count does have a surrogate in the case of aggregate metric double
+                    ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fa.name(), type);
+                    EsField field = new EsField(imf.getName(), type, imf.getProperties(), imf.isAggregatable());
+                    FieldAttribute originalFieldAttr = (FieldAttribute) aggregateFunction.field();
+                    FieldAttribute resolved = new FieldAttribute(
+                        fa.source(),
+                        originalFieldAttr.parentName(),
+                        originalFieldAttr.name(),
+                        field,
+                        originalFieldAttr.nullable(),
+                        originalFieldAttr.id(),
+                        true
+                    );
+
+                    Expression convertExpression;
+                    if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT) {
+                        convertExpression = new ToAggregateMetricDouble(fa.source(), resolved);
+                    } else if (type == AGGREGATE_METRIC_DOUBLE) {
+                        convertExpression = FromAggregateMetricDouble.withMetric(fa.source(), resolved, metric);
+                    } else {
+                        convertExpression = new ToDouble(fa.source(), resolved);
+                    }
+                    Expression e = expression.replaceChildren(List.of(convertExpression, expression.children().get(1)));
+                    typeResolutions.put(key, e.children().getFirst());
+                }
+                var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(fa, typeResolutions);
+                var newFieldAttribute = ResolveUnionTypes.createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
+                return expression.replaceChildren(List.of(newFieldAttribute, expression.children().get(1)));
+            }
+            return expression;
+        }
+
+        private Expression substituteSurrogates(Expression expression) {
+            AggregateFunction aggregateFunction = (AggregateFunction) expression;
+            if (aggregateFunction.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+                if (typesShouldBeConverted(imf.types()) == false) {
+                    return expression;
+                }
+                return SubstituteSurrogateExpressions.rule(expression);
+            }
+            return expression;
+        }
+
+        private boolean typesShouldBeConverted(Set<DataType> types) {
+            if (types.contains(AGGREGATE_METRIC_DOUBLE) == false) {
+                return false;
+            }
+            for (DataType type : types) {
+                if (type.isNumeric() == false && type != AGGREGATE_METRIC_DOUBLE) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 }

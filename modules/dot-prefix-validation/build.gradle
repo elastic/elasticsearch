@@ -16,7 +16,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest', 'bulk', 'reindex'
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest', 'bulk', 'reindex', 'async_search'
   }
 }
 

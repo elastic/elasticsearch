@@ -21,7 +21,7 @@ import java.util.List;
 public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCase<EsqlQueryResponse.Profile> {
     @Override
     protected Writeable.Reader<EsqlQueryResponse.Profile> instanceReader() {
-        return EsqlQueryResponse.Profile::new;
+        return EsqlQueryResponse.Profile::readFrom;
     }
 
     @Override

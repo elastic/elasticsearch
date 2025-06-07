@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
@@ -102,29 +103,44 @@ class ServerTransportFilter {
         }
 
         TransportVersion version = transportChannel.getVersion();
-        authenticate(securityAction, request, listener.delegateFailureAndWrap((l, authentication) -> {
-            if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
-                    && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
-                    securityContext.executeAsSystemUser(version, original -> {
-                        final Authentication replaced = securityContext.getAuthentication();
-                        authzService.authorize(replaced, securityAction, request, l);
-                    });
-                } else {
-                    authzService.authorize(authentication, securityAction, request, l);
-                }
-            } else {
-                l.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
-            }
-        }));
+        var authFuture = authenticate(securityAction, request);
+        if (authFuture.isSuccess()) {
+            handleAuthentication(request, listener, authFuture.result(), securityAction, version);
+        } else {
+            authFuture.addListener(
+                listener.delegateFailureAndWrap(
+                    (l, authentication) -> handleAuthentication(request, l, authentication, securityAction, version)
+                )
+            );
+        }
     }
 
-    protected void authenticate(
-        final String securityAction,
-        final TransportRequest request,
-        final ActionListener<Authentication> authenticationListener
+    private void handleAuthentication(
+        TransportRequest request,
+        ActionListener<Void> listener,
+        Authentication authentication,
+        String securityAction,
+        TransportVersion version
     ) {
-        authcService.authenticate(securityAction, request, true, authenticationListener);
+        if (authentication != null) {
+            if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
+                && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
+                securityContext.executeAsSystemUser(version, original -> {
+                    final Authentication replaced = securityContext.getAuthentication();
+                    authzService.authorize(replaced, securityAction, request, listener);
+                });
+            } else {
+                authzService.authorize(authentication, securityAction, request, listener);
+            }
+        } else {
+            listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+        }
+    }
+
+    protected ListenableFuture<Authentication> authenticate(final String securityAction, final TransportRequest request) {
+        final ListenableFuture<Authentication> listener = new ListenableFuture<>();
+        authcService.authenticate(securityAction, request, true, listener);
+        return listener;
     }
 
     protected final ThreadContext getThreadContext() {

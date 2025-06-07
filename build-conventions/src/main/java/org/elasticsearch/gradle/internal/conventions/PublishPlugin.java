@@ -14,6 +14,8 @@ import groovy.util.Node;
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
+import nmcp.NmcpPlugin;
+
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -27,6 +29,7 @@ import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -65,6 +68,7 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
+        project.getPluginManager().apply(NmcpPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
@@ -81,6 +85,11 @@ public class PublishPlugin implements Plugin<Project> {
             } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
                 publication.from(project.getComponents().getByName("java"));
             }
+        });
+        project.getPlugins().withType(JavaPlugin.class, plugin -> {
+            var javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            javaPluginExtension.withJavadocJar();
+            javaPluginExtension.withSourcesJar();
         });
         @SuppressWarnings("unchecked")
         var projectLicenses = (MapProperty<String, Provider<String>>) project.getExtensions().getExtraProperties().get("projectLicenses");

@@ -205,6 +205,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             Map.of(ClusterInfo.shardIdentifierFromRouting(shard), size),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
     }

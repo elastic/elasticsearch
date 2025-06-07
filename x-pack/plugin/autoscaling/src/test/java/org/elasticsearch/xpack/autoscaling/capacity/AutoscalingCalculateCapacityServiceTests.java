@@ -262,7 +262,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             }
         }
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
-        info = new ClusterInfo(leastUsages, mostUsages, Map.of(), Map.of(), Map.of(), Map.of());
+        info = new ClusterInfo(leastUsages, mostUsages, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
             roleNames,
             state,
@@ -311,7 +311,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 )
             );
 
-            info = new ClusterInfo(leastUsages, mostUsages, Map.of(), Map.of(), Map.of(), Map.of());
+            info = new ClusterInfo(leastUsages, mostUsages, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
                 roleNames,
                 state,

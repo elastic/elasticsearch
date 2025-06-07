@@ -690,7 +690,15 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return new ClusterInfo(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                Map.of(),
+                Map.of(),
+                reservedSpace,
+                Map.of()
+            );
         }
     }
 

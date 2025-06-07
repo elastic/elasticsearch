@@ -690,7 +690,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .stream()
             .collect(toMap(Map.Entry::getKey, it -> new DiskUsage(it.getKey(), it.getKey(), "/data", diskSize, diskSize - it.getValue())));
 
-        var clusterInfo = new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), dataPath, Map.of());
+        var clusterInfo = new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), dataPath, Map.of(), Map.of());
 
         var settings = Settings.EMPTY;
 
@@ -1196,7 +1196,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), reservedSpace, Map.of());
         }
     }
 

@@ -82,13 +82,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.NodeScope
     );
 
-    private volatile boolean enabled;
+    private volatile boolean diskThresholdEnabled;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
+    private volatile Map<String, ShardHeapUsage> shardHeapUsages;
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -96,31 +97,40 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
+    private final ShardHeapUsageCollector shardHeapUsageCollector;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
     @SuppressWarnings("this-escape")
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
+    public InternalClusterInfoService(
+        Settings settings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        ShardHeapUsageCollector shardHeapUsageCollector
+    ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
+        this.shardHeapUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
+        this.shardHeapUsageCollector = shardHeapUsageCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
-        this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
         clusterSettings.addSettingsUpdateConsumer(
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-            this::setEnabled
+            this::setDiskThresholdEnabled
         );
     }
 
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
+        this.diskThresholdEnabled = diskThresholdEnabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -169,25 +179,41 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         void execute() {
-            if (enabled == false) {
-                logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
-                leastAvailableSpaceUsages = Map.of();
-                mostAvailableSpaceUsages = Map.of();
-                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                callListeners();
-                return;
-            }
-
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodeStats();
+                if (diskThresholdEnabled) {
+                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                        fetchNodeStats();
+                    }
+                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                        fetchIndicesStats();
+                    }
+                } else {
+                    logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty cluster info");
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
+                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 }
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchIndicesStats();
+                    fetchNodesHeapUsage();
                 }
             }
+        }
+
+        private void fetchNodesHeapUsage() {
+            shardHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(Map<String, ShardHeapUsage> currentShardHeapUsages) {
+                    shardHeapUsages = currentShardHeapUsages;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to fetch heap usage for nodes", e);
+                    shardHeapUsages = Map.of();
+                }
+            }, fetchRefs.acquire()));
         }
 
         private void fetchIndicesStats() {
@@ -413,7 +439,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardDataSetSizes,
             indicesStatsSummary.dataPath,
-            indicesStatsSummary.reservedSpace
+            indicesStatsSummary.reservedSpace,
+            shardHeapUsages
         );
     }
 

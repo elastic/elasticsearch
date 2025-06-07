@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTem
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -35,7 +34,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -46,7 +44,6 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -355,13 +352,6 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
-        assertThat(
-            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
         FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
     }
@@ -543,7 +533,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 
@@ -611,7 +601,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         writeJSONFile(masterNode, testErrorJSON);

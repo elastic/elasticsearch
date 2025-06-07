@@ -104,6 +104,10 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
         this.terminateAfter = clone.terminateAfter;
     }
 
+    public QueryBuilder getQueryBuilder() {
+        return queryBuilder;
+    }
+
     @Override
     public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         boolean changed = false;

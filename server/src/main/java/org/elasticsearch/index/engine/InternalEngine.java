@@ -94,6 +94,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -3609,5 +3610,12 @@ public class InternalEngine extends Engine {
             // Can't estimate if the searcher is closed
             return 0L;
         }
+    }
+
+    public void deleteByQuery(ShardSplittingQuery query) throws Exception {
+        // System.out.println("Delete documents using ShardSplitQuery");
+        indexWriter.deleteDocuments(query);
+        indexWriter.flush();
+        indexWriter.commit();
     }
 }

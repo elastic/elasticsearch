@@ -1650,6 +1650,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-tenable_sc.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-tenable_io.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-rapid7_insightvm.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-rapid7_insightvm.asset_vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-carbon_black_cloud.asset_vulnerability_summary-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

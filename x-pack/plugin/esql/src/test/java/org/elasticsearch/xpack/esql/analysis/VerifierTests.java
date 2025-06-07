@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -1235,6 +1236,9 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
         }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+        }
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
@@ -1367,6 +1371,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
         }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
+        }
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1404,6 +1411,9 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         }
     }
 
@@ -1468,6 +1478,9 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         }
     }
 
@@ -1538,6 +1551,9 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("match_phrase(title, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2])");
         }
     }
 
@@ -2066,6 +2082,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
         }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
+        }
     }
 
     /**
@@ -2155,6 +2174,10 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
         }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+            checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+        }
     }
 
     private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
@@ -2177,6 +2200,9 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             checkFullTextFunctionsConstantQuery("match_phrase(title, tags)", "second");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
         }
     }
 
@@ -2206,6 +2232,9 @@ public class VerifierTests extends ESTestCase {
         }
         if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         }
     }
 

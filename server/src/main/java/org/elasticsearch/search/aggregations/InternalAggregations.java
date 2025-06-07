@@ -177,17 +177,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
     }
 
-    /**
-     * Equivalent to {@link #topLevelReduce(List, AggregationReduceContext)} but it takes an iterator and a count.
-     */
-    public static InternalAggregations topLevelReduce(Iterator<InternalAggregations> aggs, int count, AggregationReduceContext context) {
-        if (count == 0) {
-            return null;
-        }
-        return maybeExecuteFinalReduce(context, count == 1 ? reduce(aggs.next(), context) : reduce(aggs, count, context));
-    }
-
-    private static InternalAggregations maybeExecuteFinalReduce(AggregationReduceContext context, InternalAggregations reduced) {
+    public static InternalAggregations maybeExecuteFinalReduce(AggregationReduceContext context, InternalAggregations reduced) {
         if (reduced == null) {
             return null;
         }
@@ -238,16 +228,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             for (InternalAggregations aggregations : aggregationsList) {
                 reducer.accept(aggregations);
             }
-            return reducer.get();
-        }
-    }
-
-    private static InternalAggregations reduce(Iterator<InternalAggregations> aggsIterator, int count, AggregationReduceContext context) {
-        // general case
-        var first = aggsIterator.next();
-        try (AggregatorsReducer reducer = new AggregatorsReducer(first, context, count)) {
-            reducer.accept(first);
-            aggsIterator.forEachRemaining(reducer::accept);
             return reducer.get();
         }
     }

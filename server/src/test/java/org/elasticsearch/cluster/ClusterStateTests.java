@@ -43,6 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -92,6 +93,8 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ClusterStateTests extends ESTestCase {
+    private static final Setting<Integer> PROJECT_SETTING = Setting.intSetting("project.setting", 0, Setting.Property.ProjectScope);
+    private static final Setting<Integer> PROJECT_SETTING2 = Setting.intSetting("project.setting2", 0, Setting.Property.ProjectScope);
 
     public void testSupersedes() {
         final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
@@ -267,7 +270,7 @@ public class ClusterStateTests extends ESTestCase {
                 Map.ofEntries(
                     Map.entry(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
                     Map.entry("multi-project", "true"),
-                    Map.entry("metric", "version,master_node,blocks,nodes,metadata,routing_table,customs")
+                    Map.entry("metric", "version,master_node,blocks,nodes,metadata,routing_table,customs,projects_settings")
                     // not routing_nodes because the order is not predictable
                 )
             )
@@ -499,7 +502,6 @@ public class ClusterStateTests extends ESTestCase {
                           }
                         },
                         "index-graveyard": { "tombstones": [] },
-                        "settings": {},
                         "reserved_state": {}
                       },
                       {
@@ -558,7 +560,6 @@ public class ClusterStateTests extends ESTestCase {
                           }
                         },
                         "index-graveyard": { "tombstones": [] },
-                        "settings": {},
                         "reserved_state": {}
                       },
                       {
@@ -566,7 +567,6 @@ public class ClusterStateTests extends ESTestCase {
                         "templates": {},
                         "indices": {},
                         "index-graveyard": { "tombstones": [] },
-                        "settings": {},
                         "reserved_state": {}
                       }
                     ],
@@ -787,7 +787,16 @@ public class ClusterStateTests extends ESTestCase {
                         }
                       }
                     ]
-                  }
+                  },
+                  "projects_settings": [
+                    {
+                      "id": "3LftaL7hgfXAsF60Gm6jcD",
+                      "settings": {
+                        "project.setting": "42",
+                        "project.setting2": "43"
+                      }
+                    }
+                  ]
                 }
                 """,
             // Node 1
@@ -846,6 +855,8 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     private static ClusterState buildMultiProjectClusterState(DiscoveryNode... nodes) {
+        ProjectId projectId1 = ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD");
+        ProjectId projectId2 = ProjectId.fromId("tb5W0bx765nDVIwqJPw92G");
         final Metadata metadata = Metadata.builder()
             .clusterUUID("N8nJxElHSP23swO0bPLOcQ")
             .clusterUUIDCommitted(true)
@@ -857,7 +868,7 @@ public class ClusterStateTests extends ESTestCase {
                     .build()
             )
             .put(
-                ProjectMetadata.builder(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"))
+                ProjectMetadata.builder(projectId1)
                     .put(
                         IndexMetadata.builder("common-index")
                             .settings(
@@ -872,7 +883,7 @@ public class ClusterStateTests extends ESTestCase {
                     )
             )
             .put(
-                ProjectMetadata.builder(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"))
+                ProjectMetadata.builder(projectId2)
                     .put(
                         IndexMetadata.builder("common-index")
                             .settings(
@@ -893,11 +904,12 @@ public class ClusterStateTests extends ESTestCase {
             .metadata(metadata)
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .putProjectSettings(projectId1, Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
-                    .addIndexBlock(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"), "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
-                    .addIndexBlock(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"), "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+                    .addIndexBlock(projectId2, "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
+                    .addIndexBlock(projectId1, "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
             )
             .build();
     }
@@ -2190,6 +2202,14 @@ public class ClusterStateTests extends ESTestCase {
                         (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
                     );
                 }
+            }
+        }
+
+        // settings
+        if (metrics.contains(ClusterState.Metric.PROJECTS_SETTINGS)) {
+            Map<ProjectId, Settings> projectsSettings = clusterState.projectsSettings();
+            if (projectsSettings.isEmpty() == false) {
+                chunkCount += 2 + projectsSettings.size();
             }
         }
 

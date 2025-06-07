@@ -1,6 +1,6 @@
 version: 9.0.2
-released: false
-generated: 2025-05-22T15:14:00.768080Z
+released: true
+generated: 2025-06-03T14:58:36.937148609Z
 changelogs:
   - pr: 126992
     summary: Add missing `outbound_network` entitlement to x-pack-core
@@ -36,6 +36,12 @@ changelogs:
     type: bug
     issues:
       - 127468
+  - pr: 127564
+    summary: Consider inlinestats when having `field_caps` check for field names
+    area: ES|QL
+    type: bug
+    issues:
+      - 127236
   - pr: 127658
     summary: Append all data to Chat Completion buffer
     area: Machine Learning
@@ -131,5 +137,33 @@ changelogs:
   - pr: 128161
     summary: Fix system data streams incorrectly showing up in the list of template validation problems
     area: Data streams
+    type: bug
+    issues: []
+  - pr: 128259
+    summary: Added geometry validation for GEO types to exit early on invalid latitudes
+    area: Geo
+    type: bug
+    issues:
+      - 128234
+  - pr: 128260
+    summary: Fix validation NPE in Enrich and add extra @Nullable annotations
+    area: ES|QL
+    type: bug
+    issues:
+      - 126297
+      - 126253
+  - pr: 128320
+    summary: Use new source loader when lower `docId` is accessed
+    area: Codec
+    type: bug
+    issues: []
+  - pr: 128327
+    summary: Use internal user for internal inference action
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 128338
+    summary: Pass timeout to chat completion
+    area: Machine Learning
     type: bug
     issues: []

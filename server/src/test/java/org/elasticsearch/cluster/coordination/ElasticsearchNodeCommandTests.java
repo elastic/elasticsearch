@@ -13,8 +13,11 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -93,8 +96,8 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
     }
 
     private Metadata randomMeta() {
-        Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.generateClusterUuidIfNeeded();
+        @FixForMultiProject // Pass random project ID when usages are namespaced.
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
         int numDelIndices = randomIntBetween(0, 5);
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         for (int i = 0; i < numDelIndices; i++) {
@@ -105,11 +108,11 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(newInstance(dataStreamName, List.of(backingIndex.getIndex())));
+                projectBuilder.put(newInstance(dataStreamName, List.of(backingIndex.getIndex())));
             }
         }
-        mdBuilder.indexGraveyard(graveyard.build());
-        return mdBuilder.build();
+        projectBuilder.indexGraveyard(graveyard.build());
+        return Metadata.builder().generateClusterUuidIfNeeded().put(projectBuilder).build();
     }
 
     @Override

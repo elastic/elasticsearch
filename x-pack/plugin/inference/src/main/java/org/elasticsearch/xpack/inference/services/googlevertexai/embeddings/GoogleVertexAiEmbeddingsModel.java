@@ -81,7 +81,13 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.uri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            this.uri = buildUri(
+                serviceSettings.location(),
+                serviceSettings.projectId(),
+                serviceSettings.modelId(),
+                serviceSettings.endpointId(),
+                serviceSettings.isDedicatedEndpoint()
+            );
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -134,20 +140,51 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return visitor.create(this, taskSettings);
     }
 
-    public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
-            .setPathSegments(
-                GoogleVertexAiUtils.V1,
-                GoogleVertexAiUtils.PROJECTS,
-                projectId,
-                GoogleVertexAiUtils.LOCATIONS,
-                location,
-                GoogleVertexAiUtils.PUBLISHERS,
-                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
-                GoogleVertexAiUtils.MODELS,
-                format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
-            )
-            .build();
+    public static URI buildUri(String location, String projectId, String modelId, String endpointId, Boolean isDedicatedEndpoint)
+        throws URISyntaxException {
+        if (modelId != null) {
+            return new URIBuilder().setScheme("https")
+                .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+                .setPathSegments(
+                    GoogleVertexAiUtils.V1,
+                    GoogleVertexAiUtils.PROJECTS,
+                    projectId,
+                    GoogleVertexAiUtils.LOCATIONS,
+                    location,
+                    GoogleVertexAiUtils.PUBLISHERS,
+                    GoogleVertexAiUtils.PUBLISHER_GOOGLE,
+                    GoogleVertexAiUtils.MODELS,
+                    format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
+                )
+                .build();
+        } else if (endpointId != null) {
+            // TODO: Decide if we should require isDedicatedEndpoint or default it to true
+            if (isDedicatedEndpoint == null || isDedicatedEndpoint) {
+                return new URI(
+                    format(
+                        "https://%s.%s-%s.prediction.vertexai.goog/v1/projects/%s/locations/%s/endpoints/%s:predict",
+                        endpointId,
+                        location,
+                        projectId,
+                        projectId,
+                        location,
+                        endpointId
+                    )
+                );
+            } else {
+                return new URI(
+                    format(
+                        "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/endpoints/%s:predict",
+                        location,
+                        projectId,
+                        location,
+                        endpointId
+                    )
+                );
+            }
+        } else {
+            throw new IllegalArgumentException("Either modelId or endpointId must be provided");
+        }
+
     }
 }

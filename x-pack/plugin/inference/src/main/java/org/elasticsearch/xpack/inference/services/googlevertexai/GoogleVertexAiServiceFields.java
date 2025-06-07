@@ -13,6 +13,10 @@ public class GoogleVertexAiServiceFields {
 
     public static final String PROJECT_ID = "project_id";
 
+    public static final String ENDPOINT_ID = "endpoint_id";
+
+    public static final String IS_DEDICATED_ENDPOINT = "is_dedicated_endpoint";
+
     /**
      * According to https://cloud.google.com/vertex-ai/docs/quotas#text-embedding-limits the limit is `250`.
      */

@@ -1719,7 +1719,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                            fa.fieldName(),
+                            fa.fieldName().string(),
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions

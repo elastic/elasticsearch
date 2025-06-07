@@ -41,7 +41,7 @@ import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
-public class InstrumenterImpl implements Instrumenter {
+public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
 
     private final String getCheckerClassMethodDescriptor;
@@ -272,7 +272,8 @@ public class InstrumenterImpl implements Instrumenter {
         }
 
         private void pushEntitlementChecker() {
-            InstrumenterImpl.this.pushEntitlementChecker(mv);
+            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
+            mv.visitTypeInsn(CHECKCAST, checkMethod.className());
         }
 
         private void pushCallerClass() {
@@ -320,11 +321,7 @@ public class InstrumenterImpl implements Instrumenter {
                 true
             );
         }
-    }
 
-    protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
-        mv.visitTypeInsn(CHECKCAST, "org/elasticsearch/entitlement/bridge/EntitlementChecker");
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

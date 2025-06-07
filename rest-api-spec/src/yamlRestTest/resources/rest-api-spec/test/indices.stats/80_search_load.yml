@@ -1,0 +1,54 @@
+---
+"Search load is tracked at shard level":
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: text
+              description:
+                type: text
+              price:
+                type: double
+
+  - do:
+      indices.stats:
+        index: "testindex"
+        level: shards
+        metric: [ search ]
+
+  - match: { _all.total.search.recent_search_load: 0.0 }
+  - match: { indices.testindex.total.search.recent_search_load: 0.0 }
+  - match: { indices.testindex.shards.0.0.search.recent_search_load: 0.0 }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "specialty coffee", "description": "arabica coffee beans", "price": 100 }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "commercial coffee", "description": "robusta coffee beans", "price": 50 }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "raw coffee", "description": "colombian coffee beans", "price": 25 }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "book", "description": "some book", "price": 1000 }
+
+  - do:
+      indices.stats:
+        index: "testindex"
+        level: shards
+        metric: [ search ]
+
+  - gte: { _all.total.search.recent_search_load: 0.0 }
+  - gte: { indices.testindex.total.search.recent_search_load: 0.0 }
+  - gte: { indices.testindex.shards.0.0.search.recent_search_load: 0.0 }

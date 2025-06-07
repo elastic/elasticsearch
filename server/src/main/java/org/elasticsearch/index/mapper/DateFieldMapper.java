@@ -24,6 +24,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -37,7 +38,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -49,6 +49,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.TimestampQuery;
 import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
@@ -463,7 +464,7 @@ public final class DateFieldMapper extends FieldMapper {
             c.getIndexSettings().getMode(),
             c.getIndexSettings().getIndexSortConfig(),
             c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
+            c.getIndexSettings().useDocValuesSkipper()
         );
     });
 
@@ -478,7 +479,7 @@ public final class DateFieldMapper extends FieldMapper {
             c.getIndexSettings().getMode(),
             c.getIndexSettings().getIndexSortConfig(),
             c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
+            c.getIndexSettings().useDocValuesSkipper()
         );
     });
 
@@ -743,6 +744,16 @@ public final class DateFieldMapper extends FieldMapper {
                 parser = forcedDateParser;
             }
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                var indexSettings = context.getIndexSettings();
+                var indexMode = indexSettings.getMode();
+                boolean sortOnTimestamp = indexSettings.getIndexSortConfig().hasSortOnField(DataStream.TIMESTAMP_FIELD_NAME);
+                if ((indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB)
+                    && sortOnTimestamp
+                    && indexSettings.useDocValuesSkipper()
+                    && name().equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+                    return new TimestampQuery(l, u);
+                }
+
                 Query query;
                 if (isIndexed()) {
                     query = LongPoint.newRangeQuery(name(), l, u);

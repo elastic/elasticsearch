@@ -76,13 +76,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
-        final ShardHeapUsageSupplier mockShardHeapUsageSupplier = spy(new StubShardShardHeapUsageSupplier());
+        final ShardHeapUsageCollector mockShardHeapUsageCollector = spy(new StubShardShardHeapUsageCollector());
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
             clusterService,
             threadPool,
             client,
-            mockShardHeapUsageSupplier
+            mockShardHeapUsageCollector
         );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
@@ -119,13 +119,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
-            Mockito.clearInvocations(mockShardHeapUsageSupplier);
+            Mockito.clearInvocations(mockShardHeapUsageCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
-            verify(mockShardHeapUsageSupplier).getClusterHeapUsage(any()); // Should poll for heap usage once per interval
+            verify(mockShardHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -142,10 +142,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
     }
 
-    private static class StubShardShardHeapUsageSupplier implements ShardHeapUsageSupplier {
+    private static class StubShardShardHeapUsageCollector implements ShardHeapUsageCollector {
 
         @Override
-        public void getClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
             listener.onResponse(Map.of());
         }
     }

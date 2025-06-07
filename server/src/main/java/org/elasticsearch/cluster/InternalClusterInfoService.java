@@ -97,7 +97,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
-    private final ShardHeapUsageSupplier shardHeapUsageSupplier;
+    private final ShardHeapUsageCollector shardHeapUsageCollector;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -108,7 +108,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        ShardHeapUsageSupplier shardHeapUsageSupplier
+        ShardHeapUsageCollector shardHeapUsageCollector
     ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
@@ -116,7 +116,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
-        this.shardHeapUsageSupplier = shardHeapUsageSupplier;
+        this.shardHeapUsageCollector = shardHeapUsageCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -202,7 +202,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void fetchNodesHeapUsage() {
-            shardHeapUsageSupplier.getClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+            shardHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, ShardHeapUsage> currentShardHeapUsages) {
                     shardHeapUsages = currentShardHeapUsages;

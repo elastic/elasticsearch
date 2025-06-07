@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.ShardHeapUsage;
-import org.elasticsearch.cluster.ShardHeapUsageSupplier;
+import org.elasticsearch.cluster.ShardHeapUsageCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -817,16 +817,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    public static class BogusShardShardHeapUsageSupplier implements ShardHeapUsageSupplier {
+    public static class BogusShardShardHeapUsageCollector implements ShardHeapUsageCollector {
 
         private final BogusShardHeapUsagePlugin plugin;
 
-        public BogusShardShardHeapUsageSupplier(BogusShardHeapUsagePlugin plugin) {
+        public BogusShardShardHeapUsageCollector(BogusShardHeapUsagePlugin plugin) {
             this.plugin = plugin;
         }
 
         @Override
-        public void getClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()

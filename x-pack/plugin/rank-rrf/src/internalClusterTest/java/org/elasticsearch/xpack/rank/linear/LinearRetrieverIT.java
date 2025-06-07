@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -835,4 +836,140 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
     }
+
+    public void testLinearRetrieverWithMinScoreValidation() {
+        StandardRetrieverBuilder retriever1 = new StandardRetrieverBuilder(new MatchAllQueryBuilder());
+        float[] weights = new float[] { 1.0f };
+        ScoreNormalizer[] normalizers = LinearRetrieverBuilder.getDefaultNormalizers(1);
+        LinearRetrieverBuilder builder = new LinearRetrieverBuilder(
+            List.of(new CompoundRetrieverBuilder.RetrieverSource(retriever1, null)),
+            10,
+            weights,
+            normalizers
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.minScore(-0.1f));
+        assertThat(e.getMessage(), equalTo("[min_score] must be greater than or equal to 0, was: -0.1"));
+
+        builder.minScore(0.1f);
+        assertThat(builder.minScore(), equalTo(0.1f));
+    }
+
+    // public void testLinearRetrieverWithMinScoreScenarios() {
+    // final int rankWindowSize = 10;
+
+    // // Setup test data
+    // indexDoc(INDEX, "doc_1", TEXT_FIELD, "term1", "views.last30d", 10, "views.all", 100);
+    // indexDoc(INDEX, "doc_2", TEXT_FIELD, "term1 term2", "views.last30d", 20, "views.all", 200);
+    // indexDoc(INDEX, "doc_3", TEXT_FIELD, "term1 term2 term3", "views.last30d", 30, "views.all", 300);
+    // indexDoc(INDEX, "doc_4", TEXT_FIELD, "term4", "views.last30d", 40, "views.all", 400);
+    // refresh(INDEX);
+
+    // // Create retrievers with different scoring
+    // StandardRetrieverBuilder retrieverA = new StandardRetrieverBuilder(QueryBuilders.termQuery(TEXT_FIELD, "term1").boost(10.0f));
+    // StandardRetrieverBuilder retrieverB = new StandardRetrieverBuilder(QueryBuilders.termQuery(TEXT_FIELD, "term2").boost(1.0f));
+
+    // float[] weights = new float[] { 1.0f, 1.0f };
+    // ScoreNormalizer[] identityNormalizers = LinearRetrieverBuilder.getDefaultNormalizers(2);
+
+    // // Scenario 1: No min_score - all docs returned
+    // LinearRetrieverBuilder builderNoMinScore = new LinearRetrieverBuilder(
+    // List.of(
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+    // ),
+    // rankWindowSize,
+    // weights,
+    // identityNormalizers
+    // );
+
+    // SearchSourceBuilder sourceNoMinScore = new SearchSourceBuilder().retriever(builderNoMinScore).size(rankWindowSize);
+
+    // ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceNoMinScore), resp -> {
+    // assertThat(resp.getHits().getTotalHits().value(), equalTo(3L)); // doc_1, doc_2, doc_3 match
+    // assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_3")); // term1(10) + term2(1) = 11
+    // assertThat(resp.getHits().getHits()[1].getId(), equalTo("doc_2")); // term1(10) + term2(1) = 11
+    // assertThat(resp.getHits().getHits()[2].getId(), equalTo("doc_1")); // term1(10) = 10
+    // });
+
+    // // Scenario 2: minScore = 0.0f - all matching docs returned (inclusive)
+    // LinearRetrieverBuilder builderZeroMinScore = new LinearRetrieverBuilder(
+    // List.of(
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+    // ),
+    // rankWindowSize,
+    // weights,
+    // identityNormalizers
+    // ).minScore(0.0f);
+
+    // SearchSourceBuilder sourceZeroMinScore = new SearchSourceBuilder().retriever(builderZeroMinScore).size(rankWindowSize);
+
+    // ElasticsearchAssertions.assertResponse(
+    // client().prepareSearch(INDEX).setSource(sourceZeroMinScore),
+    // resp -> assertThat(resp.getHits().getTotalHits().value(), equalTo(3L))
+    // );
+
+    // // Scenario 3: Basic filtering - minScore = 10.5f
+    // LinearRetrieverBuilder builderFilterBasic = new LinearRetrieverBuilder(
+    // List.of(
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+    // ),
+    // rankWindowSize,
+    // weights,
+    // identityNormalizers
+    // ).minScore(10.5f);
+
+    // SearchSourceBuilder sourceFilterBasic = new SearchSourceBuilder().retriever(builderFilterBasic).size(rankWindowSize);
+
+    // ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceFilterBasic), resp -> {
+    // assertThat(resp.getHits().getTotalHits().value(), equalTo(2L)); // doc_2 and doc_3 have score 11.0
+    // List<String> ids = Arrays.stream(resp.getHits().getHits()).map(h -> h.getId()).collect(Collectors.toList());
+    // assertThat(ids, containsInAnyOrder("doc_2", "doc_3"));
+    // });
+
+    // // Scenario 4: Filter all documents - minScore = 20.0f
+    // LinearRetrieverBuilder builderFilterAll = new LinearRetrieverBuilder(
+    // List.of(
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverA, null),
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverB, null)
+    // ),
+    // rankWindowSize,
+    // weights,
+    // identityNormalizers
+    // ).minScore(20.0f);
+
+    // SearchSourceBuilder sourceFilterAll = new SearchSourceBuilder().retriever(builderFilterAll).size(rankWindowSize);
+
+    // ElasticsearchAssertions.assertResponse(
+    // client().prepareSearch(INDEX).setSource(sourceFilterAll),
+    // resp -> assertThat(resp.getHits().getTotalHits().value(), equalTo(0L))
+    // );
+
+    // // Scenario 5: Test with MinMax normalization
+    // StandardRetrieverBuilder retrieverC = new StandardRetrieverBuilder(QueryBuilders.termQuery(TEXT_FIELD, "term1").boost(4.0f));
+    // StandardRetrieverBuilder retrieverD = new StandardRetrieverBuilder(QueryBuilders.termQuery(TEXT_FIELD, "term2").boost(1.0f));
+
+    // ScoreNormalizer[] minMaxNormalizers = new ScoreNormalizer[] { MinMaxScoreNormalizer.INSTANCE, MinMaxScoreNormalizer.INSTANCE };
+
+    // LinearRetrieverBuilder builderWithNorm = new LinearRetrieverBuilder(
+    // List.of(
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverC, null),
+    // new CompoundRetrieverBuilder.RetrieverSource(retrieverD, null)
+    // ),
+    // rankWindowSize,
+    // weights,
+    // minMaxNormalizers
+    // ).minScore(1.1f);
+
+    // SearchSourceBuilder sourceWithNorm = new SearchSourceBuilder().retriever(builderWithNorm).size(rankWindowSize);
+
+    // ElasticsearchAssertions.assertResponse(client().prepareSearch(INDEX).setSource(sourceWithNorm), resp -> {
+    // // With MinMax normalization, we expect doc_2 and doc_3 to have scores > 1.1
+    // assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
+    // List<String> ids = Arrays.stream(resp.getHits().getHits()).map(h -> h.getId()).collect(Collectors.toList());
+    // assertThat(ids, containsInAnyOrder("doc_2", "doc_3"));
+    // });
+    // }
 }

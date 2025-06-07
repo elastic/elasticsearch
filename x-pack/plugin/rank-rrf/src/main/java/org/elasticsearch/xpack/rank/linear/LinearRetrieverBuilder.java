@@ -49,6 +49,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final String NAME = "linear";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final float DEFAULT_SCORE = 0f;
 
@@ -88,7 +89,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return weights;
     }
 
-    private static ScoreNormalizer[] getDefaultNormalizers(int size) {
+    public static ScoreNormalizer[] getDefaultNormalizers(int size) {
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
         Arrays.fill(normalizers, IdentityScoreNormalizer.INSTANCE);
         return normalizers;
@@ -139,6 +140,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return sourceBuilder;
     }
 
+    public LinearRetrieverBuilder minScore(float minScore) {
+        if (minScore < 0.0f) {
+            throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: " + minScore);
+        }
+        return (LinearRetrieverBuilder) super.minScore(minScore);
+    }
+
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean isExplain) {
         Map<RankDoc.RankKey, LinearRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
@@ -175,6 +183,21 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         // sort the results based on the final score, tiebreaker based on smaller doc id
         LinearRankDoc[] sortedResults = docsToRankResults.values().toArray(LinearRankDoc[]::new);
         Arrays.sort(sortedResults);
+
+        final LinearRankDoc[] resultsToConsider;
+        Float minScore = minScore();
+        if (minScore != null) { // Check if minScore was actually set
+            List<LinearRankDoc> filteredList = new ArrayList<>(sortedResults.length);
+            for (LinearRankDoc doc : sortedResults) {
+                if (doc.score >= minScore) {
+                    filteredList.add(doc);
+                }
+            }
+            resultsToConsider = filteredList.toArray(LinearRankDoc[]::new);
+        } else {
+            resultsToConsider = sortedResults; // No filtering if minScore is null
+        }
+
         // trim the results if needed, otherwise each shard will always return `rank_window_size` results.
         LinearRankDoc[] topResults = new LinearRankDoc[Math.min(rankWindowSize, sortedResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
@@ -204,5 +227,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        Float minScore = minScore();
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
     }
 }

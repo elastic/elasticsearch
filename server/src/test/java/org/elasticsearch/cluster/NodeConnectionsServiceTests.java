@@ -253,7 +253,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         final long reconnectIntervalMillis = CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis();
-        final long reconnectIntervalSeconds = reconnectIntervalMillis / 1000;
+        final TimeValue reconnectIntervalTimeValue = TimeValue.timeValueMillis(reconnectIntervalMillis);
 
         MockTransport transport = new MockTransport(threadPool);
         TestTransportService transportService = new TestTransportService(transport, threadPool);
@@ -297,8 +297,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     "reopened transport connection to node ["
                         + gracefulClose.descriptionWithoutAttributes()
                         + "] which disconnected gracefully ["
-                        + reconnectIntervalSeconds
-                        + "s/"
+                        + reconnectIntervalTimeValue
+                        + "/"
                         + reconnectIntervalMillis
                         + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
@@ -313,8 +313,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     "reopened transport connection to node ["
                         + exceptionalClose.descriptionWithoutAttributes()
                         + "] which disconnected exceptionally ["
-                        + reconnectIntervalSeconds
-                        + "s/"
+                        + reconnectIntervalTimeValue
+                        + "/"
                         + reconnectIntervalMillis
                         + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "

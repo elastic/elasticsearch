@@ -402,17 +402,17 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
             if (disconnectionHistory != null) {
                 long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis;
-                long secondsSinceDisconnect = millisSinceDisconnect / 1000;
+                TimeValue timeValueSinceDisconnect = TimeValue.timeValueMillis(millisSinceDisconnect);
                 if (disconnectionHistory.disconnectCause != null) {
                     logger.warn(
                         () -> format(
                             """
                                 reopened transport connection to node [%s] \
-                                which disconnected exceptionally [%ds/%dms] ago but did not \
+                                which disconnected exceptionally [%s/%dms] ago but did not \
                                 restart, so the disconnection is unexpected; \
                                 see [%s] for troubleshooting guidance""",
                             node.descriptionWithoutAttributes(),
-                            secondsSinceDisconnect,
+                            timeValueSinceDisconnect,
                             millisSinceDisconnect,
                             ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                         ),
@@ -422,11 +422,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     logger.warn(
                         """
                             reopened transport connection to node [{}] \
-                            which disconnected gracefully [{}s/{}ms] ago but did not \
+                            which disconnected gracefully [{}/{}ms] ago but did not \
                             restart, so the disconnection is unexpected; \
                             see [{}] for troubleshooting guidance""",
                         node.descriptionWithoutAttributes(),
-                        secondsSinceDisconnect,
+                        timeValueSinceDisconnect,
                         millisSinceDisconnect,
                         ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
                     );

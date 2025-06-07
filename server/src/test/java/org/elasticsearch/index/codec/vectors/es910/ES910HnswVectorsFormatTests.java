@@ -7,15 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.zstd;
+package org.elasticsearch.index.codec.vectors.es910;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
-import org.elasticsearch.index.codec.Elasticsearch910Lucene102Codec;
+import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
 
-public class Zstd814BestSpeedStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
+public class ES910HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
-    private final Codec codec = new Elasticsearch910Lucene102Codec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES910HnswVectorsFormat());
 
     @Override
     protected Codec getCodec() {

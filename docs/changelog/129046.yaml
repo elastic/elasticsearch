@@ -1,0 +1,5 @@
+pr: 129046
+summary: Add Lucene improvements for HNSW merging heap usage
+area: Search
+type: enhancement
+issues: []

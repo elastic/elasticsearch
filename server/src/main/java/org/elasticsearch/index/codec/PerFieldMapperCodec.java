@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public final class PerFieldMapperCodec extends Elasticsearch900Lucene101Codec {
+public final class PerFieldMapperCodec extends Elasticsearch910Lucene102Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 

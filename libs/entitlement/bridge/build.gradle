@@ -8,6 +8,7 @@
  */
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 
 configurations {
   bridgeJar {

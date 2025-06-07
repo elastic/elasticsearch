@@ -22,6 +22,7 @@ import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -66,6 +67,14 @@ public class ReproduceInfoPrinter extends RunListener {
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
         boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
+
+        for (var bwcProperty : List.of("tests.bwc.main.version", "tests.bwc.refspec.main")) {
+            var value = System.getProperty(bwcProperty);
+            if (value != null) {
+                isBwcTest = true;
+                b.append(" -D").append(bwcProperty).append("=\"").append(value).append("\" ");
+            }
+        }
 
         // append Gradle test runner test filter string
         b.append("\"" + task + "\"");

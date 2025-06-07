@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
@@ -149,13 +148,6 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder().put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED, false).build();
     }
 
-    private void assertMasterNode(Client client, String node) {
-        assertThat(
-            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
@@ -238,7 +230,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 
@@ -352,7 +344,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getMasterName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         writeJSONFile(masterNode, testErrorJSON);

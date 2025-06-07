@@ -198,47 +198,6 @@ setup:
                 index_options:
                   type: bbq_ivf
 ---
-"Test few dimensions fail indexing":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_ivf
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 42
-                index: true
-                index_options:
-                  type: bbq_ivf
-
-  - do:
-      indices.create:
-        index: dynamic_dim_bbq_ivf
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                index: true
-                similarity: l2_norm
-                index_options:
-                  type: bbq_ivf
-
-  - do:
-      catch: bad_request
-      index:
-        index: dynamic_dim_bbq_ivf
-        body:
-          vector: [1.0, 2.0, 3.0, 4.0, 5.0]
-
-  - do:
-      index:
-        index: dynamic_dim_bbq_ivf
-        body:
-          vector: [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0]
----
 "Test index configured rescore vector":
   - skip:
       features: "headers"

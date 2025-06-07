@@ -169,7 +169,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     ) throws IOException;
 
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new IVFCollectorManager(k, nProbe);
+        return new IVFCollectorManager(k);
     }
 
     @Override
@@ -195,16 +195,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
-        private final int nprobe;
 
-        IVFCollectorManager(int k, int nprobe) {
+        IVFCollectorManager(int k) {
             this.k = k;
-            this.nprobe = nprobe;
         }
 
         @Override
         public KnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context) throws IOException {
-            return new TopKnnCollector(k, visitedLimit, new IVFKnnSearchStrategy(nprobe));
+            return new TopKnnCollector(k, visitedLimit, searchStrategy);
         }
     }
 }

@@ -69,11 +69,7 @@ public final class UnfollowAction implements LifecycleAction {
             Instant::now
         );
 
-        WaitForFollowShardTasksStep step3 = new WaitForFollowShardTasksStep(
-            waitForFollowShardTasks,
-            pauseFollowerIndex,
-            client
-        );
+        WaitForFollowShardTasksStep step3 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
         PauseFollowerIndexStep step4 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
         CloseFollowerIndexStep step5 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
         UnfollowFollowerIndexStep step6 = new UnfollowFollowerIndexStep(unfollowFollowerIndex, openFollowerIndex, client);

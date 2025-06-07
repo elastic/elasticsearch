@@ -399,9 +399,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
-- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
-  method: testKnnVectors
-  issue: https://github.com/elastic/elasticsearch/issues/127689
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741

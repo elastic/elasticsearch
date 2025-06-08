@@ -211,6 +211,45 @@
           }
         },
         {
+          "ecs_gen_ai_integers": {
+            "mapping": {
+              "type": "integer"
+            },
+            "path_match": [
+              "*gen_ai.request.max_tokens",
+              "*gen_ai.usage.input_tokens",
+              "*gen_ai.usage.output_tokens",
+              "*gen_ai.request.choice.count",
+              "*gen_ai.request.seed"
+            ]
+          }
+        },
+        {
+          "ecs_gen_ai_doubles": {
+            "mapping": {
+              "type": "double"
+            },
+            "path_match": [
+              "*gen_ai.request.temperature",
+              "*gen_ai.request.top_k",
+              "*gen_ai.request.frequency_penalty",
+              "*gen_ai.request.presence_penalty",
+              "*gen_ai.request.top_p"
+            ]
+          }
+        },
+        {
+          "ecs_gen_ai_text": {
+            "mapping": {
+              "type": "text"
+            },
+            "path_match": [
+              "*gen_ai.request.model",
+              "*gen_ai.agent.description"
+            ]
+          }
+        },
+        {
           "all_strings_to_keywords": {
             "mapping": {
               "ignore_above": 1024,

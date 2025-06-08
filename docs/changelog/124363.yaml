@@ -1,0 +1,5 @@
+pr: 124363
+summary: Set cause on create index request in create from action
+area: Data streams
+type: enhancement
+issues: []

@@ -300,9 +300,12 @@ public final class TextFieldMapper extends FieldMapper {
             // storing the field without requiring users to explicitly set 'store'.
             //
             // If 'store' parameter was explicitly provided we'll reject the request.
+            // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
             this.store = Parameter.storeParam(
                 m -> ((TextFieldMapper) m).store,
-                () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
+                () -> isSyntheticSourceEnabled
+                    && currentFieldIsAMultiField == false
+                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
             );
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(

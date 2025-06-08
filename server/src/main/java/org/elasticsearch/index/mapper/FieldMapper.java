@@ -602,6 +602,7 @@ public abstract class FieldMapper extends Mapper {
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
+                builder.currentFieldIsAMultiField = true;
                 mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
@@ -1384,6 +1385,7 @@ public abstract class FieldMapper extends Mapper {
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
+        protected boolean currentFieldIsAMultiField = false;
 
         /**
          * Creates a new Builder with a field name

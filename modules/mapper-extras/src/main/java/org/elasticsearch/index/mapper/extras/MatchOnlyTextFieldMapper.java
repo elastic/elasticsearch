@@ -140,14 +140,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
-            return new MatchOnlyTextFieldMapper(
-                leafName(),
-                Defaults.FIELD_TYPE,
-                tft,
-                builderParams(this, context),
-                context.isSourceSynthetic(),
-                this
-            );
+            boolean storeSource = context.isSourceSynthetic()
+                && currentFieldIsAMultiField == false
+                && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
     }
 

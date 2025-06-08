@@ -1,0 +1,5 @@
+pr: 129122
+summary: Update ecs@mappings.json with new GenAI fields
+area: Data streams
+type: feature
+issues: []

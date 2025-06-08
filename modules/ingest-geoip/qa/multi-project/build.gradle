@@ -7,18 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(':modules:ingest-geoip')
   javaRestTestImplementation project(':test:external-modules:test-multi-project')
   javaRestTestImplementation project(':test:fixtures:geoip-fixture')
-
-  internalClusterTestImplementation project(':modules:ingest-geoip')
-  internalClusterTestImplementation project(':test:external-modules:test-multi-project')
-  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
-  internalClusterTestImplementation project(':test:framework')
 
   clusterModules project(':modules:ingest-geoip')
   clusterModules project(':modules:reindex')  // needed for database cleanup

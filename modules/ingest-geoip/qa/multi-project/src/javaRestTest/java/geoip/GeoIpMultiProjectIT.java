@@ -40,13 +40,13 @@ public class GeoIpMultiProjectIT extends ESRestTestCase {
 
     public static final GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
-    public static final ElasticsearchCluster cluster =  ElasticsearchCluster.local()
+    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("ingest-geoip")
         .module("reindex")  // for database cleanup
         .module("test-multi-project")
         .setting("test.multi_project.enabled", "true")
         .setting(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), "true")
-        .setting(GeoIpDownloader.ENDPOINT_SETTING.getKey(), fixture::getAddress, (k) -> useFixture )
+        .setting(GeoIpDownloader.ENDPOINT_SETTING.getKey(), fixture::getAddress, (k) -> useFixture)
         .build();
 
     @ClassRule
@@ -81,23 +81,23 @@ public class GeoIpMultiProjectIT extends ESRestTestCase {
     private void putGeoIpPipeline(String projectId) throws IOException {
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/geoip-pipeline");
         putPipelineRequest.setJsonEntity("""
-                    {
-                      "processors" : [
-                        {
-                          "geoip" : {
-                            "field" : "ip",
-                            "target_field" : "geo",
-                            "database_file" : "GeoLite2-Country.mmdb"
-                          }
-                        }
-                      ]
-                    }
-                    """);
+            {
+              "processors" : [
+                {
+                  "geoip" : {
+                    "field" : "ip",
+                    "target_field" : "geo",
+                    "database_file" : "GeoLite2-Country.mmdb"
+                  }
+                }
+              ]
+            }
+            """);
         setRequestProjectId(projectId, putPipelineRequest);
         assertOK(client().performRequest(putPipelineRequest));
     }
 
-    private static Request setRequestProjectId(String projectId , Request request) {
+    private static Request setRequestProjectId(String projectId, Request request) {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.removeHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
         options.addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);

@@ -180,7 +180,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     @SuppressWarnings("unchecked")
     private <T> List<T> fetchDatabasesOverview() throws IOException {
         String url = endpoint + "?elastic_geoip_service_tos=agree";
-        logger.info("fetching geoip databases overview from [{}]", url);
+        logger.debug("fetching geoip databases overview from [{}]", url);
         byte[] data = httpClient.getBytes(url);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
             return (List<T>) parser.list();

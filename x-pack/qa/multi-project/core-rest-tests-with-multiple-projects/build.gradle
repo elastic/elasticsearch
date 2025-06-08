@@ -4,11 +4,9 @@ import org.elasticsearch.gradle.util.GradleUtils
 dependencies {
   testImplementation project(':x-pack:qa')
   testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
-  yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:rank-eval')
   clusterModules project(':modules:ingest-common')
-  clusterModules project(':modules:ingest-geoip')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:analysis-common')
   clusterModules project(':modules:health-shards-availability')

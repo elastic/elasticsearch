@@ -56,6 +56,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -63,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.codec.CodecService;
@@ -130,6 +132,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     private Path blobStorePath;
     private BlobContainer blobContainer;
     protected StatelessSharedBlobCacheService sharedBlobCacheService;
+    protected NodeEnvironment nodeEnvironment;
 
     @SuppressWarnings("unchecked")
     @Override
@@ -147,6 +150,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             BlobPath.EMPTY,
             blobStorePath
         );
+        nodeEnvironment = newNodeEnvironment();
     }
 
     @Override
@@ -159,6 +163,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         }
         assert threadPools.isEmpty() : threadPools;
         IOUtils.rm(blobStorePath);
+        nodeEnvironment.close();
         super.tearDown();
     }
 
@@ -308,10 +313,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            Settings.builder()
-                .put(settings)
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
-                .build()
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(settings)
+                    .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+                    .build()
+            ),
+            nodeEnvironment
         );
         var directory = newDirectory();
         if (Lucene.indexExists(directory)) {
@@ -382,11 +390,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var shardId = indexEngine.getEngineConfig().getShardId();
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
+        var nodeEnvironment = newNodeEnvironment();
         var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            indexSettings.getNodeSettings()
+            ClusterSettings.createBuiltInClusterSettings(indexSettings.getNodeSettings()),
+            nodeEnvironment
         );
-        var nodeEnvironment = newNodeEnvironment();
         var cache = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             indexSettings.getSettings(),
@@ -470,7 +479,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            indexSettings.getNodeSettings()
+            ClusterSettings.createBuiltInClusterSettings(indexSettings.getNodeSettings()),
+            nodeEnvironment
         );
         var directory = new SearchDirectory(
             sharedBlobCacheService,

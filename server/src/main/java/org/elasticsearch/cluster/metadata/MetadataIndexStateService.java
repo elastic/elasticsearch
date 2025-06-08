@@ -25,6 +25,9 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockClusterState
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse.RemoveBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -69,6 +72,7 @@ import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.injection.guice.Inject;
@@ -139,6 +143,7 @@ public class MetadataIndexStateService {
     private final MasterServiceTaskQueue<CloseIndicesTask> closesQueue;
     private final MasterServiceTaskQueue<AddBlocksTask> addBlocksQueue;
     private final MasterServiceTaskQueue<FinalizeBlocksTask> finalizeBlocksQueue;
+    private final MasterServiceTaskQueue<RemoveBlocksTask> removeBlocksQueue;
 
     @Inject
     public MetadataIndexStateService(
@@ -163,6 +168,7 @@ public class MetadataIndexStateService {
         closesQueue = clusterService.createTaskQueue("close-index", Priority.URGENT, new CloseIndicesExecutor());
         addBlocksQueue = clusterService.createTaskQueue("add-blocks", Priority.URGENT, new AddBlocksExecutor());
         finalizeBlocksQueue = clusterService.createTaskQueue("finalize-blocks", Priority.URGENT, new FinalizeBlocksExecutor());
+        removeBlocksQueue = clusterService.createTaskQueue("remove-blocks", Priority.URGENT, new RemoveBlocksExecutor());
     }
 
     /**
@@ -512,6 +518,24 @@ public class MetadataIndexStateService {
         );
     }
 
+    /**
+     * Removes an index block and notifies the listener upon completion.
+     * Unlike adding blocks, removing blocks does not require shard verification.
+     * The operation is idempotent and will succeed even if the block doesn't exist.
+     */
+    public void removeIndexBlock(RemoveIndexBlockClusterStateUpdateRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
+        final Index[] concreteIndices = request.indices();
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            throw new IllegalArgumentException("Index name is required");
+        }
+
+        removeBlocksQueue.submitTask(
+            "remove-index-block-[" + request.block().name + "]-" + Arrays.toString(concreteIndices),
+            new RemoveBlocksTask(request, listener),
+            request.masterNodeTimeout()
+        );
+    }
+
     private class AddBlocksExecutor extends SimpleBatchedExecutor<AddBlocksTask, Map<Index, ClusterBlock>> {
 
         @Override
@@ -596,6 +620,30 @@ public class MetadataIndexStateService {
         boolean markVerified,
         ActionListener<AddIndexBlockResponse> listener
     ) implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private class RemoveBlocksExecutor extends SimpleBatchedExecutor<RemoveBlocksTask, List<RemoveBlockResult>> {
+
+        @Override
+        public Tuple<ClusterState, List<RemoveBlockResult>> executeTask(RemoveBlocksTask task, ClusterState clusterState) {
+            return removeIndexBlock(task.request.projectId(), task.request.indices(), clusterState, task.request.block());
+        }
+
+        @Override
+        public void taskSucceeded(RemoveBlocksTask task, List<RemoveBlockResult> results) {
+            final boolean acknowledged = results.stream().noneMatch(RemoveBlockResult::hasFailures);
+            task.listener().onResponse(new RemoveIndexBlockResponse(acknowledged, results));
+        }
+    }
+
+    private record RemoveBlocksTask(RemoveIndexBlockClusterStateUpdateRequest request, ActionListener<RemoveIndexBlockResponse> listener)
+        implements
+            ClusterStateTaskListener {
+
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
@@ -1155,6 +1203,92 @@ public class MetadataIndexStateService {
             clusterBlock.status(),
             clusterBlock.levels()
         );
+    }
+
+    private static Tuple<ClusterState, List<RemoveBlockResult>> removeIndexBlock(
+        final ProjectId projectId,
+        final Index[] indices,
+        final ClusterState currentState,
+        final APIBlock block
+    ) {
+        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
+        final List<String> effectivelyUnblockedIndices = new ArrayList<>();
+        final Map<String, RemoveBlockResult> results = new HashMap<>();
+
+        for (Index index : indices) {
+            try {
+                if (currentState.metadata().hasProject(projectId) == false) {
+                    results.put(index.getName(), new RemoveBlockResult(index, new IndexNotFoundException(index)));
+                    continue;
+                }
+
+                final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+                final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
+                if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                    results.put(index.getName(), new RemoveBlockResult(index, new IndexClosedException(index)));
+                    continue;
+                }
+
+                final Settings indexSettings = indexMetadata.getSettings();
+                final boolean hasBlockSetting = block.setting().get(indexSettings);
+
+                // Check for both setting-based blocks and UUID-based temporary blocks
+                boolean hasAnyBlock = hasBlockSetting;
+                boolean hasUUIDBlock = false;
+
+                // Check for UUID-based blocks (temporary blocks created during add operation)
+                final Set<ClusterBlock> clusterBlocks = currentState.blocks().indices(projectId).get(index.getName());
+                if (clusterBlocks != null) {
+                    for (ClusterBlock clusterBlock : clusterBlocks) {
+                        if (clusterBlock.id() == block.block.id()) {
+                            hasAnyBlock = true;
+                            if (clusterBlock.uuid() != null) {
+                                hasUUIDBlock = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (hasAnyBlock == false) {
+                    // No block found (neither setting-based nor UUID-based)
+                    results.put(index.getName(), new RemoveBlockResult(index));
+                    continue;
+                }
+
+                // Remove the block setting if it exists
+                if (hasBlockSetting) {
+                    final Settings.Builder updatedSettings = Settings.builder().put(indexSettings);
+                    updatedSettings.remove(block.settingName());
+
+                    final IndexMetadata updatedMetadata = IndexMetadata.builder(indexMetadata)
+                        .settings(updatedSettings)
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                        .build();
+
+                    metadata.getProject(projectId).put(updatedMetadata, true);
+                }
+
+                // Remove all blocks with the same ID (including UUID-based temporary blocks)
+                if (hasUUIDBlock) {
+                    blocks.removeIndexBlockWithId(projectId, index.getName(), block.block.id());
+                } else {
+                    blocks.removeIndexBlock(projectId, index.getName(), block.block);
+                }
+
+                effectivelyUnblockedIndices.add(index.getName());
+                results.put(index.getName(), new RemoveBlockResult(index));
+
+                logger.debug("remove block {} from index {} succeeded", block.block, index);
+            } catch (final IndexNotFoundException e) {
+                logger.debug("index {} has been deleted since removing block started, ignoring", index);
+                results.put(index.getName(), new RemoveBlockResult(index, e));
+            }
+        }
+
+        logger.info("completed removing [index.blocks.{}] block from indices {}", block.name, effectivelyUnblockedIndices);
+        return Tuple.tuple(ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build(), List.copyOf(results.values()));
     }
 
     private class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {

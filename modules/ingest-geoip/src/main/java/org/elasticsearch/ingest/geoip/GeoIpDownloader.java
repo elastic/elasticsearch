@@ -220,7 +220,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error(() -> "error downloading geoip database [" + name + "] for project" + projectId + "]", e);
+            logger.error(() -> "error downloading geoip database [" + name + "] for project [" + projectId + "]", e);
         }
     }
 

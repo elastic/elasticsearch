@@ -196,6 +196,7 @@ class KMeansLocal {
 
             int bestAssignment = -1;
             float minSoar = Float.MAX_VALUE;
+            assert neighborhoods.get(currAssignment) != null;
             for (int neighbor : neighborhoods.get(currAssignment)) {
                 if (neighbor == currAssignment) {
                     continue;
@@ -260,7 +261,7 @@ class KMeansLocal {
             computeNeighborhoods(centroids, neighborhoods, clustersPerNeighborhood);
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
-        if (neighborAware) {
+        if (neighborAware && clustersPerNeighborhood > 0) {
             int[] assignments = kMeansIntermediate.assignments();
             assert assignments != null;
             assert assignments.length == vectors.size();

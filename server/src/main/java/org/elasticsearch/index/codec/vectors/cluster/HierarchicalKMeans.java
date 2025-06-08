@@ -58,7 +58,7 @@ public class HierarchicalKMeans {
         }
 
         // if we have a small number of vectors pick one and output that as the centroid
-        if (vectors.size() < targetSize) {
+        if (vectors.size() <= targetSize) {
             float[] centroid = new float[dimension];
             System.arraycopy(vectors.vectorValue(0), 0, centroid, 0, dimension);
             return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()]);

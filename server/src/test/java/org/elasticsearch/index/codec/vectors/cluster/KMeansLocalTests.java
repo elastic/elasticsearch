@@ -23,7 +23,7 @@ public class KMeansLocalTests extends ESTestCase {
         int nClusters = random().nextInt(1, 10);
         int nVectors = random().nextInt(nClusters * 100, nClusters * 200);
         int dims = random().nextInt(2, 20);
-        int sampleSize = random().nextInt(100, nVectors);
+        int sampleSize = random().nextInt(100, nVectors + 1);
         int maxIterations = random().nextInt(0, 100);
         int clustersPerNeighborhood = random().nextInt(0, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);

@@ -143,3 +143,106 @@ The API returns following response:
 }
 ```
 
+
+## Remove index block API [remove-index-block]
+
+Removes an index block from an index. Unlike the add index block API, this operation doesn't require shard-level verification and completes immediately after updating the cluster metadata.
+
+```console
+DELETE /my-index-000001/_block/write
+```
+
+
+### {{api-request-title}} [remove-index-block-api-request]
+
+`DELETE /<index>/_block/<block>`
+
+
+### {{api-path-parms-title}} [remove-index-block-api-path-params]
+
+`<index>`
+:   (Optional, string) Comma-separated list or wildcard expression of index names used to limit the request.
+
+    By default, you must explicitly name the indices you are removing blocks from. To allow the removal of blocks from indices with `_all`, `*`, or other wildcard expressions, change the `action.destructive_requires_name` setting to `false`. You can update this setting in the `elasticsearch.yml` file or using the [cluster update settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API.
+
+
+`<block>`
+:   (Required, string) Block type to remove from the index.
+
+    **Valid values**:
+
+    `metadata`
+    :   Remove metadata block, allowing metadata changes.
+
+    `read`
+    :   Remove read block, allowing read operations.
+
+    `read_only`
+    :   Remove read-only block, allowing write operations and metadata changes.
+
+    `write`
+    :   Remove write block, allowing write operations.
+
+    ::::
+
+
+
+### {{api-query-parms-title}} [remove-index-block-api-query-params]
+
+`allow_no_indices`
+:   (Optional, Boolean) If `false`, the request returns an error if any wildcard expression, [index alias](docs-content://manage-data/data-store/aliases.md), or `_all` value targets only missing or closed indices. This behavior applies even if the request targets other open indices. For example, a request targeting `foo*,bar*` returns an error if an index starts with `foo` but no index starts with `bar`.
+
+    Defaults to `true`.
+
+
+`expand_wildcards`
+:   (Optional, string) Type of index that wildcard patterns can match. If the request can target data streams, this argument determines whether wildcard expressions match hidden data streams. Supports comma-separated values, such as `open,hidden`. Valid values are:
+
+`all`
+:   Match any data stream or index, including [hidden](/reference/elasticsearch/rest-apis/api-conventions.md#multi-hidden) ones.
+
+`open`
+:   Match open, non-hidden indices. Also matches any non-hidden data stream.
+
+`closed`
+:   Match closed, non-hidden indices. Also matches any non-hidden data stream. Data streams cannot be closed.
+
+`hidden`
+:   Match hidden data streams and hidden indices. Must be combined with `open`, `closed`, or both.
+
+`none`
+:   Wildcard patterns are not accepted.
+
+Defaults to `open`.
+
+
+`ignore_unavailable`
+:   (Optional, Boolean) If `false`, the request returns an error if it targets a missing or closed index. Defaults to `false`.
+
+`master_timeout`
+:   (Optional, [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Period to wait for the master node. If the master node is not available before the timeout expires, the request fails and returns an error. Defaults to `30s`. Can also be set to `-1` to indicate that the request should never timeout.
+
+`timeout`
+:   (Optional, [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Period to wait for a response from all relevant nodes in the cluster after updating the cluster metadata. If no response is received before the timeout expires, the cluster metadata update still applies but the response will indicate that it was not completely acknowledged. Defaults to `30s`. Can also be set to `-1` to indicate that the request should never timeout.
+
+
+### {{api-examples-title}} [remove-index-block-api-example]
+
+The following example shows how to remove an index block:
+
+```console
+DELETE /my-index-000001/_block/write
+```
+
+The API returns following response:
+
+```console-result
+{
+  "acknowledged" : true,
+  "indices" : [ {
+    "name" : "my-index-000001",
+    "unblocked" : true
+  } ]
+}
+```
+

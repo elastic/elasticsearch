@@ -24,7 +24,16 @@
         index: test_index
 
   - do:
-      indices.put_settings:
+      indices.remove_block:
         index: test_index
-        body:
-          index.blocks.write: false
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: test_index
+        body: { foo: bar }
+
+  - do:
+      search:
+        index: test_index

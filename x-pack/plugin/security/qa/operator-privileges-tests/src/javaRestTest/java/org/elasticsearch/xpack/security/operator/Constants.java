@@ -493,6 +493,8 @@ public class Constants {
         "indices:admin/auto_create",
         "indices:admin/block/add",
         "indices:admin/block/add[s]",
+        "indices:admin/block/remove",
+        "indices:admin/block/remove[s]",
         "indices:admin/cache/clear",
         "indices:admin/data_stream/lazy_rollover",
         "indices:internal/admin/ccr/restore/file_chunk/get",

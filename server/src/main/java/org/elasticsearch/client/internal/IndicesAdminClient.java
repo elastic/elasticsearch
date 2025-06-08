@@ -66,7 +66,11 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -217,6 +221,14 @@ public class IndicesAdminClient implements ElasticsearchClient {
 
     public void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener) {
         execute(TransportAddIndexBlockAction.TYPE, request, listener);
+    }
+
+    public RemoveIndexBlockRequestBuilder prepareRemoveBlock(APIBlock block, String... indices) {
+        return new RemoveIndexBlockRequestBuilder(this, block, indices);
+    }
+
+    public void removeBlock(RemoveIndexBlockRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
+        execute(TransportRemoveIndexBlockAction.TYPE, request, listener);
     }
 
     public OpenIndexRequestBuilder prepareOpen(String... indices) {

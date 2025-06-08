@@ -155,4 +155,40 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         assertTrue("write block is set on index1", state.getBlocks().hasIndexBlock("index1", IndexMetadata.INDEX_WRITE_BLOCK));
         assertTrue("write block is set on 1index", state.getBlocks().hasIndexBlock("1index", IndexMetadata.INDEX_WRITE_BLOCK));
     }
+
+    public void testRemoveIndexBlockIsRejected() throws Exception {
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
+
+        createIndex("index1", "1index");
+        // Add blocks first
+        assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
+
+        // Should succeed, since no wildcards
+        assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "1index").get());
+        // Special "match none" pattern succeeds, since non-destructive
+        assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "*", "-*").get());
+
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareRemoveBlock(WRITE, "i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareRemoveBlock(WRITE, "_all"));
+    }
+
+    public void testRemoveIndexBlockDefaultBehaviour() throws Exception {
+        if (randomBoolean()) {
+            updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
+        }
+
+        createIndex("index1", "1index");
+        // Add blocks first
+        assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
+
+        if (randomBoolean()) {
+            assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "_all").get());
+        } else {
+            assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "*").get());
+        }
+
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertFalse("write block is removed from index1", state.getBlocks().hasIndexBlock("index1", IndexMetadata.INDEX_WRITE_BLOCK));
+        assertFalse("write block is removed from 1index", state.getBlocks().hasIndexBlock("1index", IndexMetadata.INDEX_WRITE_BLOCK));
+    }
 }

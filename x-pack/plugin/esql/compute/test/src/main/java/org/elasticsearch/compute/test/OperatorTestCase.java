@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -249,9 +250,20 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
             for (Page page : input) {
-                operator.addInput(page);
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
             }
             operator.finish();
+            // for async operator, we need to wait for async actions to finish.
+            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+            }
         }
     }
 

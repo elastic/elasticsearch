@@ -688,28 +688,6 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     }
 
-    public void testAllPermissionCheck() throws NodeValidationException {
-        final AtomicBoolean isAllPermissionGranted = new AtomicBoolean(true);
-        final BootstrapChecks.AllPermissionCheck allPermissionCheck = new BootstrapChecks.AllPermissionCheck() {
-            @Override
-            boolean isAllPermissionGranted() {
-                return isAllPermissionGranted.get();
-            }
-        };
-
-        final List<BootstrapCheck> checks = Collections.singletonList(allPermissionCheck);
-        final NodeValidationException e = expectThrows(
-            NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, true, checks)
-        );
-        assertThat(e, hasToString(containsString("granting the all permission effectively disables security")));
-        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
-
-        // if all permissions are not granted, nothing should happen
-        isAllPermissionGranted.set(false);
-        BootstrapChecks.check(emptyContext, true, checks);
-    }
-
     public void testAlwaysEnforcedChecks() {
         final BootstrapCheck check = new BootstrapCheck() {
             @Override

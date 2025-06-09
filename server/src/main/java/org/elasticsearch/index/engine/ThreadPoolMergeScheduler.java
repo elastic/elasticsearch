@@ -224,7 +224,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // package-private for tests
     MergeTask newMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         // forced merges, as well as merges triggered when closing a shard, always run un-IO-throttled
-        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
+        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments == -1;
         // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
         long estimateMergeMemoryBytes = mergeMemoryEstimateProvider.estimateMergeMemoryBytes(merge);
         return new MergeTask(
@@ -357,7 +357,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 // This Directory is only supposed to be used during merging,
                 // so all writes should have MERGE context, else there is a bug
                 // somewhere that is failing to pass down the right IOContext:
-                assert context.context() == IOContext.Context.MERGE : "got context=" + context.context();
+                assert context.context == IOContext.Context.MERGE : "got context=" + context.context;
 
                 return new RateLimitedIndexOutput(mergeTask.rateLimiter, in.createOutput(name, context));
             }
@@ -525,7 +525,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         long estimatedRemainingMergeSize() {
             // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
             // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
-            long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+            long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes;
             return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
         }
 

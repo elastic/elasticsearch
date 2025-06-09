@@ -356,7 +356,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             assertThat(attributes.get("task_type"), is(model.getTaskType().toString()));
             assertThat(attributes.get("model_id"), is(model.getServiceSettings().modelId()));
             assertThat(attributes.get("service"), is(model.getConfigurations().getService()));
-            assertThat(attributes.get("source"), is("semantic_text_bulk"));
+            assertThat(attributes.get("inference_source"), is("semantic_text_bulk"));
         }));
         assertThat(success.get(), equalTo(1));
         assertThat(failed.get(), equalTo(2));

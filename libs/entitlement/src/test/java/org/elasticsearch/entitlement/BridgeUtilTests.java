@@ -15,11 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.entitlement.BridgeUtilTests.MockSensitiveClass.mockSensitiveMethod;
 
 /**
- * Note: this is not un the bridge package because that is a uniquely bad one to use for tests.
+ * Note: this is not in the bridge package because that is a uniquely bad one to use for tests.
  * Since:
  * <ol>
  *     <li>
- *         we much patch the bridge module into {@code java.base} for it to be reachable
+ *         we must patch the bridge module into {@code java.base} for it to be reachable
  *         from JDK methods,
  *     </li>
  *     <li>

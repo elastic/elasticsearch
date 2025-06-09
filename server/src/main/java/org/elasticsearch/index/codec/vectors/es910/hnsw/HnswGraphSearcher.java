@@ -20,12 +20,11 @@
 package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.hnsw.HnswGraph;
+import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
@@ -54,55 +53,6 @@ public class HnswGraphSearcher extends AbstractHnswGraphSearcher {
     public HnswGraphSearcher(NeighborQueue candidates, BitSet visited) {
         this.candidates = candidates;
         this.visited = visited;
-    }
-
-    /**
-     * Search {@link OnHeapHnswGraph}, this method is thread safe.
-     *
-     * @param scorer the scorer to compare the query with the nodes
-     * @param topK the number of nodes to be returned
-     * @param graph the graph values. May represent the entire graph, or a level in a hierarchical
-     *     graph.
-     * @param acceptOrds {@link Bits} that represents the allowed document ordinals to match, or
-     *     {@code null} if they are all allowed to match.
-     * @param visitedLimit the maximum number of nodes that the search is allowed to visit
-     * @return a set of collected vectors holding the nearest neighbors found
-     */
-    public static KnnCollector search(RandomVectorScorer scorer, int topK, OnHeapHnswGraph graph, Bits acceptOrds, int visitedLimit)
-        throws IOException {
-        KnnCollector knnCollector = new TopKnnCollector(topK, visitedLimit, null);
-        OnHeapHnswGraphSearcher graphSearcher = new OnHeapHnswGraphSearcher(
-            new NeighborQueue(topK, true),
-            new SparseFixedBitSet(getGraphSize(graph))
-        );
-        graphSearcher.search(knnCollector, scorer, graph, acceptOrds);
-        return knnCollector;
-    }
-
-    /**
-     * Searches for the nearest neighbors of a query vector in a given level.
-     *
-     * <p>If the search stops early because it reaches the visited nodes limit, then the results will
-     * be marked incomplete through {@link NeighborQueue#incomplete()}.
-     *
-     * @param scorer the scorer to compare the query with the nodes
-     * @param topK the number of nearest to query results to return
-     * @param level level to search
-     * @param eps the entry points for search at this level expressed as level 0th ordinals
-     * @param graph the graph values
-     * @return a set of collected vectors holding the nearest neighbors found
-     */
-    public HnswGraphBuilder.GraphBuilderKnnCollector searchLevel(
-        // Note: this is only public because Lucene91HnswGraphBuilder needs it
-        RandomVectorScorer scorer,
-        int topK,
-        int level,
-        final int[] eps,
-        HnswGraph graph
-    ) throws IOException {
-        HnswGraphBuilder.GraphBuilderKnnCollector results = new HnswGraphBuilder.GraphBuilderKnnCollector(topK);
-        searchLevel(results, scorer, level, eps, graph, null);
-        return results;
     }
 
     /**
@@ -270,37 +220,5 @@ public class HnswGraphSearcher extends AbstractHnswGraphSearcher {
 
     static int getGraphSize(HnswGraph graph) {
         return graph.maxNodeId() + 1;
-    }
-
-    /**
-     * This class allows {@link OnHeapHnswGraph} to be searched in a thread-safe manner by avoiding
-     * the unsafe methods (seek and nextNeighbor, which maintain state in the graph object) and
-     * instead maintaining the state in the searcher object.
-     *
-     * <p>Note the class itself is NOT thread safe, but since each search will create a new Searcher,
-     * the search methods using this class are thread safe.
-     */
-    private static class OnHeapHnswGraphSearcher extends HnswGraphSearcher {
-
-        private NeighborArray cur;
-        private int upto;
-
-        private OnHeapHnswGraphSearcher(NeighborQueue candidates, BitSet visited) {
-            super(candidates, visited);
-        }
-
-        @Override
-        void graphSeek(HnswGraph graph, int level, int targetNode) {
-            cur = ((OnHeapHnswGraph) graph).getNeighbors(level, targetNode);
-            upto = -1;
-        }
-
-        @Override
-        int graphNextNeighbor(HnswGraph graph) {
-            if (++upto < cur.size()) {
-                return cur.nodes()[upto];
-            }
-            return NO_MORE_DOCS;
-        }
     }
 }

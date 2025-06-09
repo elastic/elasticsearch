@@ -41,13 +41,6 @@ final class HnswLock {
         }
     }
 
-    Lock read(int level, int node) {
-        int lockid = hash(level, node) % NUM_LOCKS;
-        Lock lock = locks[lockid].readLock();
-        lock.lock();
-        return lock;
-    }
-
     Lock write(int level, int node) {
         int lockid = hash(level, node) % NUM_LOCKS;
         Lock lock = locks[lockid].writeLock();

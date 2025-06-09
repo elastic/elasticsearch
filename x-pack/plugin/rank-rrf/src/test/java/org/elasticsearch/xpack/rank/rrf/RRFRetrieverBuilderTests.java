@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
     public void testSimplifiedParamsRewrite() {
         final String indexName = "test-index";
         final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields);
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
         final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
             parserConfig(),
             null,
@@ -162,6 +163,36 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
     }
 
+    public void testSearchRemoteIndex() {
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            "local-index",
+            List.of(),
+            Map.of("remote-cluster", "remote-index")
+        );
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            null,
+            "foo",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+        );
+
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> rrfRetrieverBuilder.doRewrite(queryRewriteContext)
+        );
+        assertEquals("[rrf] does not support the simplified query format when querying remote indices", iae.getMessage());
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new SearchModule(Settings.EMPTY, List.of()).getNamedXContents();
@@ -183,8 +214,12 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         return new NamedXContentRegistry(entries);
     }
 
-    private static ResolvedIndices createMockResolvedIndices(String indexName, List<String> inferenceFields) {
-        Index index = new Index(indexName, randomAlphaOfLength(10));
+    private static ResolvedIndices createMockResolvedIndices(
+        String localIndexName,
+        List<String> inferenceFields,
+        Map<String, String> remoteIndexNames
+    ) {
+        Index index = new Index(localIndexName, randomAlphaOfLength(10));
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
             .settings(
                 Settings.builder()
@@ -200,9 +235,16 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             );
         }
 
+        Map<String, OriginalIndices> remoteIndices = new HashMap<>();
+        if (remoteIndexNames != null) {
+            for (Map.Entry<String, String> entry : remoteIndexNames.entrySet()) {
+                remoteIndices.put(entry.getKey(), new OriginalIndices(new String[] { entry.getValue() }, IndicesOptions.DEFAULT));
+            }
+        }
+
         return new MockResolvedIndices(
-            Map.of(),
-            new OriginalIndices(new String[] { indexName }, IndicesOptions.DEFAULT),
+            remoteIndices,
+            new OriginalIndices(new String[] { localIndexName }, IndicesOptions.DEFAULT),
             Map.of(index, indexMetadataBuilder.build())
         );
     }

@@ -13,16 +13,14 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
@@ -62,8 +60,18 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
+            var textRef = parser.getValueAsText();
+            assertThat(textRef, Matchers.notNullValue());
+            assertTextRef(textRef.bytes(), "bar\"baz\"");
+        });
+
+        testParseJson("{\"foo\": \"b\\u00e5r\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+
             assertThat(parser.getValueAsText(), Matchers.nullValue());
-            assertThat(parser.getValueAsString(), Matchers.equalTo("bar\"baz\""));
+            assertThat(parser.getValueAsString(), Matchers.equalTo("bår"));
         });
 
         testParseJson("{\"foo\": \"bår\"}", parser -> {
@@ -112,43 +120,98 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         });
     }
 
-    private boolean validForTextRef(String value) {
-        for (char c : value.toCharArray()) {
-            if (c == '"') {
-                return false;
+    private record TestInput(String input, String result, boolean supportsOptimized) {}
+
+    private static final TestInput[] ESCAPE_SEQUENCES = {
+        new TestInput("\\b", "\b", false),
+        new TestInput("\\t", "\t", false),
+        new TestInput("\\n", "\n", false),
+        new TestInput("\\f", "\f", false),
+        new TestInput("\\r", "\r", false),
+        new TestInput("\\\"", "\"", true),
+        new TestInput("\\/", "/", true),
+        new TestInput("\\\\", "\\", true) };
+
+    private int randomCodepoint(boolean includeAscii) {
+        while (true) {
+            char val = Character.toChars(randomInt(0xFFFF))[0];
+            if (val <= 0x7f && includeAscii == false) {
+                continue;
             }
-            if (c == '\\') {
-                return false;
+            if (val >= Character.MIN_SURROGATE && val <= Character.MAX_SURROGATE) {
+                continue;
             }
-            if ((int) c < 32 || (int) c >= 128) {
-                return false;
+            return val;
+        }
+    }
+
+    private TestInput buildRandomInput(int length) {
+        StringBuilder input = new StringBuilder(length);
+        StringBuilder result = new StringBuilder(length);
+        boolean forceSupportOptimized = randomBoolean();
+        boolean doesSupportOptimized = true;
+        for (int i = 0; i < length; ++i) {
+            if (forceSupportOptimized == false && randomBoolean()) {
+                switch (randomInt(9)) {
+                    case 0 -> {
+                        var escape = randomFrom(ESCAPE_SEQUENCES);
+                        input.append(escape.input());
+                        result.append(escape.result());
+                        doesSupportOptimized = doesSupportOptimized && escape.supportsOptimized();
+                    }
+                    case 1 -> {
+                        int value = randomCodepoint(true);
+                        input.append(String.format(Locale.ENGLISH, "\\u%04x", value));
+                        result.append(Character.toChars(value));
+                        doesSupportOptimized = false;
+                    }
+                    default -> {
+                        var value = Character.toChars(randomCodepoint(false));
+                        input.append(value);
+                        result.append(value);
+                        doesSupportOptimized = false;
+                    }
+                }
+            } else {
+                var value = randomAlphanumericOfLength(1);
+                input.append(value);
+                result.append(value);
             }
         }
-        return true;
+        return new TestInput(input.toString(), result.toString(), doesSupportOptimized);
     }
 
     public void testGetValueRandomized() throws IOException {
-        XContentBuilder jsonBuilder = JsonXContent.contentBuilder().startObject();
+        StringBuilder inputBuilder = new StringBuilder();
+        inputBuilder.append('{');
+
         final int numKeys = 128;
         String[] keys = new String[numKeys];
-        String[] values = new String[numKeys];
+        TestInput[] inputs = new TestInput[numKeys];
         for (int i = 0; i < numKeys; i++) {
             String currKey = randomAlphanumericOfLength(6);
-            String currVal = randomUnicodeOfLengthBetween(0, 512);
-            jsonBuilder.field(currKey, currVal);
+            var currVal = buildRandomInput(randomInt(512));
+            inputBuilder.append('"');
+            inputBuilder.append(currKey);
+            inputBuilder.append("\":\"");
+            inputBuilder.append(currVal.input());
+            inputBuilder.append('"');
+            if (i < numKeys - 1) {
+                inputBuilder.append(',');
+            }
             keys[i] = currKey;
-            values[i] = currVal;
+            inputs[i] = currVal;
         }
 
-        jsonBuilder.endObject();
-        testParseJson(Strings.toString(jsonBuilder), parser -> {
+        inputBuilder.append('}');
+        testParseJson(inputBuilder.toString(), parser -> {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
             for (int i = 0; i < numKeys; i++) {
                 assertThat(parser.nextFieldName(), Matchers.equalTo(keys[i]));
                 assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-                String currVal = values[i];
-                if (validForTextRef(currVal)) {
+                String currVal = inputs[i].result();
+                if (inputs[i].supportsOptimized()) {
                     assertTextRef(parser.getValueAsText().bytes(), currVal);
                 } else {
                     assertThat(parser.getValueAsText(), Matchers.nullValue());

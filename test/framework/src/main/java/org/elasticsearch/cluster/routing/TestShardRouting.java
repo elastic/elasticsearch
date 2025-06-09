@@ -276,7 +276,7 @@ public class TestShardRouting {
                 IndexVersion.current(),
                 new IndexId("some_index", randomUUID())
             ),
-            new RecoverySource.SplitTargetRecoverySource(new ShardId("some_index", randomUUID(), randomIntBetween(0, 1000)))
+            new RecoverySource.ReshardSplitTargetRecoverySource(new ShardId("some_index", randomUUID(), randomIntBetween(0, 1000)))
         );
     }
 }

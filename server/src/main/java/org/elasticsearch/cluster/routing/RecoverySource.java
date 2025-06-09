@@ -32,7 +32,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
- * - {@link SplitTargetRecoverySource} recovery of a shard that is created as a result of a resharding split
+ * - {@link ReshardSplitTargetRecoverySource} recovery of a shard that is created as a result of a resharding split
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
@@ -61,7 +61,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             case PEER -> PeerRecoverySource.INSTANCE;
             case SNAPSHOT -> new SnapshotRecoverySource(in);
             case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
-            case RESHARD_SPLIT_TARGET -> new SplitTargetRecoverySource(in);
+            case RESHARD_SPLIT_TARGET -> new ReshardSplitTargetRecoverySource(in);
         };
     }
 
@@ -330,14 +330,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
      * Recovery of a shard that is created as a result of a resharding split.
      * Not to be confused with _split API.
      */
-    public static class SplitTargetRecoverySource extends RecoverySource {
+    public static class ReshardSplitTargetRecoverySource extends RecoverySource {
         private final ShardId sourceShardId;
 
-        public SplitTargetRecoverySource(ShardId sourceShardId) {
+        public ReshardSplitTargetRecoverySource(ShardId sourceShardId) {
             this.sourceShardId = sourceShardId;
         }
 
-        SplitTargetRecoverySource(StreamInput in) throws IOException {
+        ReshardSplitTargetRecoverySource(StreamInput in) throws IOException {
             sourceShardId = new ShardId(in);
         }
 

@@ -14,13 +14,13 @@ import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
@@ -32,12 +32,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.entitlement.initialization.EntitlementInitialization.initInstrumentation;
+
 /**
  * Test-specific version of {@code EntitlementInitialization}
  */
 public class TestEntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker checker;
+    public static InitializeArgs initializeArgs;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
@@ -45,9 +48,11 @@ public class TestEntitlementInitialization {
     }
 
     public static void initialize(Instrumentation inst) throws Exception {
-        TestEntitlementBootstrap.BootstrapArgs bootstrapArgs = TestEntitlementBootstrap.bootstrapArgs();
-        checker = EntitlementInitialization.initChecker(inst, createPolicyManager(bootstrapArgs.pathLookup()));
+        checker = EntitlementInitialization.initChecker(createPolicyManager(initializeArgs.pathLookup()));
+        initInstrumentation(inst);
     }
+
+    public record InitializeArgs(PathLookup pathLookup) {}
 
     private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 
@@ -105,7 +110,7 @@ public class TestEntitlementInitialization {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        PolicyManager policyManager = new PolicyManager(
+        return new TestPolicyManager(
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
@@ -113,6 +118,6 @@ public class TestEntitlementInitialization {
             Map.of(),
             pathLookup
         );
-        throw new IllegalStateException("Not yet implemented!");
     }
+
 }

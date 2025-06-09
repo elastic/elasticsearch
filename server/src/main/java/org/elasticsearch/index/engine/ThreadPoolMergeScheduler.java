@@ -56,7 +56,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
         16,
-        Comparator.comparingLong(MergeTask::estimatedMergeSize)
+        Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
     );
     private final Map<MergePolicy.OneMerge, MergeTask> runningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
@@ -271,7 +271,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // exposed for tests
     // synchronized so that {@code #closed}, {@code #runningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     synchronized Schedule schedule(MergeTask mergeTask) {
-        assert mergeTask.isRunning() == false;
+        assert mergeTask.hasStartedRunning() == false;
         if (closed) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
             return Schedule.ABORT;
@@ -285,6 +285,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return Schedule.RUN;
         } else {
+            assert mergeTask.hasStartedRunning() == false;
             backloggedMergeTasks.add(mergeTask);
             return Schedule.BACKLOG;
         }
@@ -409,8 +410,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.rateLimiter.setMBPerSec(ByteSizeValue.ofBytes(ioRateLimitBytesPerSec).getMbFrac());
         }
 
-        public boolean isRunning() {
-            return mergeStartTimeNS.get() > 0L;
+        /**
+         * Returns {@code true} if this task is currently running, or was run in the past.
+         * An aborted task (see {@link #abort()}) is considered as NOT run.
+         */
+        public boolean hasStartedRunning() {
+            boolean isRunning = mergeStartTimeNS.get() > 0L;
+            assert isRunning != false || rateLimiter.getTotalBytesWritten() == 0L;
+            return isRunning;
         }
 
         /**
@@ -421,7 +428,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          */
         @Override
         public void run() {
-            assert isRunning() == false;
+            assert hasStartedRunning() == false;
             assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the merge task";
             boolean success = false;
@@ -493,7 +500,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          * (by the {@link org.apache.lucene.index.IndexWriter}) to any subsequent merges.
          */
         void abort() {
-            assert isRunning() == false;
+            assert hasStartedRunning() == false;
             assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge()) == false
                 : "cannot abort a merge task that's already running";
             if (verbose()) {
@@ -522,10 +529,17 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             }
         }
 
-        long estimatedMergeSize() {
+        /**
+         * Before the merge task started running, this returns the estimated required disk space for the merge to complete
+         * (i.e. the estimated disk space size of the resulting segment following the merge).
+         * While the merge is running, the returned estimation is updated to take into account the data that's already been written.
+         * After the merge completes, the estimation returned here should ideally be close to "0".
+         */
+        long estimatedRemainingMergeSize() {
             // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
             // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
-            return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+            long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+            return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
         }
 
         public long getMergeMemoryEstimateBytes() {

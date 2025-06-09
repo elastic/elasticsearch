@@ -28,6 +28,8 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
     protected int stringEnd = -1;
     protected int stringLength;
 
+    private final List<Integer> backslashes = new ArrayList<>();
+
     public ESUTF8StreamJsonParser(
         IOContext ctxt,
         int features,
@@ -70,7 +72,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         final int max = _inputEnd;
         final byte[] inputBuffer = _inputBuffer;
         stringLength = 0;
-        List<Integer> backslashes = null;
+        backslashes.clear();
 
         loop: while (ptr < max) {
             int c = inputBuffer[ptr] & 0xFF;
@@ -85,9 +87,6 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                         break loop;
                     }
                     assert c == INT_BACKSLASH;
-                    if (backslashes == null) {
-                        backslashes = new ArrayList<>();
-                    }
                     backslashes.add(ptr);
                     ++ptr;
                     if (ptr >= max) {
@@ -119,7 +118,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         }
 
         stringEnd = ptr + 1;
-        if (backslashes == null) {
+        if (backslashes.isEmpty()) {
             return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, ptr - startPtr), stringLength);
         } else {
             byte[] buff = new byte[ptr - startPtr - backslashes.size()];

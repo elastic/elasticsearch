@@ -316,7 +316,6 @@ public class IndicesService extends AbstractLifecycleComponent
             clusterService.getClusterSettings(),
             nodeEnv
         );
-        this.projectResolver = builder.projectResolver;
         this.client = builder.client;
         this.featureService = builder.featureService;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());

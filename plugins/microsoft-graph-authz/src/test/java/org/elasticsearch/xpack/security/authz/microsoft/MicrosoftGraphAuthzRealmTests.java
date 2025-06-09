@@ -135,9 +135,9 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
 
         final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
         final var future = new PlainActionFuture<User>();
-        realm.lookupUser(username, future);
-
         try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
+            realm.lookupUser(username, future);
+
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "Fetch user properties",

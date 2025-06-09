@@ -341,7 +341,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveFields().and(resolveQuery()).and(resolveOptions()).and(checkParamCompatibility());
+        return resolveFields().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
     }
 
     private TypeResolution resolveFields() {
@@ -517,24 +517,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             // Translate to Match when having exactly one field.
             return new MatchQuery(source(), fieldsWithBoost.keySet().stream().findFirst().get(), queryAsObject(), options);
         }
-    }
-
-    private static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
-        String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-            fieldName = multiTypeEsField.getName();
-        }
-        return fieldName;
-    }
-
-    private static FieldAttribute fieldAsFieldAttribute(Expression field) {
-        Expression fieldExpression = field;
-        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
-        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
-            fieldExpression = convertFunction.field();
-        }
-        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
     }
 
     @Override

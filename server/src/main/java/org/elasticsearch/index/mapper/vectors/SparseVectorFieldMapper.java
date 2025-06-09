@@ -201,6 +201,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isVectorEmbedding() {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[sparse_vector] fields do not support sorting, scripting or aggregating");
         }

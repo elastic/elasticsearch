@@ -208,8 +208,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 b.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
             }
             if (dropNullColumns) {
-                b.append(ResponseXContentUtils.allColumns(columns, "all_columns"))
-                    .append(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
+                b.append(ResponseXContentUtils.allColumns(columns, "all_columns"));
+                b.append(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
             } else {
                 b.append(ResponseXContentUtils.allColumns(columns, "columns"));
             }
@@ -218,7 +218,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 b.field("_clusters", executionInfo);
             }
             if (profile != null) {
-                b.field("profile", profile);
+                b.field("profile", p -> ChunkedToXContent.builder(p).object(ob -> {
+                    if (executionInfo != null) {
+                        ob.field("query", executionInfo.overallTimeSpan());
+                        ob.field("planning", executionInfo.planningTimeSpan());
+                    }
+                    ob.array("drivers", profile.drivers.iterator(), ChunkedToXContentBuilder::append);
+                }));
             }
         });
     }
@@ -324,7 +330,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public static class Profile implements Writeable, ChunkedToXContentObject {
+    public static class Profile implements Writeable {
         private final List<DriverProfile> drivers;
 
         public Profile(List<DriverProfile> drivers) {
@@ -355,12 +361,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Override
         public int hashCode() {
             return Objects.hash(drivers);
-        }
-
-        @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContent.builder(params)
-                .object(ob -> ob.array("drivers", drivers.iterator(), ChunkedToXContentBuilder::append));
         }
 
         List<DriverProfile> drivers() {

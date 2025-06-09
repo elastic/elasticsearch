@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.sort;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BinarySearcher;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
@@ -27,6 +28,7 @@ public class LongTopNSet implements Releasable {
 
     private final LongArray values;
     private final LongBinarySearcher searcher;
+    private final LongHash seenValues;
 
     private int count;
 
@@ -34,8 +36,17 @@ public class LongTopNSet implements Releasable {
         this.order = order;
         this.limit = limit;
         this.count = 0;
-        this.values = bigArrays.newLongArray(limit, false);
-        this.searcher = new LongBinarySearcher(values, order);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(limit, false);
+            this.searcher = new LongBinarySearcher(values, order);
+            this.seenValues = new LongHash(limit, 0.05f, bigArrays);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     /**
@@ -55,6 +66,11 @@ public class LongTopNSet implements Releasable {
         if (count == 0) {
             values.set(0, value);
             count++;
+            return true;
+        }
+
+        if (seenValues.add(value) < 0) {
+            // The value was already added
             return true;
         }
 
@@ -168,6 +184,6 @@ public class LongTopNSet implements Releasable {
 
     @Override
     public final void close() {
-        Releasables.close(values);
+        Releasables.close(values, seenValues);
     }
 }

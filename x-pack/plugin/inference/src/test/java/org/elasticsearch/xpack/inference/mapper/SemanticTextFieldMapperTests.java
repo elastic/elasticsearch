@@ -399,7 +399,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     useLegacyFormat
                 )
             );
-            assertThat(e.getMessage(), containsString("Failed to parse mapping: Wrong [task_type]"));
+            assertThat(e.getMessage(), containsString("Invalid task_type in model_settings"));
         }
     }
 
@@ -1133,7 +1133,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 inferenceId,
                 modelSettings,
                 generateRandomChunkingSettings(),
-                randomSemanticTextIndexOptions(TaskType.TEXT_EMBEDDING),
+                modelSettings.taskType() == TaskType.TEXT_EMBEDDING ? randomSemanticTextIndexOptions(TaskType.TEXT_EMBEDDING) : null,
                 Map.of()
             ),
             XContentType.JSON

@@ -1187,19 +1187,25 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         MinimalServiceSettings modelSettings
     ) {
+
+        if (modelSettings.dimensions() == null) {
+            return null; // Cannot determine default index options without dimensions
+        }
+
         DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = null;
 
         // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
         // options
         if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
             || indexVersionCreated.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+
             DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswIndexOptions = defaultBbqHnswDenseVectorIndexOptions();
             defaultIndexOptions = defaultBbqHnswIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)
                 ? defaultBbqHnswIndexOptions
                 : null;
         }
 
-        // Older indices or those incompatible with BBQ will continue to use legacy defaults
+        // Older indices or those incompatible with BBQ will continue to use legacy defaults, we specify them to ensure they are serialized
         if (defaultIndexOptions == null) {
             defaultIndexOptions = legacyDefaultDenseVectorIndexOptions();
         }

@@ -9,10 +9,14 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -45,6 +49,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -453,82 +458,87 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return true;
     }
 
+    protected IndexReaderManager getIndexReaderManager() {
+        return NullIndexReaderManager.INSTANCE;
+    }
+
     /**
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
      */
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
-            SearchExecutionContext context = createSearchExecutionContext();
-            assert context.isCacheable();
-            context.setAllowUnmappedFields(true);
-            QB firstQuery = createTestQueryBuilder();
-            QB controlQuery = copyQuery(firstQuery);
-            /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
-             * We do it this way in SearchService where
-             * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
-            QueryBuilder rewritten = rewriteQuery(firstQuery, createQueryRewriteContext(), new SearchExecutionContext(context));
-            Query firstLuceneQuery = rewritten.toQuery(context);
-            assertNotNull("toQuery should not return null", firstLuceneQuery);
-            assertLuceneQuery(firstQuery, firstLuceneQuery, context);
-            // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
-            assertEquals(
-                "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                firstQuery,
-                controlQuery
-            );
-            assertEquals(
-                "equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                controlQuery,
-                firstQuery
-            );
-            assertThat(
-                "query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: "
-                    + firstQuery
-                    + ", secondQuery: "
-                    + controlQuery,
-                controlQuery.hashCode(),
-                equalTo(firstQuery.hashCode())
-            );
-
-            QB secondQuery = copyQuery(firstQuery);
-            // query _name never should affect the result of toQuery, we randomly set it to make sure
-            if (randomBoolean()) {
-                secondQuery.queryName(
-                    secondQuery.queryName() == null
-                        ? randomAlphaOfLengthBetween(1, 30)
-                        : secondQuery.queryName() + randomAlphaOfLengthBetween(1, 10)
-                );
-            }
-            context = new SearchExecutionContext(context);
-            Query secondLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context)).toQuery(
-                context
-            );
-            assertNotNull("toQuery should not return null", secondLuceneQuery);
-            assertLuceneQuery(secondQuery, secondLuceneQuery, context);
-
-            if (builderGeneratesCacheableQueries()) {
+            try (IndexReaderManager irm = getIndexReaderManager()) {
+                SearchExecutionContext context = createSearchExecutionContext(irm.getIndexSearcher());
+                assert context.isCacheable();
+                context.setAllowUnmappedFields(true);
+                QB firstQuery = createTestQueryBuilder();
+                QB controlQuery = copyQuery(firstQuery);
+                /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
+                 * We do it this way in SearchService where
+                 * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
+                QueryBuilder rewritten = rewriteQuery(firstQuery, createQueryRewriteContext(), new SearchExecutionContext(context));
+                Query firstLuceneQuery = rewritten.toQuery(context);
+                assertNotNull("toQuery should not return null", firstLuceneQuery);
+                assertLuceneQuery(firstQuery, firstLuceneQuery, context);
+                // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
                 assertEquals(
-                    "two equivalent query builders lead to different lucene queries hashcode",
-                    secondLuceneQuery.hashCode(),
-                    firstLuceneQuery.hashCode()
+                    "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                    firstQuery,
+                    controlQuery
                 );
                 assertEquals(
-                    "two equivalent query builders lead to different lucene queries",
-                    rewrite(secondLuceneQuery),
-                    rewrite(firstLuceneQuery)
+                    "equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                    controlQuery,
+                    firstQuery
                 );
-            }
+                assertThat(
+                    "query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: "
+                        + firstQuery
+                        + ", secondQuery: "
+                        + controlQuery,
+                    controlQuery.hashCode(),
+                    equalTo(firstQuery.hashCode())
+                );
 
-            if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
-                secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                Query thirdLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context))
+                QB secondQuery = copyQuery(firstQuery);
+                // query _name never should affect the result of toQuery, we randomly set it to make sure
+                if (randomBoolean()) {
+                    secondQuery.queryName(
+                        secondQuery.queryName() == null
+                            ? randomAlphaOfLengthBetween(1, 30)
+                            : secondQuery.queryName() + randomAlphaOfLengthBetween(1, 10)
+                    );
+                }
+                context = new SearchExecutionContext(context);
+                Query secondLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context))
                     .toQuery(context);
-                assertNotEquals(
-                    "modifying the boost doesn't affect the corresponding lucene query",
-                    rewrite(firstLuceneQuery),
-                    rewrite(thirdLuceneQuery)
-                );
+                assertNotNull("toQuery should not return null", secondLuceneQuery);
+                assertLuceneQuery(secondQuery, secondLuceneQuery, context);
+
+                if (builderGeneratesCacheableQueries()) {
+                    assertEquals(
+                        "two equivalent query builders lead to different lucene queries hashcode",
+                        secondLuceneQuery.hashCode(),
+                        firstLuceneQuery.hashCode()
+                    );
+                    assertEquals(
+                        "two equivalent query builders lead to different lucene queries",
+                        rewrite(secondLuceneQuery),
+                        rewrite(firstLuceneQuery)
+                    );
+                }
+
+                if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
+                    secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
+                    Query thirdLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context))
+                        .toQuery(context);
+                    assertNotEquals(
+                        "modifying the boost doesn't affect the corresponding lucene query",
+                        rewrite(firstLuceneQuery),
+                        rewrite(thirdLuceneQuery)
+                    );
+                }
             }
         }
     }
@@ -942,5 +952,69 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, createQueryRewriteContext(), new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public static class IndexReaderManager implements Closeable {
+        private final Directory directory;
+        private RandomIndexWriter indexWriter;
+        private IndexReader indexReader;
+        private IndexSearcher indexSearcher;
+
+        public IndexReaderManager() {
+            this.directory = newDirectory();
+        }
+
+        private IndexReaderManager(Directory directory) {
+            this.directory = directory;
+        }
+
+        public IndexReader getIndexReader() throws IOException {
+            if (indexReader == null) {
+                indexWriter = new RandomIndexWriter(random(), directory);
+                initIndexWriter(indexWriter);
+                indexReader = indexWriter.getReader();
+            }
+            return indexReader;
+        }
+
+        public IndexSearcher getIndexSearcher() throws IOException {
+            if (indexSearcher == null) {
+                indexSearcher = newSearcher(getIndexReader());
+            }
+            return indexSearcher;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (indexReader != null) {
+                indexReader.close();
+            }
+            if (indexWriter != null) {
+                indexWriter.close();
+            }
+            if (directory != null) {
+                directory.close();
+            }
+        }
+
+        protected void initIndexWriter(RandomIndexWriter indexWriter) {}
+    }
+
+    public static class NullIndexReaderManager extends IndexReaderManager {
+        public static final NullIndexReaderManager INSTANCE = new NullIndexReaderManager();
+
+        public NullIndexReaderManager() {
+            super(null);
+        }
+
+        @Override
+        public IndexReader getIndexReader() {
+            return null;
+        }
+
+        @Override
+        public IndexSearcher getIndexSearcher() {
+            return null;
+        }
     }
 }

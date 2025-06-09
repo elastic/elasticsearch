@@ -22,6 +22,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AbstractKnnCollector;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -95,23 +96,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         float[] target,
         IndexInput clusters
     ) throws IOException;
-
-    protected abstract FloatVectorValues getCentroids(IndexInput indexInput, int numCentroids, FieldInfo info) throws IOException;
-
-    public FloatVectorValues getCentroids(FieldInfo fieldInfo) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
-        if (entry == null) {
-            return null;
-        }
-        return getCentroids(entry.centroidSlice(ivfCentroids), entry.postingListOffsets.length, fieldInfo);
-    }
-
-    int centroidSize(String fieldName, int centroidOrdinal) throws IOException {
-        FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldName);
-        FieldEntry entry = fields.get(fieldInfo.number);
-        ivfClusters.seek(entry.postingListOffsets[centroidOrdinal]);
-        return ivfClusters.readVInt();
-    }
 
     private static IndexInput openDataInput(
         SegmentReadState state,
@@ -252,6 +236,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
             return visitedDocs.getAndSet(docId) == false;
         };
+        assert knnCollector instanceof AbstractKnnCollector;
+        AbstractKnnCollector knnCollectorImpl = (AbstractKnnCollector) knnCollector;
         int nProbe = DYNAMIC_NPROBE;
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             nProbe = ivfSearchStrategy.getNProbe();
@@ -280,7 +266,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
-        while (centroidQueue.size() > 0 && centroidsVisited < nProbe && actualDocs < knnCollector.k()) {
+        while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             ++centroidsVisited;
             // todo do we actually need to know the score???
             int centroidOrdinal = centroidQueue.pop();

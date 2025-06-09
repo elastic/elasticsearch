@@ -11,11 +11,9 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
-import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -231,16 +229,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 return docIds[ord];
             }
         };
-    }
-
-    static IVFVectorsReader getIVFReader(KnnVectorsReader vectorsReader, String fieldName) {
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
-            vectorsReader = candidateReader.getFieldReader(fieldName);
-        }
-        if (vectorsReader instanceof IVFVectorsReader reader) {
-            return reader;
-        }
-        return null;
     }
 
     @Override

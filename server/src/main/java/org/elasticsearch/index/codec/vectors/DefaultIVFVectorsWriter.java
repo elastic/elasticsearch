@@ -40,8 +40,6 @@ import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.IVF_VECTOR_
  */
 public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
-    static final float SOAR_LAMBDA = 1.0f;
-
     private final int vectorPerCluster;
 
     public DefaultIVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate, int vectorPerCluster) throws IOException {

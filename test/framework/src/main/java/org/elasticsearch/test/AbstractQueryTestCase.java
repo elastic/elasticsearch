@@ -948,10 +948,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     public void testCacheability() throws IOException {
         QB queryBuilder = createTestQueryBuilder();
-        SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, createQueryRewriteContext(), new SearchExecutionContext(context));
-        assertNotNull(rewriteQuery.toQuery(context));
-        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        try (IndexReaderManager irm = getIndexReaderManager()) {
+            SearchExecutionContext context = createSearchExecutionContext(irm.getIndexSearcher());
+            QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, createQueryRewriteContext(), new SearchExecutionContext(context));
+            assertNotNull(rewriteQuery.toQuery(context));
+            assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        }
     }
 
     public static class IndexReaderManager implements Closeable {

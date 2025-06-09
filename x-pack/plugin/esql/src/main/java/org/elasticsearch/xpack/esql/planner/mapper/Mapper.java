@@ -165,6 +165,7 @@ public class Mapper {
             // always add the final/reduction agg
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
+        // TODO: TopNAggregate
 
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);

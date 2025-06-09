@@ -555,6 +555,13 @@ public final class ConfigurableClusterPrivileges {
                 if (indexPrivilege.privileges == null || indexPrivilege.privileges.length == 0) {
                     throw new IllegalArgumentException("Indices privileges must define at least one privilege");
                 }
+
+                for (String privilege : indexPrivilege.privileges) {
+                    // Use resolveBySelectorAccess to determine whether the passed privilege is valid.
+                    // IllegalArgumentException is thrown here when an invalid permission is encountered.
+                    IndexPrivilege.get(Set.of(privilege));
+                }
+
             }
             return new ManageRolesPrivilege(indexPrivileges);
         }

@@ -15,6 +15,13 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
 
+/**
+ * Tests for FORK. We generate tests for FORK from existing CSV tests.
+ * We append a `| FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork` suffix to existing
+ * CSV test cases. This will produce a query that executes multiple FORK branches but expects the same results
+ * as the initial CSV test case.
+ * For now, we skip tests that already require FORK, since multiple FORK commands are not allowed.
+ */
 public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
     public GenerativeForkRestTest(
         String fileName,

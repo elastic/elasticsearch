@@ -43,7 +43,6 @@ public record ChatCompletionResults(List<Result> results) implements InferenceSe
 
     public static final String NAME = "chat_completion_service_results";
     public static final String COMPLETION = TaskType.COMPLETION.name().toLowerCase(Locale.ROOT);
-
     public ChatCompletionResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Result::new));
     }

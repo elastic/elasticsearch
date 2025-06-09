@@ -25,6 +25,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;

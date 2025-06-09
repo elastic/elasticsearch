@@ -20,6 +20,7 @@
 package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.hnsw.HnswGraphProvider;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -30,6 +31,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.InfoStream;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 
 import java.io.IOException;

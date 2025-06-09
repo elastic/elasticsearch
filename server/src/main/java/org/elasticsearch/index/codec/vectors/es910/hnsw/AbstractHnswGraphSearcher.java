@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;

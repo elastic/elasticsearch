@@ -24,6 +24,7 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.hnsw.HnswGraph;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;

@@ -26,6 +26,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.InfoStream;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;

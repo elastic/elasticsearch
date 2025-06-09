@@ -22,7 +22,9 @@ package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
 import org.apache.lucene.internal.hppc.IntHashSet;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateGraphsUtils;
 
 import java.io.IOException;
 import java.util.Set;

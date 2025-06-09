@@ -19,14 +19,9 @@
  */
 package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
-import org.apache.lucene.index.CodecReader;
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntHashSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.hnsw.HnswGraph;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -41,44 +36,6 @@ public class HnswUtil {
 
     // utility class; only has static methods
     private HnswUtil() {}
-
-    /*
-     For each level, check rooted components from previous level nodes, which are entry
-     points with the goal that each node should be reachable from *some* entry point.  For each entry
-     point, compute a spanning tree, recording the nodes in a single shared bitset.
-
-     Also record a bitset marking nodes that are not full to be used when reconnecting in order to
-     limit the search to include non-full nodes only.
-    */
-
-    /** Returns true if every node on every level is reachable from node 0. */
-    static boolean isRooted(HnswGraph knnValues) throws IOException {
-        for (int level = 0; level < knnValues.numLevels(); level++) {
-            if (components(knnValues, level, null, 0).size() > 1) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Returns the sizes of the distinct graph components on level 0. If the graph is fully-rooted the
-     * list will have one entry. If it is empty, the returned list will be empty.
-     */
-    static List<Integer> componentSizes(HnswGraph hnsw) throws IOException {
-        return componentSizes(hnsw, 0);
-    }
-
-    /**
-     * Returns the sizes of the distinct graph components on the given level. The forest starting at
-     * the entry points (nodes in the next highest level) is considered as a single component. If the
-     * entire graph is rooted in the entry points--that is, every node is reachable from at least one
-     * entry point--the returned list will have a single entry. If the graph is empty, the returned
-     * list will be empty.
-     */
-    static List<Integer> componentSizes(HnswGraph hnsw, int level) throws IOException {
-        return components(hnsw, level, null, 0).stream().map(Component::size).toList();
-    }
 
     // Finds orphaned components on the graph level.
     static List<Component> components(HnswGraph hnsw, int level, FixedBitSet notFullyConnected, int maxConn) throws IOException {
@@ -216,31 +173,6 @@ public class HnswUtil {
         } else {
             return next;
         }
-    }
-
-    /**
-     * In graph theory, "connected components" are really defined only for undirected (ie
-     * bidirectional) graphs. Our graphs are directed, because of pruning, but they are *mostly*
-     * undirected. In this case we compute components starting from a single node so what we are
-     * really measuring is whether the graph is a "rooted graph". TODO: measure whether the graph is
-     * "strongly connected" ie there is a path from every node to every other node.
-     */
-    public static boolean graphIsRooted(IndexReader reader, String vectorField) throws IOException {
-        for (LeafReaderContext ctx : reader.leaves()) {
-            CodecReader codecReader = (CodecReader) FilterLeafReader.unwrap(ctx.reader());
-            KnnVectorsReader vectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) codecReader.getVectorReader()).getFieldReader(
-                vectorField
-            );
-            if (vectorsReader instanceof HnswGraphProvider) {
-                HnswGraph graph = ((HnswGraphProvider) vectorsReader).getGraph(vectorField);
-                if (isRooted(graph) == false) {
-                    return false;
-                }
-            } else {
-                throw new IllegalArgumentException("not a graph: " + vectorsReader);
-            }
-        }
-        return true;
     }
 
     /**

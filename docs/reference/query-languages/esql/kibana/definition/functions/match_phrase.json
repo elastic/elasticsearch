@@ -23,7 +23,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='zero_terms_query', values=[none, all], description='Indicates whether all documents or none are returned if the analyzer removes all tokens, such as when using a stop filter. Defaults to none.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='slop', values=[1], description='Maximum number of positions allowed between matching tokens. Defaults to 0. Transposed terms have a slop of 2.'}",
           "optional" : true,
-          "description" : "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-match-query-phrase,match_phrase query>> for more information."
+          "description" : "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>. See [`match_phrase`](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query-phrase) for more information."
         }
       ],
       "variadic" : false,
@@ -48,7 +48,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='zero_terms_query', values=[none, all], description='Indicates whether all documents or none are returned if the analyzer removes all tokens, such as when using a stop filter. Defaults to none.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='slop', values=[1], description='Maximum number of positions allowed between matching tokens. Defaults to 0. Transposed terms have a slop of 2.'}",
           "optional" : true,
-          "description" : "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-match-query-phrase,match_phrase query>> for more information."
+          "description" : "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>. See [`match_phrase`](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query-phrase) for more information."
         }
       ],
       "variadic" : false,

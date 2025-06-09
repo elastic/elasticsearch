@@ -150,7 +150,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             description = "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-match-query-phrase,match_phrase query>> for more information.",
+                + " See [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) for more information.",
             optional = true
         ) Expression options
     ) {

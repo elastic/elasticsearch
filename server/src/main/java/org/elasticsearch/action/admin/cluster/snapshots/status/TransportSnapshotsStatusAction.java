@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -119,7 +121,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             Arrays.asList(request.snapshots())
         );
         if (currentSnapshots.isEmpty()) {
-            buildResponse(snapshotsInProgress, request, currentSnapshots, null, cancellableTask, listener);
+            buildResponse(snapshotsInProgress, request, currentSnapshots, null, state.getMinTransportVersion(), cancellableTask, listener);
             return;
         }
 
@@ -152,6 +154,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             request,
                             currentSnapshots,
                             nodeSnapshotStatuses,
+                            state.getMinTransportVersion(),
                             cancellableTask,
                             l
                         )
@@ -160,7 +163,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             );
         } else {
             // We don't have any in-progress shards, just return current stats
-            buildResponse(snapshotsInProgress, request, currentSnapshots, null, cancellableTask, listener);
+            buildResponse(snapshotsInProgress, request, currentSnapshots, null, state.getMinTransportVersion(), cancellableTask, listener);
         }
 
     }
@@ -171,6 +174,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         SnapshotsStatusRequest request,
         List<SnapshotsInProgress.Entry> currentSnapshotEntries,
         TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
+        TransportVersion minTransportVersion,
         CancellableTask task,
         ActionListener<SnapshotsStatusResponse> listener
     ) {
@@ -196,13 +200,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
-                        // We should have information about this shard from the shard:
+                        // We should have information about this shard from the node:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
                         if (nodeStatus != null) {
-                            Map<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshot());
-                            if (shardStatues != null) {
+                            Map<ShardId, SnapshotIndexShardStatus> shardStatuses = nodeStatus.status().get(entry.snapshot());
+                            if (shardStatuses != null) {
                                 final ShardId sid = entry.shardId(shardEntry.getKey());
-                                SnapshotIndexShardStatus shardStatus = shardStatues.get(sid);
+                                SnapshotIndexShardStatus shardStatus = shardStatuses.get(sid);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
                                     if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
@@ -228,8 +232,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     }
                     // We failed to find the status of the shard from the responses we received from data nodes.
                     // This can happen if nodes drop out of the cluster completely or restart during the snapshot.
-                    // We rebuild the information they would have provided from their in memory state from the cluster
-                    // state and the repository contents in the below logic
                     final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
                         case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
                         case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL, QUEUED -> SnapshotIndexShardStage.STARTED;
@@ -237,18 +239,27 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     };
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {
-                        // Shard snapshot completed successfully so we should be able to load the exact statistics for this
-                        // shard from the repository already.
                         final ShardId shardId = entry.shardId(shardEntry.getKey());
-                        shardStatus = new SnapshotIndexShardStatus(
-                            shardId,
-                            repositoriesService.repository(entry.repository())
-                                .getShardSnapshotStatus(
-                                    entry.snapshot().getSnapshotId(),
-                                    entry.indices().get(shardId.getIndexName()),
-                                    shardId
-                                )
-                        );
+                        // When processing currently running snapshots, instead of reading the statistics from the repository, which can be
+                        // expensive, we choose instead to provide a message to the caller explaining why the stats are missing and the API
+                        // that can be used to load them once the snapshot has completed.
+                        if (minTransportVersion.onOrAfter(TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+                            shardStatus = SnapshotIndexShardStatus.forDoneButMissingStats(shardId, """
+                                Snapshot shard stats missing from a currently running snapshot due to a node leaving the cluster after \
+                                completing the shard snapshot; retry once the snapshot has completed to load all shard stats from the \
+                                repository.""");
+                        } else {
+                            // BWC behavior, load the stats directly from the repository.
+                            shardStatus = new SnapshotIndexShardStatus(
+                                shardId,
+                                repositoriesService.repository(entry.repository())
+                                    .getShardSnapshotStatus(
+                                        entry.snapshot().getSnapshotId(),
+                                        entry.indices().get(shardId.getIndexName()),
+                                        shardId
+                                    )
+                            );
+                        }
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(entry.shardId(shardEntry.getKey()), stage);
                     }

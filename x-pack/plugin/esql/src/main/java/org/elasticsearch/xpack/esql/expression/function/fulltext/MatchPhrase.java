@@ -94,7 +94,8 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         returnType = "boolean",
         preview = true,
         description = """
-            Use `MATCH_PHRASE` to perform a <<query-dsl-match-query-phrase,match_phrase query>> on the specified field.
+            Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
+            specified field.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
 
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
@@ -149,7 +150,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             description = "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-match-query-phrase,match_phrase query>> for more information.",
+                + " See [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) for more information.",
             optional = true
         ) Expression options
     ) {

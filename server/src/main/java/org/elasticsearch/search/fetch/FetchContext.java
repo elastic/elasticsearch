@@ -68,7 +68,9 @@ public class FetchContext {
         if (sfc != null && sfc.fetchFields()) {
             for (String field : sfc.fieldNames()) {
                 if (SourceFieldMapper.NAME.equals(field)) {
-                    fsc = fsc == null ? FetchSourceContext.of(true) : FetchSourceContext.of(true, fsc.includes(), fsc.excludes());
+                    fsc = fsc == null
+                        ? FetchSourceContext.of(true)
+                        : FetchSourceContext.of(true, fsc.excludeVectors(), fsc.includes(), fsc.excludes());
                 }
             }
         }

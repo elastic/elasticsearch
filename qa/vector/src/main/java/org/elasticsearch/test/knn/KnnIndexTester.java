@@ -177,13 +177,8 @@ public class KnnIndexTester {
                     cmdLineArgs.vectorSpace(),
                     cmdLineArgs.numDocs()
                 );
-                if (Files.exists(indexPath) == false) {
-                    if (cmdLineArgs.reindex() == false) {
-                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                    }
-                    if (cmdLineArgs.forceMerge()) {
-                        throw new IllegalArgumentException("Force merging without an existing index in: " + indexPath);
-                    }
+                if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
+                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
                 if (cmdLineArgs.reindex()) {
                     knnIndexer.createIndex(result);

@@ -1,0 +1,5 @@
+pr: 127613
+summary: Threadpool merge executor is aware of available disk space
+area: Engine
+type: feature
+issues: []

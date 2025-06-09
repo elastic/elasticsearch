@@ -25,8 +25,6 @@ import org.apache.lucene.internal.hppc.FloatArrayList;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.codec.vectors.es910.util.ArrayUtil;
 
-import static org.elasticsearch.index.codec.vectors.es910.internal.hppc.HashContainers.DEFAULT_EXPECTED_ELEMENTS;
-
 /**
  * An array-backed list of {@code float} with a maximum size limit.
  */
@@ -34,11 +32,6 @@ public class MaxSizedFloatArrayList extends FloatArrayList {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MaxSizedFloatArrayList.class);
 
     final int maxSize;
-
-    /** New instance with sane defaults. */
-    public MaxSizedFloatArrayList(int maxSize) {
-        this(maxSize, DEFAULT_EXPECTED_ELEMENTS);
-    }
 
     /**
      * New instance with sane defaults.
@@ -51,13 +44,6 @@ public class MaxSizedFloatArrayList extends FloatArrayList {
         super(expectedElements);
         assert expectedElements <= maxSize : "expectedElements (" + expectedElements + ") must be <= maxSize (" + maxSize + ")";
         this.maxSize = maxSize;
-    }
-
-    /** Creates a new list from the elements of another list in its iteration order. */
-    public MaxSizedFloatArrayList(MaxSizedFloatArrayList list) {
-        super(list.size());
-        this.maxSize = list.maxSize;
-        addAll(list);
     }
 
     @Override

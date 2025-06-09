@@ -25,20 +25,14 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
-import static org.elasticsearch.index.codec.vectors.es910.internal.hppc.HashContainers.DEFAULT_EXPECTED_ELEMENTS;
-
 /**
  * An array-backed list of {@code int} with a maximum size limit.
  */
 public class MaxSizedIntArrayList extends IntArrayList {
+
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MaxSizedIntArrayList.class);
 
     final int maxSize;
-
-    /** New instance with sane defaults. */
-    public MaxSizedIntArrayList(int maxSize) {
-        this(maxSize, DEFAULT_EXPECTED_ELEMENTS);
-    }
 
     /**
      * New instance with sane defaults.
@@ -51,13 +45,6 @@ public class MaxSizedIntArrayList extends IntArrayList {
         super(expectedElements);
         assert expectedElements <= maxSize : "expectedElements (" + expectedElements + ") must be <= maxSize (" + maxSize + ")";
         this.maxSize = maxSize;
-    }
-
-    /** Creates a new list from the elements of another list in its iteration order. */
-    public MaxSizedIntArrayList(MaxSizedIntArrayList list) {
-        super(list.size());
-        this.maxSize = list.maxSize;
-        addAll(list);
     }
 
     @Override

@@ -183,7 +183,7 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](docs-c
 
 ## Time series data streams
 
-{{esql}} supports time-series data streams (TSDS) with limitations:
+{{esql}} supports time series data streams (TSDS) with limitations:
 
 * Counter fields such as `counter_long`, `counter_integer`, and `counter_double` are not supported except
   through explicit casting.

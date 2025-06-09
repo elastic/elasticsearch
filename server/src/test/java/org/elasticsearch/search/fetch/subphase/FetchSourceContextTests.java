@@ -46,19 +46,19 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
         return switch (randomInt(2)) {
             case 0 -> FetchSourceContext.of(
                 true,
-                instance.includeVectors() != null ? instance.includeVectors() == false : randomBoolean(),
+                instance.excludeVectors() != null ? instance.excludeVectors() == false : randomBoolean(),
                 instance.includes(),
                 instance.excludes()
             );
             case 1 -> FetchSourceContext.of(
                 true,
-                instance.includeVectors(),
+                instance.excludeVectors(),
                 randomArray(instance.includes().length + 1, instance.includes().length + 5, String[]::new, () -> randomAlphaOfLength(5)),
                 instance.excludes()
             );
             case 2 -> FetchSourceContext.of(
                 true,
-                instance.includeVectors(),
+                instance.excludeVectors(),
                 instance.includes(),
                 randomArray(instance.excludes().length + 1, instance.excludes().length + 5, String[]::new, () -> randomAlphaOfLength(5))
             );

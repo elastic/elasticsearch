@@ -453,7 +453,7 @@ public final class FetchPhase {
         if (context.fetchSourceContext() == null) {
             return false;
         }
-        return context.fetchSourceContext().includeVectors() != null && context.fetchSourceContext().includeVectors() == false;
+        return context.fetchSourceContext().excludeVectors() != null && context.fetchSourceContext().excludeVectors();
     }
 
     /**
@@ -502,7 +502,7 @@ public final class FetchPhase {
                 ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
                 : FetchSourceContext.of(
                     context.fetchSourceContext().fetchSource(),
-                    context.fetchSourceContext().includeVectors(),
+                    context.fetchSourceContext().excludeVectors(),
                     context.fetchSourceContext().includes(),
                     lateExcludes.toArray(String[]::new)
                 );

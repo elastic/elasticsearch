@@ -70,7 +70,7 @@ public class FetchContext {
                 if (SourceFieldMapper.NAME.equals(field)) {
                     fsc = fsc == null
                         ? FetchSourceContext.of(true)
-                        : FetchSourceContext.of(true, fsc.includeVectors(), fsc.includes(), fsc.excludes());
+                        : FetchSourceContext.of(true, fsc.excludeVectors(), fsc.includes(), fsc.excludes());
                 }
             }
         }

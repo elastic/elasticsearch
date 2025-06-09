@@ -36,7 +36,7 @@ import java.util.Objects;
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
 
-    public static final ParseField INCLUDE_VECTORS_FIELD = new ParseField("include_vectors");
+    public static final ParseField EXCLUDE_VECTORS_FIELD = new ParseField("exclude_vectors");
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
@@ -50,7 +50,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
-    private final Boolean includeVectors;
+    private final Boolean excludeVectors;
 
     public static FetchSourceContext of(boolean fetchSource) {
         return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
@@ -62,52 +62,52 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext of(
         boolean fetchSource,
-        Boolean includeVectors,
+        Boolean excludeVectors,
         @Nullable String[] includes,
         @Nullable String[] excludes
     ) {
-        if (includeVectors == null && (includes == null || includes.length == 0) && (excludes == null || excludes.length == 0)) {
+        if (excludeVectors == null && (includes == null || includes.length == 0) && (excludes == null || excludes.length == 0)) {
             return of(fetchSource);
         }
-        return new FetchSourceContext(fetchSource, includeVectors, includes, excludes);
+        return new FetchSourceContext(fetchSource, excludeVectors, includes, excludes);
     }
 
-    private FetchSourceContext(boolean fetchSource, Boolean includeVectors, @Nullable String[] includes, @Nullable String[] excludes) {
+    private FetchSourceContext(boolean fetchSource, Boolean excludeVectors, @Nullable String[] includes, @Nullable String[] excludes) {
         this.fetchSource = fetchSource;
-        this.includeVectors = includeVectors;
+        this.excludeVectors = excludeVectors;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
 
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {
         final boolean fetchSource = in.readBoolean();
-        final Boolean includeVectors = isVersionCompatibleWithIncludeVectors(in.getTransportVersion()) ? in.readOptionalBoolean() : null;
+        final Boolean excludeVectors = isVersionCompatibleWithExcludeVectors(in.getTransportVersion()) ? in.readOptionalBoolean() : null;
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
-        return of(fetchSource, includeVectors, includes, excludes);
+        return of(fetchSource, excludeVectors, includes, excludes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(fetchSource);
-        if (isVersionCompatibleWithIncludeVectors(out.getTransportVersion())) {
-            out.writeOptionalBoolean(includeVectors);
+        if (isVersionCompatibleWithExcludeVectors(out.getTransportVersion())) {
+            out.writeOptionalBoolean(excludeVectors);
         }
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
     }
 
-    private static boolean isVersionCompatibleWithIncludeVectors(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_INCLUDE_VECTORS_PARAM_8_19)
-            || version.onOrAfter(TransportVersions.SEARCH_SOURCE_INCLUDE_VECTORS_PARAM);
+    private static boolean isVersionCompatibleWithExcludeVectors(TransportVersion version) {
+        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19)
+            || version.onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
     }
 
     public boolean fetchSource() {
         return this.fetchSource;
     }
 
-    public Boolean includeVectors() {
-        return this.includeVectors;
+    public Boolean excludeVectors() {
+        return this.excludeVectors;
     }
 
     public String[] includes() {
@@ -168,7 +168,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
-        Boolean includeVectors = null;
+        Boolean excludeVectors = null;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
@@ -203,8 +203,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         includes = new String[] { parser.text() };
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludes = new String[] { parser.text() };
-                    } else if (INCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includeVectors = parser.booleanValue();
+                    } else if (EXCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        excludeVectors = parser.booleanValue();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -213,8 +213,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         );
                     }
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (INCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includeVectors = parser.booleanValue();
+                    if (EXCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        excludeVectors = parser.booleanValue();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -247,7 +247,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 parser.getTokenLocation()
             );
         }
-        return FetchSourceContext.of(fetchSource, includeVectors, includes, excludes);
+        return FetchSourceContext.of(fetchSource, excludeVectors, includes, excludes);
     }
 
     private static String[] parseStringArray(XContentParser parser, String currentFieldName) throws IOException {
@@ -273,8 +273,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fetchSource) {
             builder.startObject();
-            if (includeVectors != null) {
-                builder.field(INCLUDE_VECTORS_FIELD.getPreferredName(), includeVectors);
+            if (excludeVectors != null) {
+                builder.field(EXCLUDE_VECTORS_FIELD.getPreferredName(), excludeVectors);
             }
             builder.array(INCLUDES_FIELD.getPreferredName(), includes);
             builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
@@ -293,7 +293,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         FetchSourceContext that = (FetchSourceContext) o;
 
         if (fetchSource != that.fetchSource) return false;
-        if (includeVectors != that.includeVectors) return false;
+        if (excludeVectors != that.excludeVectors) return false;
         if (Arrays.equals(excludes, that.excludes) == false) return false;
         if (Arrays.equals(includes, that.includes) == false) return false;
 
@@ -302,7 +302,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(fetchSource, includeVectors);
+        int result = Objects.hash(fetchSource, excludeVectors);
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
         return result;

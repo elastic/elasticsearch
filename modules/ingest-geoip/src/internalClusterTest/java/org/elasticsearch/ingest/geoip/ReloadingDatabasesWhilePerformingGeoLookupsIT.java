@@ -12,7 +12,6 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -72,17 +71,20 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         Path geoIpConfigDir = createTempDir();
         Path geoIpTmpDir = createTempDir();
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build()
+        when(clusterService.state()).thenReturn(
+            builder(ClusterName.DEFAULT).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build()
         );
-        DatabaseNodeService databaseNodeService = createRegistry(geoIpConfigDir, geoIpTmpDir, clusterService,
-            TestProjectResolvers.singleProject(projectId));
+        DatabaseNodeService databaseNodeService = createRegistry(
+            geoIpConfigDir,
+            geoIpTmpDir,
+            clusterService,
+            TestProjectResolvers.singleProject(projectId)
+        );
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         databaseNodeService.updateDatabase(projectId, "GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-        databaseNodeService.updateDatabase(projectId,"GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+        databaseNodeService.updateDatabase(projectId, "GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(projectId, databaseNodeService);
 
         final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(
@@ -157,19 +159,27 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                         });
                     } else {
                         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-                        databaseNodeService.updateDatabase(projectId,"GeoLite2-City.mmdb", "md5",
-                            geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
+                        databaseNodeService.updateDatabase(
+                            projectId,
+                            "GeoLite2-City.mmdb",
+                            "md5",
+                            geoIpTmpDir.resolve("GeoLite2-City.mmdb")
+                        );
                     }
-                    DatabaseReaderLazyLoader previous2 = databaseNodeService.get(projectId,"GeoLite2-City-Test.mmdb");
+                    DatabaseReaderLazyLoader previous2 = databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb");
                     copyDatabase(
                         i % 2 == 0 ? "GeoIP2-City-Test.mmdb" : "GeoLite2-City-Test.mmdb",
                         geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb")
                     );
-                    databaseNodeService.updateDatabase(projectId,"GeoLite2-City-Test.mmdb", "md5",
-                        geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+                    databaseNodeService.updateDatabase(
+                        projectId,
+                        "GeoLite2-City-Test.mmdb",
+                        "md5",
+                        geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb")
+                    );
 
-                    DatabaseReaderLazyLoader current1 = databaseNodeService.get(projectId,"GeoLite2-City.mmdb");
-                    DatabaseReaderLazyLoader current2 = databaseNodeService.get(projectId,"GeoLite2-City-Test.mmdb");
+                    DatabaseReaderLazyLoader current1 = databaseNodeService.get(projectId, "GeoLite2-City.mmdb");
+                    DatabaseReaderLazyLoader current2 = databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb");
                     assertThat(current1, not(sameInstance(previous1)));
                     assertThat(current2, not(sameInstance(previous2)));
 
@@ -206,9 +216,12 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         IOUtils.rm(geoIpConfigDir, geoIpTmpDir);
     }
 
-    private static DatabaseNodeService createRegistry(Path geoIpConfigDir, Path geoIpTmpDir, ClusterService clusterService,
-                                                      ProjectResolver projectResolver)
-        throws IOException {
+    private static DatabaseNodeService createRegistry(
+        Path geoIpConfigDir,
+        Path geoIpTmpDir,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) throws IOException {
         GeoIpCache cache = new GeoIpCache(0);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
@@ -225,12 +238,12 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     }
 
     private static void lazyLoadReaders(ProjectId projectId, DatabaseNodeService databaseNodeService) throws IOException {
-        if (databaseNodeService.get(projectId,"GeoLite2-City.mmdb") != null) {
-            databaseNodeService.get(projectId,"GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get(projectId,"GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
+        if (databaseNodeService.get(projectId, "GeoLite2-City.mmdb") != null) {
+            databaseNodeService.get(projectId, "GeoLite2-City.mmdb").getDatabaseType();
+            databaseNodeService.get(projectId, "GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
         }
-        databaseNodeService.get(projectId,"GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get(projectId,"GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
+        databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb").getDatabaseType();
+        databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
     }
 
 }

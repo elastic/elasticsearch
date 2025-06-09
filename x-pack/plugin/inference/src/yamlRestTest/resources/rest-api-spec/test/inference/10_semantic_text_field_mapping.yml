@@ -422,8 +422,8 @@ setup:
   - match: { indices: [ "test-multi-field-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - exists: fields.sparse_field.sparse_keyword_field
-  - exists: fields.dense_field.dense_keyword_field
+  - exists: fields.sparse_field\.sparse_keyword_field
+  - exists: fields.dense_field\.dense_keyword_field
   - not_exists: fields.sparse_field.inference.chunks.embeddings
   - not_exists: fields.sparse_field.inference.chunks.offset
   - not_exists: fields.sparse_field.inference.chunks

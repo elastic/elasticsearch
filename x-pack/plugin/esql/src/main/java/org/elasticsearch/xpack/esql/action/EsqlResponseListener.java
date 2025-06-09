@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -121,6 +123,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
 
     @Override
     protected void processResponse(EsqlQueryResponse esqlQueryResponse) throws IOException {
+        logPartialResponseErrors(channel.request().rawPath(), channel.request().params(), esqlQueryResponse.getExecutionInfo());
         channel.sendResponse(buildResponse(esqlQueryResponse));
     }
 
@@ -227,6 +230,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                 restRequest.path()
             );
             throw new IllegalArgumentException(message);
+        }
+    }
+
+    static void logPartialResponseErrors(String rawPath, Map<String, String> params, EsqlExecutionInfo exeuctionInfo) {
+        for (EsqlExecutionInfo.Cluster cluster : exeuctionInfo.getClusters().values()) {
+            for (ShardSearchFailure failure : cluster.getFailures()) {
+                RestResponse.suppressedError(org.apache.logging.log4j.Level.WARN, rawPath, params, RestStatus.OK, failure);
+            }
         }
     }
 }

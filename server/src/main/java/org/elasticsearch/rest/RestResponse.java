@@ -9,9 +9,9 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -126,18 +126,8 @@ public final class RestResponse implements Releasable {
         this.status = status;
         ToXContent.Params params = channel.request();
         if (e != null) {
-            Supplier<?> messageSupplier = () -> String.format(
-                Locale.ROOT,
-                "path: %s, params: %s, status: %d",
-                channel.request().rawPath(),
-                channel.request().params(),
-                status.getStatus()
-            );
-            if (status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
-                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
-            } else {
-                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
-            }
+            Level level = status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) ? Level.DEBUG : Level.WARN;
+            suppressedError(level, channel.request().rawPath(), channel.request().params(), status, e);
         }
         // if "error_trace" is turned on in the request, we want to render it in the rest response
         // for that the REST_EXCEPTION_SKIP_STACK_TRACE flag that if "true" omits the stack traces is
@@ -253,5 +243,15 @@ public final class RestResponse implements Releasable {
     @Override
     public void close() {
         Releasables.closeExpectNoException(releasable);
+    }
+
+    public static void suppressedError(Level level, String rawPath, Map<String, String> params, RestStatus status, Exception e) {
+        if (SUPPRESSED_ERROR_LOGGER.isEnabled(level)) {
+            SUPPRESSED_ERROR_LOGGER.log(
+                level,
+                String.format(Locale.ROOT, "path: %s, params: %s, status: %d", rawPath, params, status.getStatus()),
+                e
+            );
+        }
     }
 }

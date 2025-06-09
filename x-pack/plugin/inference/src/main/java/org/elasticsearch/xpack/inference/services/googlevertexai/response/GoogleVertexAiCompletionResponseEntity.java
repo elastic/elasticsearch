@@ -35,7 +35,9 @@ public class GoogleVertexAiCompletionResponseEntity {
      *     </code>
      * </pre>
      *
-     * The response is a <a href="https://cloud.google.com/vertex-ai/docs/reference/rest/v1beta1/GenerateContentResponse">GenerateContentResponse</a> objects that looks like:
+     * The response is a
+     * <a href="https://cloud.google.com/vertex-ai/docs/reference/rest/v1beta1/GenerateContentResponse">GenerateContentResponse</a>
+     * objects that looks like:
      *
      * <pre>
      *     <code>

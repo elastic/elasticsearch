@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -58,6 +59,11 @@ import static org.mockito.Mockito.when;
 
 public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
+    private static final long ONE_SECOND = 1L;
+    private static final AtomicLong ATOMIC_SECOND = new AtomicLong(1);
+    private static final AtomicLong SIXTY_SECONDS = new AtomicLong(60);
+    private static final AtomicLong TWO_THOUSAND_MILLISECONDS = new AtomicLong(2_000);
+    private static final AtomicLong SIXTY_THOUSAND_MILLISECONDS = new AtomicLong(60_000);
     private TestThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
@@ -175,9 +181,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            60,
-            60_000
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            SIXTY_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -269,9 +275,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            1,
-            2_000
+            ONE_SECOND,
+            ATOMIC_SECOND,
+            TWO_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -336,9 +342,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            1,
-            2_000
+            ONE_SECOND,
+            ATOMIC_SECOND,
+            TWO_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -392,9 +398,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            1,
-            2_000
+            ONE_SECOND,
+            ATOMIC_SECOND,
+            TWO_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -477,9 +483,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            60,
-            60_000
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            TWO_THOUSAND_MILLISECONDS
         );
 
         when(client.threadPool()).thenReturn(threadPool);
@@ -512,9 +518,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            60,
-            60_000
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            SIXTY_THOUSAND_MILLISECONDS
         );
 
         var latch = new CountDownLatch(1);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.mistral;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
@@ -30,22 +31,16 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
     }
 
     @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        if (request.isStreaming()) {
-            var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
-            var restStatus = toRestStatus(responseStatusCode);
-            return errorResponse instanceof MistralErrorResponse
-                ? new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT))
-                : new UnifiedChatCompletionException(
-                    restStatus,
-                    errorMessage,
-                    createErrorType(errorResponse),
-                    restStatus.name().toLowerCase(Locale.ROOT)
-                );
-        } else {
-            return super.buildError(message, request, result, errorResponse);
-        }
+    protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
+        return buildChatCompletionError(message, request, result, errorResponse, MistralErrorResponse.class);
+    }
+
+    @Override
+    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+        ErrorResponse errorResponse,
+        String errorMessage,
+        RestStatus restStatus
+    ) {
+        return new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
 }

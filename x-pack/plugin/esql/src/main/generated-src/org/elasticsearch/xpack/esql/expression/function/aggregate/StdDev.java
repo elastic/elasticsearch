@@ -40,11 +40,11 @@ public class StdDev extends AggregateFunction implements ToAggregator {
         description = "The population standard deviation of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {
-            @Example(file = "stats", tag = "stdev"),
+            @Example(file = "stats", tag = "StdDev"),
             @Example(
-                description = "The expression can use inline functions. For example, to calculate the population standard "
-                    + "deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, "
-                    + "and then use `STD_DEV` on the result",
+                description = "The expression can use inline functions. For example, to calculate the "
+                    + "population standard deviation of each employee’s maximum salary changes, "
+                    + "first use `MV_MAX` on each row, and then use `STD_DEV` on the result",
                 file = "stats",
                 tag = "docsStatsStdDevNestedExpression"
             ) }

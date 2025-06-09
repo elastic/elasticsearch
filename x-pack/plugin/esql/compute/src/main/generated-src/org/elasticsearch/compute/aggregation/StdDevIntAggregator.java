@@ -41,7 +41,7 @@ public class StdDevIntAggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.SingleState state, DriverContext driverContext) {
-        return state.evaluateFinal(driverContext);
+        return state.evaluateFinal(driverContext, StdDevStates.Variation.POPULATION);
     }
 
     public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays) {
@@ -61,6 +61,6 @@ public class StdDevIntAggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext);
+        return state.evaluateFinal(selected, driverContext, StdDevStates.Variation.POPULATION);
     }
 }

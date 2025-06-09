@@ -12,11 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
-import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeForkRestTest;
 import org.junit.ClassRule;
-
-import java.io.IOException;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeForkIT extends GenerativeForkRestTest {
@@ -28,7 +25,15 @@ public class GenerativeForkIT extends GenerativeForkRestTest {
         return cluster.getHttpAddresses();
     }
 
-    public GenerativeForkIT(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase, String instructions, Mode mode) {
+    public GenerativeForkIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvSpecReader.CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
     }
 
@@ -43,4 +48,3 @@ public class GenerativeForkIT extends GenerativeForkRestTest {
         return cluster.getNumNodes() == 1;
     }
 }
-

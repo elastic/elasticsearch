@@ -15,8 +15,16 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
 
-public abstract class GenerativeForkRestTest extends EsqlSpecTestCase  {
-    public GenerativeForkRestTest(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase, String instructions, Mode mode) {
+public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
+    public GenerativeForkRestTest(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvSpecReader.CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
     }
 
@@ -36,18 +44,15 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase  {
         );
 
         assumeFalse(
-                "Tests using INSIST are not supported for now",
-                testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
+            "Tests using INSIST are not supported for now",
+            testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
         );
 
         assumeFalse(
-                "Tests using implicit_casting_date_and_date_nanos are not supported for now",
-                testCase.requiredCapabilities.contains(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.capabilityName())
+            "Tests using implicit_casting_date_and_date_nanos are not supported for now",
+            testCase.requiredCapabilities.contains(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.capabilityName())
         );
 
-        assumeTrue(
-            "Cluster needs to support FORK",
-            hasCapabilities(client(), List.of(FORK_V7.capabilityName()))
-        );
+        assumeTrue("Cluster needs to support FORK", hasCapabilities(client(), List.of(FORK_V7.capabilityName())));
     }
 }

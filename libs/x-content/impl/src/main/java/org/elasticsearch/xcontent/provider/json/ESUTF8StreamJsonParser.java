@@ -104,6 +104,14 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
                         return null;
                     }
                 }
+                case 2, 3, 4 -> {
+                    int bytesToSkip = codes[c];
+                    if (ptr + bytesToSkip > max) {
+                        return null;
+                    }
+                    ptr += bytesToSkip;
+                    ++stringLength;
+                }
                 default -> {
                     return null;
                 }

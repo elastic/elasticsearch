@@ -26,7 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-public class StdDev$Type$Aggregator {
+public class $Variation$$Type$Aggregator {
 
     public static StdDevStates.SingleState initSingle() {
         return new StdDevStates.SingleState();
@@ -41,7 +41,7 @@ public class StdDev$Type$Aggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.SingleState state, DriverContext driverContext) {
-        return state.evaluateFinal(driverContext);
+        return state.evaluateFinal(driverContext, StdDevStates.Variation.$EnumName$);
     }
 
     public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays) {
@@ -61,6 +61,6 @@ public class StdDev$Type$Aggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext);
+        return state.evaluateFinal(selected, driverContext, StdDevStates.Variation.$EnumName$);
     }
 }

@@ -65,6 +65,8 @@ public class MicrosoftGraphAuthzRealmSettings {
         settings.add(TENANT_ID);
         settings.add(ACCESS_TOKEN_HOST);
         settings.add(API_HOST);
+        settings.add(HTTP_REQUEST_TIMEOUT);
+        settings.add(EXECUTION_TIMEOUT);
 
         return settings;
     }

@@ -703,7 +703,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     return;
                 }
             } else if (shardRouting.recoverySource().getType() == Type.RESHARD_SPLIT_TARGET) {
-                ShardId sourceShardId = ((RecoverySource.ReshardSplitTargetRecoverySource) shardRouting.recoverySource()).getSourceShardId();
+                ShardId sourceShardId = ((RecoverySource.ReshardSplitTargetRecoverySource) shardRouting.recoverySource())
+                    .getSourceShardId();
                 sourceNode = findSourceNodeForSplitTargetRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);

@@ -1035,7 +1035,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V6(Build.current().isSnapshot()),
+        FORK_V7(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1185,7 +1185,7 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
+        MATCH_PHRASE_FUNCTION;
 
         private final boolean enabled;
 

@@ -18,11 +18,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -215,16 +218,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
         }
 
-        final String fieldTypeName = ft.typeName();
-        if (fieldTypeName.equals(ALLOWED_FIELD_TYPE) == false) {
-            throw new IllegalArgumentException(
-                "field [" + fieldName + "] must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + fieldTypeName + "]"
-            );
+        if (ft instanceof SparseVectorFieldMapper.SparseVectorFieldType svft) {
+            return svft.finalizeSparseVectorQuery(context, fieldName, queryVectors, shouldPruneTokens, tokenPruningConfig);
         }
 
-        return (shouldPruneTokens)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
-            : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
+        throw new IllegalArgumentException(
+            "field [" + fieldName + "] must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + ft.typeName() + "]"
+        );
     }
 
     @Override

@@ -1,11 +1,11 @@
 setup:
   - requires:
-      reason: 'include_vectors option is required'
+      reason: 'exclude_vectors option is required'
       test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [ include_vectors_param ]
+          capabilities: [ exclude_vectors_param ]
   - skip:
       features: "headers"
 
@@ -102,7 +102,7 @@ setup:
         index: test
         body:
           _source:
-            include_vectors: false
+            exclude_vectors: true
           sort: ["name"]
 
   - match:      { hits.hits.0._id: "1"}
@@ -142,7 +142,7 @@ setup:
         index: test
         body:
           _source:
-            include_vectors: true
+            exclude_vectors: false
           sort: ["name"]
 
   - match:      { hits.hits.0._id: "1"}
@@ -182,7 +182,7 @@ setup:
         index: test
         body:
           _source:
-            include_vectors: false
+            exclude_vectors: true
           sort: ["name"]
           fields: [vector, sparse_vector, nested.*]
 

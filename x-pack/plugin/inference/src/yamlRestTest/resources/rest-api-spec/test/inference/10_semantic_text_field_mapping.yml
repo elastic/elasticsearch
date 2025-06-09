@@ -383,3 +383,52 @@ setup:
   - not_exists: fields.dense_field.inference.chunks.offset
   - not_exists: fields.dense_field.inference.chunks
   - not_exists: fields.dense_field.inference
+
+---
+"Field caps does not exclude multi-fields under semantic_text":
+  - requires:
+      cluster_features: "semantic_text.exclude_sub_fields_from_field_caps"
+      reason: field caps api exclude semantic_text subfields from 9.1.0 & 8.19.0
+  - do:
+      indices.create:
+        index: test-multi-field-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                fields:
+                  sparse_keyword_field:
+                    type: keyword
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                fields:
+                  dense_keyword_field:
+                    type: keyword
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-multi-field-index
+        fields: "*"
+
+  - match: { indices: [ "test-multi-field-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+  - exists: fields.sparse_field.sparse_keyword_field
+  - exists: fields.dense_field.dense_keyword_field
+  - not_exists: fields.sparse_field.inference.chunks.embeddings
+  - not_exists: fields.sparse_field.inference.chunks.offset
+  - not_exists: fields.sparse_field.inference.chunks
+  - not_exists: fields.sparse_field.inference
+  - not_exists: fields.dense_field.inference.chunks.embeddings
+  - not_exists: fields.dense_field.inference.chunks.offset
+  - not_exists: fields.dense_field.inference.chunks
+  - not_exists: fields.dense_field.inference

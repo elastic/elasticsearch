@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiErrorResponseEntity;
 
+import java.util.concurrent.Flow;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -65,5 +70,15 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
 
     private static String resourceNotFoundError(Request request) {
         return format("Resource not found at [%s]", request.getURI());
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
+        var googleVertexAiProcessor = new GoogleVertexAiStreamingProcessor();
+
+        flow.subscribe(serverSentEventProcessor);
+        serverSentEventProcessor.subscribe(googleVertexAiProcessor);
+        return new StreamingChatCompletionResults(googleVertexAiProcessor);
     }
 }

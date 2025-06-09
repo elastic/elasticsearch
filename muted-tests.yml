@@ -516,6 +516,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
   issue: https://github.com/elastic/elasticsearch/issues/129149
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/129148
 
 # Examples:
 #

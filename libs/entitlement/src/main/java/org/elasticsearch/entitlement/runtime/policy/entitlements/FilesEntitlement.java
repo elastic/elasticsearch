@@ -118,7 +118,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
-            return pathLookup.resolveRelativePaths(baseDir, relativePath);
+            return pathLookup.getBaseDirPaths(baseDir).map(path -> path.resolve(relativePath));
         }
 
         @Override

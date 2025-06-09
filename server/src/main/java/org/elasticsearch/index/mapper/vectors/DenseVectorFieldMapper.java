@@ -2004,7 +2004,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (elementType == ElementType.BIT) {
                 return new ES815HnswBitVectorsFormat(m, efConstruction);
             }
-            return new ES910HnswVectorsFormat(m, efConstruction, 1, null);
+            return new ES910HnswVectorsFormat(m, efConstruction);
         }
 
         @Override

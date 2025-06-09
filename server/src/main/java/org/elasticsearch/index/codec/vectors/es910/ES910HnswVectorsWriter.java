@@ -36,7 +36,6 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
@@ -46,7 +45,6 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
-import org.elasticsearch.index.codec.vectors.es910.hnsw.ConcurrentHnswMerger;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraph;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraphBuilder;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraphMerger;
@@ -76,25 +74,14 @@ public class ES910HnswVectorsWriter extends KnnVectorsWriter {
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
-    private final int numMergeWorkers;
-    private final TaskExecutor mergeExec;
 
     private final List<ES910HnswVectorsWriter.FieldWriter<?>> fields = new ArrayList<>();
     private boolean finished;
 
-    public ES910HnswVectorsWriter(
-        SegmentWriteState state,
-        int M,
-        int beamWidth,
-        FlatVectorsWriter flatVectorWriter,
-        int numMergeWorkers,
-        TaskExecutor mergeExec
-    ) throws IOException {
+    public ES910HnswVectorsWriter(SegmentWriteState state, int M, int beamWidth, FlatVectorsWriter flatVectorWriter) throws IOException {
         this.M = M;
         this.flatVectorWriter = flatVectorWriter;
         this.beamWidth = beamWidth;
-        this.numMergeWorkers = numMergeWorkers;
-        this.mergeExec = mergeExec;
         segmentWriteState = state;
 
         String metaFileName = IndexFileNames.segmentFileName(
@@ -367,12 +354,7 @@ public class ES910HnswVectorsWriter extends KnnVectorsWriter {
             int[][] vectorIndexNodeOffsets = null;
             if (scorerSupplier.totalVectorCount() > 0) {
                 // build graph
-                HnswGraphMerger merger = createGraphMerger(
-                    fieldInfo,
-                    scorerSupplier,
-                    mergeState.intraMergeTaskExecutor == null ? null : new TaskExecutor(mergeState.intraMergeTaskExecutor),
-                    numMergeWorkers
-                );
+                HnswGraphMerger merger = createGraphMerger(fieldInfo, scorerSupplier);
                 for (int i = 0; i < mergeState.liveDocs.length; i++) {
                     if (hasVectorValues(mergeState.fieldInfos[i], fieldInfo.name)) {
                         merger.addReader(mergeState.knnVectorsReaders[i], mergeState.docMaps[i], mergeState.liveDocs[i]);
@@ -508,18 +490,7 @@ public class ES910HnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private HnswGraphMerger createGraphMerger(
-        FieldInfo fieldInfo,
-        RandomVectorScorerSupplier scorerSupplier,
-        TaskExecutor parallelMergeTaskExecutor,
-        int numParallelMergeWorkers
-    ) {
-        if (mergeExec != null) {
-            return new ConcurrentHnswMerger(fieldInfo, scorerSupplier, M, beamWidth, mergeExec, numMergeWorkers);
-        }
-        if (parallelMergeTaskExecutor != null && numParallelMergeWorkers > 1) {
-            return new ConcurrentHnswMerger(fieldInfo, scorerSupplier, M, beamWidth, parallelMergeTaskExecutor, numParallelMergeWorkers);
-        }
+    private HnswGraphMerger createGraphMerger(FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier) {
         return new IncrementalHnswGraphMerger(fieldInfo, scorerSupplier, M, beamWidth);
     }
 

@@ -35,7 +35,6 @@ import java.util.Objects;
  * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
-
     public static final ParseField EXCLUDE_VECTORS_FIELD = new ParseField("exclude_vectors");
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");

@@ -103,6 +103,8 @@ setup:
       indices.create:
         index: none-chunking-dense
         body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               keyword_field:

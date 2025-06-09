@@ -187,8 +187,6 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](docs-c
 
 * Counter fields such as `counter_long`, `counter_integer`, and `counter_double` are not supported except
   through explicit casting.
-* `aggregate_metric_double` types are supported in `max`, `min`, `sum`, `avg`, and `count` aggregations.
-  However, this functionality is experimental and available in snapshot builds or requires enabling via its feature flag.
 
 ## Date math limitations [esql-limitations-date-math]
 

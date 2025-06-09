@@ -300,9 +300,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.xpack.esql.inference.RerankOperatorTests
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/124337
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
@@ -384,9 +381,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test024InstallPluginFromArchiveUsingConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/126936
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {rerank.Reranker before a limit ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/127051
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test026InstallBundledRepositoryPlugins
   issue: https://github.com/elastic/elasticsearch/issues/127081
@@ -399,9 +393,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {rerank.Reranker using another sort order ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/127638
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/127096
@@ -417,9 +408,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test025SyncPluginsUsingProxy
   issue: https://github.com/elastic/elasticsearch/issues/127138
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
-  method: testTaskCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/128009
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
@@ -477,9 +465,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  method: testProcessOnceOnPrimary
-  issue: https://github.com/elastic/elasticsearch/issues/128541
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testFailToStartRequestOnRemoteCluster
   issue: https://github.com/elastic/elasticsearch/issues/128545
@@ -489,51 +474,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test085EnvironmentVariablesAreRespectedUnderDockerExec
   issue: https://github.com/elastic/elasticsearch/issues/128115
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128676
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128677
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128705
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateInManyThreads {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128706
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128710
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128711
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128712
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testCrankyEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128713
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128714
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128715
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/128716
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.RLikeTests
-  method: testEvaluateBlockWithNulls {TestCase=100 random code points matches self case insensitive with text}
-  issue: https://github.com/elastic/elasticsearch/issues/128717
 - class: org.elasticsearch.compute.operator.LimitOperatorTests
   method: testEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/128721
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
-- class: org.elasticsearch.xpack.rank.rrf.LinearRankClientYamlTestSuiteIT
-  method: test {yaml=linear/10_linear_retriever/should normalize initial scores with l2_norm}
-  issue: https://github.com/elastic/elasticsearch/issues/128774
 - class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
   method: testSimpleOffHeapSizeFSDir
   issue: https://github.com/elastic/elasticsearch/issues/128799
@@ -543,6 +489,36 @@ tests:
 - class: org.elasticsearch.index.store.DirectIOIT
   method: testDirectIOUsed
   issue: https://github.com/elastic/elasticsearch/issues/128829
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test150MachineDependentHeap
+  issue: https://github.com/elastic/elasticsearch/issues/128120
+- class: org.elasticsearch.xpack.inference.InferenceGetServicesIT
+  method: testGetServicesWithCompletionTaskType
+  issue: https://github.com/elastic/elasticsearch/issues/128952
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test073RunEsAsDifferentUserAndGroupWithoutBindMounting
+  issue: https://github.com/elastic/elasticsearch/issues/128996
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {lookup-join.LookupJoinOnTimeSeriesIndex ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129078
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {lookup-join.LookupJoinOnTimeSeriesIndex SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129082
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/70_ilm/Test Lifecycle Still There And Indices Are Still Managed}
+  issue: https://github.com/elastic/elasticsearch/issues/129097
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/129098
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test081SymlinksAreFollowedWithEnvironmentVariableFiles
+  issue: https://github.com/elastic/elasticsearch/issues/128867
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
+  issue: https://github.com/elastic/elasticsearch/issues/129149
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/129148
 
 # Examples:
 #

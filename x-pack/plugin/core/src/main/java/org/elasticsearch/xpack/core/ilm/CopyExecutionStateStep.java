@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.core.Tuple;
@@ -66,18 +66,18 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
-            return clusterState;
+            return projectState;
         }
         // get target index
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
         calculatedTargetIndexName.set(targetIndexName);
-        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = projectState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
             logger.warn(
@@ -101,10 +101,8 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         newLifecycleState.setAction(action);
         newLifecycleState.setStep(step);
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            clusterState,
-            targetIndexMetadata.getIndex(),
-            newLifecycleState.build()
+        return projectState.updateProject(
+            projectState.metadata().withLifecycleState(targetIndexMetadata.getIndex(), newLifecycleState.build())
         );
     }
 

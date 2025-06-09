@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -71,7 +69,6 @@ import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TYPE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -149,8 +146,19 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         returnType = "boolean",
         preview = true,
         description = """
-            Use `MULTI_MATCH` to perform a <<query-dsl-multi-match-query,multi-match query>> on the specified field.
-            The multi_match query builds on the match query to allow multi-field queries.""",
+            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
+
+            Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
+            as well as other field types like keyword, boolean, dates, and numeric types.
+            When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
+
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
+            All <<match-field-params,match query parameters>> are supported.
+
+            For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
+
+            `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "multi-match-function", tag = "multi-match-with-field"),
             @Example(file = "multi-match-function", tag = "multi-match-with-named-function-params") },
@@ -390,25 +398,9 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return ENTRY.name;
     }
 
-    private TypeResolution resolveOptions() {
-        if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            try {
-                matchQueryOptions();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
+    @Override
+    protected Map<String, Object> resolvedOptions() {
+        return matchQueryOptions();
     }
 
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {

@@ -22,6 +22,7 @@ public class FullTextWritables {
         entries.add(QueryString.ENTRY);
         entries.add(Match.ENTRY);
         entries.add(Kql.ENTRY);
+        entries.add(MatchPhrase.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);

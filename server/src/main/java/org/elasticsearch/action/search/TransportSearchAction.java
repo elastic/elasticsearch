@@ -1895,9 +1895,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final ShardId shardId = shardRouting.shardId();
             OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;
-            var it = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices);
-            it.skip(finalIndices == SKIPPED_INDICES);
-            list[i++] = it;
+            list[i++] = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices, finalIndices == SKIPPED_INDICES);
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);

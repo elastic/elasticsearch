@@ -25,6 +25,7 @@ import java.util.Objects;
  * Iterator for shards used in the search api, which also holds the {@link OriginalIndices}
  * of the search request (useful especially with cross-cluster search, as each cluster has its own set of original indices) as well as
  * the cluster alias.
+ *
  * @see OriginalIndices
  */
 public final class SearchShardIterator implements Comparable<SearchShardIterator> {
@@ -50,6 +51,21 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
         this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, false);
+    }
+
+    /**
+     * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
+     * this the a given <code>shardId</code>.
+     *
+     * @param clusterAlias    the alias of the cluster where the shard is located
+     * @param shardId         shard id of the group
+     * @param shards          shards to iterate
+     * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
+     * @param skip            if true, then this group won't ha
+     *                        ve matches, and it can be safely skipped from the search
+     */
+    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices, boolean skip) {
+        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, skip);
     }
 
     /**
@@ -83,7 +99,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         assert searchContextKeepAlive == null || searchContextId != null;
         this.prefiltered = prefiltered;
         this.skip = skip;
-        assert skip == false || prefiltered : "only prefiltered shards are skip-able";
     }
 
     /**

@@ -1,5 +1,0 @@
-pr: 129138
-summary: "[8.18] backport LOOKUP JOIN type tests and DATE_NANOS"
-area: ES|QL
-type: bug
-issues: []

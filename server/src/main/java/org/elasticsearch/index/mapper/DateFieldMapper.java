@@ -474,18 +474,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
-            this(
-                name,
-                isIndexed,
-                isIndexed,
-                false,
-                true,
-                DEFAULT_DATE_TIME_FORMATTER,
-                resolution,
-                null,
-                null,
-                Collections.emptyMap()
-            );
+            this(name, isIndexed, isIndexed, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, boolean isIndexed) {
@@ -746,7 +735,7 @@ public final class DateFieldMapper extends FieldMapper {
                 query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
-                query = new XIndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;
         }

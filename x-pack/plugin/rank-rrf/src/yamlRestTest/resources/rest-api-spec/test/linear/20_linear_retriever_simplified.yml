@@ -317,3 +317,87 @@ setup:
   - match: { hits.total.value: 0 }
   - length: { hits.hits: 0 }
 
+---
+"Cannot mix simplified query format with custom sub-retrievers":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "foo"
+              normalizer: "minmax"
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          keyword: "bar"
+
+  - contains: { error.root_cause.0.reason: "[linear] cannot combine [retrievers] and [query]" }
+
+---
+"Cannot set top-level normalizer when using custom sub-retrievers":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              normalizer: "minmax"
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          keyword: "bar"
+
+  - contains: { error.root_cause.0.reason: "[linear] [normalizer] cannot be provided when [retrievers] is specified" }
+
+---
+"Missing required params":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "foo"
+
+  - contains: { error.root_cause.0.reason: "[linear] [normalizer] must be provided when [query] is specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: ["text_1", "text_2"]
+
+  - contains: { error.root_cause.0.reason: "[linear] [query] must be provided when [fields] is specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "text_1", "text_2" ]
+              query: ""
+
+  - contains: { error.root_cause.0.reason: "[linear] [query] cannot be empty" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear: {}
+
+  - contains: { error.root_cause.0.reason: "[linear] must provide [retrievers] or [query]" }

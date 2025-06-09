@@ -11,7 +11,11 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.IOUtils;
@@ -32,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
@@ -62,31 +67,39 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
      * geoip processor instance is using the related {@link DatabaseReaderLazyLoader} instance
      */
     public void test() throws Exception {
+        ProjectId projectId = randomProjectIdOrDefault();
         Path geoIpConfigDir = createTempDir();
         Path geoIpTmpDir = createTempDir();
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-        DatabaseNodeService databaseNodeService = createRegistry(geoIpConfigDir, geoIpTmpDir, clusterService);
+        when(clusterService.state()).thenReturn(
+            builder(ClusterName.DEFAULT).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build()
+        );
+        DatabaseNodeService databaseNodeService = createRegistry(
+            geoIpConfigDir,
+            geoIpTmpDir,
+            clusterService,
+            TestProjectResolvers.singleProject(projectId)
+        );
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
-        databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-        databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
-        lazyLoadReaders(databaseNodeService);
+        databaseNodeService.updateDatabase(projectId, "GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
+        databaseNodeService.updateDatabase(projectId, "GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+        lazyLoadReaders(projectId, databaseNodeService);
 
         final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(
             null,
             "_tag",
             null,
             new HashMap<>(Map.of("field", "_field")),
-            null
+            projectId
         );
         final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(
             null,
             "_tag",
             null,
             new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb")),
-            null
+            projectId
         );
 
         final AtomicBoolean completed = new AtomicBoolean(false);
@@ -134,9 +147,9 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         Thread updateDatabaseThread = new Thread(() -> {
             for (int i = 0; i < numberOfDatabaseUpdates; i++) {
                 try {
-                    DatabaseReaderLazyLoader previous1 = databaseNodeService.get("GeoLite2-City.mmdb");
+                    DatabaseReaderLazyLoader previous1 = databaseNodeService.get(projectId, "GeoLite2-City.mmdb");
                     if (Files.exists(geoIpTmpDir.resolve("GeoLite2-City.mmdb"))) {
-                        databaseNodeService.removeStaleEntries(List.of("GeoLite2-City.mmdb"));
+                        databaseNodeService.removeStaleEntries(projectId, List.of("GeoLite2-City.mmdb"));
                         assertBusy(() -> {
                             // lazy loader may still be in use by an ingest thread,
                             // wait for any potential ingest thread to release the lazy loader (DatabaseReaderLazyLoader#postLookup(...)),
@@ -146,22 +159,32 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                         });
                     } else {
                         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-                        databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
+                        databaseNodeService.updateDatabase(
+                            projectId,
+                            "GeoLite2-City.mmdb",
+                            "md5",
+                            geoIpTmpDir.resolve("GeoLite2-City.mmdb")
+                        );
                     }
-                    DatabaseReaderLazyLoader previous2 = databaseNodeService.get("GeoLite2-City-Test.mmdb");
+                    DatabaseReaderLazyLoader previous2 = databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb");
                     copyDatabase(
                         i % 2 == 0 ? "GeoIP2-City-Test.mmdb" : "GeoLite2-City-Test.mmdb",
                         geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb")
                     );
-                    databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+                    databaseNodeService.updateDatabase(
+                        projectId,
+                        "GeoLite2-City-Test.mmdb",
+                        "md5",
+                        geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb")
+                    );
 
-                    DatabaseReaderLazyLoader current1 = databaseNodeService.get("GeoLite2-City.mmdb");
-                    DatabaseReaderLazyLoader current2 = databaseNodeService.get("GeoLite2-City-Test.mmdb");
+                    DatabaseReaderLazyLoader current1 = databaseNodeService.get(projectId, "GeoLite2-City.mmdb");
+                    DatabaseReaderLazyLoader current2 = databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb");
                     assertThat(current1, not(sameInstance(previous1)));
                     assertThat(current2, not(sameInstance(previous2)));
 
                     // lazy load type and reader:
-                    lazyLoadReaders(databaseNodeService);
+                    lazyLoadReaders(projectId, databaseNodeService);
                 } catch (Exception | AssertionError e) {
                     logger.error("error in update databases thread after run [" + i + "]", e);
                     failureHolder2.set(e);
@@ -193,8 +216,12 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         IOUtils.rm(geoIpConfigDir, geoIpTmpDir);
     }
 
-    private static DatabaseNodeService createRegistry(Path geoIpConfigDir, Path geoIpTmpDir, ClusterService clusterService)
-        throws IOException {
+    private static DatabaseNodeService createRegistry(
+        Path geoIpConfigDir,
+        Path geoIpTmpDir,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) throws IOException {
         GeoIpCache cache = new GeoIpCache(0);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
@@ -206,17 +233,17 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             Runnable::run,
             clusterService
         );
-        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
+        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class), projectResolver);
         return databaseNodeService;
     }
 
-    private static void lazyLoadReaders(DatabaseNodeService databaseNodeService) throws IOException {
-        if (databaseNodeService.get("GeoLite2-City.mmdb") != null) {
-            databaseNodeService.get("GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get("GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
+    private static void lazyLoadReaders(ProjectId projectId, DatabaseNodeService databaseNodeService) throws IOException {
+        if (databaseNodeService.get(projectId, "GeoLite2-City.mmdb") != null) {
+            databaseNodeService.get(projectId, "GeoLite2-City.mmdb").getDatabaseType();
+            databaseNodeService.get(projectId, "GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
         }
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
+        databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb").getDatabaseType();
+        databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
     }
 
 }

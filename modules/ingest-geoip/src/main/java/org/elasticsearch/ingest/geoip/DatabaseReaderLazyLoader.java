@@ -88,6 +88,13 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
         return databaseType.get();
     }
 
+    /**
+     * Prepares the database for lookup by incrementing the usage count.
+     * If the usage count is already negative, it indicates that the database is being closed,
+     * and this method will return false to indicate that no lookup should be performed.
+     *
+     * @return true if the database is ready for lookup, false if it is being closed
+     */
     boolean preLookup() {
         return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
     }

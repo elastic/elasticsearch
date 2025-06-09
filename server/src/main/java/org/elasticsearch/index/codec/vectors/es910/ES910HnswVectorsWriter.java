@@ -47,7 +47,6 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraphBuilder;
-import org.elasticsearch.index.codec.vectors.es910.hnsw.HnswGraphMerger;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.IncrementalHnswGraphMerger;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.NeighborArray;
 import org.elasticsearch.index.codec.vectors.es910.hnsw.OnHeapHnswGraph;
@@ -354,7 +353,7 @@ public class ES910HnswVectorsWriter extends KnnVectorsWriter {
             int[][] vectorIndexNodeOffsets = null;
             if (scorerSupplier.totalVectorCount() > 0) {
                 // build graph
-                HnswGraphMerger merger = createGraphMerger(fieldInfo, scorerSupplier);
+                IncrementalHnswGraphMerger merger = createGraphMerger(fieldInfo, scorerSupplier);
                 for (int i = 0; i < mergeState.liveDocs.length; i++) {
                     if (hasVectorValues(mergeState.fieldInfos[i], fieldInfo.name)) {
                         merger.addReader(mergeState.knnVectorsReaders[i], mergeState.docMaps[i], mergeState.liveDocs[i]);
@@ -490,7 +489,7 @@ public class ES910HnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private HnswGraphMerger createGraphMerger(FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier) {
+    private IncrementalHnswGraphMerger createGraphMerger(FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier) {
         return new IncrementalHnswGraphMerger(fieldInfo, scorerSupplier, M, beamWidth);
     }
 

@@ -44,7 +44,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * This merges multiple graphs in a single thread in incremental fashion.
  */
-public class IncrementalHnswGraphMerger implements HnswGraphMerger {
+public class IncrementalHnswGraphMerger {
 
     protected final FieldInfo fieldInfo;
     protected final RandomVectorScorerSupplier scorerSupplier;
@@ -71,7 +71,6 @@ public class IncrementalHnswGraphMerger implements HnswGraphMerger {
      * Adds a reader to the graph merger if it meets the following criteria: 1. does not contain any
      * deleted docs 2. is a HnswGraphProvider
      */
-    @Override
     public IncrementalHnswGraphMerger addReader(KnnVectorsReader reader, MergeState.DocMap docMap, Bits liveDocs) throws IOException {
         numReaders++;
         if (hasDeletes(liveDocs) || (reader instanceof HnswGraphProvider == false)) {
@@ -175,7 +174,6 @@ public class IncrementalHnswGraphMerger implements HnswGraphMerger {
         return oldToNewOrdinalMap;
     }
 
-    @Override
     public OnHeapHnswGraph merge(KnnVectorValues mergedVectorValues, InfoStream infoStream, int maxOrd) throws IOException {
         HnswBuilder builder = createBuilder(mergedVectorValues, maxOrd);
         builder.setInfoStream(infoStream);

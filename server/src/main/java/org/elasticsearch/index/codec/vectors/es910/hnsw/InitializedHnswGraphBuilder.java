@@ -20,10 +20,7 @@
 
 package org.elasticsearch.index.codec.vectors.es910.hnsw;
 
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.hnsw.HnswGraph;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 
 import java.io.IOException;
 
@@ -33,39 +30,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * This creates a graph builder that is initialized with the provided HnswGraph. This is useful for
  * merging HnswGraphs from multiple segments.
  */
-public final class InitializedHnswGraphBuilder extends HnswGraphBuilder {
-
-    /**
-     * Create a new HnswGraphBuilder that is initialized with the provided HnswGraph.
-     *
-     * @param scorerSupplier the scorer to use for vectors
-     * @param beamWidth the number of nodes to explore in the search
-     * @param seed the seed for the random number generator
-     * @param initializerGraph the graph to initialize the new graph builder
-     * @param newOrdMap a mapping from the old node ordinal to the new node ordinal
-     * @param initializedNodes a bitset of nodes that are already initialized in the initializerGraph
-     * @param totalNumberOfVectors the total number of vectors in the new graph, this should include
-     *     all vectors expected to be added to the graph in the future
-     * @return a new HnswGraphBuilder that is initialized with the provided HnswGraph
-     * @throws IOException when reading the graph fails
-     */
-    public static InitializedHnswGraphBuilder fromGraph(
-        RandomVectorScorerSupplier scorerSupplier,
-        int beamWidth,
-        long seed,
-        HnswGraph initializerGraph,
-        int[] newOrdMap,
-        BitSet initializedNodes,
-        int totalNumberOfVectors
-    ) throws IOException {
-        return new InitializedHnswGraphBuilder(
-            scorerSupplier,
-            beamWidth,
-            seed,
-            initGraph(initializerGraph, newOrdMap, totalNumberOfVectors),
-            initializedNodes
-        );
-    }
+public final class InitializedHnswGraphBuilder {
 
     public static OnHeapHnswGraph initGraph(HnswGraph initializerGraph, int[] newOrdMap, int totalNumberOfVectors) throws IOException {
         OnHeapHnswGraph hnsw = new OnHeapHnswGraph(initializerGraph.maxConn(), totalNumberOfVectors);
@@ -87,34 +52,5 @@ public final class InitializedHnswGraphBuilder extends HnswGraphBuilder {
             }
         }
         return hnsw;
-    }
-
-    private final BitSet initializedNodes;
-
-    public InitializedHnswGraphBuilder(
-        RandomVectorScorerSupplier scorerSupplier,
-        int beamWidth,
-        long seed,
-        OnHeapHnswGraph initializedGraph,
-        BitSet initializedNodes
-    ) throws IOException {
-        super(scorerSupplier, beamWidth, seed, initializedGraph);
-        this.initializedNodes = initializedNodes;
-    }
-
-    @Override
-    public void addGraphNode(int node, UpdateableRandomVectorScorer scorer) throws IOException {
-        if (initializedNodes.get(node)) {
-            return;
-        }
-        super.addGraphNode(node, scorer);
-    }
-
-    @Override
-    public void addGraphNode(int node) throws IOException {
-        if (initializedNodes.get(node)) {
-            return;
-        }
-        super.addGraphNode(node);
     }
 }

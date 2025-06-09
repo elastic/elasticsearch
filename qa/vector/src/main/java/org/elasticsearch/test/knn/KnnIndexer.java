@@ -304,7 +304,7 @@ class KnnIndexer {
                 bytes.position(0);
                 // wrap around back to the start of the file if we hit the end:
                 logger.warn("VectorReader hit EOF when reading " + this.input + "; now wrapping around to start of file again");
-                this.input.position(position);
+                input.position(position);
                 bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
                 if (bytesRead < bytes.capacity()) {
                     throw new IllegalStateException(

@@ -241,7 +241,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(1));
                     // 100_000 (available) - 5% (default flood stage level) * 200_000 (total space)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(90_000L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(90_000L));
                 }
             });
             // "b" now has more available space
@@ -251,7 +251,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(2));
                     // 110_000 (available) - 5% (default flood stage level) * 130_000 (total space)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(103_500L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(103_500L));
                 }
             });
             // available space for "a" and "b" is below the limit => it's clamp down to "0"
@@ -261,7 +261,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(3));
                     // 1_000 (available) - 5% (default flood stage level) * 130_000 (total space) < 0
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(0L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(0L));
                 }
             });
         }
@@ -297,7 +297,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         ) {
             assertThat(diskSpacePeriodicMonitor.isScheduled(), is(false));
             assertThat(availableDiskSpaceUpdates.size(), is(1));
-            assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(Long.MAX_VALUE));
+            assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(Long.MAX_VALUE));
             // updating monitoring interval should enable the monitor
             String intervalSettingValue = randomFrom("1s", "123ms", "5nanos", "2h");
             clusterSettings.applySettings(
@@ -308,7 +308,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertThat(diskSpacePeriodicMonitor.isScheduled(), is(true));
             assertThat(testThreadPool.scheduledTasks.size(), is(1));
             assertThat(
-                testThreadPool.scheduledTasks.getLast().v1(),
+                getLast(testThreadPool.scheduledTasks).v1(),
                 is(
                     TimeValue.parseTimeValue(
                         intervalSettingValue,
@@ -354,14 +354,14 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     if (aErrorsFirst) {
                         // uses the stats from "b"
                         assertThat(
-                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            getLast(availableDiskSpaceUpdates).getBytes(),
                             // the default 5% (same as flood stage level)
                             is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
                         );
                     } else {
                         // uses the stats from "a"
                         assertThat(
-                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            getLast(availableDiskSpaceUpdates).getBytes(),
                             // the default 5% (same as flood stage level)
                             is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
                         );
@@ -379,7 +379,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(2));
                     // consider the available disk space as unlimited when no fs stats can be collected
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(Long.MAX_VALUE));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(Long.MAX_VALUE));
                 }
             });
             if (aErrorsFirst) {
@@ -395,14 +395,14 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     if (aErrorsFirst) {
                         // uses the stats from "a"
                         assertThat(
-                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            getLast(availableDiskSpaceUpdates).getBytes(),
                             // the default 5% (same as flood stage level)
                             is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
                         );
                     } else {
                         // uses the stats from "b"
                         assertThat(
-                            availableDiskSpaceUpdates.getLast().getBytes(),
+                            getLast(availableDiskSpaceUpdates).getBytes(),
                             // the default 5% (same as flood stage level)
                             is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
                         );
@@ -438,7 +438,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(1));
                     // 1_000_000 (available) - 5% (default flood stage level) * 1_100_000 (total space)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(945_000L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(945_000L));
                 }
             }, 5, TimeUnit.SECONDS);
             // updated the ration for the watermark
@@ -449,7 +449,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(2));
                     // 1_000_000 (available) - 10% (indices.merge.disk.watermark.high) * 1_100_000 (total space)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(890_000L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(890_000L));
                 }
             }, 5, TimeUnit.SECONDS);
             // absolute value for the watermark limit
@@ -460,7 +460,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(3));
                     // 1_000_000 (available) - 3_000 (indices.merge.disk.watermark.high)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(997_000L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(997_000L));
                 }
             }, 5, TimeUnit.SECONDS);
             // headroom value that takes priority over the watermark
@@ -474,7 +474,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(4));
                     // 1_000_000 (available) - 11_111 (indices.merge.disk.watermark.high)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(988_889L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(988_889L));
                 }
             }, 5, TimeUnit.SECONDS);
             // watermark limit that takes priority over the headroom
@@ -488,7 +488,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(5));
                     // 1_000_000 (available) - 2% (indices.merge.disk.watermark.high) * 1_100_000 (total space)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(978_000L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(978_000L));
                 }
             }, 5, TimeUnit.SECONDS);
             // headroom takes priority over the default watermark of 95%
@@ -501,7 +501,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(6));
                     // 1_000_000 (available) - 22_222
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(977_778L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(977_778L));
                 }
             }, 5, TimeUnit.SECONDS);
             // watermark from routing allocation takes priority
@@ -516,7 +516,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 synchronized (availableDiskSpaceUpdates) {
                     assertThat(availableDiskSpaceUpdates.size(), is(7));
                     // 1_000_000 (available) - 1% (cluster.routing.allocation.disk.watermark.flood_stage) * 1_100_000 (total space)
-                    assertThat(availableDiskSpaceUpdates.getLast().getBytes(), is(989_000L));
+                    assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(989_000L));
                 }
             }, 5, TimeUnit.SECONDS);
         }
@@ -1019,5 +1019,15 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 );
             });
         }
+    }
+
+    private static <T> T getLast(final Iterable<T> elements) {
+        T lastElement = null;
+
+        for (T element : elements) {
+            lastElement = element;
+        }
+
+        return lastElement;
     }
 }

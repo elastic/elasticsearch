@@ -788,7 +788,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 tookElements.add(mergeTaskPriorityBlockingQueue.take());
                 long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
                 assertThat(afterBudget, greaterThanOrEqualTo(0L));
-                assertThat(prevBudget - afterBudget, is(tookElements.getLast().element().estimatedRemainingMergeSize()));
+                var last = tookElements.get(tookElements.size() - 1);
+                assertThat(prevBudget - afterBudget, is(last.element().estimatedRemainingMergeSize()));
             } else if (tookElements.stream().anyMatch(e -> e.isClosed() == false) && randomBoolean()) {
                 // "closes" a previously took element to simulate it has gone out of scope
                 int index = randomValueOtherThanMany(
@@ -845,7 +846,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 tookElements.add(mergeTaskPriorityBlockingQueue.take());
                 long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
                 assertThat(afterBudget, greaterThanOrEqualTo(0L));
-                assertThat(prevBudget - afterBudget, is(tookElements.getLast().element().estimatedRemainingMergeSize()));
+                var last = tookElements.get(tookElements.size() - 1);
+                assertThat(prevBudget - afterBudget, is(last.element().estimatedRemainingMergeSize()));
             } else if (randomBoolean()) {
                 // "closes" a previously took element to simulate it has gone out of scope
                 int index = randomValueOtherThanMany(

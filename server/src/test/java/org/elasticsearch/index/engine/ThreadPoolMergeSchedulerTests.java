@@ -103,8 +103,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             // assert merges are executed in ascending size order
             for (int i = 1; i < mergeCount; i++) {
                 assertThat(
-                    executedMergesList.get(i - 1).getStoreMergeInfo().estimatedMergeBytes(),
-                    lessThanOrEqualTo(executedMergesList.get(i).getStoreMergeInfo().estimatedMergeBytes())
+                    executedMergesList.get(i - 1).getStoreMergeInfo().estimatedMergeBytes,
+                    lessThanOrEqualTo(executedMergesList.get(i).getStoreMergeInfo().estimatedMergeBytes)
                 );
             }
         }

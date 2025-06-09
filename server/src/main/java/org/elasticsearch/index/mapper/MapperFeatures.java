@@ -70,7 +70,8 @@ public class MapperFeatures implements FeatureSpecification {
             NPE_ON_DIMS_UPDATE_FIX,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
-            IVF_FORMAT_CLUSTER_FEATURE
+            IVF_FORMAT_CLUSTER_FEATURE,
+            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE
         );
     }
 }

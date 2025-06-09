@@ -362,7 +362,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         })));
         assertThat(e.getMessage(), containsString("[index_options] failed to parse field [prune]"));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getCause().getCause().getMessage(), containsString("Failed to parse value [othervalue] as only [true] or [false] are allowed."));
+        assertThat(
+            e.getCause().getCause().getMessage(),
+            containsString("Failed to parse value [othervalue] as only [true] or [false] are allowed.")
+        );
     }
 
     public void testPruningConfigurationIsMap() {
@@ -593,13 +596,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
 
         // query should be pruned via explicit index options
-        performTypeQueryFinalizationTest(
-            mapperService,
-            new SparseVectorFieldMapper.IndexOptions(false, null),
-            null,
-            null,
-            false
-        );
+        performTypeQueryFinalizationTest(mapperService, new SparseVectorFieldMapper.IndexOptions(false, null), null, null, false);
     }
 
     public void testTypeQueryFinalizationQueryOverridesPruning() throws Exception {

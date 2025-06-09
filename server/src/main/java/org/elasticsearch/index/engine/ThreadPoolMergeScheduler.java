@@ -30,9 +30,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
@@ -541,17 +539,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
             try {
                 return currentMerge.getMergeInfo() != null ? currentMerge.getMergeInfo().sizeInBytes() : currentMerge.estimatedMergeBytes;
-            } catch (FileNotFoundException | NoSuchFileException e) {
-                // It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to reaching this point.
-                // Once the IW creates the new segment, it could be exposed to be included in a new merge. That merge can be executed
-                // concurrently if more than 1 merge threads are configured. That new merge allows this IW to delete segment created by
-                // this merge. Although the files may still be available in the object store for executing searches, the IndexDirectory
-                // will no longer have references to the underlying segment files and will throw file not found if we try to read them.
-                // In this case, we will ignore that exception (which would otherwise fail the shard) and use the originally estimated
-                // merge size for metrics.
-                return currentMerge.estimatedMergeBytes;
             } catch (IOException e) {
-                // TODO how to handle?
+                // For stateless only: It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to
+                // reaching this point. Once the IW creates the new segment, it could be exposed to be included in a new merge. That
+                // merge can be executed concurrently if more than 1 merge threads are configured. That new merge allows this IW to
+                // delete segment created by this merge. Although the files may still be available in the object store for executing
+                // searches, the IndexDirectory will no longer have references to the underlying segment files and will throw file not
+                // found if we try to read them. In this case, we will ignore that exception (which would otherwise fail the shard) and
+                // use the originally estimated merge size for metrics.
                 return currentMerge.estimatedMergeBytes;
             }
         }

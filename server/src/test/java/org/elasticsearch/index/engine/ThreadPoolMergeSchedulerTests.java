@@ -516,7 +516,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     IndexSettingsModule.newIndexSettings("index", settings),
                     threadPoolMergeExecutorService,
                     merge -> 0,
-                    mock(MergeMetrics.class)
+                    MergeMetrics.NOOP
                 )
             ) {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
@@ -580,7 +580,6 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         OneMerge oneMerge = mock(OneMerge.class);
-        MergeMetrics mergeMetrics = mock(MergeMetrics.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong()));
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
         MergeSource mergeSource = mock(MergeSource.class);
@@ -591,7 +590,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 indexSettings,
                 threadPoolMergeExecutorService,
                 merge -> 0,
-                mergeMetrics
+                MergeMetrics.NOOP
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -610,7 +609,6 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settingsBuilder.build());
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         OneMerge oneMerge = mock(OneMerge.class);
-        MergeMetrics mergeMetrics = mock(MergeMetrics.class);
         // forced merge with a set number of segments
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong(), randomNonNegativeInt()));
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
@@ -623,7 +621,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 indexSettings,
                 threadPoolMergeExecutorService,
                 merge -> 0,
-                mergeMetrics
+                MergeMetrics.NOOP
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -641,7 +639,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 indexSettings,
                 threadPoolMergeExecutorService,
                 merge -> 0,
-                mergeMetrics
+                MergeMetrics.NOOP
             )
         ) {
             // merge submitted upon closing
@@ -659,7 +657,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 indexSettings,
                 threadPoolMergeExecutorService,
                 merge -> 0,
-                mergeMetrics
+                MergeMetrics.NOOP
             )
         ) {
             // merge submitted upon closing
@@ -676,14 +674,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     public void testMergeSchedulerAbortsMergeWhenShouldSkipMergeIsTrue() {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
-        MergeMetrics mergeMetrics = mock(MergeMetrics.class);
         // build a scheduler that always returns true for shouldSkipMerge
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", Settings.builder().build()),
             threadPoolMergeExecutorService,
             merge -> 0,
-            mergeMetrics
+            MergeMetrics.NOOP
         ) {
             @Override
             protected boolean shouldSkipMerge() {

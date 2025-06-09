@@ -1712,6 +1712,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder putCustom(String type, ProjectCustom custom) {
             return putProjectCustom(type, custom);
         }

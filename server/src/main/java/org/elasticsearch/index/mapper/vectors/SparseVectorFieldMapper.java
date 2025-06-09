@@ -266,7 +266,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private TokenPruningConfig getDefaultPruningConfig(SearchExecutionContext context) {
             IndexVersion indexVersion = context.indexVersionCreated();
 
-            if (indexVersion.after(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+            if (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
                 // default pruning for 9.1.0+ is true for this index
                 return new TokenPruningConfig();
             }

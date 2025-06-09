@@ -20,10 +20,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link StdDevDoubleAggregator}.
+ * {@link AggregatorFunction} implementation for {@link StdDevPopulationLongAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class StdDevDoubleAggregatorFunction implements AggregatorFunction {
+public final class StdDevPopulationLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -35,16 +35,16 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private final List<Integer> channels;
 
-  public StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+  public StdDevPopulationLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
       StdDevStates.SingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static StdDevDoubleAggregatorFunction create(DriverContext driverContext,
+  public static StdDevPopulationLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle());
+    return new StdDevPopulationLongAggregatorFunction(driverContext, channels, StdDevPopulationLongAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,8 +64,8 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
     }
     if (mask.allTrue()) {
       // No masking
-      DoubleBlock block = page.getBlock(channels.get(0));
-      DoubleVector vector = block.asVector();
+      LongBlock block = page.getBlock(channels.get(0));
+      LongVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
@@ -74,8 +74,8 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
       return;
     }
     // Some positions masked away, others kept
-    DoubleBlock block = page.getBlock(channels.get(0));
-    DoubleVector vector = block.asVector();
+    LongBlock block = page.getBlock(channels.get(0));
+    LongVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector, mask);
     } else {
@@ -83,22 +83,22 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
     }
   }
 
-  private void addRawVector(DoubleVector vector) {
+  private void addRawVector(LongVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
+      StdDevPopulationLongAggregator.combine(state, vector.getLong(i));
     }
   }
 
-  private void addRawVector(DoubleVector vector, BooleanVector mask) {
+  private void addRawVector(LongVector vector, BooleanVector mask) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
+      StdDevPopulationLongAggregator.combine(state, vector.getLong(i));
     }
   }
 
-  private void addRawBlock(DoubleBlock block) {
+  private void addRawBlock(LongBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -106,12 +106,12 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevDoubleAggregator.combine(state, block.getDouble(i));
+        StdDevPopulationLongAggregator.combine(state, block.getLong(i));
       }
     }
   }
 
-  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
+  private void addRawBlock(LongBlock block, BooleanVector mask) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -122,7 +122,7 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevDoubleAggregator.combine(state, block.getDouble(i));
+        StdDevPopulationLongAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -149,7 +149,7 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    StdDevDoubleAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
+    StdDevPopulationLongAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -159,7 +159,7 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = StdDevDoubleAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = StdDevPopulationLongAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

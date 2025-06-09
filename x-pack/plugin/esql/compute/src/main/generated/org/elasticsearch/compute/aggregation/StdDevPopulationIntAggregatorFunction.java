@@ -14,16 +14,18 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link StdDevLongAggregator}.
+ * {@link AggregatorFunction} implementation for {@link StdDevPopulationIntAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class StdDevLongAggregatorFunction implements AggregatorFunction {
+public final class StdDevPopulationIntAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -35,16 +37,16 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public StdDevLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+  public StdDevPopulationIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
       StdDevStates.SingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static StdDevLongAggregatorFunction create(DriverContext driverContext,
+  public static StdDevPopulationIntAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new StdDevLongAggregatorFunction(driverContext, channels, StdDevLongAggregator.initSingle());
+    return new StdDevPopulationIntAggregatorFunction(driverContext, channels, StdDevPopulationIntAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,8 +66,8 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
     }
     if (mask.allTrue()) {
       // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
+      IntBlock block = page.getBlock(channels.get(0));
+      IntVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
@@ -74,8 +76,8 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
       return;
     }
     // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
+    IntBlock block = page.getBlock(channels.get(0));
+    IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector, mask);
     } else {
@@ -83,22 +85,22 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
     }
   }
 
-  private void addRawVector(LongVector vector) {
+  private void addRawVector(IntVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevLongAggregator.combine(state, vector.getLong(i));
+      StdDevPopulationIntAggregator.combine(state, vector.getInt(i));
     }
   }
 
-  private void addRawVector(LongVector vector, BooleanVector mask) {
+  private void addRawVector(IntVector vector, BooleanVector mask) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      StdDevLongAggregator.combine(state, vector.getLong(i));
+      StdDevPopulationIntAggregator.combine(state, vector.getInt(i));
     }
   }
 
-  private void addRawBlock(LongBlock block) {
+  private void addRawBlock(IntBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -106,12 +108,12 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevLongAggregator.combine(state, block.getLong(i));
+        StdDevPopulationIntAggregator.combine(state, block.getInt(i));
       }
     }
   }
 
-  private void addRawBlock(LongBlock block, BooleanVector mask) {
+  private void addRawBlock(IntBlock block, BooleanVector mask) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -122,7 +124,7 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevLongAggregator.combine(state, block.getLong(i));
+        StdDevPopulationIntAggregator.combine(state, block.getInt(i));
       }
     }
   }
@@ -149,7 +151,7 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    StdDevLongAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
+    StdDevPopulationIntAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -159,7 +161,7 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = StdDevLongAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = StdDevPopulationIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

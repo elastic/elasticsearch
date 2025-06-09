@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
+import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
@@ -323,6 +324,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     protected void pushEntitlementChecker(MethodVisitor mv) {
         mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
+        mv.visitTypeInsn(CHECKCAST, "org/elasticsearch/entitlement/bridge/EntitlementChecker");
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

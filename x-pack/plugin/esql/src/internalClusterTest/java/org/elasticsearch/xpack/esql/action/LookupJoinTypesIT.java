@@ -527,7 +527,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
         String query = String.format(Locale.ROOT, "FROM %s | KEEP %s", indexName, fieldName);
         try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
-            ColumnInfo info = response.response().columns().getFirst();
+            ColumnInfo info = response.response().columns().get(0);
             assertThat("Expected index '" + indexName + "' to have column '" + fieldName + ": " + query, info.name(), is(fieldName));
             Iterator<Object> results = response.response().column(0).iterator();
             assertTrue("Expected at least one result for query: " + query, results.hasNext());

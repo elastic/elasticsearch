@@ -571,7 +571,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    @SuppressWarnings({ "checkstyle:LineLength", "unchecked" })
+    @SuppressWarnings("unchecked")
     public void testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime() throws Exception {
         String indexPattern = "tsdb-index-";
         String dataStream = "tsdb-index-cpu";
@@ -991,7 +991,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         Request countRequest = new Request("GET", "/" + indexName + "/_count");
         Response response = client.performRequest(countRequest);
         Map<String, Object> result = entityAsMap(response);
-        System.out.println("result = " + result);
         return (int) result.get("count");
     }
 }

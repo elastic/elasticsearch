@@ -62,7 +62,7 @@ import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.GeoShapeScriptValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -508,7 +508,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public ScriptDocValues<GeoShapeValues.GeoShapeValue> toScriptDocValues() {
             if (geoShapeScriptValues == null) {
-                geoShapeScriptValues = new AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues(this);
+                geoShapeScriptValues = new GeoShapeScriptValues(this);
             }
 
             return geoShapeScriptValues;

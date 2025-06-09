@@ -25,25 +25,6 @@ public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements Le
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
-    public static class Empty<T extends ShapeValues<?>> extends LeafShapeFieldData<T> {
-        private final T emptyValues;
-
-        public Empty(ToScriptFieldFactory<T> toScriptFieldFactory, T emptyValues) {
-            super(toScriptFieldFactory);
-            this.emptyValues = emptyValues;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public T getShapeValues() {
-            return emptyValues;
-        }
-    }
-
     /**
      * Return geo-shape or shape values.
      */
@@ -51,7 +32,7 @@ public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements Le
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {
-        throw new UnsupportedOperationException("scripts and term aggs are not supported by geo_shape or shape doc values");
+        throw new UnsupportedOperationException("Unsupported aggregation used with geo_shape or shape doc values");
     }
 
     @Override

@@ -41,8 +41,8 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.GeoShapeScriptFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.GeoShapeScriptValues;
 import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
 
 import java.io.IOException;
@@ -184,8 +184,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues values =
-                                    (AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues) getDoc().get("test");
+                                GeoShapeScriptValues values = (GeoShapeScriptValues) getDoc().get("test");
                                 try {
                                     return values.get(0).getY() + 1;
                                 } catch (IOException ioe) {

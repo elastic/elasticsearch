@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.GeoShapeScriptValues;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -127,8 +127,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         }
 
         private LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> assertGeometry(Map<?, ?> doc) {
-            AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues geometry =
-                (AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues) doc.get("location");
+            GeoShapeScriptValues geometry = (GeoShapeScriptValues) doc.get("location");
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());

@@ -40,8 +40,8 @@ import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicCartesianShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeScriptValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 
 import java.io.IOException;
@@ -329,7 +329,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public ScriptDocValues<CartesianShapeValues.CartesianShapeValue> toScriptDocValues() {
             if (cartesianShapeScriptValues == null) {
-                cartesianShapeScriptValues = new AbstractAtomicCartesianShapeFieldData.CartesianShapeScriptValues(this);
+                cartesianShapeScriptValues = new CartesianShapeScriptValues(this);
             }
 
             return cartesianShapeScriptValues;

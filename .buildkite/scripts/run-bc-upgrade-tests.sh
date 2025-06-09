@@ -28,7 +28,7 @@ if [[ -z "$MANIFEST_URL" ]]; then
    exit 0
 fi
 
-MANIFEST="$(eval "curl -s $MANIFEST_URL")"
+MANIFEST="$(curl -s "$MANIFEST_URL")"
 if [[ -z "$MANIFEST" ]]; then
    echo "Cannot get the build manifest from [$MANIFEST_URL]"
    exit 1

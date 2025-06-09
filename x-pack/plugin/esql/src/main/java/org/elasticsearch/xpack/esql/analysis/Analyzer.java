@@ -1947,7 +1947,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private Expression resolveMetricFunction(Expression expression, AggregateMetricDoubleBlockBuilder.Metric metric) {
             AggregateFunction aggregateFunction = (AggregateFunction) expression;
-            if (aggregateFunction.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf && typesShouldBeConverted(imf.types())) {
+            if (aggregateFunction.field() instanceof FieldAttribute fa
+                && fa.field() instanceof InvalidMappedField imf
+                && typesShouldBeConverted(imf.types())) {
                 HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 typeResolutions(imf, aggregateFunction, fa, expression, metric, typeResolutions);
                 var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(fa, typeResolutions);
@@ -1980,7 +1982,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return true;
         }
 
-        private void typeResolutions(InvalidMappedField imf, AggregateFunction aggregateFunction, FieldAttribute fa, Expression expression, AggregateMetricDoubleBlockBuilder.Metric metric, HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions) {
+        private void typeResolutions(
+            InvalidMappedField imf,
+            AggregateFunction aggregateFunction,
+            FieldAttribute fa,
+            Expression expression,
+            AggregateMetricDoubleBlockBuilder.Metric metric,
+            HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
+        ) {
             for (DataType type : imf.types()) {
                 // Effectively the contents of ResolveUnionTypes::typeSpecificConvert(...)
                 // except convertFunction is not necessarily a ConvertFunction (as in the case of Sum's FromAggregateMetricDouble)

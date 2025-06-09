@@ -26,6 +26,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
     public void testSimplifiedParamsRewrite() {
         final String indexName = "test-index";
         final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields);
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
         final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
             parserConfig(),
             null,
@@ -145,8 +146,41 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         );
     }
 
-    private static ResolvedIndices createMockResolvedIndices(String indexName, List<String> inferenceFields) {
-        Index index = new Index(indexName, randomAlphaOfLength(10));
+    public void testSearchRemoteIndex() {
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            "local-index",
+            List.of(),
+            Map.of("remote-cluster", "remote-index")
+        );
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            null,
+            null,
+            "foo",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> retriever.doRewrite(queryRewriteContext));
+        assertEquals("[linear] does not support the simplified query format when querying remote indices", iae.getMessage());
+    }
+
+    private static ResolvedIndices createMockResolvedIndices(
+        String localIndexName,
+        List<String> inferenceFields,
+        Map<String, String> remoteIndexNames
+    ) {
+        Index index = new Index(localIndexName, randomAlphaOfLength(10));
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
             .settings(
                 Settings.builder()
@@ -162,9 +196,16 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             );
         }
 
+        Map<String, OriginalIndices> remoteIndices = new HashMap<>();
+        if (remoteIndexNames != null) {
+            for (Map.Entry<String, String> entry : remoteIndexNames.entrySet()) {
+                remoteIndices.put(entry.getKey(), new OriginalIndices(new String[] { entry.getValue() }, IndicesOptions.DEFAULT));
+            }
+        }
+
         return new MockResolvedIndices(
-            Map.of(),
-            new OriginalIndices(new String[] { indexName }, IndicesOptions.DEFAULT),
+            remoteIndices,
+            new OriginalIndices(new String[] { localIndexName }, IndicesOptions.DEFAULT),
             Map.of(index, indexMetadataBuilder.build())
         );
     }

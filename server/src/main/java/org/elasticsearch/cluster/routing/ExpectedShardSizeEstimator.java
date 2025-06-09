@@ -58,6 +58,7 @@ public class ExpectedShardSizeEstimator {
             // shrink/split/clone operation is going to clone existing locally placed shards using file system hard links
             // so no additional space is going to be used until future merges
             case LOCAL_SHARDS -> false;
+            case RESHARD_SPLIT_TARGET -> false;
         };
     }
 

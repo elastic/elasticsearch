@@ -34,10 +34,11 @@ public class RecoverySourceTests extends ESTestCase {
         assertEquals(RecoverySource.Type.PEER.ordinal(), 2);
         assertEquals(RecoverySource.Type.SNAPSHOT.ordinal(), 3);
         assertEquals(RecoverySource.Type.LOCAL_SHARDS.ordinal(), 4);
+        assertEquals(RecoverySource.Type.RESHARD_SPLIT_TARGET.ordinal(), 5);
         // check exhaustiveness
         for (RecoverySource.Type type : RecoverySource.Type.values()) {
             assertThat(type.ordinal(), greaterThanOrEqualTo(0));
-            assertThat(type.ordinal(), lessThanOrEqualTo(4));
+            assertThat(type.ordinal(), lessThanOrEqualTo(5));
         }
     }
 }

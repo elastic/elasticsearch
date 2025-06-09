@@ -56,6 +56,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    private final List<Order> order;
+    @Nullable
+    private final Expression limit;
+
     public AggregateExec(
         Source source,
         PhysicalPlan child,
@@ -71,6 +75,29 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.mode = mode;
         this.intermediateAttributes = intermediateAttributes;
         this.estimatedRowSize = estimatedRowSize;
+        this.order = List.of();
+        this.limit = null;
+    }
+
+    public AggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        List<Order> order,
+        @Nullable Expression limit
+    ) {
+        super(source, child);
+        this.groupings = groupings;
+        this.aggregates = aggregates;
+        this.mode = mode;
+        this.intermediateAttributes = intermediateAttributes;
+        this.estimatedRowSize = estimatedRowSize;
+        this.order = order;
+        this.limit = limit;
     }
 
     protected AggregateExec(StreamInput in) throws IOException {
@@ -82,6 +109,13 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.mode = in.readEnum(AggregatorMode.class);
         this.intermediateAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.estimatedRowSize = in.readOptionalVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOP_N_AGGREGATES)) {
+            this.order = in.readCollectionAsList(Order::new);
+            this.limit = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            this.order = emptyList();
+            this.limit = null;
+        }
     }
 
     @Override
@@ -97,6 +131,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
             out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
         }
         out.writeOptionalVInt(estimatedRowSize());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOP_N_AGGREGATES)) {
+            out.writeCollection(order);
+            out.writeOptionalNamedWriteable(limit);
+        }
     }
 
     @Override

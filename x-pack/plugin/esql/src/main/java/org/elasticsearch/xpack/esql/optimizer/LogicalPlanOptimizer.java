@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTopNAndAggregateWithTopNAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateTopNToAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans;
@@ -209,6 +209,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceTopNAndAggregateWithTopNAggregate(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
+        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new PropagateTopNToAggregates(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -76,11 +75,6 @@ public class LocalMapper {
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-        }
-
-        if (unary instanceof TopNAggregate topNAggregate) {
-            List<Attribute> intermediate = MapperUtils.intermediateAttributes(topNAggregate);
-            return MapperUtils.topNAggExec(topNAggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {

@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 /**
  * Looks for the structure:
  * <pre>
- * {@link TopN}
- * \_{@link Aggregate}
+ * TopN
+ * \_Aggregate
  * </pre>
- * And replaces it with {@link TopNAggregate}.
+ * And replaces the Aggregate with an Aggregate with the TopN data.
+ * (TODO: Create a new TopNAggregate node instead)
  */
-public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, LogicalPlan> {
+public class PropagateTopNToAggregates extends Rule<TopN, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
@@ -31,16 +31,18 @@ public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, Logical
         );
     }
 
-    private LogicalPlan applyRule(TopN topN) {
+    private TopN applyRule(TopN topN) {
         // TODO: Handle TimeSeriesAggregate
         if (topN.child() instanceof Aggregate aggregate) {
-            return new TopNAggregate(
-                aggregate.source(),
-                aggregate.child(),
-                aggregate.groupings(),
-                aggregate.aggregates(),
-                topN.order(),
-                topN.limit()
+            return topN.replaceChild(
+                new Aggregate(
+                    aggregate.source(),
+                    aggregate.child(),
+                    aggregate.groupings(),
+                    aggregate.aggregates(),
+                    topN.order(),
+                    topN.limit()
+                )
             );
         }
         return topN;

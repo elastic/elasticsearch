@@ -70,7 +70,7 @@ public class EsqlResponseListenerTests extends ESTestCase {
                 new TimeValue(4444L)
             )
         );
-        EsqlResponseListener.logPartialResponseErrors("/_query", Map.of(), executionInfo);
+        EsqlResponseListener.logPartialFailures("/_query", Map.of(), executionInfo);
 
         LogEvent logEvent = appender.events.get(0);
         assertThat(logEvent.getLevel(), equalTo(Level.WARN));

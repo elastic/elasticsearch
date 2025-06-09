@@ -127,7 +127,7 @@ public final class RestResponse implements Releasable {
         ToXContent.Params params = channel.request();
         if (e != null) {
             Level level = status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) ? Level.DEBUG : Level.WARN;
-            suppressedError(level, channel.request().rawPath(), channel.request().params(), status, e);
+            logSuppressedError(level, channel.request().rawPath(), channel.request().params(), status, e);
         }
         // if "error_trace" is turned on in the request, we want to render it in the rest response
         // for that the REST_EXCEPTION_SKIP_STACK_TRACE flag that if "true" omits the stack traces is
@@ -245,7 +245,10 @@ public final class RestResponse implements Releasable {
         Releasables.closeExpectNoException(releasable);
     }
 
-    public static void suppressedError(Level level, String rawPath, Map<String, String> params, RestStatus status, Exception e) {
+    /**
+     * Log failures to the {@code rest.suppressed} logger.
+     */
+    public static void logSuppressedError(Level level, String rawPath, Map<String, String> params, RestStatus status, Exception e) {
         if (SUPPRESSED_ERROR_LOGGER.isEnabled(level)) {
             SUPPRESSED_ERROR_LOGGER.log(
                 level,

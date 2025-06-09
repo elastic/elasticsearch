@@ -123,7 +123,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
 
     @Override
     protected void processResponse(EsqlQueryResponse esqlQueryResponse) throws IOException {
-        logPartialResponseErrors(channel.request().rawPath(), channel.request().params(), esqlQueryResponse.getExecutionInfo());
+        logPartialFailures(channel.request().rawPath(), channel.request().params(), esqlQueryResponse.getExecutionInfo());
         channel.sendResponse(buildResponse(esqlQueryResponse));
     }
 
@@ -233,10 +233,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         }
     }
 
-    static void logPartialResponseErrors(String rawPath, Map<String, String> params, EsqlExecutionInfo exeuctionInfo) {
+    /**
+     * Log all partial request failures to the {@code rest.suppressed} logger
+     * so an operator can categorize them after the fact.
+     */
+    static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo exeuctionInfo) {
         for (EsqlExecutionInfo.Cluster cluster : exeuctionInfo.getClusters().values()) {
             for (ShardSearchFailure failure : cluster.getFailures()) {
-                RestResponse.suppressedError(org.apache.logging.log4j.Level.WARN, rawPath, params, RestStatus.OK, failure);
+                RestResponse.logSuppressedError(org.apache.logging.log4j.Level.WARN, rawPath, params, RestStatus.OK, failure);
             }
         }
     }

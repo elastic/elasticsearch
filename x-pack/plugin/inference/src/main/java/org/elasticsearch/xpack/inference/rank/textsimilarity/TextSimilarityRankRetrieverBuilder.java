@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -157,23 +158,21 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.getFirst();
-        TextSimilarityRankDoc[] textSimilarityRankDocs = new TextSimilarityRankDoc[scoreDocs.length];
+        List<TextSimilarityRankDoc> filteredDocs = new ArrayList<>();
+        // Filtering by min_score must be done here, after reranking.
+        // Applying min_score in the child retriever could prematurely exclude documents that would receive high scores from the reranker.
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
             assert scoreDoc.score >= 0;
-            if (explain) {
-                textSimilarityRankDocs[i] = new TextSimilarityRankDoc(
-                    scoreDoc.doc,
-                    scoreDoc.score,
-                    scoreDoc.shardIndex,
-                    inferenceId,
-                    field
-                );
-            } else {
-                textSimilarityRankDocs[i] = new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            if (minScore == null || scoreDoc.score >= minScore) {
+                if (explain) {
+                    filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field));
+                } else {
+                    filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
+                }
             }
         }
-        return textSimilarityRankDocs;
+        return filteredDocs.toArray(new TextSimilarityRankDoc[0]);
     }
 
     @Override

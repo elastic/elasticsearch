@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -61,7 +63,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     var logicalFragment = fragmentExec.fragment();
 
                     // no need for projection when dealing with aggs
-                    if (logicalFragment instanceof Aggregate == false) {
+                    if (logicalFragment instanceof Aggregate == false && logicalFragment instanceof TopNAggregate == false) {
                         List<Attribute> output = new ArrayList<>(requiredAttrBuilder.build());
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)

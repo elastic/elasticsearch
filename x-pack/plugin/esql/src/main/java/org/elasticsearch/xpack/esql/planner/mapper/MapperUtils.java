@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -180,14 +181,12 @@ public class MapperUtils {
                 aggregate.aggregates(),
                 aggMode,
                 intermediateAttributes,
-                null,
-                aggregate.order(),
-                aggregate.limit()
+                null
             );
         }
     }
 
-    static AggregateExec topNAggExec(TopNAggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
+    static TopNAggregateExec topNAggExec(TopNAggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
         return new TopNAggregateExec(
             aggregate.source(),
             child,

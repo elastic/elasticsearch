@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -115,6 +116,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -236,7 +238,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
-        if (node instanceof AggregateExec aggregate) {
+        if (node instanceof AbstractAggregateExec aggregate) {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
@@ -328,9 +330,21 @@ public class LocalExecutionPlanner {
         return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
     }
 
-    private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planAggregation(AbstractAggregateExec aggregate, LocalExecutionPlannerContext context) {
         var source = plan(aggregate.child(), context);
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+        var physicalOperation = physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+
+        if (aggregate instanceof TopNAggregateExec topNAggregate && topNAggregate.getMode().isOutputPartial() == false) {
+            return planTopN(
+                topNAggregate.order(),
+                topNAggregate.limit(),
+                topNAggregate.estimatedRowSize(),
+                physicalOperation,
+                context
+            );
+        }
+
+        return physicalOperation;
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -455,9 +469,18 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
-        final Integer rowSize = topNExec.estimatedRowSize();
-        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
+        return planTopN(
+            topNExec.order(),
+            topNExec.limit(),
+            topNExec.estimatedRowSize(),
+            source,
+            context
+        );
+    }
+
+    private PhysicalOperation planTopN(List<Order> order, Expression limit, Integer estimatedRowSize, PhysicalOperation source, LocalExecutionPlannerContext context) {
+        assert estimatedRowSize != null && estimatedRowSize > 0 : "estimated row size [" + estimatedRowSize + "] wasn't set";
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
@@ -469,16 +492,16 @@ public class LocalExecutionPlanner {
                 case TEXT, KEYWORD -> TopNEncoder.UTF8;
                 case VERSION -> TopNEncoder.VERSION;
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
-                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
+                     AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
         }
-        List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
+        List<TopNOperator.SortOrder> orders = order.stream().map(orderEntry -> {
             int sortByChannel;
-            if (order.child() instanceof Attribute a) {
+            if (orderEntry.child() instanceof Attribute a) {
                 sortByChannel = source.layout.get(a.id()).channel();
             } else {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
@@ -486,19 +509,19 @@ public class LocalExecutionPlanner {
 
             return new TopNOperator.SortOrder(
                 sortByChannel,
-                order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST)
+                orderEntry.direction().equals(Order.OrderDirection.ASC),
+                orderEntry.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
 
-        int limit;
-        if (topNExec.limit() instanceof Literal literal) {
-            limit = stringToInt(literal.value().toString());
+        int intLimit;
+        if (limit instanceof Literal literal) {
+            intLimit = stringToInt(literal.value().toString());
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
+            new TopNOperatorFactory(intLimit, asList(elementTypes), asList(encoders), orders, context.pageSize(estimatedRowSize)),
             source.layout
         );
     }

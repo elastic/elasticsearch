@@ -36,9 +36,11 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
@@ -64,7 +66,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
     @Override
     public final PhysicalOperation groupingPhysicalOperation(
-        AggregateExec aggregateExec,
+        AbstractAggregateExec aggregateExec,
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     ) {
@@ -216,31 +218,39 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         throw new EsqlIllegalArgumentException("no operator factory");
     }
 
-    private AttributeMap<BlockHash.TopNDef> buildAttributesToTopNDefMap(AggregateExec aggregateExec) {
-        if (aggregateExec.order().isEmpty() || aggregateExec.limit() == null || aggregateExec.order().size() != aggregateExec.groupings().size()) {
+    private AttributeMap<BlockHash.TopNDef> buildAttributesToTopNDefMap(AbstractAggregateExec aggregateExec) {
+        if (aggregateExec instanceof TopNAggregateExec == false) {
             return AttributeMap.emptyAttributeMap();
         }
 
-        AttributeMap.Builder<BlockHash.TopNDef> builder = AttributeMap.builder(aggregateExec.order().size());
+        TopNAggregateExec topNAggregateExec = (TopNAggregateExec) aggregateExec;
+        List<Order> order = topNAggregateExec.order();
+        Expression limit = topNAggregateExec.limit();
 
-        for (int i = 0; i < aggregateExec.order().size(); i++) {
-            Order order = aggregateExec.order().get(i);
+        if (order.isEmpty() || limit == null || order.size() != aggregateExec.groupings().size()) {
+            return AttributeMap.emptyAttributeMap();
+        }
 
-            if ((order.child() instanceof Attribute) == false) {
+        AttributeMap.Builder<BlockHash.TopNDef> builder = AttributeMap.builder(order.size());
+
+        for (int i = 0; i < order.size(); i++) {
+            Order orderEntry = order.get(i);
+
+            if ((orderEntry.child() instanceof Attribute) == false) {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
-            if ((aggregateExec.limit() instanceof Literal) == false) {
+            if ((limit instanceof Literal) == false) {
                 throw new EsqlIllegalArgumentException("limit only supported with literal values");
             }
 
-            Attribute attribute = (Attribute) order.child();
-            int limit = stringToInt(((Literal) aggregateExec.limit()).value().toString());
+            Attribute attribute = (Attribute) orderEntry.child();
+            int intLimit = stringToInt(((Literal) limit).value().toString());
 
             BlockHash.TopNDef topNDef = new BlockHash.TopNDef(
                 i,
-                order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST),
-                limit
+                orderEntry.direction().equals(Order.OrderDirection.ASC),
+                orderEntry.nullsPosition().equals(Order.NullsPosition.FIRST),
+                intLimit
             );
             builder.put(attribute, topNDef);
         }
@@ -305,7 +315,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
-
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
@@ -415,7 +424,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      */
     public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
         PhysicalOperation source,
-        AggregateExec aggregateExec,
+        AbstractAggregateExec aggregateExec,
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,

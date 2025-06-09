@@ -19,12 +19,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.names;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.names;
 
 public class PutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
@@ -330,14 +330,9 @@ public class PutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
             + unknownPrivilege
             + "]. a privilege must be either "
             + "one of the predefined fixed indices privileges ["
-            + Strings.collectionToCommaDelimitedString(
-            IndexPrivilege.names().stream()
-                .sorted()
-                .collect(Collectors.toList())
-            )
+            + Strings.collectionToCommaDelimitedString(IndexPrivilege.names().stream().sorted().collect(Collectors.toList()))
             + "] or a pattern over one of the available index"
             + " actions";
-
 
         final ResponseException exception = expectThrows(ResponseException.class, () -> upsertRoles(String.format("""
             {

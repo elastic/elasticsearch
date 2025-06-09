@@ -1011,7 +1011,8 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
                 if (isOutOfRange(value)) {
-                    return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
+                    throw new IllegalStateException("blow up intentionally");
+//                    return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
                 return INTEGER.termQuery(field, value, isIndexed, hasDocValues);
             }

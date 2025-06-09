@@ -501,6 +501,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {lookup-join.LookupJoinOnTimeSeriesIndex ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129078
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {lookup-join.LookupJoinOnTimeSeriesIndex SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129082
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/70_ilm/Test Lifecycle Still There And Indices Are Still Managed}
+  issue: https://github.com/elastic/elasticsearch/issues/129097
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/129098
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test081SymlinksAreFollowedWithEnvironmentVariableFiles
+  issue: https://github.com/elastic/elasticsearch/issues/128867
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
+  issue: https://github.com/elastic/elasticsearch/issues/129149
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/129148
 
 # Examples:
 #

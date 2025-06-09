@@ -52,7 +52,8 @@ public class NoneChunkingSettings implements ChunkingSettings {
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.NONE_CHUNKING_STRATEGY_8_19) || version.onOrAfter(TransportVersions.NONE_CHUNKING_STRATEGY);
+        return version.isPatchFrom(TransportVersions.NONE_CHUNKING_STRATEGY_8_19)
+            || version.onOrAfter(TransportVersions.NONE_CHUNKING_STRATEGY);
     }
 
     @Override

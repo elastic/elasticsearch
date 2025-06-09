@@ -73,7 +73,19 @@ public final class WelfordAlgorithm {
         count += countValue;
     }
 
-    public double evaluate() {
-        return count < 2 ? 0 : Math.sqrt(m2 / count);
+    public double evaluatePopulation() {
+        return Math.sqrt(evaluatePopulationVariance());
+    }
+
+    public double evaluateSample() {
+        return Math.sqrt(evaluateSampleVariance());
+    }
+
+    public double evaluatePopulationVariance() {
+        return count < 2 ? 0 : m2 / count;
+    }
+
+    public double evaluateSampleVariance() {
+        return count < 2 ? 0 : m2 / (count - 1);
     }
 }

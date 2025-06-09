@@ -1185,7 +1185,12 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION;
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support for {@code STD_DEV_SAMPLE}, {@code VARIANCE_POPULATION}, and {@code VARIANCE_SAMPLE} aggregations.
+         */
+        STD_DEV_VARIATIONS;
 
         private final boolean enabled;
 

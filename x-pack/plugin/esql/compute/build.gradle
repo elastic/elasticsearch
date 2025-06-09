@@ -88,6 +88,17 @@ def addOccurrence(props, Occurrence) {
   return newProps
 }
 
+def addStdDevType(props, Variation) {
+  def newProps = props.collectEntries { [(it.key): it.value] }
+  newProps["Variation"] = Variation
+  def enumName = Variation == "StdDev" ? "POPULATION" :
+    Variation == "StdDevSample" ? "SAMPLE" :
+      Variation == "VariancePopulation" ? "POPULATION_VARIANCE" :
+        "SAMPLE_VARIANCE"
+  newProps["EnumName"] = enumName
+  return newProps
+}
+
 tasks.named('stringTemplates').configure {
   var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
@@ -628,25 +639,29 @@ tasks.named('stringTemplates').configure {
   }
 
   File stdDevAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-StdDevAggregator.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = stdDevAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/StdDevIntAggregator.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = stdDevAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/StdDevLongAggregator.java"
-  }
-  template {
-    it.properties = floatProperties
-    it.inputFile = stdDevAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/StdDevFloatAggregator.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = stdDevAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/StdDevDoubleAggregator.java"
+  ["StdDev", "StdDevSample", "VariancePopulation", "VarianceSample"].forEach { Variation ->
+    {
+      template {
+        it.properties = addStdDevType(intProperties, Variation)
+        it.inputFile = stdDevAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Variation}IntAggregator.java"
+      }
+      template {
+        it.properties = addStdDevType(longProperties, Variation)
+        it.inputFile = stdDevAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Variation}LongAggregator.java"
+      }
+      template {
+        it.properties = addStdDevType(floatProperties, Variation)
+        it.inputFile = stdDevAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Variation}FloatAggregator.java"
+      }
+      template {
+        it.properties = addStdDevType(doubleProperties, Variation)
+        it.inputFile = stdDevAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Variation}DoubleAggregator.java"
+      }
+    }
   }
 
   File sampleAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SampleAggregator.java.st")

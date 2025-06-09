@@ -1,0 +1,8 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation testArtifact(project(":x-pack:plugin:security:qa:saml-rest-tests"), "javaRestTest")
+  clusterPlugins project(':plugins:microsoft-graph-authz')
+}

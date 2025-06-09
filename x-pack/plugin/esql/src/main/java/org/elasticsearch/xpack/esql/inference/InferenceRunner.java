@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -21,16 +21,21 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 public class InferenceRunner {
 
     private final Client client;
+    private final ThreadPool threadPool;
 
-    public InferenceRunner(Client client) {
+    public InferenceRunner(Client client, ThreadPool threadPool) {
         this.client = client;
+        this.threadPool = threadPool;
     }
 
-    public ThreadContext getThreadContext() {
-        return client.threadPool().getThreadContext();
+    public ThreadPool threadPool() {
+        return threadPool;
     }
 
     public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
@@ -73,6 +78,6 @@ public class InferenceRunner {
     }
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        client.execute(InferenceAction.INSTANCE, request, listener);
+        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
     }
 }

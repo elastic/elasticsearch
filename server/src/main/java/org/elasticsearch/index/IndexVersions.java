@@ -137,6 +137,11 @@ public class IndexVersions {
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X = def(8_527_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X = def(8_528_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X = def(8_529_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ_BACKPORT_8_X = def(8_530_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X = def(8_531_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_0_00, Version.LUCENE_10_0_0);
@@ -163,6 +168,10 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_2_1 = def(9_023_00_0, Version.LUCENE_10_2_1);
     public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = def(9_024_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ = def(9_025_0_00, Version.LUCENE_10_2_1);
+    public static final IndexVersion DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC = def(9_026_0_00, Version.LUCENE_10_2_1);
+    public static final IndexVersion SEQ_NO_WITHOUT_POINTS = def(9_027_0_00, Version.LUCENE_10_2_1);
+    public static final IndexVersion INDEX_INT_SORT_INT_TYPE = def(9_028_0_00, Version.LUCENE_10_2_1);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

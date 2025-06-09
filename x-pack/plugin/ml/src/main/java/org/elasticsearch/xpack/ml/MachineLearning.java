@@ -364,6 +364,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -739,6 +740,33 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * The time that has to pass after scaling up, before scaling down is allowed.
+     * Note that the ML autoscaling has its own cooldown time to release the hardware.
+     */
+    public static final Setting<TimeValue> SCALE_UP_COOLDOWN_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_up_cooldown_time",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The time interval without any requests that has to pass, before scaling down
+     * to zero allocations (in case min_allocations = 0). After this time interval
+     * without requests, the number of allocations is set to zero. When this time
+     * interval hasn't passed, the minimum number of allocations will always be
+     * larger than zero.
+     */
+    public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
+        TimeValue.timeValueHours(24),
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Each model deployment results in one or more entries in the cluster state
      * for the model allocations. In order to prevent the cluster state from
      * potentially growing uncontrollably we impose a limit on the number of
@@ -813,7 +841,9 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
-            DUMMY_ENTITY_PROCESSORS
+            DUMMY_ENTITY_PROCESSORS,
+            SCALE_UP_COOLDOWN_TIME,
+            SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME
         );
     }
 
@@ -920,6 +950,9 @@ public class MachineLearning extends Plugin
         NamedXContentRegistry xContentRegistry = services.xContentRegistry();
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
         TelemetryProvider telemetryProvider = services.telemetryProvider();
+
+        // Initialize WritableIndexExpander
+        WritableIndexExpander.initialize(clusterService, indexNameExpressionResolver);
 
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
@@ -1296,7 +1329,8 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            machineLearningExtension.get().isNlpEnabled()
+            machineLearningExtension.get().isNlpEnabled(),
+            settings
         );
 
         MlInitializationService mlInitializationService = new MlInitializationService(

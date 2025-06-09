@@ -10,11 +10,13 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -36,7 +38,7 @@ import java.util.stream.Collectors;
  * It is used by the ReservedClusterStateService to add/update or remove ingest pipelines. Typical usage
  * for this action is in the context of file based state.
  */
-public class ReservedPipelineAction implements ReservedClusterStateHandler<ProjectMetadata, List<PutPipelineRequest>> {
+public class ReservedPipelineAction implements ReservedProjectStateHandler<List<PutPipelineRequest>> {
     public static final String NAME = "ingest_pipelines";
 
     /**
@@ -78,21 +80,21 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<Proje
     }
 
     @Override
-    public TransformState<ProjectMetadata> transform(List<PutPipelineRequest> source, TransformState<ProjectMetadata> prevState)
-        throws Exception {
+    public TransformState transform(ProjectId projectId, List<PutPipelineRequest> source, TransformState prevState) throws Exception {
         var requests = prepare(source);
 
-        ProjectMetadata state = prevState.state();
+        ClusterState clusterState = prevState.state();
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
 
         for (var request : requests) {
-            var nopUpdate = IngestService.isNoOpPipelineUpdate(state, request);
+            var nopUpdate = IngestService.isNoOpPipelineUpdate(projectMetadata, request);
 
             if (nopUpdate) {
                 continue;
             }
 
-            var task = new IngestService.PutPipelineClusterStateUpdateTask(state.id(), request);
-            state = wrapIngestTaskExecute(task, state);
+            var task = new IngestService.PutPipelineClusterStateUpdateTask(projectMetadata.id(), request);
+            projectMetadata = wrapIngestTaskExecute(task, projectMetadata);
         }
 
         Set<String> entities = requests.stream().map(PutPipelineRequest::getId).collect(Collectors.toSet());
@@ -102,7 +104,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<Proje
 
         for (var pipelineToDelete : toDelete) {
             var task = new IngestService.DeletePipelineClusterStateUpdateTask(
-                state.id(),
+                projectMetadata.id(),
                 null,
                 new DeletePipelineRequest(
                     RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
@@ -110,10 +112,10 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<Proje
                     pipelineToDelete
                 )
             );
-            state = wrapIngestTaskExecute(task, state);
+            projectMetadata = wrapIngestTaskExecute(task, projectMetadata);
         }
 
-        return new TransformState<>(state, entities);
+        return new TransformState(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), entities);
     }
 
     @Override

@@ -15,7 +15,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,7 +114,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
-        when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
+        when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(null, false));
         return fetchContext;
     }
 

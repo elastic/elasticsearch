@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,6 +45,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -73,6 +76,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.mockito.Mockito.mock;
 
 public class LookupFromIndexOperatorTests extends OperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
@@ -123,7 +127,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         String sessionId = "test";
         CancellableTask parentTask = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
         int maxOutstandingRequests = 1;
@@ -142,6 +146,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             inputChannel,
             this::lookupService,
             inputDataType,
+            lookupIndex,
             lookupIndex,
             matchField,
             loadFields,
@@ -174,6 +179,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
                 .build(),
             ClusterSettings.createBuiltInClusterSettings()
         );
+        IndicesService indicesService = mock(IndicesService.class);
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         releasables.add(clusterService::stop);
         ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state("idx", 1, 1));
         if (beCranky) {
@@ -184,8 +191,10 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
         return new LookupFromIndexService(
             clusterService,
+            indicesService,
             lookupShardContextFactory(),
             transportService(clusterService),
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory
         );

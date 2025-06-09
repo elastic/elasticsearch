@@ -21,9 +21,12 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
     protected int stringEnd = -1;
+    protected int stringLength;
 
     public ESUTF8StreamJsonParser(
         IOContext ctxt,
@@ -49,9 +52,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
             if (stringEnd > 0) {
                 final int len = stringEnd - 1 - _inputPtr;
-                // For now, we can use `len` for `stringLength` because we only support ascii-encoded unescaped strings,
-                // which means each character uses exactly 1 byte.
-                return new Text(new XContentString.UTF8Bytes(_inputBuffer, _inputPtr, len), len);
+                return new Text(new XContentString.UTF8Bytes(_inputBuffer, _inputPtr, len), stringLength);
             }
             return _finishAndReturnText();
         }
@@ -69,21 +70,63 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         final int[] codes = INPUT_CODES_UTF8;
         final int max = _inputEnd;
         final byte[] inputBuffer = _inputBuffer;
-        while (ptr < max) {
+        stringLength = 0;
+        List<Integer> backslashes = null;
+
+        loop: while (ptr < max) {
             int c = inputBuffer[ptr] & 0xFF;
-            if (codes[c] != 0) {
-                if (c == INT_QUOTE) {
-                    stringEnd = ptr + 1;
-                    final int len = ptr - startPtr;
-                    // For now, we can use `len` for `stringLength` because we only support ascii-encoded unescaped strings,
-                    // which means each character uses exactly 1 byte.
-                    return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, len), len);
+            switch (codes[c]) {
+                case 0 -> {
+                    ++ptr;
+                    ++stringLength;
                 }
-                return null;
+                case 1 -> {
+                    if (c == INT_QUOTE) {
+                        // End of the string
+                        break loop;
+                    }
+                    assert c == INT_BACKSLASH;
+                    if (backslashes == null) {
+                        backslashes = new ArrayList<>();
+                    }
+                    backslashes.add(ptr);
+                    ++ptr;
+                    if (ptr >= max) {
+                        // Backslash at end of file
+                        return null;
+                    }
+                    c = inputBuffer[ptr] & 0xFF;
+                    if (c == '"' || c == '/' || c == '\\') {
+                        ptr += 1;
+                        stringLength += 1;
+                    } else {
+                        // Any other escaped sequence requires replacing the sequence with
+                        // a new character, which we don't support in the optimized path
+                        return null;
+                    }
+                }
+                default -> {
+                    return null;
+                }
             }
-            ++ptr;
         }
-        return null;
+
+        stringEnd = ptr + 1;
+        if (backslashes == null) {
+            return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, ptr - startPtr), stringLength);
+        } else {
+            byte[] buff = new byte[ptr - startPtr - backslashes.size()];
+            int copyPtr = startPtr;
+            int destPtr = 0;
+            for (Integer backslash : backslashes) {
+                int length = backslash - copyPtr;
+                System.arraycopy(inputBuffer, copyPtr, buff, destPtr, length);
+                destPtr += length;
+                copyPtr = backslash + 1;
+            }
+            System.arraycopy(inputBuffer, copyPtr, buff, destPtr, ptr - copyPtr);
+            return new Text(new XContentString.UTF8Bytes(buff), stringLength);
+        }
     }
 
     @Override

@@ -59,6 +59,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIn
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -68,11 +77,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -214,7 +223,22 @@ public class ExpressionWritables {
     }
 
     private static List<NamedWriteableRegistry.Entry> spatials() {
-        return List.of(SpatialContains.ENTRY, SpatialDisjoint.ENTRY, SpatialIntersects.ENTRY, SpatialWithin.ENTRY, StDistance.ENTRY);
+        return List.of(
+            SpatialContains.ENTRY,
+            SpatialDisjoint.ENTRY,
+            SpatialIntersects.ENTRY,
+            SpatialWithin.ENTRY,
+            StDistance.ENTRY,
+            StGeohash.ENTRY,
+            StGeohashToString.ENTRY,
+            StGeohashToLong.ENTRY,
+            StGeotile.ENTRY,
+            StGeotileToString.ENTRY,
+            StGeotileToLong.ENTRY,
+            StGeohex.ENTRY,
+            StGeohexToString.ENTRY,
+            StGeohexToLong.ENTRY
+        );
     }
 
     private static List<NamedWriteableRegistry.Entry> arithmetics() {

@@ -1822,7 +1822,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
         String normalIndexName = "test-normal";
         String blockedIndexName = "test-blocked";
-        final String[] indexNames = {normalIndexName, blockedIndexName};
+        final String[] indexNames = { normalIndexName, blockedIndexName };
         final Index normalIndex = new Index(normalIndexName, UUIDs.randomBase64UUID());
         final Index blockedIndex = new Index(blockedIndexName, UUIDs.randomBase64UUID());
         final int numberOfShards = randomIntBetween(1, 3);
@@ -1859,9 +1859,7 @@ public class TransportSearchActionTests extends ESTestCase {
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
-        Settings settings = Settings.builder()
-            .put("node.name", TransportSearchAction.class.getSimpleName())
-            .build();
+        Settings settings = Settings.builder().put("node.name", TransportSearchAction.class.getSimpleName()).build();
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         try {

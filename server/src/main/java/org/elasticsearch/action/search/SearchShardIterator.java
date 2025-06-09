@@ -62,7 +62,13 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      * @param skip            if true, then this group won't have matches, and it can be safely skipped from the search
      */
-    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices, boolean skip) {
+    public SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<ShardRouting> shards,
+        OriginalIndices originalIndices,
+        boolean skip
+    ) {
         this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, skip);
     }
 

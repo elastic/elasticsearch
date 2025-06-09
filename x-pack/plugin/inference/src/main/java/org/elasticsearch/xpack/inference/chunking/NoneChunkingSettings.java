@@ -52,7 +52,8 @@ public class NoneChunkingSettings implements ChunkingSettings {
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.NONE_CHUNKING_STRATEGY_8_19) || version.onOrAfter(TransportVersions.NONE_CHUNKING_STRATEGY);
+        return version.isPatchFrom(TransportVersions.NONE_CHUNKING_STRATEGY_8_19)
+            || version.onOrAfter(TransportVersions.NONE_CHUNKING_STRATEGY);
     }
 
     @Override
@@ -69,7 +70,10 @@ public class NoneChunkingSettings implements ChunkingSettings {
         var invalidSettings = map.keySet().stream().filter(key -> VALID_KEYS.contains(key) == false).toArray();
         if (invalidSettings.length > 0) {
             validationException.addValidationError(
-                Strings.format("Sentence based chunking settings can not have the following settings: %s", Arrays.toString(invalidSettings))
+                Strings.format(
+                    "When chunking is disabled (none), settings can not have the following: %s",
+                    Arrays.toString(invalidSettings)
+                )
             );
         }
 

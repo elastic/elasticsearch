@@ -126,7 +126,7 @@ To completely disable chunking, use the `none` chunking strategy.
     `sentence`. Required.
 
     `max_chunk_size`
-    :   The maximum number of works in a chunk. Required for `word` and `sentence` strategies.
+    :   The maximum number of words in a chunk. Required for `word` and `sentence` strategies.
 
     `overlap`
     :   The number of overlapping words allowed in chunks. This cannot be defined as

@@ -49,7 +49,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * Builder for HNSW graph. See {@link HnswGraph} for a gloss on the algorithm and the meaning of the
  * hyper-parameters.
  */
-public class HnswGraphBuilder implements HnswBuilder {
+public class HnswGraphBuilder {
 
     /** Default number of maximum connections per node */
     public static final int DEFAULT_MAX_CONN = 16;
@@ -160,7 +160,6 @@ public class HnswGraphBuilder implements HnswBuilder {
         beamCandidates0 = new GraphBuilderKnnCollector(Math.min(beamWidth / 2, M * 3));
     }
 
-    @Override
     public OnHeapHnswGraph build(int maxOrd) throws IOException {
         if (frozen) {
             throw new IllegalStateException("This HnswGraphBuilder is frozen and cannot be updated");
@@ -172,12 +171,10 @@ public class HnswGraphBuilder implements HnswBuilder {
         return getCompletedGraph();
     }
 
-    @Override
     public void setInfoStream(InfoStream infoStream) {
         this.infoStream = infoStream;
     }
 
-    @Override
     public OnHeapHnswGraph getCompletedGraph() throws IOException {
         if (frozen == false) {
             finish();
@@ -185,7 +182,6 @@ public class HnswGraphBuilder implements HnswBuilder {
         return getGraph();
     }
 
-    @Override
     public OnHeapHnswGraph getGraph() {
         return hnsw;
     }
@@ -294,7 +290,6 @@ public class HnswGraphBuilder implements HnswBuilder {
         } while (true);
     }
 
-    @Override
     public void addGraphNode(int node) throws IOException {
         /*
         Note: this implementation is thread safe when graph size is fixed (e.g. when merging)

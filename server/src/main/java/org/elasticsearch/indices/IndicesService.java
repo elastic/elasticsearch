@@ -98,6 +98,8 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.NoOpEngine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -229,6 +231,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
@@ -306,6 +310,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            nodeEnv
+        );
         this.client = builder.client;
         this.featureService = builder.featureService;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
@@ -353,7 +362,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     indicesFieldDataCache,
                     cacheCleaner,
                     indicesRequestCache,
-                    indicesQueryCache
+                    indicesQueryCache,
+                    threadPoolMergeExecutorService
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -779,6 +789,7 @@ public class IndicesService extends AbstractLifecycleComponent
             circuitBreakerService,
             bigArrays,
             threadPool,
+            threadPoolMergeExecutorService,
             scriptService,
             clusterService,
             client,
@@ -1904,5 +1915,10 @@ public class IndicesService extends AbstractLifecycleComponent
     // TODO move this?
     public BigArrays getBigArrays() {
         return bigArrays;
+    }
+
+    @Nullable
+    public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
+        return threadPoolMergeExecutorService;
     }
 }

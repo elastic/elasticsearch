@@ -930,7 +930,7 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
+        MATCH_PHRASE_FUNCTION;
 
         private final boolean enabled;
 

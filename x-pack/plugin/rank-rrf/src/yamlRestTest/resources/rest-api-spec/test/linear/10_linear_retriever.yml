@@ -266,10 +266,6 @@ setup:
 
 ---
 "should normalize initial scores with l2_norm":
-  - skip:
-      version: "<8.19.0"
-      reason: "l2_norm normalization is only available from 8.19.0"
-      features: "l2_norm"
   - do:
       search:
         index: test
@@ -324,10 +320,6 @@ setup:
 
 ---
 "should handle all zero scores in normalization":
-  - skip:
-      version: "<8.19.0"
-      reason: "l2_norm normalization is only available from 8.19.0"
-      features: "l2_norm"
   - do:
       search:
         index: test

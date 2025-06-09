@@ -34,8 +34,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.IS_DEDICATED_ENDPOINT;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 
@@ -56,7 +59,9 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
         String location = extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String endpointId = extractOptionalString(map, ENDPOINT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Boolean isDedicatedEndpoint = extractOptionalBoolean(map, IS_DEDICATED_ENDPOINT, validationException);
         Integer maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
@@ -93,6 +98,14 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             }
         }
 
+        if ((model == null && endpointId == null) || (model != null && endpointId != null)) {
+            validationException.addValidationError("Either model or endpoint_id must be set, but not both.");
+        }
+
+        if (endpointId == null && isDedicatedEndpoint != null) {
+            validationException.addValidationError("is_dedicated_endpoint can only be set when endpoint_id is set.");
+        }
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
@@ -101,6 +114,8 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             location,
             projectId,
             model,
+            endpointId,
+            isDedicatedEndpoint,
             dimensionsSetByUser,
             maxInputTokens,
             dims,
@@ -115,6 +130,10 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     private final String modelId;
 
+    private final String endpointId;
+
+    private final Boolean isDedicatedEndpoint;
+
     private final Integer dims;
 
     private final SimilarityMeasure similarity;
@@ -128,6 +147,8 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         String location,
         String projectId,
         String modelId,
+        String endpointId,
+        Boolean isDedicatedEndpoint,
         Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
         @Nullable Integer dims,
@@ -137,6 +158,8 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.location = location;
         this.projectId = projectId;
         this.modelId = modelId;
+        this.endpointId = endpointId;
+        this.isDedicatedEndpoint = isDedicatedEndpoint;
         this.dimensionsSetByUser = dimensionsSetByUser;
         this.maxInputTokens = maxInputTokens;
         this.dims = dims;
@@ -147,7 +170,9 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     public GoogleVertexAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.location = in.readString();
         this.projectId = in.readString();
-        this.modelId = in.readString();
+        this.modelId = in.readOptionalString();
+        this.endpointId = in.readOptionalString();
+        this.isDedicatedEndpoint = in.readOptionalBoolean();
         this.dimensionsSetByUser = in.readBoolean();
         this.maxInputTokens = in.readOptionalVInt();
         this.dims = in.readOptionalVInt();
@@ -167,6 +192,14 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    public String endpointId() {
+        return endpointId;
+    }
+
+    public Boolean isDedicatedEndpoint() {
+        return isDedicatedEndpoint;
     }
 
     public Boolean dimensionsSetByUser() {
@@ -222,7 +255,9 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(location);
         out.writeString(projectId);
-        out.writeString(modelId);
+        out.writeOptionalString(modelId);
+        out.writeOptionalString(endpointId);
+        out.writeOptionalBoolean(isDedicatedEndpoint);
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalVInt(dims);
@@ -235,6 +270,8 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         builder.field(LOCATION, location);
         builder.field(PROJECT_ID, projectId);
         builder.field(MODEL_ID, modelId);
+        builder.field(ENDPOINT_ID, endpointId); // TODO: Transport verison?
+        builder.field(IS_DEDICATED_ENDPOINT, isDedicatedEndpoint);
 
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
@@ -261,6 +298,8 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return Objects.equals(location, that.location)
             && Objects.equals(projectId, that.projectId)
             && Objects.equals(modelId, that.modelId)
+            && Objects.equals(endpointId, that.endpointId)
+            && Objects.equals(isDedicatedEndpoint, that.isDedicatedEndpoint)
             && Objects.equals(dims, that.dims)
             && similarity == that.similarity
             && Objects.equals(maxInputTokens, that.maxInputTokens)
@@ -270,6 +309,17 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public int hashCode() {
-        return Objects.hash(location, projectId, modelId, dims, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
+        return Objects.hash(
+            location,
+            projectId,
+            modelId,
+            endpointId,
+            isDedicatedEndpoint,
+            dims,
+            similarity,
+            maxInputTokens,
+            rateLimitSettings,
+            dimensionsSetByUser
+        );
     }
 }

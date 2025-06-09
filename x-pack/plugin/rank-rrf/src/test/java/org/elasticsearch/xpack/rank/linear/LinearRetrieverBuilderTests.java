@@ -126,6 +126,25 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             MinMaxScoreNormalizer.INSTANCE
         );
 
+        // Multiple boosts defined on the same field
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
+            "baz2",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertSimplifiedParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f),
+            Map.of("semantic_field_1", 3.75f, "semantic_field_2", 1.5f),
+            "baz2",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
         // All-fields wildcard
         retriever = new LinearRetrieverBuilder(
             null,

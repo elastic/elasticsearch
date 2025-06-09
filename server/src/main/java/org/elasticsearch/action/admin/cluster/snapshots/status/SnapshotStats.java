@@ -21,6 +21,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS;
+
 public class SnapshotStats implements Writeable, ToXContentObject {
 
     private long startTime;
@@ -35,6 +37,19 @@ public class SnapshotStats implements Writeable, ToXContentObject {
     SnapshotStats() {}
 
     SnapshotStats(StreamInput in) throws IOException {
+        // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
+        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) && in.readBoolean() == false) {
+            startTime = 0L;
+            time = 0L;
+            incrementalFileCount = -1;
+            processedFileCount = -1;
+            incrementalSize = -1L;
+            processedSize = -1L;
+            totalFileCount = -1;
+            totalSize = -1L;
+            return;
+        }
+
         startTime = in.readVLong();
         time = in.readVLong();
 
@@ -67,6 +82,20 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         this.incrementalSize = incrementalSize;
         this.totalSize = totalSize;
         this.processedSize = processedSize;
+    }
+
+    /**
+     * Returns a stats instance with invalid field values for use in situations where the snapshot stats are unavailable.
+     */
+    public static SnapshotStats forMissingStats() {
+        return new SnapshotStats(0L, 0L, -1, -1, -1, -1L, -1L, -1L);
+    }
+
+    /**
+     * Returns true if this instance is for a shard snapshot with unavailable stats.
+     */
+    public boolean isMissingStats() {
+        return incrementalFileCount == -1;
     }
 
     /**
@@ -127,6 +156,23 @@ public class SnapshotStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+            // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
+            if (isMissingStats()) {
+                out.writeBoolean(false);
+                return;
+            }
+            out.writeBoolean(true);
+        } else if (isMissingStats()) {
+            throw new IllegalStateException(
+                "cannot serialize empty stats for transport version ["
+                    + out.getTransportVersion()
+                    + "] less than ["
+                    + SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS
+                    + "]"
+            );
+        }
+
         out.writeVLong(startTime);
         out.writeVLong(time);
 
@@ -196,6 +242,10 @@ public class SnapshotStats implements Writeable, ToXContentObject {
      * @param updateTimestamps Whether or not start time and duration should be updated
      */
     void add(SnapshotStats stats, boolean updateTimestamps) {
+        if (stats.isMissingStats()) {
+            return;
+        }
+
         incrementalFileCount += stats.incrementalFileCount;
         totalFileCount += stats.totalFileCount;
         processedFileCount += stats.processedFileCount;

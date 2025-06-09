@@ -126,7 +126,9 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
-        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
+        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
+            return List.of(new ChunkedInput(inputText, 0, inputText.length()));
+        } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(

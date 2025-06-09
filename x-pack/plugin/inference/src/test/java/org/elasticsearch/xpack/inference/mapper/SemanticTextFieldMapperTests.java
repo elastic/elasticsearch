@@ -107,6 +107,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FI
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
@@ -1203,6 +1204,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, null);
     }
 
+    private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions() {
+        return new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions());
+    }
+
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+        DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+    }
+
+    private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
+        return new SemanticTextIndexOptions(
+            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+            defaultBbqHnswDenseVectorIndexOptions()
+        );
+    }
+
     public void testDefaultIndexOptions() throws IOException {
 
         // We default to BBQ for eligible dense vectors
@@ -1216,7 +1235,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("element_type", "float");
             b.endObject();
         }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
-        assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());
+        assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions());
 
         // Element types that are incompatible with BBQ will continue to use dense_vector defaults
         mapperService = createMapperService(fieldMapping(b -> {
@@ -1294,13 +1313,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersions.INFERENCE_METADATA_FIELDS,
             IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
         );
-        assertSemanticTextField(
-            mapperService,
-            "field",
-            true,
-            null,
-            new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions())
-        );
+        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
 
         // 8.x index versions that use backported default BBQ set default BBQ index options as expected
         mapperService = createMapperService(fieldMapping(b -> {
@@ -1313,7 +1326,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("element_type", "float");
             b.endObject();
         }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
-        assertSemanticTextField(mapperService, "field", true, null, SemanticTextFieldMapper.defaultSemanticDenseIndexOptions());
+        assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions());
 
         // Previous 8.x index versions do not set BBQ index options
         mapperService = createMapperService(fieldMapping(b -> {
@@ -1330,7 +1343,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
             IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X)
         );
-        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorIndexOptions());
+        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
     }
 
     @Override

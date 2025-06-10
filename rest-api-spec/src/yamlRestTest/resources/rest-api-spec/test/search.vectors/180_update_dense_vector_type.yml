@@ -2116,3 +2116,143 @@ setup:
   - contains: {hits.hits: {_id: "2"}}
   - contains: {hits.hits: {_id: "21"}}
   - contains: {hits.hits: {_id: "31"}}
+
+---
+"Test update flat --> bbq_flat --> bbq_hnsw":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "BBQ scoring improved and changed with optimized_scalar_quantization_bbq"
+  - do:
+      indices.create:
+        index: vectors_64
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: flat
+
+  - do:
+      index:
+        index: vectors_64
+        id: "1"
+        body:
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.put_mapping:
+        index: vectors_64
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 64
+              index_options:
+                type: bbq_flat
+
+  - do:
+      indices.get_mapping:
+        index: vectors_64
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: bbq_flat }
+
+  - do:
+      index:
+        index: vectors_64
+        id: "2"
+        body:
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.put_mapping:
+        index: vectors_64
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 64
+              index_options:
+                type: bbq_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: vectors_64
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: bbq_hnsw }
+
+  - do:
+      index:
+        index: vectors_64
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                   0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                   0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                   -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                   -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                   -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                   0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+
+  - do:
+      indices.forcemerge:
+        index: vectors_64
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+  - do:
+      search:
+        index: vectors_64
+        body:
+          knn:
+            field: vector
+            query_vector: [ 0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                            0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                            0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                            -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                            -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                            -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                            -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                            -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158 ]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }

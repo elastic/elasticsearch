@@ -353,9 +353,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), randomBoolean())
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
         // Defines a default object store type, which can be overridden by test suites
-        if (addMockFsRepository() && true) {
+        if (addMockFsRepository() && randomBoolean()) {
             builder.put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
-            builder.put(ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.getKey(), true);
             builder.put(randomConcurrentMultiPartSettings(random(), logger));
         } else {
             builder.put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS);

@@ -472,4 +472,26 @@ tasks.named('stringTemplates').configure {
     it.inputFile = roundToInput
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
+
+  File stdDev = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/aggregate/X-StdDev.java.st")
+  template {
+    it.properties = ["Variation": "StdDev", "StdDev": "true", "lower_case": "population standard deviation", "CAPS": "STD_DEV"]
+    it.inputFile = stdDev
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/StdDev.java"
+  }
+  template {
+    it.properties = ["Variation": "StdDevSample", "StdDevSample": "true", "lower_case": "sample standard deviation", "CAPS": "STD_DEV_SAMPLE"]
+    it.inputFile = stdDev
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/StdDevSample.java"
+  }
+  template {
+    it.properties = ["Variation": "VariancePopulation", "VariancePopulation": "true", "lower_case": "population variance", "CAPS": "VARIANCE_POPULATION"]
+    it.inputFile = stdDev
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/VariancePopulation.java"
+  }
+  template {
+    it.properties = ["Variation": "VarianceSample", "VarianceSample": "true", "lower_case": "sample variance", "CAPS": "VARIANCE_SAMPLE"]
+    it.inputFile = stdDev
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/VarianceSample.java"
+  }
 }

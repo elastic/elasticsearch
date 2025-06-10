@@ -20,6 +20,13 @@ public final class StdDevStates {
 
     private StdDevStates() {}
 
+    enum Variation {
+        SAMPLE,
+        POPULATION,
+        SAMPLE_VARIANCE,
+        POPULATION_VARIANCE
+    }
+
     static final class SingleState implements AggregatorState {
 
         private final WelfordAlgorithm welfordAlgorithm;
@@ -72,17 +79,22 @@ public final class StdDevStates {
             return welfordAlgorithm.count();
         }
 
-        public double evaluateFinal() {
-            return welfordAlgorithm.evaluate();
+        public double evaluateFinal(Variation variation) {
+            return switch (variation) {
+                case SAMPLE -> welfordAlgorithm.evaluateSample();
+                case POPULATION -> welfordAlgorithm.evaluatePopulation();
+                case SAMPLE_VARIANCE -> welfordAlgorithm.evaluateSampleVariance();
+                case POPULATION_VARIANCE -> welfordAlgorithm.evaluatePopulationVariance();
+            };
         }
 
-        public Block evaluateFinal(DriverContext driverContext) {
+        public Block evaluateFinal(DriverContext driverContext, Variation variation) {
             final long count = count();
             final double m2 = m2();
             if (count == 0 || Double.isFinite(m2) == false) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
-            return driverContext.blockFactory().newConstantDoubleBlockWith(evaluateFinal(), 1);
+            return driverContext.blockFactory().newConstantDoubleBlockWith(evaluateFinal(variation), 1);
         }
     }
 
@@ -178,7 +190,7 @@ public final class StdDevStates {
             }
         }
 
-        public Block evaluateFinal(IntVector selected, DriverContext driverContext) {
+        public Block evaluateFinal(IntVector selected, DriverContext driverContext, Variation variation) {
             try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     final var groupId = selected.getInt(i);
@@ -189,7 +201,13 @@ public final class StdDevStates {
                         if (count == 0 || Double.isFinite(m2) == false) {
                             builder.appendNull();
                         } else {
-                            builder.appendDouble(st.evaluate());
+                            double result = switch (variation) {
+                                case SAMPLE -> st.evaluateSample();
+                                case POPULATION -> st.evaluatePopulation();
+                                case SAMPLE_VARIANCE -> st.evaluateSampleVariance();
+                                case POPULATION_VARIANCE -> st.evaluatePopulationVariance();
+                            };
+                            builder.appendDouble(result);
                         }
                     } else {
                         builder.appendNull();

@@ -2961,16 +2961,16 @@ max:integer | job_positions:keyword
 
 stdDeviation
 required_capability: std_dev
-// tag::stdev[]
+// tag::StdDev[]
 FROM employees
 | STATS STD_DEV(height)
-// end::stdev[]
+// end::StdDev[]
 ;
 
-// tag::stdev-result[]
+// tag::StdDev-result[]
 STD_DEV(height):double
 0.20637044362020449
-// end::stdev-result[]
+// end::StdDev-result[]
 ;
 
 stdDeviationNested
@@ -3097,6 +3097,424 @@ ROW a = [1,2,3], b = 5
 
 STD_DEV(a):double | STD_DEV(b):double
 0.816496580927726 | 0.0
+;
+
+stdDeviationSample
+required_capability: std_dev_variations
+// tag::StdDeviationSample[]
+FROM employees
+| STATS STD_DEV_SAMPLE(height)
+// end::StdDeviationSample[]
+;
+
+// tag::StdDeviationSample-result[]
+STD_DEV_SAMPLE(height):double
+0.2074100997901247
+// end::StdDeviationSample-result[]
+;
+
+stdDeviationSampleNested
+required_capability: std_dev_variations
+// tag::docsStatsStdDevSampleNestedExpression[]
+FROM employees
+| STATS stddev_sample_salary_change = STD_DEV_SAMPLE(MV_MAX(salary_change))
+// end::docsStatsStdDevSampleNestedExpression[]
+;
+
+// tag::docsStatsStdDevSampleNestedExpression-result[]
+stddev_sample_salary_change:double
+6.919765053336622
+// end::docsStatsStdDevSampleNestedExpression-result[]
+;
+
+stdDeviationSampleWithLongs
+required_capability: std_dev_variations
+FROM employees
+| STATS STD_DEV_SAMPLE(avg_worked_seconds)
+;
+
+STD_DEV_SAMPLE(avg_worked_seconds):double
+5.789122600850592E7
+;
+
+stdDeviationSampleWithInts
+required_capability: std_dev_variations
+FROM employees
+| STATS STD_DEV_SAMPLE(salary)
+;
+
+STD_DEV_SAMPLE(salary):double
+13834.471662090744
+;
+
+stdDeviationSampleConstantValue
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages == 2
+| STATS STD_DEV_SAMPLE(languages)
+;
+
+STD_DEV_SAMPLE(languages):double
+0.0
+;
+
+stdDeviationSampleGroupedDoublesOnly
+required_capability: std_dev_variations
+FROM employees
+| STATS STD_DEV_SAMPLE(height) BY languages
+| SORT languages asc
+;
+
+STD_DEV_SAMPLE(height):double | languages:integer
+0.22882307575941715           | 1
+0.2342188709992509            | 2
+0.1947453087859054            | 3
+0.1508104467524488            | 4
+0.18171799187595206           | 5
+0.2621047288564037            | null
+;
+
+stdDeviationSampleGroupedAllTypes
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages < 3
+| STATS
+    double_std_dev_sample = STD_DEV_SAMPLE(height),
+    int_std_dev_sample = STD_DEV_SAMPLE(salary),
+    long_std_dev_sample = STD_DEV_SAMPLE(avg_worked_seconds)
+  BY languages
+| SORT languages asc
+;
+
+double_std_dev_sample:double | int_std_dev_sample:double | long_std_dev_sample:double | languages:integer
+0.22882307575941715          | 15698.554158477991        | 5.382378448186024E7        | 1
+0.2342188709992509           | 12472.264666776786        | 5.4545668399569444E7       | 2
+;
+
+stdDeviationSampleNoRows
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages IS null
+| STATS STD_DEV_SAMPLE(languages)
+;
+
+STD_DEV_SAMPLE(languages):double
+null
+;
+
+stdDeviationSampleMultiValue
+required_capability: std_dev_variations
+FROM employees
+| STATS STD_DEV_SAMPLE(salary_change)
+;
+
+STD_DEV_SAMPLE(salary_change):double
+7.081601932929293
+;
+
+stdDeviationSampleFilter
+required_capability: std_dev_variations
+FROM employees
+| STATS greater_than = STD_DEV_SAMPLE(salary_change) WHERE languages > 3
+, less_than = STD_DEV_SAMPLE(salary_change) WHERE languages <= 3
+, salary = STD_DEV_SAMPLE(salary * 2)
+, count = COUNT(*) BY gender
+| SORT gender asc
+;
+
+greater_than:double | less_than:double  | salary:double     | count:long | gender:keyword
+6.54335609676021    | 7.695361218312174 | 29496.11954883886 | 33         | F
+7.098697358473039   | 6.6762124704784   | 26403.9697390364  | 57         | M
+7.232964069506306   | 7.559568440063229 | 29431.55085957925 | 10         | null
+;
+
+stdDeviationSampleRow
+required_capability: std_dev_variations
+ROW a = [1,2,3], b = 5
+| STATS STD_DEV_SAMPLE(a), STD_DEV_SAMPLE(b)
+;
+
+STD_DEV_SAMPLE(a):double | STD_DEV_SAMPLE(b):double
+1.0                      | 0.0
+;
+
+variancePopulation
+required_capability: std_dev_variations
+// tag::VariancePopulation[]
+FROM employees
+| STATS VARIANCE_POPULATION(height)
+// end::VariancePopulation[]
+;
+
+// tag::VariancePopulation-result[]
+VARIANCE_POPULATION(height):double
+0.042588759999999996
+// end::VariancePopulation-result[]
+;
+
+variancePopulationNested
+required_capability: std_dev_variations
+// tag::docsStatsVariancePopulationNestedExpression[]
+FROM employees
+| STATS variance_salary_change = VARIANCE_POPULATION(MV_MAX(salary_change))
+// end::docsStatsVariancePopulationNestedExpression[]
+;
+
+// tag::docsStatsVariancePopulationNestedExpression-result[]
+variance_salary_change:double
+47.27703259093096
+// end::docsStatsVariancePopulationNestedExpression-result[]
+;
+
+variancePopulationWithLongs
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_POPULATION(avg_worked_seconds)
+;
+
+VARIANCE_POPULATION(avg_worked_seconds):double
+3.317880108280233E15
+;
+
+variancePopulationWithInts
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_POPULATION(salary)
+;
+
+VARIANCE_POPULATION(salary):double
+1.8947868010749993E8
+;
+
+variancePopulationConstantValue
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages == 2
+| STATS VARIANCE_POPULATION(languages)
+;
+
+VARIANCE_POPULATION(languages):double
+0.0
+;
+
+variancePopulationGroupedDoublesOnly
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_POPULATION(height) BY languages
+| SORT languages asc
+;
+
+VARIANCE_POPULATION(height):double | languages:integer
+0.048869333333333306               | 1
+0.05197119113573406                | 2
+0.03569480968858131                | 3
+0.02148024691358024                | 4
+0.03144897959183674                | 5
+0.061829                           | null
+;
+
+variancePopulationGroupedAllTypes
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages < 3
+| STATS
+    double_variance = VARIANCE_POPULATION(height),
+    int_variance = VARIANCE_POPULATION(salary),
+    long_variance = VARIANCE_POPULATION(avg_worked_seconds)
+  BY languages
+| SORT languages asc
+;
+
+double_variance:double | int_variance:double  | long_variance:double  | languages:integer
+0.048869333333333306   | 2.3001496248888886E8 | 2.70386645755309E15   | 1
+0.05197119113573406    | 1.473701550803324E8  | 2.8186388916212735E15 | 2
+;
+
+variancePopulationNoRows
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages IS null
+| STATS VARIANCE_POPULATION(languages)
+;
+
+VARIANCE_POPULATION(languages):double
+null
+;
+
+variancePopulationMultiValue
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_POPULATION(salary_change)
+;
+
+VARIANCE_POPULATION(salary_change):double
+49.87504721550359
+;
+
+variancePopulationFilter
+required_capability: std_dev_variations
+FROM employees
+| STATS greater_than = VARIANCE_POPULATION(salary_change) WHERE languages > 3
+, less_than = VARIANCE_POPULATION(salary_change) WHERE languages <= 3
+, salary = VARIANCE_POPULATION(salary * 2)
+, count = COUNT(*) BY gender
+| SORT gender asc
+;
+
+greater_than:double | less_than:double  | salary:double       | count:long | gender:keyword
+41.6583330898466    | 57.42408172635445 | 8.436567936382E8    | 33         | F
+48.65386611177169   | 43.62347650520595 | 6.849385720504771E8 | 57         | M
+48.291479289940824  | 50.7974           | 7.795945674E8       | 10         | null
+;
+
+variancePopulationRow
+required_capability: std_dev_variations
+ROW a = [1,2,3], b = 5
+| STATS VARIANCE_POPULATION(a), VARIANCE_POPULATION(b)
+;
+
+VARIANCE_POPULATION(a):double | VARIANCE_POPULATION(b):double
+0.6666666666666666            | 0.0
+;
+
+varianceSample
+required_capability: std_dev_variations
+// tag::VarianceSample[]
+FROM employees
+| STATS VARIANCE_SAMPLE(height)
+// end::VarianceSample[]
+;
+
+// tag::VarianceSample-result[]
+VARIANCE_SAMPLE(height):double
+0.04301894949494949
+// end::VarianceSample-result[]
+;
+
+varianceSampleNested
+required_capability: std_dev_variations
+// tag::docsStatsVarianceSampleNestedExpression[]
+FROM employees
+| STATS variance_sample_salary_change = VARIANCE_SAMPLE(MV_MAX(salary_change))
+// end::docsStatsVarianceSampleNestedExpression[]
+;
+
+// tag::docsStatsVarianceSampleNestedExpression-result[]
+variance_sample_salary_change:double
+47.88314839337879
+// end::docsStatsVarianceSampleNestedExpression-result[]
+;
+
+
+varianceSampleWithLongs
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_SAMPLE(avg_worked_seconds)
+;
+
+VARIANCE_SAMPLE(avg_worked_seconds):double
+3.351394048767912E15
+;
+
+varianceSampleWithInts
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_SAMPLE(salary)
+;
+
+VARIANCE_SAMPLE(salary):double
+1.9139260616919184E8
+;
+
+varianceSampleConstantValue
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages == 2
+| STATS VARIANCE_SAMPLE(languages)
+;
+
+VARIANCE_SAMPLE(languages):double
+0.0
+;
+
+varianceSampleGroupedDoublesOnly
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_SAMPLE(height) BY languages
+| SORT languages asc
+;
+
+VARIANCE_SAMPLE(height):double | languages:integer
+0.05235999999999997            | 1
+0.05485847953216374            | 2
+0.03792573529411764            | 3
+0.022743790849673196           | 4
+0.03302142857142858            | 5
+0.06869888888888889            | null
+;
+
+varianceSampleGroupedAllTypes
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages < 3
+| STATS
+    double_variance_sample = VARIANCE_SAMPLE(height),
+    int_variance_sample = VARIANCE_SAMPLE(salary),
+    long_variance_sample = VARIANCE_SAMPLE(avg_worked_seconds)
+  BY languages
+| SORT languages asc
+;
+
+double_variance_sample:double | int_variance_sample:double | long_variance_sample:double | languages:integer
+0.05235999999999997           | 2.4644460266666666E8       | 2.8969997759497395E15       | 1
+0.05485847953216374           | 1.5555738591812864E8       | 2.9752299411557885E15       | 2
+;
+
+varianceSampleNoRows
+required_capability: std_dev_variations
+FROM employees
+| WHERE languages IS null
+| STATS VARIANCE_SAMPLE(languages)
+;
+
+VARIANCE_SAMPLE(languages):double
+null
+;
+
+varianceSampleMultiValue
+required_capability: std_dev_variations
+FROM employees
+| STATS VARIANCE_SAMPLE(salary_change)
+;
+
+VARIANCE_SAMPLE(salary_change):double
+50.1490859364679
+;
+
+varianceSampleFilter
+required_capability: std_dev_variations
+FROM employees
+| STATS greater_than = VARIANCE_SAMPLE(salary_change) WHERE languages > 3
+, less_than = VARIANCE_SAMPLE(salary_change) WHERE languages <= 3
+, salary = VARIANCE_SAMPLE(salary * 2)
+, count = COUNT(*) BY gender
+| SORT gender asc
+;
+
+greater_than:double | less_than:double  | salary:double       | count:long | gender:keyword
+42.815509009009006  | 59.21858428030303 | 8.700210684393938E8 | 33         | F
+50.391504187192105  | 44.5718129509713  | 6.9716961797995E8   | 57         | M
+52.31576923076923   | 57.147075         | 8.66216186E8        | 10         | null
+;
+
+varianceSampleRow
+required_capability: std_dev_variations
+ROW a = [1,2,3], b = 5
+| STATS VARIANCE_SAMPLE(a), VARIANCE_SAMPLE(b)
+;
+
+VARIANCE_SAMPLE(a):double | VARIANCE_SAMPLE(b):double
+1.0                       | 0.0
 ;
 
 resolveGroupingsBeforeResolvingImplicitReferencesToGroupings

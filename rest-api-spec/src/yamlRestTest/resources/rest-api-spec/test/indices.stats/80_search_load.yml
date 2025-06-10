@@ -1,8 +1,13 @@
 ---
+setup:
+  - requires:
+      cluster_features: ["mapper.search_load_per_shard"]
+      reason: Shard search load stats were introduced in 9.1
+---
 "Search load is tracked at shard level":
   - do:
       indices.create:
-        index: testindex
+        index: index
         body:
           settings:
             index.number_of_shards: 1
@@ -18,37 +23,33 @@
 
   - do:
       indices.stats:
-        index: "testindex"
+        index: "index"
         level: shards
         metric: [ search ]
 
   - match: { _all.total.search.recent_search_load: 0.0 }
-  - match: { indices.testindex.total.search.recent_search_load: 0.0 }
-  - match: { indices.testindex.shards.0.0.search.recent_search_load: 0.0 }
+  - match: { indices.index.total.search.recent_search_load: 0.0 }
+  - match: { indices.index.shards.0.0.search.recent_search_load: 0.0 }
 
   - do:
       index:
-        index: testindex
+        index: index
         body: { "name": "specialty coffee", "description": "arabica coffee beans", "price": 100 }
+
   - do:
-      index:
-        index: testindex
-        body: { "name": "commercial coffee", "description": "robusta coffee beans", "price": 50 }
-  - do:
-      index:
-        index: testindex
-        body: { "name": "raw coffee", "description": "colombian coffee beans", "price": 25 }
-  - do:
-      index:
-        index: testindex
-        body: { "name": "book", "description": "some book", "price": 1000 }
+      search:
+        index: index
+        body:
+          query:
+            match: { name: "specialty coffee" }
+          size: 1
 
   - do:
       indices.stats:
-        index: "testindex"
+        index: "index"
         level: shards
         metric: [ search ]
 
   - gte: { _all.total.search.recent_search_load: 0.0 }
-  - gte: { indices.testindex.total.search.recent_search_load: 0.0 }
-  - gte: { indices.testindex.shards.0.0.search.recent_search_load: 0.0 }
+  - gte: { indices.index.total.search.recent_search_load: 0.0 }
+  - gte: { indices.index.shards.0.0.search.recent_search_load: 0.0 }

@@ -239,6 +239,9 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      * so an operator can categorize them after the fact.
      */
     static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo executionInfo) {
+        if (executionInfo == null) {
+            return;
+        }
         for (EsqlExecutionInfo.Cluster cluster : executionInfo.getClusters().values()) {
             for (ShardSearchFailure failure : cluster.getFailures()) {
                 RestResponse.logSuppressedError(

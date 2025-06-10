@@ -34,10 +34,12 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
 
     private static final ElasticsearchCluster cluster = buildCluster();
 
+    // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
+    // builder uses to lookup a particular distribution
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion())
+            .version(OLD_CLUSTER_VERSION)
             .nodes(NODE_NUM)
             .user(USER, PASS)
             .setting("xpack.security.autoconfiguration.enabled", "false")

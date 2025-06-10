@@ -57,9 +57,11 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
+    // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
+    // builder uses to lookup a particular distribution
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterVersion())
+        .version(OLD_CLUSTER_VERSION)
         .nodes(NODE_NUM)
         .setting("path.repo", new Supplier<>() {
             @Override

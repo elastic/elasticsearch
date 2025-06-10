@@ -35,10 +35,12 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         super(upgradedNodes);
     }
 
+    // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
+    // builder uses to lookup a particular distribution
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterVersion())
+        .version(OLD_CLUSTER_VERSION)
         .nodes(NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

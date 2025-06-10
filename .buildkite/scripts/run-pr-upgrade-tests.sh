@@ -27,7 +27,7 @@ echo "Running PR upgrade tests from $BUILDKITE_PULL_REQUEST_BASE_BRANCH [$BASE_C
 cat <<EOF | buildkite-agent pipeline upload
 steps:
     - label: pr-upgrade $BUILDKITE_PULL_REQUEST_BASE_BRANCH -> $BUILDKITE_BRANCH
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTest -Dtests.jvm.argline="-Des.serverless_transport=true"
+      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION} -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTest -Dtests.jvm.argline="-Des.serverless_transport=true"
       timeout_in_minutes: 300
       agents:
         provider: gcp

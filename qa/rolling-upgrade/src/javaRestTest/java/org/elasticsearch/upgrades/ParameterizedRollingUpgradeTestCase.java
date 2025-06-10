@@ -28,7 +28,6 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     protected static final int NODE_NUM = 3;
-    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+    protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
@@ -150,15 +149,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    protected static boolean isOldClusterVersion(String nodeVersion) {
-        return getOldClusterVersion().equals(nodeVersion);
-    }
-
     protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
-        if (Objects.equals(System.getProperty("tests.bwc.refspec.main"), buildHash)) {
-            return true;
+        String bwcRefSpec = System.getProperty("tests.bwc.refspec.main");
+        if (bwcRefSpec != null) {
+            return bwcRefSpec.equals(buildHash);
         }
-        return isOldClusterVersion(nodeVersion);
+        return getOldClusterVersion().equals(nodeVersion);
     }
 
     protected static boolean isOldCluster() {

@@ -32,7 +32,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion())
+            .version(OLD_CLUSTER_VERSION)
             .nodes(NODE_NUM)
             .setting("path.repo", new Supplier<>() {
                 @Override

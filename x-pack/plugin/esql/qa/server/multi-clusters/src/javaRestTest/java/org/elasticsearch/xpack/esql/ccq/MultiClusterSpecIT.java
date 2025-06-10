@@ -111,6 +111,14 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions, mode);
     }
 
+    // TODO: think how to handle this better
+    public static final Set<String> LOOKUP_JOIN_AFTER_STATS_TESTS = Set.of(
+        "StatsAndLookupIPAndMessageFromIndex",
+        "JoinMaskingRegex",
+        "StatsAndLookupIPFromIndex",
+        "StatsAndLookupMessageFromIndex"
+    );
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
@@ -138,6 +146,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
         assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
+        // Tests that use capabilities not supported in CCS
+        assumeFalse("LOOKUP JOIN after stats not yet supported in CCS", LOOKUP_JOIN_AFTER_STATS_TESTS.contains(testName));
     }
 
     @Override
@@ -186,8 +196,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     // These indices are used in metadata tests so we want them on remote only for consistency
     public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
 
-    // These are loopkup indices, we want them on remotes and locals
-    public static final Set<String> LOOKUP_INDICES = Stream.of(
+    // These are lookup indices, we want them on both remotes and locals
+    // TODO: can we somehow find it from the data loader?
+    public static final Set<String> LOOKUP_INDICES = Set.of(
         "languages_nested_fields",
         "languages_lookup",
         "clientips_lookup",
@@ -199,7 +210,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "languages_lookup_non_unique_key",
         "lookup_sample_data_ts_nanos",
         "service_owners"
-    ).map(i -> "/" + i + "/_bulk").collect(Collectors.toSet());
+    );
+
+    public static final Set<String> LOOKUP_ENDPOINTS = LOOKUP_INDICES.stream().map(i -> "/" + i + "/_bulk").collect(Collectors.toSet());
 
     public static final Set<String> ENRICH_ENDPOINTS = ENRICH_SOURCE_INDICES.stream()
         .map(i -> "/" + i + "/_bulk")
@@ -225,7 +238,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 return remoteClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk")
                 && ENRICH_ENDPOINTS.contains(endpoint) == false
-                && LOOKUP_INDICES.contains(endpoint) == false) {
+                && LOOKUP_ENDPOINTS.contains(endpoint) == false) {
                     return bulkClient.performRequest(request);
                 } else {
                     Request[] clones = cloneRequests(request, 2);
@@ -277,16 +290,20 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
+        // If true, we're using *:index, otherwise we're using *:index,index
+        boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
             String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
             String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
+            if (Arrays.stream(localIndices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                // If the query contains lookup indices, use only remotes to avoid duplication
+                onlyRemotes = true;
+            }
             final String remoteIndices;
-            if (canUseRemoteIndicesOnly() && randomBoolean()) {
-                remoteIndices = Arrays.stream(localIndices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
-                    .collect(Collectors.joining(","));
+            if (onlyRemotes) {
+                remoteIndices = Arrays.stream(localIndices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
             } else {
                 remoteIndices = Arrays.stream(localIndices)
                     .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
@@ -299,10 +316,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");
-            if (canUseRemoteIndicesOnly() && randomBoolean()) {
-                parts[1] = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
-                    .collect(Collectors.joining(","));
+            if (onlyRemotes) {
+                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
             } else {
                 parts[1] = Arrays.stream(indices)
                     .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))

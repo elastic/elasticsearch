@@ -1315,6 +1315,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
     }
 
+    @Override
+    protected boolean addMockFsRepository() {
+        return getTestName().equals("testUploadCorruptionHandling") == false;
+    }
+
     public void testVirtualBatchedCompoundCommitChunksOnHollowShards() throws Exception {
         var settings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())

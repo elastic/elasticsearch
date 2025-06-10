@@ -57,10 +57,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<ShardId, Long> shardDataSetSizes;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
-    private final Map<String, NodeHeapUsage> nodeHeapUsages = Map.of();
+    private final Map<String, ShardHeapUsage> nodeHeapUsages = Map.of();
 
-    public record NodeHeapUsage(String nodeId, long usedInBytes, long totalInBytes) {
-        public double usedPercentage() {
+    public record ShardHeapUsage(String nodeId, String nodeName, long usedInBytes, long totalInBytes) {
+        public double estimatedUsageAsPercentage() {
             return (usedInBytes * 100.0d) / totalInBytes;
         }
     }
@@ -218,7 +218,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         return this.mostAvailableSpaceUsage;
     }
 
-    public Map<String, NodeHeapUsage> getNodeHeapUsages() {
+    public Map<String, ShardHeapUsage> getNodeHeapUsages() {
         return nodeHeapUsages;
     }
 

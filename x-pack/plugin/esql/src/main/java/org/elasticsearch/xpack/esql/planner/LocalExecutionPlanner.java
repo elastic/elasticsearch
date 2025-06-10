@@ -766,10 +766,10 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private record MatchConfig(String fieldName, int channel, DataType type) {
+    private record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
         private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
             // Note, this handles TEXT fields with KEYWORD subfields
-            this(match.exactAttribute().name(), input.channel(), input.type());
+            this(match.exactAttribute().fieldName(), input.channel(), input.type());
         }
     }
 

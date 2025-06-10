@@ -194,6 +194,10 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [idx]"));
     }
 
+    protected boolean canDoRemoteTest() {
+        return false;
+    }
+
     public void testIndicesDontExist() throws IOException {
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
@@ -213,8 +217,9 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
 
-        if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled()) {
-            var pattern = from("test1");
+        var pattern = from("test1");
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()
+            && (RemoteClusterAware.isRemoteIndexName(pattern) == false || canDoRemoteTest())) {
             e = expectThrows(
                 ResponseException.class,
                 () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))

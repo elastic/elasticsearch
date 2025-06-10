@@ -17,7 +17,7 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 class KMeansIntermediate extends KMeansResult {
     private final IntToIntFunction assignmentOrds;
 
-    KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrds, int[] soarAssignments) {
+    private KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrds, int[] soarAssignments) {
         super(centroids, assignments, soarAssignments);
         assert assignmentOrds != null;
         this.assignmentOrds = assignmentOrds;

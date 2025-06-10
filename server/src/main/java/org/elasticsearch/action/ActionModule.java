@@ -209,6 +209,9 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
+import org.elasticsearch.action.tvbackport.RestTVBackportAction;
+import org.elasticsearch.action.tvbackport.TVBackportAction;
+import org.elasticsearch.action.tvbackport.TransportTVBackportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -806,6 +809,9 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
+        // Transport Version Backport Testing
+        actions.register(TVBackportAction.INSTANCE, TransportTVBackportAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -1032,6 +1038,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
+
+        // Transport Version Backport Testing
+        registerHandler.accept(new RestTVBackportAction());
     }
 
     @Override

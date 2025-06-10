@@ -18,7 +18,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -46,7 +45,6 @@ import java.io.IOException;
  */
 public class IVFVectorsFormat extends KnnVectorsFormat {
 
-    public static final FeatureFlag IVF_FORMAT_FEATURE_FLAG = new FeatureFlag("ivf_format");
     public static final String IVF_VECTOR_COMPONENT = "IVF";
     public static final String NAME = "IVFVectorsFormat";
     // centroid ordinals -> centroid values, offsets
@@ -63,14 +61,26 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    private static final int DEFAULT_VECTORS_PER_CLUSTER = 1000;
+    // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
+    // useful when searching with 'efSearch' type parameters instead of requiring a specific nprobe.
+    public static final int DYNAMIC_NPROBE = -1;
+    public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
+    public static final int MIN_VECTORS_PER_CLUSTER = 64;
+    public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
 
     private final int vectorPerCluster;
 
     public IVFVectorsFormat(int vectorPerCluster) {
         super(NAME);
-        if (IVF_FORMAT_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException("IVF format is not enabled");
+        if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
+            throw new IllegalArgumentException(
+                "vectorsPerCluster must be between "
+                    + MIN_VECTORS_PER_CLUSTER
+                    + " and "
+                    + MAX_VECTORS_PER_CLUSTER
+                    + ", got: "
+                    + vectorPerCluster
+            );
         }
         this.vectorPerCluster = vectorPerCluster;
     }
@@ -78,9 +88,6 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public IVFVectorsFormat() {
         this(DEFAULT_VECTORS_PER_CLUSTER);
-        if (IVF_FORMAT_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException("IVF format is not enabled");
-        }
     }
 
     @Override
@@ -95,12 +102,12 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public int getMaxDimensions(String fieldName) {
-        return 1024;
+        return 4096;
     }
 
     @Override
     public String toString() {
-        return "IVFVectorFormat";
+        return "IVFVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
     }
 
     static IVFVectorsReader getIVFReader(KnnVectorsReader vectorsReader, String fieldName) {

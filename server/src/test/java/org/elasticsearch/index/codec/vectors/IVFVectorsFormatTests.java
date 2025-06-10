@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -20,6 +21,13 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
+
+import static java.lang.String.format;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -32,7 +40,7 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     @Before
     @Override
     public void setUp() throws Exception {
-        format = new IVFVectorsFormat(random().nextInt(10, 1000));
+        format = new IVFVectorsFormat(random().nextInt(MIN_VECTORS_PER_CLUSTER, IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER));
         super.setUp();
     }
 
@@ -60,7 +68,30 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
-        assumeTrue("IVF format flat enabled", IVFVectorsFormat.IVF_FORMAT_FEATURE_FLAG.isEnabled());
         return TestUtil.alwaysKnnVectorsFormat(format);
+    }
+
+    @Override
+    public void testAdvance() throws Exception {
+        // TODO re-enable with hierarchical IVF, clustering as it is is flaky
+    }
+
+    public void testToString() {
+        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
+            @Override
+            public KnnVectorsFormat knnVectorsFormat() {
+                return new IVFVectorsFormat(128);
+            }
+        };
+        String expectedPattern = "IVFVectorsFormat(vectorPerCluster=128)";
+
+        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
+        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
+        assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
+    }
+
+    public void testLimits() {
+        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1));
+        expectThrows(IllegalArgumentException.class, () -> new IVFVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1));
     }
 }

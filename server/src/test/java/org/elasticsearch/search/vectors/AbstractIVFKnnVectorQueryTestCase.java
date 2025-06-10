@@ -98,8 +98,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        assumeTrue("IVF format must be enabled", IVFVectorsFormat.IVF_FORMAT_FEATURE_FLAG.isEnabled());
-        format = new IVFVectorsFormat(random().nextInt(128));
+        format = new IVFVectorsFormat(128);
     }
 
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, int nProbe);

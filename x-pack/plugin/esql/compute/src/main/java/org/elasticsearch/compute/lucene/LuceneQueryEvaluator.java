@@ -112,7 +112,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         int min = docs.docs().getInt(0);
         int max = docs.docs().getInt(docs.getPositionCount() - 1);
         int length = max - min + 1;
-        try (T scoreBuilder = createVectorBuilder(blockFactory, length)) {
+        try (T scoreBuilder = createVectorBuilder(blockFactory, docs.getPositionCount())) {
             if (length == docs.getPositionCount() && length > 1) {
                 return segmentState.scoreDense(scoreBuilder, min, max);
             }
@@ -184,7 +184,10 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         private final List<SegmentState> perSegmentState;
 
         ShardState(ShardConfig config) throws IOException {
-            weight = config.searcher.createWeight(config.query, scoreMode(), 1.0f);
+            // At this point, only the QueryBuilder has been rewritten into the query, but not the query itself.
+            // The query needs to be rewritten before creating the Weight so it can be transformed into the final Query to execute.
+            Query rewritten = config.searcher.rewrite(config.query);
+            weight = config.searcher.createWeight(rewritten, scoreMode(), 1.0f);
             searcher = config.searcher;
             perSegmentState = new ArrayList<>(Collections.nCopies(searcher.getLeafContexts().size(), null));
         }

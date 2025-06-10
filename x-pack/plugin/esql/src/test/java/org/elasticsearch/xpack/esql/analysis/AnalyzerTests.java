@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -48,9 +49,13 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -73,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -110,12 +116,16 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -2354,6 +2364,22 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[+] has arguments with incompatible types [datetime] and [datetime]"));
     }
 
+    public void testDenseVectorImplicitCasting() {
+        Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
+
+        var plan = analyze("""
+            from test | where knn(vector, [0.342, 0.164, 0.234])
+            """, "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var field = knn.field();
+        var queryVector = as(knn.query(), Literal.class);
+        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
+        assertThat(queryVector.value(), equalTo(List.of(0.342, 0.164, 0.234)));
+    }
+
     public void testRateRequiresCounterTypes() {
         assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
@@ -3039,6 +3065,7 @@ public class AnalyzerTests extends ESTestCase {
 
         LogicalPlan plan = analyze("""
             from test
+            | KEEP emp_no, first_name, last_name
             | WHERE first_name == "Chris"
             | FORK ( WHERE emp_no > 1 )
                    ( WHERE emp_no > 2 )
@@ -3047,6 +3074,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( LIMIT 9 )
             """);
 
+        var expectedOutput = List.of("emp_no", "first_name", "last_name", "_fork");
         Limit limit = as(plan, Limit.class);
         Fork fork = as(limit.child(), Fork.class);
 
@@ -3056,33 +3084,44 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Eval eval = as(limit.child(), Eval.class);
+        Keep keep = as(limit.child(), Keep.class);
+        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        Eval eval = as(keep.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
         Filter filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
 
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        var esRelation = as(filter.child(), EsRelation.class);
+        EsqlProject project = as(filter.child(), EsqlProject.class);
+        var esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        eval = as(limit.child(), Eval.class);
+        keep = as(limit.child(), Keep.class);
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        eval = as(keep.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
         filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
 
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        esRelation = as(filter.child(), EsRelation.class);
+        project = as(filter.child(), EsqlProject.class);
+        esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        eval = as(limit.child(), Eval.class);
+        keep = as(limit.child(), Keep.class);
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        eval = as(keep.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
@@ -3091,30 +3130,39 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        esRelation = as(filter.child(), EsRelation.class);
+        project = as(filter.child(), EsqlProject.class);
+        esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 4
         limit = as(subPlans.get(3), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        eval = as(limit.child(), Eval.class);
+        keep = as(limit.child(), Keep.class);
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        eval = as(keep.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
         orderBy = as(eval.child(), OrderBy.class);
         filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        esRelation = as(filter.child(), EsRelation.class);
+        project = as(filter.child(), EsqlProject.class);
+        esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 5
         limit = as(subPlans.get(4), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        eval = as(limit.child(), Eval.class);
+        keep = as(limit.child(), Keep.class);
+        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(keptColumns, equalTo(expectedOutput));
+        eval = as(keep.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
         filter = as(limit.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        esRelation = as(filter.child(), EsRelation.class);
+        project = as(filter.child(), EsqlProject.class);
+        esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
     }
 
@@ -3282,7 +3330,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 5 )
                    ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
             """));
-        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting {"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM test
@@ -3352,7 +3400,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(dedup.aggregates().size(), equalTo(15));
 
         RrfScoreEval rrf = as(dedup.child(), RrfScoreEval.class);
-        assertThat(rrf.scoreAttribute(), instanceOf(MetadataAttribute.class));
+        assertThat(rrf.scoreAttribute(), instanceOf(ReferenceAttribute.class));
         assertThat(rrf.scoreAttribute().name(), equalTo("_score"));
         assertThat(rrf.forkAttribute(), instanceOf(ReferenceAttribute.class));
         assertThat(rrf.forkAttribute().name(), equalTo("_fork"));
@@ -3629,7 +3677,10 @@ public class AnalyzerTests extends ESTestCase {
                     | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
                     """, "mapping-books.json");
             } catch (ParsingException ex) {
-                assertThat(ex.getMessage(), containsString("line 3:36: mismatched input '(' expecting {'=', ',', '.', 'with'}"));
+                assertThat(
+                    ex.getMessage(),
+                    containsString("line 3:36: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}")
+                );
             }
         }
 
@@ -3687,8 +3738,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceId() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
@@ -3698,8 +3747,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceIdInvalidTaskType() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError(
             """
                 FROM books METADATA _score
@@ -3713,8 +3760,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceMissingInferenceId() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `unknown-inference-id`
@@ -3722,8 +3767,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionInferenceIdResolutionError() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `error-inference-id`
@@ -3731,32 +3774,26 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionTargetField() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS translation
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("translation", DataType.TEXT)));
+        assertThat(completion.targetField(), equalTo(referenceAttribute("translation", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionDefaultTargetField() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("completion", DataType.TEXT)));
+        assertThat(completion.targetField(), equalTo(referenceAttribute("completion", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionPrompt() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
@@ -3772,8 +3809,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionPromptInvalidType() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         assertError("""
             FROM books METADATA _score
             | COMPLETION LENGTH(description) WITH `completion-inference-id`
@@ -3781,15 +3816,13 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionOutputField() {
-        assumeTrue("Requires COMPLETION command", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS description
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("description", DataType.TEXT)));
+        assertThat(completion.targetField(), equalTo(referenceAttribute("description", DataType.KEYWORD)));
 
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
@@ -3935,6 +3968,146 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("hire_date", fa.name());
         literal = as(bucket.buckets(), Literal.class);
         assertEquals(oneYear, literal);
+    }
+
+    public void testImplicitCastingForDateAndDateNanosFields() {
+        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
+        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
+
+        // Validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again, and include some cases of
+        // nested casting as well.
+        LogicalPlan plan = analyze("""
+            FROM tests
+            | Eval a = date_and_date_nanos, b = date_and_date_nanos::datetime, c = date_and_date_nanos::date_nanos,
+                   d = date_and_date_nanos::datetime::datetime, e = date_and_date_nanos::datetime::date_nanos,
+                   f = date_and_date_nanos::date_nanos::datetime, g = date_and_date_nanos::date_nanos::date_nanos,
+                   h = date_and_date_nanos::datetime::long, i = date_and_date_nanos::date_nanos::long,
+                   j = date_and_date_nanos::long::datetime, k = date_and_date_nanos::long::date_nanos
+            """, analyzer);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(13, projections.size());
+        // implicit casting
+        FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "date_and_date_nanos", DATE_NANOS, fa);
+        // long is not cast to date_nanos
+        UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class);
+        verifyNameAndType(ua.name(), ua.dataType(), "date_and_date_nanos_and_long", UNSUPPORTED);
+        // implicit casting
+        ReferenceAttribute ra = as(projections.get(2), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "a", DATE_NANOS);
+        // explicit casting
+        ra = as(projections.get(3), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "b", DATETIME);
+        ra = as(projections.get(4), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "c", DATE_NANOS);
+        ra = as(projections.get(5), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "d", DATETIME);
+        ra = as(projections.get(6), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "e", DATE_NANOS);
+        ra = as(projections.get(7), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "f", DATETIME);
+        ra = as(projections.get(8), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "g", DATE_NANOS);
+        ra = as(projections.get(9), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "h", LONG);
+        ra = as(projections.get(10), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "i", LONG);
+        ra = as(projections.get(11), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "j", DATETIME);
+        ra = as(projections.get(12), ReferenceAttribute.class);
+        verifyNameAndType(ra.name(), ra.dataType(), "k", DATE_NANOS);
+
+        Limit limit = as(project.child(), Limit.class);
+        // original Eval coded in the query
+        Eval eval = as(limit.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(11, aliases.size());
+        // implicit casting
+        Alias a = aliases.get(0); // a = date_and_date_nanos
+        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "a", DATE_NANOS, a.child());
+        // explicit casting
+        a = aliases.get(1); // b = date_and_date_nanos::datetime
+        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "b", DATETIME, a.child());
+        a = aliases.get(2); // c = date_and_date_nanos::date_nanos
+        verifyNameAndTypeAndMultiTypeEsField(a.name(), a.dataType(), "c", DATE_NANOS, a.child());
+        a = aliases.get(3); // d = date_and_date_nanos::datetime::datetime
+        verifyNameAndType(a.name(), a.dataType(), "d", DATETIME);
+        ToDatetime toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(
+            fa.name(),
+            fa.dataType(),
+            "$$date_and_date_nanos$converted_to$datetime",
+            DATETIME,
+            toDatetime.field()
+        );
+        a = aliases.get(4); // e = date_and_date_nanos::datetime::date_nanos
+        verifyNameAndType(a.name(), a.dataType(), "e", DATE_NANOS);
+        ToDateNanos toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(
+            fa.name(),
+            fa.dataType(),
+            "$$date_and_date_nanos$converted_to$datetime",
+            DATETIME,
+            toDateNanos.field()
+        );
+        a = aliases.get(5); // f = date_and_date_nanos::date_nanos::datetime
+        verifyNameAndType(a.name(), a.dataType(), "f", DATETIME);
+        toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
+        a = aliases.get(6); // g = date_and_date_nanos::date_nanos::date_nanos
+        verifyNameAndType(a.name(), a.dataType(), "g", DATE_NANOS);
+        toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
+        a = aliases.get(7); // h = date_and_date_nanos::datetime::long
+        verifyNameAndType(a.name(), a.dataType(), "h", LONG);
+        ToLong toLong = as(a.child(), ToLong.class);
+        fa = as(toLong.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$datetime", DATETIME, fa);
+        a = aliases.get(8); // i = date_and_date_nanos::date_nanos::long
+        verifyNameAndType(a.name(), a.dataType(), "i", LONG);
+        toLong = as(a.child(), ToLong.class);
+        fa = as(toLong.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$date_nanos", DATE_NANOS, fa);
+        a = aliases.get(9); // j = date_and_date_nanos::long::datetime
+        verifyNameAndType(a.name(), a.dataType(), "j", DATETIME);
+        toDatetime = as(a.child(), ToDatetime.class);
+        fa = as(toDatetime.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
+        a = aliases.get(10); // k = date_and_date_nanos::long::date_nanos
+        verifyNameAndType(a.name(), a.dataType(), "k", DATE_NANOS);
+        toDateNanos = as(a.child(), ToDateNanos.class);
+        fa = as(toDateNanos.field(), FieldAttribute.class);
+        verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
+        EsRelation esRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test*", esRelation.indexPattern());
+    }
+
+    private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {
+        assertEquals(expectedName, actualName);
+        assertEquals(expectedType, actualType);
+    }
+
+    private void verifyNameAndTypeAndMultiTypeEsField(
+        String actualName,
+        DataType actualType,
+        String expectedName,
+        DataType expectedType,
+        Expression e
+    ) {
+        assertEquals(expectedName, actualName);
+        assertEquals(expectedType, actualType);
+        assertTrue(isMultiTypeEsField(e));
+    }
+
+    private boolean isMultiTypeEsField(Expression e) {
+        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
     @Override

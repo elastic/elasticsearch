@@ -291,12 +291,7 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : evalCommand
-    | whereCommand
-    | limitCommand
-    | statsCommand
-    | sortCommand
-    | dissectCommand
+    : processingCommand
     ;
 
 rrfCommand

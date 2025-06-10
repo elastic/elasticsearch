@@ -95,9 +95,9 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "${USE_PERF_CREDENTIALS:-}" == "true" ]]; then
-  PERF_METRICS_HOST=$(vault read -field=es_host /secret/ci/elastic-elasticsearch/esbench-metics)
-  PERF_METRICS_USERNAME=$(vault read -field=es_username /secret/ci/elastic-elasticsearch/esbench-metics)
-  PERF_METRICS_PASSWORD=$(vault read -field=es_password /secret/ci/elastic-elasticsearch/esbench-metics)
+  PERF_METRICS_HOST=$(vault read -field=es_host /secret/ci/elastic-elasticsearch/microbenchmarks-metics)
+  PERF_METRICS_USERNAME=$(vault read -field=es_username /secret/ci/elastic-elasticsearch/microbenchmarks-metics)
+  PERF_METRICS_PASSWORD=$(vault read -field=es_password /secret/ci/elastic-elasticsearch/microbenchmarks-metics)
 
   export PERF_METRICS_HOST
   export PERF_METRICS_USERNAME

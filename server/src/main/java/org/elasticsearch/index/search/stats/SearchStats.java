@@ -49,8 +49,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryFailure;
         private long fetchFailure;
 
-        // This is the ExponentiallyWeightedMovingRate for a shard, tracking execution time across different phases
-        // (e.g., query, fetch, etc.), favoring more recent load values by assigning them greater significance than older values.
+        // This tracks the search execution time across different phases (e.g., query, fetch, etc.), favouring more recent 
+        // values by assigning them greater significance than older values.
         private double recentSearchLoad;
 
         private Stats() {

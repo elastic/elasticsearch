@@ -1,0 +1,5 @@
+pr: 128291
+summary: Make `dense_vector` fields updatable to bbq_flat/bbq_hnsw
+area: Vector Search
+type: enhancement
+issues: []

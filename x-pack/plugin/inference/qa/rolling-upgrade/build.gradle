@@ -11,7 +11,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
-
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -26,11 +26,4 @@ buildParams.bwcVersions.withWireCompatible(v -> v.after("8.11.0")) { bwcVersion,
     systemProperty("tests.old_cluster_version", bwcVersion)
     maxParallelForks = 1
   }
-}
-
-tasks.register("bcUpgradeTest", StandaloneRestIntegTestTask) {
-  // We use a phony version here as the real version is provided via `tests.bwc.main.version` system property
-  usesBwcDistribution(Version.fromString("0.0.0"))
-  systemProperty("tests.old_cluster_version", "0.0.0")
-  onlyIf("tests.bwc.main.version system property exists") { System.getProperty("tests.bwc.main.version") != null }
 }

@@ -1192,7 +1192,6 @@ public class EsqlCapabilities {
          */
         KNN_FUNCTION(Build.current().isSnapshot());
 
-
         private final boolean enabled;
 
         Cap() {

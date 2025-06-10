@@ -60,13 +60,13 @@ public class IbmWatsonxChatCompletionRequest implements IbmWatsonxRequest {
 
     @Override
     public Request truncate() {
-        // No truncation for Ibm WatsonX chat completions
+        // No truncation for IBM Watsonx chat completions
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // No truncation for Ibm WatsonX chat completions
+        // No truncation for IBM Watsonx chat completions
         return null;
     }
 

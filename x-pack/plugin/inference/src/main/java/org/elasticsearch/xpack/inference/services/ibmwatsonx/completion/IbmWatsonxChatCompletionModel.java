@@ -132,7 +132,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor _
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM Watsonx models.
      * @return the completion action
      */
     public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {

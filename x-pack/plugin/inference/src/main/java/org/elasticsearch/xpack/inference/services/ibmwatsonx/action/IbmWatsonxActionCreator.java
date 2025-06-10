@@ -42,7 +42,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
-    static final String COMPLETION_REQUEST_TYPE = "IBM WatsonX completions";
+    static final String COMPLETION_REQUEST_TYPE = "IBM Watsonx completions";
     static final String USER_ROLE = "user";
     static final ResponseHandler COMPLETION_HANDLER = new IbmWatsonxCompletionResponseHandler(
         COMPLETION_REQUEST_TYPE,
@@ -56,7 +56,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
 
     @Override
     public ExecutableAction create(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM WatsonX embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM Watsonx embeddings");
         return new SenderExecutableAction(
             sender,
             getEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool()),
@@ -95,13 +95,13 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     }
 
     /**
-     * Builds an error message for Ibm Watsonx actions.
+     * Builds an error message for IBM Watsonx actions.
      *
      * @param requestType The type of request (e.g. COMPLETION, EMBEDDING, RERANK).
      * @param inferenceId The ID of the inference entity.
      * @return A formatted error message.
      */
     public static String buildErrorMessage(TaskType requestType, String inferenceId) {
-        return format("Failed to send Ibm Watsonx %s request from inference entity id [%s]", requestType.toString(), inferenceId);
+        return format("Failed to send IBM Watsonx %s request from inference entity id [%s]", requestType.toString(), inferenceId);
     }
 }

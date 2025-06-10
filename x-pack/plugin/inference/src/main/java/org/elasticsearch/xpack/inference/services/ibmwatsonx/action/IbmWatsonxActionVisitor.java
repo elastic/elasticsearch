@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRe
 import java.util.Map;
 
 /**
- * Interface for creating {@link ExecutableAction} instances for Watsonx models.
+ * Interface for creating {@link ExecutableAction} instances for IBM Watsonx models.
  * <p>
- * This interface is used to create {@link ExecutableAction} instances for different types of Watsonx models, such as
+ * This interface is used to create {@link ExecutableAction} instances for different types of IBM Watsonx models, such as
  * {@link IbmWatsonxEmbeddingsModel} and {@link IbmWatsonxRerankModel} and {@link IbmWatsonxChatCompletionModel}.
  */
 public interface IbmWatsonxActionVisitor {

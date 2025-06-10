@@ -32,7 +32,7 @@ public class IbmWatsonxRankedResponseEntity {
     private static final Logger logger = LogManager.getLogger(IbmWatsonxRankedResponseEntity.class);
 
     /**
-     * Parses the Ibm Watsonx ranked response.
+     * Parses the IBM Watsonx ranked response.
      *
      * For a request like:
      *     "model": "rerank-english-v2.0",
@@ -71,7 +71,7 @@ public class IbmWatsonxRankedResponseEntity {
      *   ],
      *   }
      *
-     * @param response the http response from ibm watsonx
+     * @param response the http response from IBM Watsonx
      * @return the parsed response
      * @throws IOException if there is an error parsing the response
      */

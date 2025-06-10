@@ -19,7 +19,7 @@ public class IbmWatsonCompletionResponseHandler extends OpenAiChatCompletionResp
     /**
      * Constructs an IbmWatsonCompletionResponseHandler with the specified request type and response parser.
      *
-     * @param requestType The type of request being handled (e.g., "IBM WatsonX completions).
+     * @param requestType The type of request being handled (e.g., "IBM Watsonx completions).
      * @param parseFunction The function to parse the response.
      */
     public IbmWatsonCompletionResponseHandler(String requestType, ResponseParser parseFunction) {

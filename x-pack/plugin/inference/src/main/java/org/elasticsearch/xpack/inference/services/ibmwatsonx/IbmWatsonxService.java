@@ -79,7 +79,7 @@ public class IbmWatsonxService extends SenderService {
         TaskType.CHAT_COMPLETION
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
-        "ibm watsonx chat completions",
+        "IBM Watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 

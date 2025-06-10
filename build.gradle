@@ -68,6 +68,9 @@ nmcpAggregation {
 }
 
 tasks.named('zipAggregation').configure {
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregration")
+  archiveVersion.set(VersionProperties.elasticsearch)
   dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
   from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }

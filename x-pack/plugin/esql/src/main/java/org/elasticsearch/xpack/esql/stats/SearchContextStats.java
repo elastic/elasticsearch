@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -19,6 +18,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -101,10 +101,10 @@ public class SearchContextStats implements SearchStats {
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
-                var type = context.getFieldType(field);
+                MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
-                } else if (mixedFieldType == false && type != fieldType) {
+                } else if (mixedFieldType == false && fieldType.typeName().equals(type.typeName()) == false) {
                     mixedFieldType = true;
                 }
                 exists |= true;
@@ -189,11 +189,9 @@ public class SearchContextStats implements SearchStats {
     @Override
     public Object min(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        // Consolidate min/max for indexed numeric and date fields only, skip mixed-typed fields.
+        // Consolidate min for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType == null
-            || stat.config.indexed == false
-            || (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) == false) {
+        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.min == null) {
@@ -201,7 +199,7 @@ public class SearchContextStats implements SearchStats {
             doWithContexts(r -> {
                 byte[] minPackedValue = PointValues.getMinPackedValue(r, field);
                 if (minPackedValue != null) {
-                    long minValue = LongPoint.decodeDimension(minPackedValue, 0);
+                    long minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
                     if (minValue < min[0]) {
                         min[0] = minValue;
                     }
@@ -216,11 +214,9 @@ public class SearchContextStats implements SearchStats {
     @Override
     public Object max(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        // Consolidate min/max for indexed numeric and date fields only, skip mixed-typed fields
+        // Consolidate max for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType == null
-            || stat.config.indexed == false
-            || (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) == false) {
+        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.max == null) {
@@ -228,7 +224,7 @@ public class SearchContextStats implements SearchStats {
             doWithContexts(r -> {
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field);
                 if (maxPackedValue != null) {
-                    long maxValue = LongPoint.decodeDimension(maxPackedValue, 0);
+                    long maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
                     if (maxValue > max[0]) {
                         max[0] = maxValue;
                     }

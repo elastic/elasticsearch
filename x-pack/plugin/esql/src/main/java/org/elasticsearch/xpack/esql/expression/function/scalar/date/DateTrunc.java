@@ -222,7 +222,9 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
         }
 
         rounding.timeZone(timeZone);
-        if (min != null && max != null) {
+        if (min != null && max != null && period.getMonths() <= 1 && period.getYears() <= 1) {
+            // Multiple quantities of month, quarter or year is not supported by PreparedRounding.maybeUseArray, which is called by
+            // prepare(min, max), as it may hit an assert in it.
             return rounding.build().prepare(min, max);
         }
         return rounding.build().prepareForUnknown();
@@ -291,7 +293,6 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
                 Object foldedInterval = interval().fold(FoldContext.small() /* TODO remove me */);
                 Rounding.Prepared rounding = createRounding(foldedInterval, DEFAULT_TZ, (Long) min, (Long) max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
-                // TODO do we support date_nanos? It seems like prepare(long minUtcMillis, long maxUtcMillis) takes millis only
                 // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
                 // System.out.println("field name = " + fieldName + ", min = " + min + ", max = " + max + ", roundingPoints = " +
                 // Arrays.toString(roundingPoints));

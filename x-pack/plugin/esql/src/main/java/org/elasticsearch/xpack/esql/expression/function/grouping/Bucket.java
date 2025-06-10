@@ -525,7 +525,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 Rounding.Prepared rounding = getDateRounding(FoldContext.small(), (Long) min, (Long) max);
                 // createRounding(foldedInterval, DEFAULT_TZ, (Long) min, (Long) max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
-                // TODO do we support date_nanos? It seems like prepare(long minUtcMillis, long maxUtcMillis) takes millis only
                 // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
                 // System.out.println("roundingPoints = " + Arrays.toString(roundingPoints));
                 if (roundingPoints == null) {

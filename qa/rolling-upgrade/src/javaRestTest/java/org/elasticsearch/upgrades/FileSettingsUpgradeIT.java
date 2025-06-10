@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // Remove this rule entirely
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
         () -> assumeTrue(
             "Only valid when upgrading from pre-file settings",

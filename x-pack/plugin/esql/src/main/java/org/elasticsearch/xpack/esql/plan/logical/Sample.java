@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQuery;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -30,19 +29,16 @@ public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVer
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sample", Sample::new);
 
     private final Expression probability;
-    private final Expression seed;
 
-    public Sample(Source source, Expression probability, @Nullable Expression seed, LogicalPlan child) {
+    public Sample(Source source, Expression probability, LogicalPlan child) {
         super(source, child);
         this.probability = probability;
-        this.seed = seed;
     }
 
     private Sample(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class), // probability
-            in.readOptionalNamedWriteable(Expression.class), // seed
             in.readNamedWriteable(LogicalPlan.class) // child
         );
     }
@@ -51,7 +47,6 @@ public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVer
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(probability);
-        out.writeOptionalNamedWriteable(seed);
         out.writeNamedWriteable(child());
     }
 
@@ -62,30 +57,26 @@ public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     protected NodeInfo<Sample> info() {
-        return NodeInfo.create(this, Sample::new, probability, seed, child());
+        return NodeInfo.create(this, Sample::new, probability, child());
     }
 
     @Override
     public Sample replaceChild(LogicalPlan newChild) {
-        return new Sample(source(), probability, seed, newChild);
+        return new Sample(source(), probability, newChild);
     }
 
     public Expression probability() {
         return probability;
     }
 
-    public Expression seed() {
-        return seed;
-    }
-
     @Override
     public boolean expressionsResolved() {
-        return probability.resolved() && (seed == null || seed.resolved());
+        return probability.resolved();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(probability, seed, child());
+        return Objects.hash(probability, child());
     }
 
     @Override
@@ -99,7 +90,7 @@ public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
         var other = (Sample) obj;
 
-        return Objects.equals(probability, other.probability) && Objects.equals(seed, other.seed) && Objects.equals(child(), other.child());
+        return Objects.equals(probability, other.probability) && Objects.equals(child(), other.child());
     }
 
     @Override

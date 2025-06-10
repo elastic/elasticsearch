@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -2051,6 +2052,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             source
         ); // date_and_date_nanos is pushed down
         assertThat(expected.toString(), is(esQuery.query().toString()));
+    }
+
+    public void testKnnWithoutExplicitLimit() {
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

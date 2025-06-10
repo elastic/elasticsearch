@@ -707,3 +707,27 @@ to_aggregate_metric_double with multi_values:
   - match: {values.0.1: '{"min":102.44400024414062,"max":195.10000610351562,"sum":297.54400634765625,"value_count":2}'}
   - match: {values.0.2: '{"min":64.0,"max":1456.0,"sum":2139.0,"value_count":4}'}
   - match: {values.0.3: '{"min":123.0,"max":1.9418924E7,"sum":1.9433032E7,"value_count":3}'}
+
+---
+avg of aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_implicit_casting_in_aggs]
+      reason: "maybe make its own capability"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | STATS avg = avg(agg_metric) | KEEP avg'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "avg"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 0.1}

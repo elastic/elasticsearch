@@ -50,7 +50,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long" },
+            type = { "aggregate_metric_double", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
@@ -65,10 +65,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long or counter types"
+            "aggregate_metric_double or numeric except unsigned_long or counter types"
         );
     }
 

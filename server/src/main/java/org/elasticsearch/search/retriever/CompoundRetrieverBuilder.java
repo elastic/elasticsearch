@@ -54,7 +54,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
-    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
+    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {
+        public static RetrieverSource from(RetrieverBuilder retriever) {
+            return new RetrieverSource(retriever, null);
+        }
+    }
 
     protected final int rankWindowSize;
     protected final List<RetrieverSource> innerRetrievers;
@@ -66,7 +70,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @SuppressWarnings("unchecked")
     public T addChild(RetrieverBuilder retrieverBuilder) {
-        innerRetrievers.add(convertToRetrieverSource(retrieverBuilder));
+        innerRetrievers.add(RetrieverSource.from(retrieverBuilder));
         return (T) this;
     }
 
@@ -127,7 +131,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             }
             RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
             if (newRetriever != entry.retriever) {
-                newRetrievers.add(new RetrieverSource(newRetriever, null));
+                newRetrievers.add(RetrieverSource.from(newRetriever));
                 hasChanged |= true;
             } else {
                 var sourceBuilder = entry.source != null
@@ -298,10 +302,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     public List<RetrieverSource> innerRetrievers() {
         return Collections.unmodifiableList(innerRetrievers);
-    }
-
-    public static RetrieverSource convertToRetrieverSource(RetrieverBuilder retrieverBuilder) {
-        return new RetrieverSource(retrieverBuilder, null);
     }
 
     protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {

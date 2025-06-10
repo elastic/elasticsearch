@@ -162,7 +162,7 @@ public class SimplifiedInnerRetrieverUtils {
             inferenceFields.forEach((f, w) -> {
                 RetrieverBuilder retrieverBuilder = new StandardRetrieverBuilder(new MatchQueryBuilder(f, query));
                 inferenceFieldRetrievers.add(
-                    new WeightedRetrieverSource(new CompoundRetrieverBuilder.RetrieverSource(retrieverBuilder, null), w)
+                    new WeightedRetrieverSource(CompoundRetrieverBuilder.RetrieverSource.from(retrieverBuilder), w)
                 );
             });
 

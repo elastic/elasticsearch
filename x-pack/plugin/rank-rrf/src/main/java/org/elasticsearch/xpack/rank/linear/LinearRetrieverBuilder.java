@@ -85,7 +85,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
             List<RetrieverSource> innerRetrievers = new ArrayList<>();
             for (LinearRetrieverComponent component : retrieverComponents) {
-                innerRetrievers.add(new RetrieverSource(component.retriever, null));
+                innerRetrievers.add(RetrieverSource.from(component.retriever));
                 weights[index] = component.weight;
                 normalizers[index] = component.normalizer;
                 index++;
@@ -323,7 +323,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                         throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
                     }
                 }
-            ).stream().map(CompoundRetrieverBuilder::convertToRetrieverSource).toList();
+            ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 float[] weights = new float[fieldsInnerRetrievers.size()];

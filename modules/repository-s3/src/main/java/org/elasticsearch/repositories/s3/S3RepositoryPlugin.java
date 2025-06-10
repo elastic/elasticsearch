@@ -13,7 +13,6 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -32,9 +31,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,20 +43,6 @@ import java.util.Map;
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
-
-    static {
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // Eagerly load the RegionFromEndpointGuesser map from the resource file
-                MethodHandles.lookup().ensureInitialized(RegionFromEndpointGuesser.class);
-            } catch (IllegalAccessException unexpected) {
-                throw new AssertionError(unexpected);
-            }
-            return null;
-        });
-
-    }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
     private final Settings settings;
@@ -97,14 +79,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private static Region getDefaultRegion() {
-        return AccessController.doPrivileged((PrivilegedAction<Region>) () -> {
-            try {
-                return DefaultAwsRegionProviderChain.builder().build().getRegion();
-            } catch (Exception e) {
-                logger.info("failed to obtain region from default provider chain", e);
-                return null;
-            }
-        });
+        try {
+            return DefaultAwsRegionProviderChain.builder().build().getRegion();
+        } catch (Exception e) {
+            logger.info("failed to obtain region from default provider chain", e);
+            return null;
+        }
     }
 
     @Override

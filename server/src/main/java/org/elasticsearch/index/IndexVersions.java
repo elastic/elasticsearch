@@ -132,6 +132,7 @@ public class IndexVersions {
     public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS = def(8_529_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ_BACKPORT_8_X = def(8_530_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X = def(8_531_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, Version.LUCENE_9_12_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -18,23 +18,39 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.junit.Before;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathFactory;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
 
@@ -71,6 +87,127 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         final String samlResponse = generateSamlResponse(SP_ENTITY_ID, SP_ACS, null);
+        authenticateWithSamlResponse(samlResponse, null);
+    }
+
+    public void testUpdateExistingServiceProvider() throws Exception {
+        final Map<String, Object> request1 = Map.ofEntries(
+            Map.entry("name", "Test SP [v1]"),
+            Map.entry("acs", SP_ACS),
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
+        final SamlServiceProviderIndex.DocumentVersion docVersion1 = createServiceProvider(SP_ENTITY_ID, request1);
+        checkIndexDoc(docVersion1);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
+        final String samlResponse1 = generateSamlResponse(SP_ENTITY_ID, SP_ACS, null);
+        assertThat(samlResponse1, containsString("https://idp.test.es.elasticsearch.org/attribute/principal"));
+        assertThat(samlResponse1, not(containsString("https://idp.test.es.elasticsearch.org/attribute/username")));
+
+        final Map<String, Object> request = Map.ofEntries(
+            Map.entry("name", "Test SP [v2]"),
+            Map.entry("acs", SP_ACS),
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/username"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
+        final SamlServiceProviderIndex.DocumentVersion docVersion2 = createServiceProvider(SP_ENTITY_ID, request);
+        checkIndexDoc(docVersion2);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
+        final String samlResponse2 = generateSamlResponse(SP_ENTITY_ID, SP_ACS, null);
+        assertThat(samlResponse2, containsString("https://idp.test.es.elasticsearch.org/attribute/username"));
+        assertThat(samlResponse2, not(containsString("https://idp.test.es.elasticsearch.org/attribute/principal")));
+    }
+
+    public void testCustomAttributesInIdpInitiatedSso() throws Exception {
+        final Map<String, Object> request = Map.ofEntries(
+            Map.entry("name", "Test SP With Custom Attributes"),
+            Map.entry("acs", SP_ACS),
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
+        final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
+        checkIndexDoc(docVersion);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+
+        // Create custom attributes
+        Map<String, List<String>> attributesMap = Map.of("department", List.of("engineering", "product"), "region", List.of("APJ"));
+
+        // Generate SAML response with custom attributes
+        final String samlResponse = generateSamlResponseWithAttributes(SP_ENTITY_ID, SP_ACS, null, attributesMap);
+
+        // Parse XML directly from samlResponse (it's not base64 encoded at this point)
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true); // Required for XPath
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document document = builder.parse(new InputSource(new StringReader(samlResponse)));
+
+        // Create XPath evaluator
+        XPathFactory xPathFactory = XPathFactory.newInstance();
+        XPath xpath = xPathFactory.newXPath();
+
+        // Validate SAML Response structure
+        Element responseElement = (Element) xpath.evaluate("//*[local-name()='Response']", document, XPathConstants.NODE);
+        assertThat("SAML Response element should exist", responseElement, notNullValue());
+
+        Element assertionElement = (Element) xpath.evaluate("//*[local-name()='Assertion']", document, XPathConstants.NODE);
+        assertThat("SAML Assertion element should exist", assertionElement, notNullValue());
+
+        // Validate department attribute
+        NodeList departmentAttributes = (NodeList) xpath.evaluate(
+            "//*[local-name()='Attribute' and @Name='department']/*[local-name()='AttributeValue']",
+            document,
+            XPathConstants.NODESET
+        );
+
+        assertThat("Should have two values for department attribute", departmentAttributes.getLength(), is(2));
+
+        // Verify department values
+        List<String> departmentValues = new ArrayList<>();
+        for (int i = 0; i < departmentAttributes.getLength(); i++) {
+            departmentValues.add(departmentAttributes.item(i).getTextContent());
+        }
+        assertThat(
+            "Department attribute should contain 'engineering' and 'product'",
+            departmentValues,
+            containsInAnyOrder("engineering", "product")
+        );
+
+        // Validate region attribute
+        NodeList regionAttributes = (NodeList) xpath.evaluate(
+            "//*[local-name()='Attribute' and @Name='region']/*[local-name()='AttributeValue']",
+            document,
+            XPathConstants.NODESET
+        );
+
+        assertThat("Should have one value for region attribute", regionAttributes.getLength(), is(1));
+        assertThat("Region attribute should contain 'APJ'", regionAttributes.item(0).getTextContent(), equalTo("APJ"));
+
         authenticateWithSamlResponse(samlResponse, null);
     }
 
@@ -125,17 +262,37 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         }
     }
 
-    private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws Exception {
+    private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws IOException {
+        return generateSamlResponseWithAttributes(entityId, acs, authnState, null);
+    }
+
+    private String generateSamlResponseWithAttributes(
+        String entityId,
+        String acs,
+        @Nullable Map<String, Object> authnState,
+        @Nullable Map<String, List<String>> attributes
+    ) throws IOException {
         final Request request = new Request("POST", "/_idp/saml/init");
-        if (authnState != null && authnState.isEmpty() == false) {
-            request.setJsonEntity(Strings.format("""
-                {"entity_id":"%s", "acs":"%s","authn_state":%s}
-                """, entityId, acs, Strings.toString(JsonXContent.contentBuilder().map(authnState))));
-        } else {
-            request.setJsonEntity(Strings.format("""
-                {"entity_id":"%s", "acs":"%s"}
-                """, entityId, acs));
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("entity_id", entityId);
+        builder.field("acs", acs);
+
+        if (authnState != null) {
+            builder.field("authn_state");
+            builder.map(authnState);
         }
+
+        if (attributes != null) {
+            builder.field("attributes");
+            builder.map(attributes);
+        }
+
+        builder.endObject();
+        String jsonEntity = Strings.toString(builder);
+
+        request.setJsonEntity(jsonEntity);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader("es-secondary-authorization", basicAuthHeaderValue("idp_user", new SecureString("idp-password".toCharArray())))

@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -30,14 +31,19 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntFunction;
 
 /**
@@ -45,12 +51,20 @@ import java.util.function.IntFunction;
  */
 public abstract class QueryList {
     protected final SearchExecutionContext searchExecutionContext;
+    protected final AliasFilter aliasFilter;
     protected final MappedFieldType field;
     protected final Block block;
     protected final boolean onlySingleValues;
 
-    protected QueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block, boolean onlySingleValues) {
+    protected QueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        Block block,
+        boolean onlySingleValues
+    ) {
         this.searchExecutionContext = searchExecutionContext;
+        this.aliasFilter = aliasFilter;
         this.field = field;
         this.block = block;
         this.onlySingleValues = onlySingleValues;
@@ -77,6 +91,17 @@ public abstract class QueryList {
         final int firstValueIndex = block.getFirstValueIndex(position);
 
         Query query = doGetQuery(position, firstValueIndex, valueCount);
+
+        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(query, BooleanClause.Occur.FILTER);
+            try {
+                builder.add(aliasFilter.getQueryBuilder().toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+                query = builder.build();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Error while building query for alias filter", e);
+            }
+        }
 
         if (onlySingleValues) {
             query = wrapSingleValueQuery(query);
@@ -121,7 +146,12 @@ public abstract class QueryList {
      * using only the {@link ElementType} of the {@link Block} to determine the
      * query.
      */
-    public static QueryList rawTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+    public static QueryList rawTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        Block block
+    ) {
         IntFunction<Object> blockToJavaObject = switch (block.elementType()) {
             case BOOLEAN -> {
                 BooleanBlock booleanBlock = (BooleanBlock) block;
@@ -153,17 +183,22 @@ public abstract class QueryList {
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
-        return new TermQueryList(field, searchExecutionContext, block, false, blockToJavaObject);
+        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, false, blockToJavaObject);
     }
 
     /**
      * Returns a list of term queries for the given field and the input block of
      * {@code ip} field values.
      */
-    public static QueryList ipTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, BytesRefBlock block) {
+    public static QueryList ipTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        BytesRefBlock block
+    ) {
         BytesRef scratch = new BytesRef();
         byte[] ipBytes = new byte[InetAddressPoint.BYTES];
-        return new TermQueryList(field, searchExecutionContext, block, false, offset -> {
+        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, false, offset -> {
             final var bytes = block.getBytesRef(offset, scratch);
             if (ipBytes.length != bytes.length) {
                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
@@ -178,10 +213,16 @@ public abstract class QueryList {
      * Returns a list of term queries for the given field and the input block of
      * {@code date} field values.
      */
-    public static QueryList dateTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, LongBlock block) {
+    public static QueryList dateTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        LongBlock block
+    ) {
         return new TermQueryList(
             field,
             searchExecutionContext,
+            aliasFilter,
             block,
             false,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
@@ -191,10 +232,29 @@ public abstract class QueryList {
     }
 
     /**
+     * Returns a list of term queries for the given field and the input block of
+     * {@code date_nanos} field values.
+     */
+    public static QueryList dateNanosTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        LongBlock block
+    ) {
+        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, block, false);
+    }
+
+    /**
      * Returns a list of geo_shape queries for the given field and the input block.
      */
-    public static QueryList geoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new GeoShapeQueryList(field, searchExecutionContext, block, false);
+
+    public static QueryList geoShapeQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        Block block
+    ) {
+        return new GeoShapeQueryList(field, searchExecutionContext, aliasFilter, block, false);
     }
 
     private static class TermQueryList extends QueryList {
@@ -203,17 +263,18 @@ public abstract class QueryList {
         private TermQueryList(
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
+            AliasFilter aliasFilter,
             Block block,
             boolean onlySingleValues,
             IntFunction<Object> blockValueReader
         ) {
-            super(field, searchExecutionContext, block, onlySingleValues);
+            super(field, searchExecutionContext, aliasFilter, block, onlySingleValues);
             this.blockValueReader = blockValueReader;
         }
 
         @Override
         public TermQueryList onlySingleValues() {
-            return new TermQueryList(field, searchExecutionContext, block, true, blockValueReader);
+            return new TermQueryList(field, searchExecutionContext, aliasFilter, block, true, blockValueReader);
         }
 
         @Override
@@ -233,6 +294,69 @@ public abstract class QueryList {
         }
     }
 
+    private static class DateNanosQueryList extends QueryList {
+        protected final IntFunction<Long> blockValueReader;
+        private final DateFieldMapper.DateFieldType dateFieldType;
+
+        private DateNanosQueryList(
+            MappedFieldType field,
+            SearchExecutionContext searchExecutionContext,
+            AliasFilter aliasFilter,
+            LongBlock block,
+            boolean onlySingleValues
+        ) {
+            super(field, searchExecutionContext, aliasFilter, block, onlySingleValues);
+            if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
+                // TODO: do this validation earlier
+                throw new IllegalArgumentException(
+                    "DateNanosQueryList does not support range fields [" + rangeFieldType + "]: " + field.name()
+                );
+            }
+            this.blockValueReader = block::getLong;
+            if (field instanceof DateFieldMapper.DateFieldType dateFieldType) {
+                // Validate that the field is a date_nanos field
+                // TODO: Consider allowing date_nanos to match normal datetime fields
+                if (dateFieldType.resolution() != DateFieldMapper.Resolution.NANOSECONDS) {
+                    throw new IllegalArgumentException(
+                        "DateNanosQueryList only supports date_nanos fields, but got: " + field.typeName() + " for field: " + field.name()
+                    );
+                }
+                this.dateFieldType = dateFieldType;
+            } else {
+                throw new IllegalArgumentException(
+                    "DateNanosQueryList only supports date_nanos fields, but got: " + field.typeName() + " for field: " + field.name()
+                );
+            }
+        }
+
+        @Override
+        public DateNanosQueryList onlySingleValues() {
+            return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block, true);
+        }
+
+        @Override
+        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+            return switch (valueCount) {
+                case 0 -> null;
+                case 1 -> dateFieldType.equalityQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
+                default -> {
+                    // The following code is a slight simplification of the DateFieldMapper.termsQuery method
+                    final Set<Long> values = new HashSet<>(valueCount);
+                    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                    for (int i = 0; i < valueCount; i++) {
+                        final Long value = blockValueReader.apply(firstValueIndex + i);
+                        if (values.contains(value)) {
+                            continue; // Skip duplicates
+                        }
+                        values.add(value);
+                        builder.add(dateFieldType.equalityQuery(value, searchExecutionContext), BooleanClause.Occur.SHOULD);
+                    }
+                    yield new ConstantScoreQuery(builder.build());
+                }
+            };
+        }
+    }
+
     private static class GeoShapeQueryList extends QueryList {
         private final BytesRef scratch = new BytesRef();
         private final IntFunction<Geometry> blockValueReader;
@@ -241,10 +365,11 @@ public abstract class QueryList {
         private GeoShapeQueryList(
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
+            AliasFilter aliasFilter,
             Block block,
             boolean onlySingleValues
         ) {
-            super(field, searchExecutionContext, block, onlySingleValues);
+            super(field, searchExecutionContext, aliasFilter, block, onlySingleValues);
 
             this.blockValueReader = blockToGeometry(block);
             this.shapeQuery = shapeQuery();
@@ -252,7 +377,7 @@ public abstract class QueryList {
 
         @Override
         public GeoShapeQueryList onlySingleValues() {
-            return new GeoShapeQueryList(field, searchExecutionContext, block, true);
+            return new GeoShapeQueryList(field, searchExecutionContext, aliasFilter, block, true);
         }
 
         @Override

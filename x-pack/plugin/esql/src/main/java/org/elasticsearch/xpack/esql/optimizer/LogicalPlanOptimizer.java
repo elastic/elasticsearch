@@ -60,12 +60,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSur
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.util.List;
-
-import static java.util.Arrays.asList;
 
 /**
  * <p>This class is part of the planner</p>
@@ -91,6 +91,14 @@ import static java.util.Arrays.asList;
  */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
+    private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
+        substitutions(),
+        operators(),
+        new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
+        cleanup(),
+        new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
+    );
+
     private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
@@ -110,14 +118,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     @Override
     protected List<Batch<LogicalPlan>> batches() {
-        return rules();
-    }
-
-    protected static List<Batch<LogicalPlan>> rules() {
-        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
-
-        return asList(substitutions(), operators(), skip, cleanup(), label);
+        return RULES;
     }
 
     protected static Batch<LogicalPlan> substitutions() {
@@ -188,7 +189,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneRedundantOrderBy(),
-            new PruneRedundantSortClauses()
+            new PruneRedundantSortClauses(),
+            new PruneLeftJoinOnNullMatchingField()
         );
     }
 

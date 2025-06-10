@@ -272,7 +272,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -287,7 +287,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -306,7 +306,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
 
@@ -326,7 +326,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }

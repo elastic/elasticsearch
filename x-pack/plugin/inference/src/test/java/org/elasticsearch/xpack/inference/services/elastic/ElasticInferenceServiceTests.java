@@ -28,6 +28,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -156,7 +156,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -171,7 +171,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -185,7 +185,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -199,7 +199,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }

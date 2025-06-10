@@ -171,14 +171,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                configuration.allowPartialResults() == false,
-                                pagesFetched::incrementAndGet,
-                                queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
-                            );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
@@ -201,6 +193,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     nodeResponseRef.set(r);
                                     return r.profiles();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
+                            );
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                configuration.allowPartialResults() == false,
+                                pagesFetched::incrementAndGet,
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
                             );
                         }
                     })

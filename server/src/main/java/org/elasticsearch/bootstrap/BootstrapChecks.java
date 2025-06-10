@@ -22,7 +22,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -34,7 +33,6 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -721,36 +719,6 @@ final class BootstrapChecks {
             return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
         }
 
-    }
-
-    static class AllPermissionCheck implements BootstrapCheck {
-
-        @Override
-        public final BootstrapCheckResult check(BootstrapContext context) {
-            if (isAllPermissionGranted()) {
-                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        boolean isAllPermissionGranted() {
-            if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
-                return false;
-            }
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
-            try {
-                sm.checkPermission(new AllPermission());
-            } catch (final SecurityException e) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.BOOTSTRAP_CHECK_ALL_PERMISSION;
-        }
     }
 
     static class DiscoveryConfiguredCheck implements BootstrapCheck {

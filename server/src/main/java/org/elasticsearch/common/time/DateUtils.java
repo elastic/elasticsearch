@@ -479,24 +479,7 @@ public class DateUtils {
      * @return The milliseconds since the epoch rounded down to the beginning of the week based on week year
      */
     public static long roundWeekOfWeekYear(final long utcMillis) {
-        return roundWeekIntervalOfWeekYear(utcMillis, 1);
-    }
-
-    /**
-     * Round down to the beginning of the nearest multiple of the specified week interval based on week year
-     * <p>
-     * Consider Sun Dec 29 1969 00:00:00.000 as the start of the first week.
-     * @param utcMillis the milliseconds since the epoch
-     * @param weekInterval the interval in weeks to round down to
-     *
-     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the
-     * specified week interval based on week year
-     */
-    public static long roundWeekIntervalOfWeekYear(final long utcMillis, final int weekInterval) {
-        if (weekInterval <= 0) {
-            throw new IllegalArgumentException("week interval must be strictly positive, got [" + weekInterval + "]");
-        }
-        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000L * weekInterval) - 3 * 86400 * 1000L;
+        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000L) - 3 * 86400 * 1000L;
     }
 
     /**

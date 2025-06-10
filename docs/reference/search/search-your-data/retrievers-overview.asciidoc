@@ -35,6 +35,8 @@ Applies <<query-rules,query rules>> to the query before returning results.
 * <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>.
 Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
+* <<pinned-retriever,*Pinned Retriever*>>.
+Returns top documents by always placing specific documents at the top of the results, in the order provided. Useful for promoting certain documents for particular queries, regardless of their relevance score. The remaining results are filled by a fallback retriever.
 
 [discrete]
 [[retrievers-overview-why-are-they-useful]]
@@ -148,6 +150,85 @@ GET example-index/_search
 ----
 //NOTCONSOLE
 ==============
+
+[[pinned-retriever]]
+=== Pinned Retriever
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, in the order provided. This is useful for promoting certain documents for particular queries, regardless of their relevance score. The remaining results are filled by a fallback retriever.
+
+[discrete]
+[[pinned-retriever-parameters]]
+==== Parameters
+
+`ids`::
+(Optional, array of strings)
++
+A list of document IDs to pin at the top of the results, in the order provided.
+
+`documents`::
+(Optional, array of objects)
++
+A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`fallback`::
+(Optional, retriever object)
++
+A retriever to use for retrieving the remaining documents after the pinned ones.
+
+Either `ids` or `documents` must be specified.
+
+[discrete]
+[[pinned-retriever-example-ids]]
+==== Example using `ids`
+
+[source,console]
+----
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "ids": ["doc1", "doc2"],
+      "fallback": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+[discrete]
+[[pinned-retriever-example-documents]]
+==== Example using `documents`
+
+[source,console]
+----
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "documents": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "fallback": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
 
 For more examples on how to use retrievers, please refer to <<retrievers-examples,retriever examples>>.
 

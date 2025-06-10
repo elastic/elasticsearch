@@ -44,7 +44,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.MAXIMU
  */
 public class ES910HnswVectorsFormat extends KnnVectorsFormat {
 
-    static final String NAME = "ES910HnswReducedHeapVectorsFormat";
+    static final String NAME = "ES910HnswVectorsFormat";
 
     static final String META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";
     static final String VECTOR_INDEX_CODEC_NAME = "Lucene99HnswVectorsFormatIndex";

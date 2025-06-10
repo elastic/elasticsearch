@@ -206,7 +206,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Override
-    protected final Settings restClientSettings() {
+    protected Settings restClientSettings() {
         return Settings.builder()
             .put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green

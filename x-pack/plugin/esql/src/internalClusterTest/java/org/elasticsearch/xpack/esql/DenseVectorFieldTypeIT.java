@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -127,9 +128,57 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testNonIndexedDenseVectorField() throws IOException {
+        createIndexWithDenseVector("no_dense_vectors");
+
+        int numDocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = prepareIndex("no_dense_vectors").setId("" + i).setSource("id", String.valueOf(i));
+        }
+
+        indexRandom(true, docs);
+
+        var query = """
+            FROM no_dense_vectors
+            | KEEP id, vector
+            """;
+
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(numDocs, valuesList.size());
+            valuesList.forEach(value -> {
+                assertEquals(2, value.size());
+                Integer id = (Integer) value.get(0);
+                assertNotNull(id);
+                Object vector = value.get(1);
+                assertNull(vector);
+            });
+        }
+    }
+
     @Before
     public void setup() throws IOException {
-        var indexName = "test";
+        assumeTrue("Dense vector type is disabled", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+
+        createIndexWithDenseVector("test");
+
+        int numDims = randomIntBetween(32, 64) * 2; // min 64, even number
+        int numDocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            List<Float> vector = new ArrayList<>(numDims);
+            for (int j = 0; j < numDims; j++) {
+                vector.add(randomFloat());
+            }
+            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
+            indexedVectors.put(i, vector);
+        }
+
+        indexRandom(true, docs);
+    }
+
+    private void createIndexWithDenseVector(String indexName) throws IOException {
         var client = client().admin().indices();
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -159,19 +208,5 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .setMapping(mapping)
             .setSettings(settingsBuilder.build());
         assertAcked(CreateRequest);
-
-        int numDims = randomIntBetween(32, 64) * 2; // min 64, even number
-        int numDocs = randomIntBetween(10, 100);
-        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            List<Float> vector = new ArrayList<>(numDims);
-            for (int j = 0; j < numDims; j++) {
-                vector.add(randomFloat());
-            }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
-            indexedVectors.put(i, vector);
-        }
-
-        indexRandom(true, docs);
     }
 }

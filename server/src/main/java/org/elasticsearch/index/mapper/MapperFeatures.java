@@ -41,6 +41,8 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.unknown_field_mapping_update_error_message"
     );
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
+    static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
+    static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -68,7 +70,9 @@ public class MapperFeatures implements FeatureSpecification {
             DateFieldMapper.INVALID_DATE_FIX,
             NPE_ON_DIMS_UPDATE_FIX,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
-            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ
+            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            IVF_FORMAT_CLUSTER_FEATURE,
+            IVF_NESTED_SUPPORT
         );
     }
 }

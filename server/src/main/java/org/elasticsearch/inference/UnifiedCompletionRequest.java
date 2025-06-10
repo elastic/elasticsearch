@@ -19,6 +19,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -38,9 +42,93 @@ public record UnifiedCompletionRequest(
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
     @Nullable Float topP
-) implements Writeable {
+) implements Writeable, ToXContentFragment {
 
-    public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
+    public static final String NAME_FIELD = "name";
+    public static final String TOOL_CALL_ID_FIELD = "tool_call_id";
+    public static final String TOOL_CALLS_FIELD = "tool_calls";
+    public static final String ID_FIELD = "id";
+    public static final String FUNCTION_FIELD = "function";
+    public static final String ARGUMENTS_FIELD = "arguments";
+    public static final String DESCRIPTION_FIELD = "description";
+    public static final String PARAMETERS_FIELD = "parameters";
+    public static final String STRICT_FIELD = "strict";
+    public static final String TOP_P_FIELD = "top_p";
+    public static final String MESSAGES_FIELD = "messages";
+    private static final String ROLE_FIELD = "role";
+    private static final String CONTENT_FIELD = "content";
+    private static final String STOP_FIELD = "stop";
+    private static final String TEMPERATURE_FIELD = "temperature";
+    private static final String TOOL_CHOICE_FIELD = "tool_choice";
+    private static final String TOOL_FIELD = "tools";
+    private static final String TEXT_FIELD = "text";
+    private static final String TYPE_FIELD = "type";
+    private static final String MODEL_FIELD = "model";
+    private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
+    private static final String MAX_TOKENS_FIELD = "max_tokens";
+
+    /**
+     * We currently allow providers to override the model id that is written to JSON.
+     * Rather than use {@link #model()}, providers are expected to pass in the modelId via
+     * {@link org.elasticsearch.xcontent.ToXContent.Params}.
+     */
+    private static final String MODEL_ID_PARAM = "model_id_value";
+    /**
+     * Some providers only support the now-deprecated {@link #MAX_TOKENS_FIELD}, others have migrated to
+     * {@link #MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
+     */
+    private static final String MAX_TOKENS_PARAM = "max_tokens_field";
+    /**
+     * Indicates whether to include the `stream_options` field in the JSON output.
+     * Some providers do not support this field. In such cases, this parameter should be set to "false",
+     * and the `stream_options` field will be excluded from the output.
+     * For providers that do support stream options, this parameter is left unset (default behavior),
+     * which implicitly includes the `stream_options` field in the output.
+     */
+    public static final String INCLUDE_STREAM_OPTIONS_PARAM = "include_stream_options";
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MODEL_FIELD}, Value: modelId
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxTokens(String modelId, Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MODEL_FIELD}, Value: modelId
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
+     * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
+     */
+    public static Params withMaxTokensAndSkipStreamOptionsField(String modelId, Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(
+                Map.entry(MODEL_ID_PARAM, modelId),
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
+            ),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MODEL_FIELD}, Value: modelId
+     * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxCompletionTokensTokens(String modelId, Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD)),
+            params
+        );
+    }
+
+    public sealed interface Content extends NamedWriteable, ToXContent permits ContentObjects, ContentString {}
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -111,9 +199,40 @@ public record UnifiedCompletionRequest(
         out.writeOptionalFloat(topP);
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MESSAGES_FIELD, messages);
+        if (stop != null && (stop.isEmpty() == false)) {
+            builder.field(STOP_FIELD, stop);
+        }
+        if (temperature != null) {
+            builder.field(TEMPERATURE_FIELD, temperature);
+        }
+        if (toolChoice != null) {
+            toolChoice.toXContent(builder, params);
+        }
+        if (tools != null && (tools.isEmpty() == false)) {
+            builder.field(TOOL_FIELD, tools);
+        }
+        if (topP != null) {
+            builder.field(TOP_P_FIELD, topP);
+        }
+        // some providers only support the now-deprecated max_tokens, others have migrated to max_completion_tokens
+        if (maxCompletionTokens != null && params.param(MAX_TOKENS_PARAM) != null) {
+            builder.field(params.param(MAX_TOKENS_PARAM), maxCompletionTokens);
+        }
+        // some implementations handle modelId differently, for example OpenAI has a default in the server settings and override it there
+        // so we allow implementations to pass in the model id via the params
+        if (params.param(MODEL_ID_PARAM) != null) {
+            builder.field(MODEL_FIELD, params.param(MODEL_ID_PARAM));
+        }
+        return builder;
+    }
+
     public record Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls)
         implements
-            Writeable {
+            Writeable,
+            ToXContentObject {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
@@ -161,6 +280,24 @@ public record UnifiedCompletionRequest(
             out.writeOptionalString(toolCallId);
             out.writeOptionalCollection(toolCalls);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            if (content != null) {
+                content.toXContent(builder, params);
+            }
+            builder.field(ROLE_FIELD, role);
+            if (toolCallId != null) {
+                builder.field(TOOL_CALL_ID_FIELD, toolCallId);
+            }
+            if (toolCalls != null) {
+                builder.field(TOOL_CALLS_FIELD, toolCalls);
+            }
+
+            return builder.endObject();
+        }
     }
 
     public record ContentObjects(List<ContentObject> contentObjects) implements Content, NamedWriteable {
@@ -180,9 +317,14 @@ public record UnifiedCompletionRequest(
         public String getWriteableName() {
             return NAME;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(CONTENT_FIELD, contentObjects);
+        }
     }
 
-    public record ContentObject(String text, String type) implements Writeable {
+    public record ContentObject(String text, String type) implements Writeable, ToXContentObject {
         static final ConstructingObjectParser<ContentObject, Void> PARSER = new ConstructingObjectParser<>(
             ContentObject.class.getSimpleName(),
             args -> new ContentObject((String) args[0], (String) args[1])
@@ -207,6 +349,13 @@ public record UnifiedCompletionRequest(
             return text + ":" + type;
         }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(TEXT_FIELD, text);
+            builder.field(TYPE_FIELD, type);
+            return builder.endObject();
+        }
     }
 
     public record ContentString(String content) implements Content, NamedWriteable {
@@ -234,9 +383,14 @@ public record UnifiedCompletionRequest(
         public String toString() {
             return content;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(CONTENT_FIELD, content);
+        }
     }
 
-    public record ToolCall(String id, FunctionField function, String type) implements Writeable {
+    public record ToolCall(String id, FunctionField function, String type) implements Writeable, ToXContentObject {
 
         static final ConstructingObjectParser<ToolCall, Void> PARSER = new ConstructingObjectParser<>(
             ToolCall.class.getSimpleName(),
@@ -260,7 +414,16 @@ public record UnifiedCompletionRequest(
             out.writeString(type);
         }
 
-        public record FunctionField(String arguments, String name) implements Writeable {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(ID_FIELD, id);
+            builder.field(FUNCTION_FIELD, function);
+            builder.field(TYPE_FIELD, type);
+            return builder.endObject();
+        }
+
+        public record FunctionField(String arguments, String name) implements Writeable, ToXContentObject {
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
                 "tool_call_function_field",
                 args -> new FunctionField((String) args[0], (String) args[1])
@@ -280,6 +443,14 @@ public record UnifiedCompletionRequest(
                 out.writeString(arguments);
                 out.writeString(name);
             }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field(ARGUMENTS_FIELD, arguments);
+                builder.field(NAME_FIELD, name);
+                return builder.endObject();
+            }
         }
     }
 
@@ -294,7 +465,7 @@ public record UnifiedCompletionRequest(
         throw new XContentParseException("Unsupported token [" + token + "]");
     }
 
-    public sealed interface ToolChoice extends NamedWriteable permits ToolChoiceObject, ToolChoiceString {}
+    public sealed interface ToolChoice extends NamedWriteable, ToXContent permits ToolChoiceObject, ToolChoiceString {}
 
     public record ToolChoiceObject(String type, FunctionField function) implements ToolChoice, NamedWriteable {
 
@@ -325,7 +496,15 @@ public record UnifiedCompletionRequest(
             return NAME;
         }
 
-        public record FunctionField(String name) implements Writeable {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(TOOL_CHOICE_FIELD);
+            builder.field(TYPE_FIELD, type);
+            builder.field(FUNCTION_FIELD, function);
+            return builder.endObject();
+        }
+
+        public record FunctionField(String name) implements Writeable, ToXContentObject {
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
                 "tool_choice_function_field",
                 args -> new FunctionField((String) args[0])
@@ -342,6 +521,11 @@ public record UnifiedCompletionRequest(
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject().field(NAME_FIELD, name).endObject();
             }
         }
     }
@@ -367,9 +551,14 @@ public record UnifiedCompletionRequest(
         public String getWriteableName() {
             return NAME;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(TOOL_CHOICE_FIELD, value);
+        }
     }
 
-    public record Tool(String type, FunctionField function) implements Writeable {
+    public record Tool(String type, FunctionField function) implements Writeable, ToXContentObject {
 
         static final ConstructingObjectParser<Tool, Void> PARSER = new ConstructingObjectParser<>(
             Tool.class.getSimpleName(),
@@ -391,12 +580,22 @@ public record UnifiedCompletionRequest(
             function.writeTo(out);
         }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            builder.field(TYPE_FIELD, type);
+            builder.field(FUNCTION_FIELD, function);
+
+            return builder.endObject();
+        }
+
         public record FunctionField(
             @Nullable String description,
             String name,
             @Nullable Map<String, Object> parameters,
             @Nullable Boolean strict
-        ) implements Writeable {
+        ) implements Writeable, ToXContentObject {
 
             @SuppressWarnings("unchecked")
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
@@ -421,6 +620,18 @@ public record UnifiedCompletionRequest(
                 out.writeString(name);
                 out.writeGenericMap(parameters);
                 out.writeOptionalBoolean(strict);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field(DESCRIPTION_FIELD, description);
+                builder.field(NAME_FIELD, name);
+                builder.field(PARAMETERS_FIELD, parameters);
+                if (strict != null) {
+                    builder.field(STRICT_FIELD, strict);
+                }
+                return builder.endObject();
             }
         }
     }

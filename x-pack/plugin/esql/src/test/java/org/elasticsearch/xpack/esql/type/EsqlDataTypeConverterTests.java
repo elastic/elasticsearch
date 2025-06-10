@@ -196,9 +196,12 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     public void testSuggestedCast() {
         // date
         {
-            assertEquals(DATE_NANOS, DataType.suggestedCast(Set.of(DATETIME, DATE_NANOS)));
-            DataType randomType = DataType.values()[random().nextInt(DataType.values().length)];
-            DataType suggested = DataType.suggestedCast(Set.of(DATETIME, DATE_NANOS, randomType));
+            Set<DataType> typesToTest = new HashSet<>(Set.of(DATETIME, DATE_NANOS));
+            assertEquals(DATE_NANOS, DataType.suggestedCast(typesToTest));
+
+            DataType randomType = randomValueOtherThan(UNSUPPORTED, () -> randomFrom(DataType.values()));
+            typesToTest.add(randomType);
+            DataType suggested = DataType.suggestedCast(typesToTest);
             if (randomType != DATETIME && randomType != DATE_NANOS) {
                 assertEquals(KEYWORD, suggested);
             } else {
@@ -218,7 +221,10 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         // unsupported tests
         {
             assertNull(DataType.suggestedCast(Set.of()));
-            assertNull(DataType.suggestedCast(Set.of(UNSUPPORTED, DataType.values()[random().nextInt(DataType.values().length)])));
+            Set<DataType> typesWithUnsupported = new HashSet<>();
+            typesWithUnsupported.add(UNSUPPORTED);
+            typesWithUnsupported.add(DataType.values()[random().nextInt(DataType.values().length)]);
+            assertNull(DataType.suggestedCast(typesWithUnsupported));
         }
     }
 }

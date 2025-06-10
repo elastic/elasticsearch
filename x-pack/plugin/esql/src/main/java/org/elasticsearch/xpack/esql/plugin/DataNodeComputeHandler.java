@@ -176,14 +176,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                configuration.allowPartialResults() == false,
-                                pagesFetched::incrementAndGet,
-                                queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
-                            );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
@@ -206,6 +198,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
+                            );
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                configuration.allowPartialResults() == false,
+                                pagesFetched::incrementAndGet,
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
                             );
                         }
                     })
@@ -248,9 +248,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         void start() {
-            parentTask.addListener(
-                () -> exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(parentTask.getReasonCancelled()))
-            );
             runBatch(0);
         }
 
@@ -331,8 +328,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
                 final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
-                SearchContext context = null;
                 for (IndexShard shard : targetShards) {
+                    SearchContext context = null;
                     try {
                         var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
                         var shardRequest = new ShardSearchRequest(
@@ -419,7 +416,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             var parentListener = computeListener.acquireAvoid();
             try {
                 // run compute with target shards
+                var externalSink = exchangeService.getSinkHandler(externalId);
                 var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+                task.addListener(() -> {
+                    exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
+                    exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
+                });
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
                     request,
                     task,
@@ -431,10 +433,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
-                var externalSink = exchangeService.getSinkHandler(externalId);
-                task.addListener(
-                    () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
-                );
                 var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();

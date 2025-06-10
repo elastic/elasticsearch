@@ -1,0 +1,5 @@
+pr: 127330
+summary: Move unpromotable relocations to its own transport action
+area: Recovery
+type: enhancement
+issues: []

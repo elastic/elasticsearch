@@ -27,6 +27,7 @@ import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
@@ -42,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -53,6 +55,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
@@ -672,19 +676,26 @@ public class RestEsqlIT extends RestEsqlTestCase {
                   "type": "Point",
                   "coordinates": [-77.03653, 38.897676]
                 }
-                """),
-            Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, """
+                """)
+        );
+        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()) {
+            typesAndValues = new HashMap<>(typesAndValues);
+            typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
                   "max": 14983.1
                 }
-                """)
-        );
+                """);
+        }
         Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
         shouldBeSupported.remove(DataType.NULL);
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
+        shouldBeSupported.remove(DataType.DENSE_VECTOR);
+        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
+        }
         for (DataType type : shouldBeSupported) {
             assertTrue(typesAndValues.containsKey(type));
         }
@@ -699,13 +710,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         "default_metric": "max"
                     """;
             }
-            createIndex("index-" + type.esType(), null, """
+            createIndex("index-" + type.esType(), null, String.format(Locale.ROOT, """
                  "properties": {
                    "my_field": {
                      "type": "%s" %s
                    }
                  }
-                """.formatted(type.esType(), additionalProperties));
+                """, type.esType(), additionalProperties));
             Request doc = new Request("PUT", "index-" + type.esType() + "/_doc/1");
             doc.setJsonEntity("{\"my_field\": " + typesAndValues.get(type) + "}");
             client().performRequest(doc);
@@ -716,36 +727,45 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
-                String query = """
+                String query = String.format(Locale.ROOT, """
                     {
                         "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
                     }
-                    """.formatted(listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
                 Map<String, Object> results = entityAsMap(resp);
                 List<?> columns = (List<?>) results.get("columns");
                 DataType suggestedCast = DataType.suggestedCast(Set.of(listOfTypes.get(i), listOfTypes.get(j)));
-                assertThat(
-                    columns,
-                    equalTo(
-                        List.of(
-                            Map.ofEntries(
-                                Map.entry("name", "my_field"),
-                                Map.entry("type", "unsupported"),
-                                Map.entry("original_types", List.of(listOfTypes.get(i).typeName(), listOfTypes.get(j).typeName())),
-                                Map.entry("suggested_cast", suggestedCast.typeName())
+                if (IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled()
+                    && isMillisOrNanos(listOfTypes.get(i))
+                    && isMillisOrNanos(listOfTypes.get(j))) {
+                    // datetime and date_nanos are casted to date_nanos implicitly
+                    assertThat(columns, equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", "date_nanos")))));
+                } else {
+                    assertThat(
+                        columns,
+                        equalTo(
+                            List.of(
+                                Map.ofEntries(
+                                    Map.entry("name", "my_field"),
+                                    Map.entry("type", "unsupported"),
+                                    Map.entry("original_types", List.of(listOfTypes.get(i).typeName(), listOfTypes.get(j).typeName())),
+                                    Map.entry("suggested_cast", suggestedCast.typeName())
+                                )
                             )
                         )
-                    )
-                );
+                    );
+                }
 
-                String castedQuery = """
-                    {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                    }
-                    """.formatted(
+                String castedQuery = String.format(
+                    Locale.ROOT,
+                    """
+                        {
+                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+                        }
+                        """,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()

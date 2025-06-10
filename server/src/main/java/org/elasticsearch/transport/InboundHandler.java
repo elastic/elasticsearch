@@ -138,7 +138,7 @@ public class InboundHandler {
             }
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-            handlingTimeTracker.addHandlingTime(took);
+            handlingTimeTracker.addObservation(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logSlowMessage(message, took, logThreshold, responseHandler);
@@ -390,6 +390,7 @@ public class InboundHandler {
                 () -> "error processing handshake version [" + header.getVersion() + "] received on [" + channel + "], closing channel",
                 e
             );
+            channel.setCloseException(e);
             channel.close();
         }
     }

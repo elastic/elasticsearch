@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -107,7 +106,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      */
     public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
+    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 
     private final FieldWork[] fields;
     private final List<ShardContext> shardContexts;
@@ -159,12 +158,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             } else {
                 try (LoadFromMany many = new LoadFromMany(blocks, docVector)) {
                     many.run();
-                }
-            }
-            if (Assertions.ENABLED) {
-                for (int f = 0; f < fields.length; f++) {
-                    assert blocks[f].elementType() == ElementType.NULL || blocks[f].elementType() == fields[f].info.type
-                        : blocks[f].elementType() + " NOT IN (NULL, " + fields[f].info.type + ")";
                 }
             }
             success = true;
@@ -233,6 +226,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
                     blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
+                    sanityCheckBlock(columnAtATime, docs.count(), blocks[f], f);
                 } else {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
@@ -247,8 +241,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
 
             SourceLoader sourceLoader = null;
+            ShardContext shardContext = shardContexts.get(shard);
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                sourceLoader = shardContext.newSourceLoader.get();
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
 
@@ -261,7 +256,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docs)) {
+            if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -281,6 +276,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             for (RowStrideReaderWork work : rowStrideReaders) {
                 blocks[work.offset] = work.build();
+                sanityCheckBlock(work.reader, docs.count(), blocks[work.offset], work.offset);
             }
         } finally {
             Releasables.close(rowStrideReaders);
@@ -384,6 +380,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 try (Block targetBlock = fieldTypeBuilders[f].build()) {
                     target[f] = targetBlock.filter(backwards);
                 }
+                sanityCheckBlock(rowStride[f], docs.getPositionCount(), target[f], f);
             }
         }
 
@@ -438,9 +435,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs, double storedFieldsSequentialProportion) {
         int count = docs.count();
-        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
+        if (count < SEQUENTIAL_BOUNDARY) {
+            return false;
+        }
+        int range = docs.get(count - 1) - docs.get(0);
+        return range * storedFieldsSequentialProportion <= count;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
@@ -554,6 +555,40 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     @Override
     protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
         return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
+    }
+
+    /**
+     * Quick checks for on the loaded block to make sure it looks reasonable.
+     * @param loader the object that did the loading - we use it to make error messages if the block is busted
+     * @param expectedPositions how many positions the block should have - it's as many as the incoming {@link Page} has
+     * @param block the block to sanity check
+     * @param field offset into the {@link #fields} array for the block being loaded
+     */
+    private void sanityCheckBlock(Object loader, int expectedPositions, Block block, int field) {
+        if (block.getPositionCount() != expectedPositions) {
+            throw new IllegalStateException(
+                sanityCheckBlockErrorPrefix(loader, block, field)
+                    + " has ["
+                    + block.getPositionCount()
+                    + "] positions instead of ["
+                    + expectedPositions
+                    + "]"
+            );
+        }
+        if (block.elementType() != ElementType.NULL && block.elementType() != fields[field].info.type) {
+            throw new IllegalStateException(
+                sanityCheckBlockErrorPrefix(loader, block, field)
+                    + "'s element_type ["
+                    + block.elementType()
+                    + "] NOT IN (NULL, "
+                    + fields[field].info.type
+                    + ")"
+            );
+        }
+    }
+
+    private String sanityCheckBlockErrorPrefix(Object loader, Block block, int field) {
+        return fields[field].info.name + "[" + loader + "]: " + block;
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -705,6 +740,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public BlockLoader.DoubleBuilder doubles(int expectedCount) {
             return factory.newDoubleBlockBuilder(expectedCount);
+        }
+
+        @Override
+        public BlockLoader.FloatBuilder denseVectors(int expectedVectorsCount, int dimensions) {
+            return factory.newFloatBlockBuilder(expectedVectorsCount * dimensions);
         }
 
         @Override

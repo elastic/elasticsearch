@@ -1154,7 +1154,9 @@ public class IndexNameExpressionResolver {
                     if (requiredAliases == null) {
                         requiredAliases = new ArrayList<>(aliasesForDataStream.size());
                     }
-                    String alias = isData ? dataStreamAlias.getName() : dataStreamAlias.getName() + "::failures";
+                    String alias = isData
+                        ? dataStreamAlias.getName()
+                        : combineSelector(dataStreamAlias.getName(), IndexComponentSelector.FAILURES);
                     requiredAliases.add(alias);
                 } else {
                     // we have a non-required alias for this data stream so no need to check further
@@ -1431,7 +1433,7 @@ public class IndexNameExpressionResolver {
     /**
      * Identifies if this expression list is *,-* which effectively means a request that requests no indices.
      */
-    static boolean isNoneExpression(String[] expressions) {
+    public static boolean isNoneExpression(String[] expressions) {
         return expressions.length == 2 && "*".equals(expressions[0]) && "-*".equals(expressions[1]);
     }
 

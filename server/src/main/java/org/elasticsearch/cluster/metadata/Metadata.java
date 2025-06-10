@@ -70,6 +70,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -950,7 +951,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     RESERVED_DIFF_VALUE_READER
                 );
 
-                singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms, DiffableUtils.emptyDiff());
+                singleProject = new ProjectMetadata.ProjectMetadataDiff(
+                    indices,
+                    templates,
+                    projectCustoms,
+                    DiffableUtils.emptyDiff(),
+                    Settings.EMPTY_DIFF
+                );
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
@@ -1294,6 +1301,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         builder.persistentSettings(readSettingsFromStream(in));
         builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+            builder.put(projectBuilder);
             final Function<String, MappingMetadata> mappingLookup;
             final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
             if (mappingMetadataMap.isEmpty() == false) {
@@ -1303,11 +1312,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
+                projectBuilder.put(IndexMetadata.readFrom(in, mappingLookup), false);
             }
             size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(IndexTemplateMetadata.readFrom(in));
+                projectBuilder.put(IndexTemplateMetadata.readFrom(in));
             }
             readBwcCustoms(in, builder);
 
@@ -1703,15 +1712,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder putCustom(String type, ProjectCustom custom) {
             return putProjectCustom(type, custom);
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder putDefaultProjectCustom(String type, ProjectCustom custom) {
-            assert projectMetadata.containsKey(ProjectId.DEFAULT) : projectMetadata.keySet();
-            getProject(ProjectId.DEFAULT).putCustom(type, custom);
-            return this;
         }
 
         public ClusterCustom getCustom(String type) {
@@ -1957,6 +1960,21 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
+            /**
+             * Used when reading BWC fields from when indices etc used to be directly on metadata
+             */
+            final Supplier<ProjectMetadata.Builder> projectBuilderForBwc = () -> {
+                // Due to the way we handle repository metadata (we changed it from cluster scoped to project scoped)
+                // we may have cases where we have both project scoped XContent (with its own indices, customs etc)
+                // and also cluster scoped XContent that needs to be applied to the default project
+                // And, in this case there may be multiple projects even while we're applying BWC logic to the default project
+                ProjectMetadata.Builder pmb = builder.getProject(ProjectId.DEFAULT);
+                if (pmb == null) {
+                    pmb = ProjectMetadata.builder(ProjectId.DEFAULT);
+                    builder.put(pmb);
+                }
+                return pmb;
+            };
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -1982,12 +2000,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                         /* BwC Top-level project things */
                         case "indices" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                                projectBuilderForBwc.get().put(IndexMetadata.Builder.fromXContent(parser), false);
                             }
                         }
                         case "templates" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                                projectBuilderForBwc.get().put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
                             }
                         }
                         /* Cluster customs (and project customs in older formats) */
@@ -2004,24 +2022,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                         assert PersistentTasksCustomMetadata.TYPE.equals(name)
                                             : name + " != " + PersistentTasksCustomMetadata.TYPE;
                                         final var tuple = persistentTasksCustomMetadata.split();
-                                        builder.putProjectCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
+                                        projectBuilderForBwc.get().putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
                                         builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
                                     } else {
-                                        if (projectCustom instanceof RepositoriesMetadata repositoriesMetadata) {
-                                            // Repositories at the top level means it is either
-                                            // 1. Serialization from a single project for which we need to create the default project
-                                            // 2. Serialization before repositories metadata migration. In this case, the metadata may
-                                            // contain multiple projects, including the default project, which should be deserialized
-                                            // already with readProjects, i.e. no need to create the default project.
-                                            final ProjectMetadata.Builder defaultProjectBuilder = builder.getProject(ProjectId.DEFAULT);
-                                            if (defaultProjectBuilder == null) {
-                                                builder.putProjectCustom(name, projectCustom);
-                                            } else {
-                                                defaultProjectBuilder.putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata);
-                                            }
-                                        } else {
-                                            builder.putProjectCustom(name, projectCustom);
-                                        }
+                                        projectBuilderForBwc.get().putCustom(name, projectCustom);
                                     }
                                 });
                             } else {

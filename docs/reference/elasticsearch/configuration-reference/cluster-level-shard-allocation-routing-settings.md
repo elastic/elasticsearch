@@ -30,7 +30,7 @@ You can use the following settings to control shard allocation and recovery:
 $$$cluster-routing-allocation-enable$$$
 
 `cluster.routing.allocation.enable`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Enable or disable allocation for specific kinds of shards:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enable or disable allocation for specific kinds of shards:
 
 * `all` -             (default) Allows shard allocation for all kinds of shards.
 * `primaries` -       Allows shard allocation only for primary shards.
@@ -43,19 +43,19 @@ This setting only affects future allocations, and does not re-allocate or un-all
 $$$cluster-routing-allocation-same-shard-host$$$
 
 `cluster.routing.allocation.same_shard.host`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If `true`, forbids multiple copies of a shard from being allocated to distinct nodes on the same host, i.e. which have the same network address. Defaults to `false`, meaning that copies of a shard may sometimes be allocated to nodes on the same host. This setting is only relevant if you run multiple nodes on each host.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) If `true`, forbids multiple copies of a shard from being allocated to distinct nodes on the same host, i.e. which have the same network address. Defaults to `false`, meaning that copies of a shard may sometimes be allocated to nodes on the same host. This setting is only relevant if you run multiple nodes on each host.
 
 `cluster.routing.allocation.node_concurrent_incoming_recoveries`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) How many concurrent incoming shard recoveries are allowed to happen on a node. Incoming recoveries are the recoveries where the target shard (most likely the replica unless a shard is relocating) is allocated on the node. Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How many concurrent incoming shard recoveries are allowed to happen on a node. Incoming recoveries are the recoveries where the target shard (most likely the replica unless a shard is relocating) is allocated on the node. Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.node_concurrent_outgoing_recoveries`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) How many concurrent outgoing shard recoveries are allowed to happen on a node. Outgoing recoveries are the recoveries where the source shard (most likely the primary unless a shard is relocating) is allocated on the node. Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How many concurrent outgoing shard recoveries are allowed to happen on a node. Outgoing recoveries are the recoveries where the source shard (most likely the primary unless a shard is relocating) is allocated on the node. Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.node_concurrent_recoveries`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and `cluster.routing.allocation.node_concurrent_outgoing_recoveries`. The value of this setting takes effect only when the more specific setting is not configured.  Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and `cluster.routing.allocation.node_concurrent_outgoing_recoveries`. The value of this setting takes effect only when the more specific setting is not configured.  Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.node_initial_primaries_recoveries`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) While the recovery of replicas happens over the network, the recovery of an unassigned primary after node restart uses data from the local disk. These should be fast so more initial primary recoveries can happen in parallel on each node. Defaults to `4`. Increasing this setting may cause shard recoveries to have a performance impact on other activity in your cluster, but may not make shard recoveries complete noticeably sooner. We do not recommend adjusting this setting from its default of `4`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) While the recovery of replicas happens over the network, the recovery of an unassigned primary after node restart uses data from the local disk. These should be fast so more initial primary recoveries can happen in parallel on each node. Defaults to `4`. Increasing this setting may cause shard recoveries to have a performance impact on other activity in your cluster, but may not make shard recoveries complete noticeably sooner. We do not recommend adjusting this setting from its default of `4`.
 
 
 ## Shard rebalancing settings [shards-rebalancing-settings]
@@ -65,7 +65,7 @@ A cluster is *balanced* when it has an equal number of shards on each node, with
 You can use the following settings to control the rebalancing of shards across the cluster:
 
 `cluster.routing.allocation.allow_rebalance`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Specify when shard rebalancing is allowed:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specify when shard rebalancing is allowed:
 
 * `always` -                    Always allow rebalancing.
 * `indices_primaries_active` -  Only when all primaries in the cluster are allocated.
@@ -73,7 +73,7 @@ You can use the following settings to control the rebalancing of shards across t
 
 
 `cluster.routing.rebalance.enable`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Enable or disable rebalancing for specific kinds of shards:
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enable or disable rebalancing for specific kinds of shards:
 
 * `all` -         (default) Allows shard balancing for all kinds of shards.
 * `primaries` -   Allows shard balancing only for primary shards.
@@ -84,7 +84,7 @@ Rebalancing is important to ensure the cluster returns to a healthy and fully re
 
 
 `cluster.routing.allocation.cluster_concurrent_rebalance`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defines the number of concurrent shard rebalances are allowed across the whole cluster. Defaults to `2`. Note that this setting only controls the number of concurrent shard relocations due to imbalances in the cluster. This setting does not limit shard relocations due to [allocation filtering](#cluster-shard-allocation-filtering) or [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness). Increasing this setting may cause the cluster to use additional resources moving shards between nodes, so we generally do not recommend adjusting this setting from its default of `2`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the number of concurrent shard rebalances are allowed across the whole cluster. Defaults to `2`. Note that this setting only controls the number of concurrent shard relocations due to imbalances in the cluster. This setting does not limit shard relocations due to [allocation filtering](#cluster-shard-allocation-filtering) or [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness). Increasing this setting may cause the cluster to use additional resources moving shards between nodes, so we generally do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.type`
 :   Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
@@ -104,19 +104,19 @@ The weight of a node depends on the number of shards it holds and on the total e
 The following settings control how {{es}} combines these values into an overall measure of each node’s weight.
 
 `cluster.routing.allocation.balance.threshold`
-:   (float, [Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The minimum improvement in weight which triggers a rebalancing shard movement. Defaults to `1.0f`. Raising this value will cause {{es}} to stop rebalancing shards sooner, leaving the cluster in a more unbalanced state.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The minimum improvement in weight which triggers a rebalancing shard movement. Defaults to `1.0f`. Raising this value will cause {{es}} to stop rebalancing shards sooner, leaving the cluster in a more unbalanced state.
 
 `cluster.routing.allocation.balance.shard`
-:   (float, [Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defines the weight factor for the total number of shards allocated to each node. Defaults to `0.45f`. Raising this value increases the tendency of {{es}} to equalize the total number of shards across nodes ahead of the other balancing variables.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the weight factor for the total number of shards allocated to each node. Defaults to `0.45f`. Raising this value increases the tendency of {{es}} to equalize the total number of shards across nodes ahead of the other balancing variables.
 
 `cluster.routing.allocation.balance.index`
-:   (float, [Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defines the weight factor for the number of shards per index allocated to each node. Defaults to `0.55f`. Raising this value increases the tendency of {{es}} to equalize the number of shards of each index across nodes ahead of the other balancing variables.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the weight factor for the number of shards per index allocated to each node. Defaults to `0.55f`. Raising this value increases the tendency of {{es}} to equalize the number of shards of each index across nodes ahead of the other balancing variables.
 
 `cluster.routing.allocation.balance.disk_usage`
-:   (float, [Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defines the weight factor for balancing shards according to their predicted disk size in bytes. Defaults to `2e-11f`. Raising this value increases the tendency of {{es}} to equalize the total disk usage across nodes ahead of the other balancing variables.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the weight factor for balancing shards according to their predicted disk size in bytes. Defaults to `2e-11f`. Raising this value increases the tendency of {{es}} to equalize the total disk usage across nodes ahead of the other balancing variables.
 
 `cluster.routing.allocation.balance.write_load`
-:   (float, [Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defines the weight factor for the write load of each shard, in terms of the estimated number of indexing threads needed by the shard. Defaults to `10.0f`. Raising this value increases the tendency of {{es}} to equalize the total write load across nodes ahead of the other balancing variables.
+:   (float, [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the weight factor for the write load of each shard, in terms of the estimated number of indexing threads needed by the shard. Defaults to `10.0f`. Raising this value increases the tendency of {{es}} to equalize the total write load across nodes ahead of the other balancing variables.
 
 ::::{note}
 * If you have a large cluster, it may be unnecessary to keep it in a perfectly balanced state at all times. It is less resource-intensive for the cluster to operate in a somewhat unbalanced state rather than to perform all the shard movements needed to achieve the perfect balance. If so, increase the value of `cluster.routing.allocation.balance.threshold` to define the acceptable imbalance between nodes. For instance, if you have an average of 500 shards per node and can accept a difference of 5% (25 typical shards) between nodes, set `cluster.routing.allocation.balance.threshold` to `25`.
@@ -173,35 +173,35 @@ You can use the following settings to control disk-based allocation:
 $$$cluster-routing-disk-threshold$$$
 
 `cluster.routing.allocation.disk.threshold_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defaults to `true`. Set to `false` to disable the disk allocation decider. Upon disabling, it will also remove any existing `index.blocks.read_only_allow_delete` index blocks.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defaults to `true`. Set to `false` to disable the disk allocation decider. Upon disabling, it will also remove any existing `index.blocks.read_only_allow_delete` index blocks.
 
 $$$cluster-routing-watermark-low$$$
 
 `cluster.routing.allocation.disk.watermark.low` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the low watermark for disk usage. It defaults to `85%`, meaning that {{es}} will not allocate shards to nodes that have more than 85% disk used. It can alternatively be set to a ratio value, e.g., `0.85`. It can also be set to an absolute byte value (like `500mb`) to prevent {{es}} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the low watermark for disk usage. It defaults to `85%`, meaning that {{es}} will not allocate shards to nodes that have more than 85% disk used. It can alternatively be set to a ratio value, e.g., `0.85`. It can also be set to an absolute byte value (like `500mb`) to prevent {{es}} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
 
 `cluster.routing.allocation.disk.watermark.low.max_headroom`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the max headroom for the low watermark (in case of a percentage/ratio value). Defaults to 200GB when `cluster.routing.allocation.disk.watermark.low` is not explicitly set. This caps the amount of free space required.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the max headroom for the low watermark (in case of a percentage/ratio value). Defaults to 200GB when `cluster.routing.allocation.disk.watermark.low` is not explicitly set. This caps the amount of free space required.
 
 $$$cluster-routing-watermark-high$$$
 
 `cluster.routing.allocation.disk.watermark.high` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the high watermark. It defaults to `90%`, meaning that {{es}} will attempt to relocate shards away from a node whose disk usage is above 90%. It can alternatively be set to a ratio value, e.g., `0.9`. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the high watermark. It defaults to `90%`, meaning that {{es}} will attempt to relocate shards away from a node whose disk usage is above 90%. It can alternatively be set to a ratio value, e.g., `0.9`. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
 
 `cluster.routing.allocation.disk.watermark.high.max_headroom`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the max headroom for the high watermark (in case of a percentage/ratio value). Defaults to 150GB when `cluster.routing.allocation.disk.watermark.high` is not explicitly set. This caps the amount of free space required.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the max headroom for the high watermark (in case of a percentage/ratio value). Defaults to 150GB when `cluster.routing.allocation.disk.watermark.high` is not explicitly set. This caps the amount of free space required.
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) In earlier releases, the default behaviour was to disregard disk watermarks for a single data node cluster when making an allocation decision. This is deprecated behavior since 7.14 and has been removed in 8.0. The only valid value for this setting is now `true`. The setting will be removed in a future release.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) In earlier releases, the default behaviour was to disregard disk watermarks for a single data node cluster when making an allocation decision. This is deprecated behavior since 7.14 and has been removed in 8.0. The only valid value for this setting is now `true`. The setting will be removed in a future release.
 
 $$$cluster-routing-flood-stage$$$
 
 `cluster.routing.allocation.disk.watermark.flood_stage` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the flood stage watermark, which defaults to 95%. {{es}} enforces a read-only index block ([`index.blocks.read_only_allow_delete`](/reference/elasticsearch/index-settings/index-block.md)) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark. Similarly to the low and high watermark values, it can alternatively be set to a ratio value, e.g., `0.95`, or an absolute byte value.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the flood stage watermark, which defaults to 95%. {{es}} enforces a read-only index block ([`index.blocks.read_only_allow_delete`](/reference/elasticsearch/index-settings/index-block.md)) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark. Similarly to the low and high watermark values, it can alternatively be set to a ratio value, e.g., `0.95`, or an absolute byte value.
 
 
 `cluster.routing.allocation.disk.watermark.flood_stage.max_headroom`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the max headroom for the flood stage watermark (in case of a percentage/ratio value). Defaults to 100GB when `cluster.routing.allocation.disk.watermark.flood_stage` is not explicitly set. This caps the amount of free space required.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the max headroom for the flood stage watermark (in case of a percentage/ratio value). Defaults to 100GB when `cluster.routing.allocation.disk.watermark.flood_stage` is not explicitly set. This caps the amount of free space required.
 
 ::::{note}
 You can’t mix the usage of percentage/ratio values and byte values across the `cluster.routing.allocation.disk.watermark.low`, `cluster.routing.allocation.disk.watermark.high`, and `cluster.routing.allocation.disk.watermark.flood_stage` settings. Either all values must be set to percentage/ratio values, or all must be set to byte values. This is required so that {{es}} can validate that the settings are internally consistent, ensuring that the low disk threshold is less than the high disk threshold, and the high disk threshold is less than the flood stage threshold. A similar comparison check is done for the max headroom values.
@@ -211,13 +211,13 @@ You can’t mix the usage of percentage/ratio values and byte values across the 
 $$$cluster-routing-flood-stage-frozen$$$
 
 `cluster.routing.allocation.disk.watermark.flood_stage.frozen` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the flood stage watermark for dedicated frozen nodes, which defaults to 95%.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the flood stage watermark for dedicated frozen nodes, which defaults to 95%.
 
 `cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Controls the max headroom for the flood stage watermark (in case of a percentage/ratio value) for dedicated frozen nodes. Defaults to 20GB when `cluster.routing.allocation.disk.watermark.flood_stage.frozen` is not explicitly set. This caps the amount of free space required on dedicated frozen nodes.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the max headroom for the flood stage watermark (in case of a percentage/ratio value) for dedicated frozen nodes. Defaults to 20GB when `cluster.routing.allocation.disk.watermark.flood_stage.frozen` is not explicitly set. This caps the amount of free space required on dedicated frozen nodes.
 
 `cluster.info.update.interval`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) How often {{es}} should check on disk usage for each node in the cluster. Defaults to `30s`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How often {{es}} should check on disk usage for each node in the cluster. Defaults to `30s`.
 
 ::::{note}
 Percentage values refer to used disk space, while byte values refer to free disk space. This can be confusing, because it flips the meaning of high and low. For example, it makes sense to set the low watermark to 10gb and the high watermark to 5gb, but not the other way around.
@@ -230,10 +230,10 @@ Percentage values refer to used disk space, while byte values refer to free disk
 You can use [custom node attributes](/reference/elasticsearch/configuration-reference/node-settings.md#custom-node-attributes) as *awareness attributes* to enable {{es}} to take your physical hardware configuration into account when allocating shards. If {{es}} knows which nodes are on the same physical server, in the same rack, or in the same zone, it can distribute the primary shard and its replica shards to minimize the risk of losing all shard copies in the event of a failure. [Learn more about shard allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md).
 
 `cluster.routing.allocation.awareness.attributes`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The node attributes that {{es}} should use as awareness attributes. For example, if you have a `rack_id` attribute that specifies the rack in which each node resides, you can set this setting to `rack_id` to ensure that primary and replica shards are not allocated on the same rack. You can specify multiple attributes as a comma-separated list.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The node attributes that {{es}} should use as awareness attributes. For example, if you have a `rack_id` attribute that specifies the rack in which each node resides, you can set this setting to `rack_id` to ensure that primary and replica shards are not allocated on the same rack. You can specify multiple attributes as a comma-separated list.
 
 `cluster.routing.allocation.awareness.force.*`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) The shard allocation awareness values that must exist for shards to be reallocated in case of location failure. Learn more about [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness).
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The shard allocation awareness values that must exist for shards to be reallocated in case of location failure. Learn more about [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness).
 
 
 ## Cluster-level shard allocation filtering [cluster-shard-allocation-filtering]
@@ -242,7 +242,7 @@ You can use cluster-level shard allocation filters to control where {{es}} alloc
 
 Shard allocation filters can be based on [custom node attributes](/reference/elasticsearch/configuration-reference/node-settings.md#custom-node-attributes) or the built-in `_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host`, `_id` and `_tier` attributes.
 
-The `cluster.routing.allocation` settings are [dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting), enabling live indices to be moved from one set of nodes to another. Shards are only relocated if it is possible to do so without breaking another routing constraint, such as never allocating a primary and replica shard on the same node.
+The `cluster.routing.allocation` settings are [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), enabling live indices to be moved from one set of nodes to another. Shards are only relocated if it is possible to do so without breaking another routing constraint, such as never allocating a primary and replica shard on the same node.
 
 The most common use case for cluster-level shard allocation filtering is when you want to decommission a node. To move shards off of a node prior to shutting it down, you could create a filter that excludes the node by its IP address:
 
@@ -258,13 +258,13 @@ PUT _cluster/settings
 ### Cluster routing settings [cluster-routing-settings]
 
 `cluster.routing.allocation.include.{{attribute}}`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Allocate shards to a node whose `{{attribute}}` has at least one of the comma-separated values.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Allocate shards to a node whose `{{attribute}}` has at least one of the comma-separated values.
 
 `cluster.routing.allocation.require.{{attribute}}`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Only allocate shards to a node whose `{{attribute}}` has *all* of the comma-separated values.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Only allocate shards to a node whose `{{attribute}}` has *all* of the comma-separated values.
 
 `cluster.routing.allocation.exclude.{{attribute}}`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Do not allocate shards to a node whose `{{attribute}}` has *any* of the comma-separated values.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Do not allocate shards to a node whose `{{attribute}}` has *any* of the comma-separated values.
 
 The cluster allocation settings support the following built-in attributes:
 
@@ -309,4 +309,4 @@ PUT _cluster/settings
 ## Node Allocation Stats Cache [node-allocation-stats-cache]
 
 `cluster.routing.allocation.stats.cache.ttl`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Calculating the node allocation stats for a [Get node statistics API call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Calculating the node allocation stats for a [Get node statistics API call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.

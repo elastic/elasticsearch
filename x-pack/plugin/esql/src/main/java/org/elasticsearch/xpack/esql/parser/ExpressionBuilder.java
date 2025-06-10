@@ -42,8 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrate
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -824,6 +824,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
         return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
+    }
+
+    @Override
+    public Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx) {
+        return visitRerankField(ctx, source(ctx));
+    }
+
+    private Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx, Source source) {
+        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        assert id != null;
+
+        var boolExprCtx = ctx.booleanExpression();
+        Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
+        return new Alias(source, id.name(), value);
+    }
+
+    @Override
+    public List<Alias> visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.rerankField(), Alias.class) : new ArrayList<>();
     }
 
     @Override

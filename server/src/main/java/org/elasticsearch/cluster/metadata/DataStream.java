@@ -34,7 +34,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -78,6 +80,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
+    public static final boolean LOGS_STREAM_FEATURE_FLAG = new FeatureFlag("logs_stream").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
@@ -229,6 +232,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        assert lifecycle == null || lifecycle.targetsFailureStore() == false : "Invalid lifecycle type for data lifecycle";
+
         this.lifecycle = lifecycle;
         this.dataStreamOptions = dataStreamOptions == null ? DataStreamOptions.EMPTY : dataStreamOptions;
         assert backingIndices.indices.isEmpty() == false;
@@ -381,12 +386,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
         ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
-        final Settings templateSettings;
-        if (template.template() == null || template.template().settings() == null) {
-            templateSettings = Settings.EMPTY;
-        } else {
-            templateSettings = template.template().settings();
-        }
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
         return templateSettings.merge(settings);
     }
 
@@ -599,12 +599,31 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the failure store. Currently, it's the same with {@link #getDataLifecycle()}
-     * but it will change.
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices. NOTE: this does not take into consideration if the
+     * failure store is enabled by a cluster setting, please use {@link DataStream#getFailuresLifecycle(Boolean)}.
      */
     @Nullable
     public DataStreamLifecycle getFailuresLifecycle() {
-        return lifecycle;
+        return getFailuresLifecycle(
+            dataStreamOptions != null && dataStreamOptions.failureStore() != null ? dataStreamOptions.failureStore().enabled() : null
+        );
+    }
+
+    /**
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices or if the failure store is enabled by a cluster setting.
+     */
+    @Nullable
+    public DataStreamLifecycle getFailuresLifecycle(Boolean effectivelyEnabledFailureStore) {
+        // When there is a lifecycle configured by the user we return it.
+        if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+            return dataStreamOptions.failureStore().lifecycle();
+        }
+        // If there are failure indices we always provide the default lifecycle as a default
+        return Boolean.TRUE.equals(effectivelyEnabledFailureStore) || getFailureIndices().isEmpty() == false
+            ? DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE
+            : null;
     }
 
     /**
@@ -994,7 +1013,28 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *         given indices
      */
     @Nullable
+    @Deprecated
     public DataStream snapshot(Set<String> indicesInSnapshot, Metadata.Builder snapshotMetadataBuilder) {
+        @FixForMultiProject
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder project = snapshotMetadataBuilder.getProject(projectId);
+        if (project == null) {
+            project = ProjectMetadata.builder(projectId);
+            snapshotMetadataBuilder.put(project);
+        }
+        return snapshot(indicesInSnapshot, project);
+    }
+
+    /**
+     * Reconciles this data stream with a list of indices available in a snapshot. Allows snapshots to store accurate data
+     * stream definitions that do not reference backing indices and failure indices not contained in the snapshot.
+     *
+     * @param indicesInSnapshot List of indices in the snapshot
+     * @param snapshotMetadataBuilder a project metadata builder with the current view of the snapshot metadata
+     * @return Reconciled {@link DataStream} instance or {@code null} if no reconciled version of this data stream could be built from the
+     *         given indices
+     */
+    public DataStream snapshot(Set<String> indicesInSnapshot, ProjectMetadata.Builder snapshotMetadataBuilder) {
         boolean backingIndicesChanged = false;
         boolean failureIndicesChanged = false;
 
@@ -1028,7 +1068,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return builder.setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
     }
 
-    private static boolean isAnyIndexMissing(List<Index> indices, Metadata.Builder builder, Set<String> indicesInSnapshot) {
+    private static boolean isAnyIndexMissing(List<Index> indices, ProjectMetadata.Builder builder, Set<String> indicesInSnapshot) {
         for (Index index : indices) {
             final String indexName = index.getName();
             if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
@@ -1039,52 +1079,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the
-     * configured retention in their lifecycle.
+     * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
+     * data stream lifecycle and past the configured retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getBackingIndicesPastRetention(
+    public List<Index> getIndicesPastRetention(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
-        DataStreamGlobalRetention globalRetention
+        TimeValue effectiveRetention,
+        boolean failureStore
     ) {
-        if (getDataLifecycle() == null
-            || getDataLifecycle().enabled() == false
-            || getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
+        if (effectiveRetention == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getIndices(),
-            getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
-            indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
-            nowSupplier
-        );
-        return indicesPastRetention;
-    }
-
-    /**
-     * Iterate over the failure indices and return the ones that are managed by the data stream lifecycle and past the
-     * configured retention in their lifecycle.
-     * NOTE that this specifically does not return the write index of the data stream as usually retention
-     * is treated differently for the write index (i.e. they first need to be rolled over)
-     */
-    public List<Index> getFailureIndicesPastRetention(
-        Function<String, IndexMetadata> indexMetadataSupplier,
-        LongSupplier nowSupplier,
-        DataStreamGlobalRetention globalRetention
-    ) {
-        if (getFailuresLifecycle() == null
-            || getFailuresLifecycle().enabled() == false
-            || getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
-            return List.of();
-        }
-
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getFailureIndices(),
-            getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
+            getDataStreamIndices(failureStore).getIndices(),
+            effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -1199,6 +1211,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
@@ -1411,7 +1424,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamLifecycle.dataLifecycleFromXContent(p),
+            LIFECYCLE
+        );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),

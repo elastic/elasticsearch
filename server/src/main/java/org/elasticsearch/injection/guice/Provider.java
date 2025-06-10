@@ -28,8 +28,6 @@ package org.elasticsearch.injection.guice;
  * instances, instances you wish to safely mutate and discard, instances which are out of scope
  * (e.g. using a {@code @RequestScoped} object from within a {@code @SessionScoped} object), or
  * instances that will be initialized lazily.
- * <li>A custom {@link Scope} is implemented as a decorator of {@code Provider<T>}, which decides
- * when to delegate to the backing provider and when to provide the instance some other way.
  * <li>The {@link Injector} offers access to the {@code Provider<T>} it uses to fulfill requests
  * for a given key, via the {@link Injector#getProvider} methods.
  * </ul>

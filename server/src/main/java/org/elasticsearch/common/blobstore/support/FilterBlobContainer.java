@@ -89,6 +89,22 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return delegate.supportsConcurrentMultipartUploads();
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
         String blobName,

@@ -46,7 +46,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(model.uri());
+        HttpPost httpPost = new HttpPost(model.nonStreamingUri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new GoogleVertexAiEmbeddingsRequestEntity(truncationResult.input(), inputType, model.getTaskSettings()))
@@ -84,7 +84,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
 
     @Override
     public URI getURI() {
-        return model.uri();
+        return model.nonStreamingUri();
     }
 
     @Override

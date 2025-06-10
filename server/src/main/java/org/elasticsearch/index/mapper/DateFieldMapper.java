@@ -472,19 +472,12 @@ public final class DateFieldMapper extends FieldMapper {
             this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
+        public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
+            this(name, isIndexed, isIndexed, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
+        }
+
         public DateFieldType(String name, boolean isIndexed) {
-            this(
-                name,
-                isIndexed,
-                isIndexed,
-                false,
-                true,
-                DEFAULT_DATE_TIME_FORMATTER,
-                Resolution.MILLISECONDS,
-                null,
-                null,
-                Collections.emptyMap()
-            );
+            this(name, isIndexed, Resolution.MILLISECONDS);
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -696,6 +689,54 @@ public final class DateFieldMapper extends FieldMapper {
             Resolution resolution
         ) {
             return resolution.convert(dateParser.parse(BytesRefs.toString(value), now, roundUp, zone));
+        }
+
+        /**
+         * Similar to the {@link DateFieldType#termQuery} method, but works on dates that are already parsed to a long
+         * in the same precision as the field mapper.
+         */
+        public Query equalityQuery(Long value, @Nullable SearchExecutionContext context) {
+            return rangeQuery(value, value, true, true, context);
+        }
+
+        /**
+         * Similar to the existing
+         * {@link DateFieldType#rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, SearchExecutionContext)}
+         * method, but works on dates that are already parsed to a long in the same precision as the field mapper.
+         */
+        public Query rangeQuery(
+            Long lowerTerm,
+            Long upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = (includeLower == false) ? lowerTerm + 1 : lowerTerm;
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
+            }
+            Query query;
+            if (isIndexed()) {
+                query = LongPoint.newRangeQuery(name(), l, u);
+                if (hasDocValues()) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+            } else {
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
+            if (hasDocValues() && context.indexSortedOnField(name())) {
+                query = new XIndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+            }
+            return query;
         }
 
         @Override

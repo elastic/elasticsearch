@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,6 +34,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +43,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -89,6 +93,8 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
+    private NodeEnvironment nodeEnvironment;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Store store;
 
     @Before
@@ -97,6 +103,16 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        Settings settings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        nodeEnvironment = newNodeEnvironment(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            nodeEnvironment
+        );
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -105,7 +121,6 @@ public class RefreshListenersTests extends ESTestCase {
             new MeanMetric()
         );
 
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -134,6 +149,7 @@ public class RefreshListenersTests extends ESTestCase {
         EngineConfig config = new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,
@@ -169,8 +185,7 @@ public class RefreshListenersTests extends ESTestCase {
 
     @After
     public void tearDownListeners() throws Exception {
-        IOUtils.close(engine, store);
-        terminate(threadPool);
+        IOUtils.close(engine, store, nodeEnvironment, () -> terminate(threadPool));
     }
 
     public void testBeforeRefresh() throws Exception {

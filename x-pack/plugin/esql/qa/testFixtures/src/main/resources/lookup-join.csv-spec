@@ -1661,3 +1661,27 @@ max:long
 3450233
 8268153
 ;
+
+###############################################
+# LOOKUP JOIN on date_nanos field
+###############################################
+
+joinDateNanos
+required_capability: join_lookup_v12
+required_capability: date_nanos_lookup_join
+
+FROM sample_data_ts_nanos
+| LOOKUP JOIN lookup_sample_data_ts_nanos ON @timestamp
+| KEEP @timestamp, client_ip, event_duration, message
+| SORT @timestamp DESC
+;
+
+@timestamp:date_nanos | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T13:55:01.543123456Z | 172.21.3.15 | 1756467 | Connected to 10.1.0.1
+2023-10-23T13:53:55.832123456Z | 172.21.3.15 | 5033755 | Connection error
+2023-10-23T13:52:55.015123456Z | 172.21.3.15 | 8268153 | Connection error
+2023-10-23T13:51:54.732123456Z | 172.21.3.15 | 725448 | Connection error
+2023-10-23T13:33:34.937123456Z | 172.21.0.5 | 1232382 | Disconnected
+2023-10-23T12:27:28.948123456Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2
+2023-10-23T12:15:03.360123456Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3
+;

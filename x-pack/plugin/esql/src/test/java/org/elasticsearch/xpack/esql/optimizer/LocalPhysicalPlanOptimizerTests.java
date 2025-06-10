@@ -118,6 +118,7 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
@@ -2070,6 +2071,108 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(queryExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
         var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
         assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
+    }
+
+    public void testKnnWithExplicitLimit() {
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+    }
+
+    public void testMultipleKnnQueriesLimit() {
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2]) and (match(text, "example") or knn(dense_vector, [3, 4, 5]))
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var expectedQuery = boolQuery().must(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 10, null, null, null))
+            .must(
+                boolQuery().should(matchQuery("text", "example").lenient(true))
+                    .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 3f, 4f, 5f }, 10, null, null, null))
+            );
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+
+        query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | where (match(text, "example") or knn(dense_vector, [3, 4, 5]))
+            | limit 10
+            """;
+        analyzer = makeAnalyzer("mapping-all-types.json");
+        plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        projectExec = as(exchangeExec.child(), ProjectExec.class);
+        fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        expectedQuery = boolQuery().must(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 10, null, null, null))
+            .must(
+                boolQuery().should(matchQuery("text", "example").lenient(true))
+                    .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 3f, 4f, 5f }, 10, null, null, null))
+            );
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testKnnWithCombinedLimits() {
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 20
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+
+        query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 10
+            | limit 20
+            """;
+        analyzer = makeAnalyzer("mapping-all-types.json");
+        plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        projectExec = as(exchangeExec.child(), ProjectExec.class);
+        fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

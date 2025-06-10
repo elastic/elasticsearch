@@ -74,6 +74,19 @@ emp_no:integer | first_name:keyword
 10013          | Eberhardt      
 ;
 
+inLikeWithWildcard
+from employees | where first_name like ("Eberhardt*") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+inLikeTwoArgs
+from employees | where first_name like ("Eberhardt*", "testString") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt       
+;
 
 likeEvalNoWildcard
 from employees | eval x = concat(first_name, "X") | where x like "EberhardtX" | keep emp_no, first_name;

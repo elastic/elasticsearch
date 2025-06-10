@@ -11,8 +11,11 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
+import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardToRegExp;
@@ -33,6 +36,9 @@ public class WildcardPattern extends AbstractStringPattern {
         this.wildcard = pattern;
         // early initialization to force string validation
         this.regex = StringUtils.wildcardToJavaPattern(pattern, '\\');
+    }
+    public WildcardPattern(StreamInput in) throws IOException{
+        this(in.readString());
     }
 
     public String pattern() {
@@ -86,5 +92,13 @@ public class WildcardPattern extends AbstractStringPattern {
 
         WildcardPattern other = (WildcardPattern) obj;
         return Objects.equals(wildcard, other.wildcard);
+    }
+
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(wildcard);
+    }
+
+    public static WildcardPattern readFrom(StreamInput out) throws IOException {
+        return new WildcardPattern(out);
     }
 }

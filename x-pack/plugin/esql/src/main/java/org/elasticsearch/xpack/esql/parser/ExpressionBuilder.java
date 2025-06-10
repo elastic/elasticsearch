@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -731,6 +732,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Expression visitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) {
+
+        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
+        Source source = source(ctx);
+        List <WildcardPattern> wildcardPatterns = expressions.subList(1, expressions.size()).stream()
+            .map(x->new WildcardPattern(x.fold(FoldContext.small()).toString()))
+            .toList();
+        //Expression e = wildcardPatterns.size() == 1
+        //    ? new WildcardLike( source, expressions.getFirst(),wildcardPatterns.getFirst())
+        //    : new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
+        Expression e = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
     public Object visitIsNull(EsqlBaseParser.IsNullContext ctx) {
         Expression exp = expression(ctx.valueExpression());
         Source source = source(ctx.valueExpression(), ctx);
@@ -738,7 +754,33 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) {
+    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx){
+        Source source = source(ctx);
+        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
+        /*WildcardLike result =  new WildcardLike(
+            source,
+            expressions.get(0),
+            new WildcardPattern(expressions.get(1).fold(FoldContext.small() ).toString()));*/
+        WildcardPattern pattern = new WildcardPattern(expressions.get(1).fold(FoldContext.small() ).toString());
+        WildcardLikeList result = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(List.of(pattern)));
+        return ctx.NOT() == null ? result : new Not(source, result);
+    }
+
+    @Override
+    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx){
+        Source source = source(ctx);
+        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
+        RLike rLike =  new RLike(
+            source,
+            expressions.get(0),
+            new RLikePattern(expressions.get(1).fold(FoldContext.small() ).toString())
+        );
+        return ctx.NOT() == null ? rLike : new Not(source, rLike);
+    }
+
+    /*
+    @Override
+    public Expression visitRegexBooleanExpression (EsqlBaseParser.RegexBooleanExpressionContext ctx) {
         int type = ctx.kind.getType();
         Source source = source(ctx);
         Expression left = expression(ctx.valueExpression());
@@ -749,7 +791,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     yield new WildcardLike(
                         source,
                         left,
-                        new WildcardPattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
+                        new WildcardPattern(pattern.fold(FoldContext.small() ).toString())
                     );
                 } catch (InvalidArgumentException e) {
                     throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
@@ -758,12 +800,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.RLIKE -> new RLike(
                 source,
                 left,
-                new RLikePattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
+                new RLikePattern(pattern.fold(FoldContext.small() ).toString())
             );
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
         return ctx.NOT() == null ? result : new Not(source, result);
-    }
+    }*/
 
     @Override
     public Order visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx) {

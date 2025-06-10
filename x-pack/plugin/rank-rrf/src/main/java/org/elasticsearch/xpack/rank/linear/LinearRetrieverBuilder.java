@@ -332,7 +332,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ScoreNormalizer[] normalizers = new ScoreNormalizer[fieldsInnerRetrievers.size()];
                 Arrays.fill(normalizers, normalizer);
 
+                // TODO: This is a incomplete solution as it does not address other incomplete copy issues
+                // (such as dropping the retriever name and min score)
                 rewritten = new LinearRetrieverBuilder(fieldsInnerRetrievers, null, null, normalizer, rankWindowSize, weights, normalizers);
+                rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             } else {
                 // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());

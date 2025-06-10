@@ -2174,8 +2174,8 @@ setup:
       indices.get_mapping:
         index: vectors_64
 
-  - match: { test_index.mappings.properties.embedding.type: dense_vector }
-  - match: { test_index.mappings.properties.embedding.index_options.type: bbq_flat }
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_flat }
 
   - do:
       index:
@@ -2208,8 +2208,8 @@ setup:
       indices.get_mapping:
         index: vectors_64
 
-  - match: { test_index.mappings.properties.embedding.type: dense_vector }
-  - match: { test_index.mappings.properties.embedding.index_options.type: bbq_hnsw }
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_hnsw }
 
   - do:
       index:
@@ -2313,8 +2313,8 @@ setup:
       indices.get_mapping:
         index: vectors_64
 
-  - match: { test_index.mappings.properties.embedding.type: dense_vector }
-  - match: { test_index.mappings.properties.embedding.index_options.type: bbq_flat }
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_flat }
 
   - do:
       index:
@@ -2444,8 +2444,8 @@ setup:
       indices.get_mapping:
         index: vectors_64
 
-  - match: { test_index.mappings.properties.embedding.type: dense_vector }
-  - match: { test_index.mappings.properties.embedding.index_options.type: bbq_hnsw }
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_hnsw }
 
   - do:
       index:

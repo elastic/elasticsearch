@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
-import org.elasticsearch.index.codec.vectors.es910.ES910HnswVectorsFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
@@ -458,7 +456,6 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
-            ES910HnswVectorsFormat,
             org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
@@ -466,7 +463,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch814Codec,
             org.elasticsearch.index.codec.Elasticsearch816Codec,
             org.elasticsearch.index.codec.Elasticsearch900Codec,
-            Elasticsearch900Lucene101Codec;
+            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -482,6 +479,4 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
     exports org.elasticsearch.lucene.search;
-    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn;
-    exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
 }

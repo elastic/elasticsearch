@@ -266,10 +266,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
 
                 if (hasIngestPipelineChanges || hasIndicesChanges) {
-                    var atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.computeIfAbsent(
-                        projectId,
-                        k -> false
-                    );
+                    var atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> false);
                     boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
 
                     if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {

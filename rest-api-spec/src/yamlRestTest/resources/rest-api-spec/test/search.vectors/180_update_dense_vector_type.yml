@@ -2256,7 +2256,7 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "2" }
-
+---
 "Test update int8_hnsw --> bbq_flat":
   - requires:
       capabilities:
@@ -2370,7 +2370,7 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "2" }
-
+---
 "Test update int8_hnsw --> bbq_hnsw":
   - requires:
       capabilities:
@@ -2464,7 +2464,6 @@ setup:
   - do:
       indices.flush:
         index: vectors_64
-
   - do:
       indices.refresh: { }
   - do:

@@ -2126,6 +2126,12 @@ setup:
           capabilities: [ optimized_scalar_quantization_bbq ]
       test_runner_features: capabilities
       reason: "BBQ is required to test upgrading to bbq_flat and bbq_hnsw"
+  - requires:
+      reason: 'dense_vector updatable to bbq capability required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          capabilities: [ dense_vector_updatable_bbq ]
   - do:
       indices.create:
         index: vectors_64
@@ -2265,6 +2271,12 @@ setup:
           capabilities: [ optimized_scalar_quantization_bbq ]
       test_runner_features: capabilities
       reason: "BBQ is required to test upgrading to bbq_flat and bbq_hnsw"
+  - requires:
+      reason: 'dense_vector updatable to bbq capability required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          capabilities: [ dense_vector_updatable_bbq ]
   - do:
       indices.create:
         index: vectors_64
@@ -2379,6 +2391,12 @@ setup:
           capabilities: [ optimized_scalar_quantization_bbq ]
       test_runner_features: capabilities
       reason: "BBQ is required to test upgrading to bbq_flat and bbq_hnsw"
+  - requires:
+      reason: 'dense_vector updatable to bbq capability required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          capabilities: [ dense_vector_updatable_bbq ]
   - do:
       indices.create:
         index: vectors_64

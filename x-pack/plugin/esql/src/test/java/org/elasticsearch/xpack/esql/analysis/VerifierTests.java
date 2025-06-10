@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -54,7 +55,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -67,6 +67,7 @@ public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
+    private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
@@ -1215,314 +1216,252 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match(first_name, \"Anna\")")
-        );
-        assertEquals(
-            "1:47: [MATCH] function cannot be used after STATS",
-            error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
-        );
+    public void testFieldBasedFullTextFunctions() throws Exception {
+        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+
+        checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
+
+        checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
+
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
+        }
     }
 
-    public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match(first_name, \"Anna\")")
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
+        assertThat(
+            error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match ( first_name, \"Anna\" ) ")
+        String fieldName = "KNN".equals(functionName) ? "vector" : "title";
+        assertThat(
+            error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
-        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
-        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
     }
 
     // These should pass eventually once we lift some restrictions on match function
-    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
-            error("from test | eval initial = substring(first_name, 1) | where match(initial, \"A\")")
+    private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
+        assertThat(
+            error("from test | eval text = substring(title, 1) | where " + functionInvocation, fullTextAnalyzer),
+            containsString(
+                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
+            )
         );
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
-            error("from test | eval text=concat(first_name, last_name) | where match(text, \"cat\")")
+        assertThat(
+            error("from test | eval text=concat(title, body) | where " + functionInvocation, fullTextAnalyzer),
+            containsString(
+                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
+            )
         );
+        var keywordInvocation = functionInvocation.replace("text", "text::keyword");
+        String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation, fullTextAnalyzer);
+        assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
+        assertThat(keywordError, containsString("which is not a field from an index mapping"));
     }
 
-    public void testMatchFunctionIsNotNullable() {
-        assertEquals(
-            "1:48: [MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping",
-            error("row n = null | eval text = n + 5 | where match(text::keyword, \"Anna\")")
-        );
+    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Meditation\")");
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
     }
 
-    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
+    private void checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) {
         // Source commands
-        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
-        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
+        assertThat(
+            error("show info | where " + functionInvocation),
+            containsString("[" + functionName + "] function cannot be used after SHOW")
+        );
+        assertThat(
+            error("row a= \"Meditation\" | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after ROW")
+        );
 
         // Processing commands
-        assertEquals(
-            "1:43: [QSTR] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
+        assertThat(
+            error("from test | dissect title \"%{foo}\" | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after DISSECT")
         );
-        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:71: [QSTR] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | drop body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after DROP")
         );
-        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:44: [QSTR] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | enrich languages on category with lang = language_name | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after ENRICH")
         );
-        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
-        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:35: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | eval z = 2 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after EVAL")
         );
-        assertEquals(
-            "1:45: [QSTR] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | grok body \"%{WORD:foo}\" | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after GROK")
         );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | keep category | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after KEEP")
+        );
+        assertThat(
+            error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after LIMIT")
+        );
+        assertThat(
+            error("from test | mv_expand body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
+        );
+        assertThat(
+            error("from test | rename body as full_body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after RENAME")
+        );
+        assertThat(
+            error("from test | STATS c = COUNT(*) BY category | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after STATS")
         );
 
         // Some combination of processing commands
-        assertEquals(
-            "1:38: [QSTR] function cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | keep category | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after LIMIT")
         );
-        assertEquals(
-            "1:46: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | limit 10 | mv_expand body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
         );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
+        assertThat(
+            error("from test | mv_expand body | keep body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after KEEP")
         );
-        assertEquals(
-            "1:77: [QSTR] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
+        assertThat(
+            error(
+                "from test | STATS c = COUNT(id) BY category | rename c as total_categories | where " + functionInvocation,
+                fullTextAnalyzer
+            ),
+            containsString("[" + functionName + "] function cannot be used after RENAME")
         );
-        assertEquals(
-            "1:54: [QSTR] function cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
-        );
-    }
-
-    public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
-        // Source commands
-        assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
-        assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
-
-        // Processing commands
-        assertEquals(
-            "1:43: [KQL] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where kql(\"Connection\")")
-        );
-        assertEquals("1:27: [KQL] function cannot be used after DROP", error("from test | drop emp_no | where kql(\"Anna\")"));
-        assertEquals(
-            "1:71: [KQL] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where kql(\"Anna\")")
-        );
-        assertEquals("1:26: [KQL] function cannot be used after EVAL", error("from test | eval z = 2 | where kql(\"Anna\")"));
-        assertEquals(
-            "1:44: [KQL] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where kql(\"Anna\")")
-        );
-        assertEquals("1:27: [KQL] function cannot be used after KEEP", error("from test | keep emp_no | where kql(\"Anna\")"));
-        assertEquals("1:24: [KQL] function cannot be used after LIMIT", error("from test | limit 10 | where kql(\"Anna\")"));
-        assertEquals("1:35: [KQL] function cannot be used after MV_EXPAND", error("from test | mv_expand last_name | where kql(\"Anna\")"));
-        assertEquals(
-            "1:45: [KQL] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where kql(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [KQL] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where kql(\"Anna\")")
-        );
-
-        // Some combination of processing commands
-        assertEquals("1:38: [KQL] function cannot be used after LIMIT", error("from test | keep emp_no | limit 10 | where kql(\"Anna\")"));
-        assertEquals(
-            "1:46: [KQL] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where kql(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [KQL] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where kql(\"Anna\")")
-        );
-        assertEquals(
-            "1:77: [KQL] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where kql(\"Anna\")")
-        );
-        assertEquals(
-            "1:54: [KQL] function cannot be used after DROP",
-            error("from test | rename last_name as name | drop emp_no | where kql(\"Anna\")")
+        assertThat(
+            error("from test | rename title as name | drop category | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after DROP")
         );
     }
 
-    public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [QSTR] function is only supported in WHERE and STATS commands", error("row a = qstr(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
-    }
-
-    public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [KQL] function is only supported in WHERE and STATS commands", error("row a = kql(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
-    }
-
-    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
-    }
-
-    public void testTermFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(first_name, \"Anna\")", "function");
-    }
-
-    public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
+    public void testFullTextFunctionsOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
+        }
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
+        }
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
-        assertEquals(
-            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
-            error("from test | eval y = " + functionInvocation)
+        assertThat(
+            error("from test | eval y = " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
         );
-        assertEquals(
-            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
-            error("from test | sort " + functionInvocation + " asc")
+        assertThat(
+            error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
         );
-        assertEquals(
-            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands",
-            error("from test | stats max_salary = max(salary) by " + functionInvocation)
+        assertThat(
+            error("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
         );
-    }
-
-    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
-        assertEquals(
-            "1:19: first argument of [qstr(first_name)] must be a constant, received [first_name]",
-            error("from test | where qstr(first_name)")
-        );
-        assertEquals("1:19: first argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
-        // Other value types are tested in QueryStringFunctionTests
-    }
-
-    public void testKqlFunctionArgNotNullOrConstant() throws Exception {
-        assertEquals(
-            "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
-            error("from test | where kql(first_name)")
-        );
-        assertEquals("1:19: argument of [kql(null)] cannot be null, received [null]", error("from test | where kql(null)"));
-        // Other value types are tested in KqlFunctionTests
-    }
-
-    public void testQueryStringWithDisjunctions() {
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
-    }
-
-    public void testKqlFunctionWithDisjunctions() {
-        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
-    }
-
-    public void testMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
-    }
-
-    public void testTermFunctionWithDisjunctions() {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkWithDisjunctions("Term", "term(first_name, \"Anna\")", "function");
-    }
-
-    public void testMatchOperatorWithDisjunctions() {
-        checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
-    }
-
-    private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
-        query("from test | where " + functionInvocation + " or length(first_name) > 12");
-        query(
-            "from test | where ("
-                + functionInvocation
-                + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
-        );
-        query("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)");
+        if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
+            assertThat(
+                error("row a = " + functionInvocation, fullTextAnalyzer),
+                containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+            );
+        }
     }
 
     public void testFullTextFunctionsDisjunctions() {
-        checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
-        checkWithFullTextFunctionsDisjunctions("multi_match(\"Smith\", first_name, last_name)");
-        checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
-        checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
-        checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
+        checkWithFullTextFunctionsDisjunctions("match(title, \"Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("title : \"Meditation\"");
+        checkWithFullTextFunctionsDisjunctions("qstr(\"title: Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
+        }
     }
 
     private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
 
         // Disjunctions with non-pushable functions - scoring
-        query("from test | where " + functionInvocation + " or length(first_name) > 10");
-        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query("from test | where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
+        query("from test | where match(title, \"Meditation\") or (" + functionInvocation + " and length(title) > 10)", fullTextAnalyzer);
         query(
-            "from test | where ("
-                + functionInvocation
-                + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+            "from test | where (" + functionInvocation + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)",
+            fullTextAnalyzer
         );
 
         // Disjunctions with non-pushable functions - no scoring
-        query("from test | where " + functionInvocation + " or length(first_name) > 10");
-        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query("from test | where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
+        query("from test | where match(title, \"Meditation\") or (" + functionInvocation + " and length(title) > 10)", fullTextAnalyzer);
         query(
-            "from test | where ("
-                + functionInvocation
-                + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+            "from test | where (" + functionInvocation + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)",
+            fullTextAnalyzer
         );
 
         // Disjunctions with full text functions - no scoring
-        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
-        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
-        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
-        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
-        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
+        query("from test | where " + functionInvocation + " or match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test | where " + functionInvocation + " or not match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10", fullTextAnalyzer);
+        query(
+            "from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")",
+            fullTextAnalyzer
+        );
+        query(
+            "from test | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))",
+            fullTextAnalyzer
+        );
 
         // Disjunctions with full text functions - scoring
-        query("from test metadata _score | where " + functionInvocation + " or match(first_name, \"Anna\")");
-        query("from test metadata _score | where " + functionInvocation + " or not match(first_name, \"Anna\")");
-        query("from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        query("from test metadata _score | where " + functionInvocation + " or match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test metadata _score | where " + functionInvocation + " or not match(title, \"Meditation\")", fullTextAnalyzer);
         query(
-            "from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")"
+            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10",
+            fullTextAnalyzer
         );
         query(
-            "from test metadata _score | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))"
+            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")",
+            fullTextAnalyzer
         );
-
+        query(
+            "from test metadata _score | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))",
+            fullTextAnalyzer
+        );
     }
 
-    public void testQueryStringFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
-    }
-
-    public void testKqlFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
-    }
-
-    public void testMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
-    }
-
-    public void testTermFunctionWithNonBooleanFunctions() {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(first_name, \"Anna\")", "function");
-    }
-
-    public void testMatchOperatorWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions(":", "first_name:\"Anna\"", "operator");
+    public void testFullTextFunctionsWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions(":", "title:\"Meditation\"", "operator");
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
+        }
     }
 
     private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
@@ -1536,7 +1475,7 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " can't be used with ISNOTNULL",
-                error("from test | where " + functionInvocation + " is not null")
+                error("from test | where " + functionInvocation + " is not null", fullTextAnalyzer)
             );
             assertEquals(
                 "1:19: Invalid condition ["
@@ -1546,7 +1485,7 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " can't be used with ISNULL",
-                error("from test | where " + functionInvocation + " is null")
+                error("from test | where " + functionInvocation + " is null", fullTextAnalyzer)
             );
             assertEquals(
                 "1:19: Invalid condition ["
@@ -1556,7 +1495,7 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " can't be used with IN",
-                error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+                error("from test | where " + functionInvocation + " in (\"hello\", \"world\")", fullTextAnalyzer)
             );
         }
         assertEquals(
@@ -1569,7 +1508,7 @@ public class VerifierTests extends ESTestCase {
                 + "] "
                 + functionType
                 + " can't be used with COALESCE",
-            error("from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")")
+            error("from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")", fullTextAnalyzer)
         );
         assertEquals(
             "1:19: argument of [concat("
@@ -1577,87 +1516,24 @@ public class VerifierTests extends ESTestCase {
                 + ", \"a\")] must be [string], found value ["
                 + functionInvocation
                 + "] type [boolean]",
-            error("from test | where concat(" + functionInvocation + ", \"a\")")
+            error("from test | where concat(" + functionInvocation + ", \"a\")", fullTextAnalyzer)
         );
     }
 
-    public void testMatchFunctionArgNotConstant() throws Exception {
-        assertEquals(
-            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where match(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
-        );
-        // Other value types are tested in QueryStringFunctionTests
+    public void testFullTextFunctionsTargetsExistingField() throws Exception {
+        testFullTextFunctionTargetsExistingField("match(title, \"Meditation\")");
+        testFullTextFunctionTargetsExistingField("title : \"Meditation\"");
+        testFullTextFunctionTargetsExistingField("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
+        }
     }
 
-    // These should pass eventually once we lift some restrictions on match function
-    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assertEquals(
-            "1:68: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
-        );
-        assertEquals(
-            "1:62: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
-        );
-    }
-
-    public void testMatchFunctionNullArgs() throws Exception {
-        assertEquals(
-            "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
-            error("from test | where match(null, \"query\")")
-        );
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
-        );
-    }
-
-    public void testMatchTargetsExistingField() throws Exception {
-        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
-        assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
-    }
-
-    public void testTermFunctionArgNotConstant() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals(
-            "1:19: second argument of [term(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where term(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [term(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where term(first_name, query)")
-        );
-        // Other value types are tested in QueryStringFunctionTests
-    }
-
-    // These should pass eventually once we lift some restrictions on match function
-    public void testTermFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals(
-            "1:67: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where term(first_name, \"Anna\")")
-        );
-    }
-
-    public void testTermFunctionNullArgs() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals(
-            "1:19: first argument of [term(null, \"query\")] cannot be null, received [null]",
-            error("from test | where term(null, \"query\")")
-        );
-        assertEquals(
-            "1:19: second argument of [term(first_name, null)] cannot be null, received [null]",
-            error("from test | where term(first_name, null)")
-        );
-    }
-
-    public void testTermTargetsExistingField() throws Exception {
-        assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
-        assertEquals("1:38: Unknown column [first_name]", error("from test | keep emp_no | where term(first_name, \"Anna\")"));
+    private void testFullTextFunctionTargetsExistingField(String functionInvocation) throws Exception {
+        assertThat(error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
@@ -2172,315 +2048,125 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchOptions() {
-        // Check positive cases
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": \"AUTO\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"max_expansions\": 10})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"operator\": \"AND\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"prefix_length\": 2})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+    public void testFullTextFunctionOptions() {
+        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
+        checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
+        checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
+        }
+    }
 
-        // Check all data types for available options
+    /**
+     * Check all data types for available options. When conversion is not possible, checks that it's an error
+     */
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate) {
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
+        for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
+
             // Check every possible type for the option - we'll try to convert it to the expected type
             for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
+                String optionValue = exampleValueForType(currentType);
                 String queryOptionValue = optionValue;
                 if (currentType == KEYWORD) {
                     queryOptionValue = "\"" + optionValue + "\"";
                 }
 
-                String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
+                String query = String.format(Locale.ROOT, queryTemplate, optionName, queryOptionValue);
                 try {
                     // Check conversion is possible
                     DataTypeConverter.convert(optionValue, optionType);
                     // If no exception was thrown, conversion is possible and should be done
-                    query(query);
+                    query(query, fullTextAnalyzer);
                 } catch (InvalidArgumentException e) {
                     // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [match(first_name, \"Jean\", {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot cast ["
-                            + optionValue
-                            + "] to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
+                    String error = error(query, fullTextAnalyzer);
+                    assertThat(error, containsString("Invalid option [" + optionName + "]"));
+                    assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
             }
         }
 
-        assertThat(
-            error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
-            containsString(
-                "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
-            )
-        );
+        String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
+        assertThat(error(errorQuery, fullTextAnalyzer), containsString("Invalid option [unknown_option]"));
     }
 
-    public void testQueryStringOptions() {
-        // Check positive cases
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"allow_leading_wildcard\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"analyze_wildcard\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"boost\": 2.1})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_field\": \"field1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"default_operator\": \"AND\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"enable_position_increments\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": 2})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzziness\": \"AUTO\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_prefix_length\": 5})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"lenient\": false})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"max_determinized_states\": 10})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_analyzer\": \"qnalyzer_1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"quote_field_suffix\": \"q_suffix\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"phrase_slop\": 10})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"rewrite\": \"r1\"})");
-        query("FROM test | WHERE QSTR(\"first_name: Jean\", {\"time_zone\": \"time_zone\"})");
+    private static String exampleValueForType(DataType currentType) {
+        return switch (currentType) {
+            case BOOLEAN -> String.valueOf(randomBoolean());
+            case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+            case LONG -> String.valueOf(randomLong());
+            case FLOAT -> String.valueOf(randomFloat());
+            case DOUBLE -> String.valueOf(randomDouble());
+            case KEYWORD -> randomAlphaOfLength(10);
+            default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+        };
+    }
 
-        // Check all data types for available options
-        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : QueryString.ALLOWED_OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-            // Check every possible type for the option - we'll try to convert it to the expected type
-            for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
-                String queryOptionValue = optionValue;
-                if (currentType == KEYWORD) {
-                    queryOptionValue = "\"" + optionValue + "\"";
-                }
-
-                String query = "FROM test | WHERE QSTR(\"first_name: Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
-                try {
-                    // Check conversion is possible
-                    DataTypeConverter.convert(optionValue, optionType);
-                    // If no exception was thrown, conversion is possible and should be done
-                    query(query);
-                } catch (InvalidArgumentException e) {
-                    // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [QSTR(\"first_name: Jean\", {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot cast ["
-                            + optionValue
-                            + "] to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
-                }
-            }
+    // Should pass eventually once we lift some restrictions on full text search functions.
+    public void testFullTextFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(title, \"Meditation\")");
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("title : \"Meditation\"");
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Meditation\", title)");
         }
-
-        assertThat(
-            error("FROM test |  WHERE QSTR(\"first_name: Jean\", {\"unknown_option\": true})"),
-            containsString(
-                "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
-            )
-        );
-    }
-
-    public void testMultiMatchOptions() {
-        // Check positive cases
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name)");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"slop\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"auto_generate_synonyms_phrase_query\": true})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzziness\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"fuzzy_transpositions\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"lenient\": false})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"max_expansions\": 10})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"minimum_should_match\": \"2\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"operator\": \"AND\"})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"prefix_length\": 2})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"tie_breaker\": 1.0})");
-        query("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"type\": \"best_fields\"})");
-
-        // Check all data types for available options
-        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : MultiMatch.OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-            // Check every possible type for the option - we'll try to convert it to the expected type
-            for (DataType currentType : optionTypes) {
-                String optionValue = switch (currentType) {
-                    case BOOLEAN -> String.valueOf(randomBoolean());
-                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
-                    case LONG -> String.valueOf(randomLong());
-                    case FLOAT -> String.valueOf(randomFloat());
-                    case DOUBLE -> String.valueOf(randomDouble());
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
-                };
-                String queryOptionValue = optionValue;
-                if (currentType == KEYWORD) {
-                    queryOptionValue = "\"" + optionValue + "\"";
-                }
-
-                String query = "FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\""
-                    + optionName
-                    + "\": "
-                    + queryOptionValue
-                    + "})";
-                try {
-                    // Check conversion is possible
-                    DataTypeConverter.convert(optionValue, optionType);
-                    // If no exception was thrown, conversion is possible and should be done
-                    query(query);
-                } catch (InvalidArgumentException e) {
-                    // Conversion is not possible, query should fail
-                    assertEquals(
-                        "1:19: Invalid option ["
-                            + optionName
-                            + "] in [MULTI_MATCH(\"Jean\", first_name, last_name, {\""
-                            + optionName
-                            + "\": "
-                            + queryOptionValue
-                            + "})], cannot "
-                            + (optionType == OBJECT ? "convert from" : "cast")
-                            + " ["
-                            + optionValue
-                            + "]"
-                            + (optionType == OBJECT ? (", type [keyword]") : "")
-                            + " to ["
-                            + optionType.typeName()
-                            + "]",
-                        error(query)
-                    );
-                }
-            }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
         }
+    }
 
+    private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
         assertThat(
-            error("FROM test | WHERE MULTI_MATCH(\"Jean\", first_name, last_name, {\"unknown_option\": true})"),
-            containsString(
-                "1:19: Invalid option [unknown_option] in [MULTI_MATCH(\"Jean\", first_name, last_name, "
-                    + "{\"unknown_option\": true})], expected one of "
-            )
+            error("from test | stats max_salary = max(salary) by emp_no | where " + functionInvocation, fullTextAnalyzer),
+            containsString("Unknown column")
         );
     }
 
-    public void testMultiMatchFunctionIsNotNullable() {
-        assertEquals(
-            "1:62: [MultiMatch] function cannot operate on [text::keyword], which is not a field from an index mapping",
-            error("row n = null | eval text = n + 5 | where multi_match(\"Anna\", text::keyword)")
+    public void testFullTextFunctionsNullArgs() throws Exception {
+        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
+        checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionNullArgs("qstr(null)", "");
+        checkFullTextFunctionNullArgs("kql(null)", "");
+        checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
+        checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
+            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
+            checkFullTextFunctionNullArgs("term(title, null)", "second");
+        }
+    }
+
+    private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation, fullTextAnalyzer),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
     }
 
-    public void testMultiMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        assertEquals(
-            "1:78: [MultiMatch] function cannot operate on [initial], which is not a field from an index mapping",
-            error("from test | eval initial = substring(first_name, 1) | where multi_match(\"A\", initial)")
-        );
-        assertEquals(
-            "1:80: [MultiMatch] function cannot operate on [text], which is not a field from an index mapping",
-            error("from test | eval text=concat(first_name, last_name) | where multi_match(\"cat\", text)")
-        );
+    public void testFullTextFunctionsConstantQuery() throws Exception {
+        checkFullTextFunctionsConstantQuery("match(title, category)", "second");
+        checkFullTextFunctionsConstantQuery("qstr(title)", "");
+        checkFullTextFunctionsConstantQuery("kql(title)", "");
+        checkFullTextFunctionsConstantQuery("match_phrase(title, tags)", "second");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
+            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
+        }
     }
 
-    public void testMultiMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assertEquals(
-            "1:24: [MultiMatch] function cannot be used after LIMIT",
-            error("from test | limit 10 | where multi_match(\"Anna\", first_name)")
-        );
-        assertEquals(
-            "1:47: [MultiMatch] function cannot be used after STATS",
-            error("from test | STATS c = AVG(salary) BY gender | where multi_match(\"F\", gender)")
-        );
-    }
-
-    public void testMultiMatchFunctionWithDisjunctions() {
-        checkWithDisjunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
-    }
-
-    public void testMultiMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Anna\", first_name, last_name)", "function");
-    }
-
-    public void testMultiMatchFunctionArgNotConstant() throws Exception {
-        assertEquals(
-            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where match(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
-        );
-        // Other value types are tested in QueryStringFunctionTests
-    }
-
-    // Should pass eventually once we lift some restrictions on the multi-match function.
-    public void testMultiMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assertEquals(
-            "1:82: Unknown column [first_name]\nline 1:94: Unknown column [last_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where multi_match(\"Anna\", first_name, last_name)")
-        );
-    }
-
-    public void testMultiMatchFunctionNullArgs() throws Exception {
-        assertEquals(
-            "1:19: first argument of [multi_match(\"query\", null)] cannot be null, received [null]",
-            error("from test | where multi_match(\"query\", null)")
-        );
-        assertEquals(
-            "1:19: first argument of [multi_match(null, first_name)] cannot be null, received [null]",
-            error("from test | where multi_match(null, first_name)")
-        );
-    }
-
-    public void testMultiMatchTargetsExistingField() throws Exception {
-        assertEquals(
-            "1:53: Unknown column [first_name]\nline 1:65: Unknown column [last_name]",
-            error("from test | keep emp_no | where multi_match(\"Anna\", first_name, last_name)")
-        );
-    }
-
-    public void testMultiMatchInsideEval() throws Exception {
-        assumeTrue("MultiMatch operator is available just for snapshots", Build.current().isSnapshot());
-        assertEquals(
-            "1:36: [MultiMatch] function is only supported in WHERE and STATS commands\n"
-                + "line 1:55: [MultiMatch] function cannot operate on [title], which is not a field from an index mapping",
-            error("row title = \"brown fox\" | eval x = multi_match(\"fox\", title)")
+    private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation, fullTextAnalyzer),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
         );
     }
 
@@ -2494,22 +2180,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsInStats() {
-        checkFullTextFunctionsInStats("match(last_name, \"Smith\")");
-        checkFullTextFunctionsInStats("multi_match(\"Smith\", first_name, last_name)");
-        checkFullTextFunctionsInStats("last_name : \"Smith\"");
-        checkFullTextFunctionsInStats("qstr(\"last_name: Smith\")");
-        checkFullTextFunctionsInStats("kql(\"last_name: Smith\")");
+        checkFullTextFunctionsInStats("match(title, \"Meditation\")");
+        checkFullTextFunctionsInStats("title : \"Meditation\"");
+        checkFullTextFunctionsInStats("qstr(\"title: Meditation\")");
+        checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
+        checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
+        }
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
-
-        query("from test | stats c = max(salary) where " + functionInvocation);
-        query("from test | stats c = max(salary) where " + functionInvocation + " or length(first_name) > 10");
-        query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)");
-        query("from test metadata _score |  where " + functionInvocation + " or length(first_name) > 10 | stats c = max(_score)");
+        query("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer);
+        query("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
+        query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)", fullTextAnalyzer);
+        query(
+            "from test metadata _score |  where " + functionInvocation + " or length(title) > 10 | stats c = max(_score)",
+            fullTextAnalyzer
+        );
 
         assertThat(
-            error("from test metadata _score | stats c = max(_score) where " + functionInvocation),
+            error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),
             containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
         );
     }

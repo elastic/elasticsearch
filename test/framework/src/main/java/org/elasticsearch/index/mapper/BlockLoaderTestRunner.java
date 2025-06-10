@@ -29,6 +29,8 @@ import java.util.Set;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
@@ -74,10 +76,9 @@ public class BlockLoaderTestRunner {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
         var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReader != null) {
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), TestBlock.docs(0));
-            if (block.size() == 0) {
-                return null;
-            }
+            BlockLoader.Docs docs = TestBlock.docs(0);
+            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), docs);
+            assertThat(block.size(), equalTo(1));
             return block.get(0);
         }
 
@@ -99,9 +100,8 @@ public class BlockLoaderTestRunner {
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(context.reader().numDocs()), 1);
         blockLoader.rowStrideReader(context).read(0, storedFieldsLoader, builder);
         var block = (TestBlock) builder.build();
-        if (block.size() == 0) {
-            return null;
-        }
+        assertThat(block.size(), equalTo(1));
+
         return block.get(0);
     }
 

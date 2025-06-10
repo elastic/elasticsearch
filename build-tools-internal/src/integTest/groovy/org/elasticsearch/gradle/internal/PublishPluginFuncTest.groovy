@@ -509,8 +509,7 @@ def "generates artifacts for shadowed elasticsearch plugin"() {
         """
 
     when:
-    def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateClusterFeaturesMetadata').build()
-
+    def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateHistoricalFeaturesMetadata').build()
     then:
     result.task(":generatePom").outcome == TaskOutcome.SUCCESS
     file("build/distributions/hello-world-plugin-1.0-original.jar").exists()

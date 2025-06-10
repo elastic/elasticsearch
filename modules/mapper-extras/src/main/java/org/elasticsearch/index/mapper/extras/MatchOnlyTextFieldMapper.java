@@ -33,6 +33,7 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -136,9 +137,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
-            boolean storeSource = context.isSourceSynthetic()
-                && withinMultiField == false
-                && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            final boolean storeSource;
+            if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)) {
+                storeSource = context.isSourceSynthetic()
+                    && withinMultiField == false
+                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            } else {
+                storeSource = context.isSourceSynthetic();
+            }
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
     }

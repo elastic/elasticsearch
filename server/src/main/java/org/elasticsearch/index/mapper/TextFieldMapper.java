@@ -307,12 +307,15 @@ public final class TextFieldMapper extends FieldMapper {
             //
             // If 'store' parameter was explicitly provided we'll reject the request.
             // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
-            this.store = Parameter.storeParam(
-                m -> ((TextFieldMapper) m).store,
-                () -> isSyntheticSourceEnabled
-                    && this.withinMultiField == false
-                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
-            );
+            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)) {
+                    return isSyntheticSourceEnabled
+                        && this.withinMultiField == false
+                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                } else {
+                    return isSyntheticSourceEnabled;
+                }
+            });
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,

@@ -132,15 +132,15 @@ public class ShardSearchStatsTests extends ESTestCase {
 
     public void testFetchPhase_withGroup() {
         try (SearchContext sc = createSearchContext(false)) {
-        shardSearchStatsListener.onPreFetchPhase(sc);
-        shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+            shardSearchStatsListener.onPreFetchPhase(sc);
+            shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        SearchStats searchStats = shardSearchStatsListener.stats("_all");
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
 
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
 

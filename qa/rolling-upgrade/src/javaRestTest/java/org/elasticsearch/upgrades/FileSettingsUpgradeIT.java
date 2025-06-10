@@ -17,6 +17,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
@@ -33,7 +34,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
-        () -> assumeFalse("Only valid when upgrading from pre-file settings", oldClusterHasFeature("gte_v8.4.0"))
+        () -> assumeTrue(
+            "Only valid when upgrading from pre-file settings",
+            Version.fromString(getOldClusterVersion()).before(new Version(8, 4, 0))
+        )
     );
 
     private static final String settingsJSON = """

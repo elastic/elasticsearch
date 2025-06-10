@@ -175,7 +175,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), name(), name() + "." + type.getName(), type, nullable(), id(), synthetic());
+        return new FieldAttribute(source(), fieldName().string, name() + "." + type.getName(), type, nullable(), id(), synthetic());
     }
 
     @Override

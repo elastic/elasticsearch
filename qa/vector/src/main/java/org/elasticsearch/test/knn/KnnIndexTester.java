@@ -57,9 +57,6 @@ public class KnnIndexTester {
         String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
         Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
-
-        // native access requires logging to be initialized
-        LogConfigurator.configureESLogging();
     }
 
     static final String INDEX_DIR = "target/knn_index";

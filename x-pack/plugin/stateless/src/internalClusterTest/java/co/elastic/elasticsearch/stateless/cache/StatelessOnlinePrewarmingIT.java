@@ -19,7 +19,11 @@ package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.TestStatelessCommitService;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -27,22 +31,26 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.ArrayList;
@@ -55,7 +63,6 @@ import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarming
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase {
 
@@ -83,7 +90,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);
-        plugins.add(co.elastic.elasticsearch.stateless.TestStateless.class);
+        plugins.add(TestCacheStatelessNoRecoveryPrewarming.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -121,12 +128,6 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
             }
         }
         flush(indexName);
-
-        // best effort, try to make sure the recovery warming is complete
-        // this is not bullet-proof as shard recovery warming goes through generic
-        // and then to the prewarming pool
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
-        assertNoRunningAndQueueTasks(threadPool, Stateless.PREWARM_THREAD_POOL);
 
         IndexShard indexShard = findSearchShard(indexName);
         var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
@@ -195,24 +196,70 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         cacheService.forceEvict(key -> true);
         // trigger online prewarming via search operation
         assertResponse(prepareSearch(indexName), response -> assertThat(response.getHits().getTotalHits().value(), is(10_000L)));
-        // wait for online prewarming to finish
-        assertNoRunningAndQueueTasks(threadPool, Stateless.PREWARM_THREAD_POOL);
-
-        long bytesWarmedAfterSearch = searchDirectory.totalBytesWarmed();
         // we expect more bytes to have been warmed for the new segments
-        assertThat(bytesWarmedAfterSearch - bytesWarmedAfterSecondPrewarming, is(greaterThan(0L)));
+        assertBusy(() -> assertThat(searchDirectory.totalBytesWarmed() - bytesWarmedAfterSecondPrewarming, is(greaterThan(0L))));
     }
 
-    private static void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName) throws Exception {
-        assertBusy(() -> {
-            final ThreadPoolStats.Stats stats = threadPool.stats()
-                .stats()
-                .stream()
-                .filter(s -> s.name().equals(executorName))
-                .findFirst()
-                .orElse(null);
-            assertThat(stats, is(notNullValue()));
-            assertThat(stats.active() + stats.queue(), is(0));
-        });
+    public static final class TestCacheStatelessNoRecoveryPrewarming extends Stateless {
+
+        public TestCacheStatelessNoRecoveryPrewarming(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Collection<Object> createComponents(Plugin.PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new TestStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
+        }
+
+        @Override
+        protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
+            Settings settings
+        ) {
+            // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
+                @Override
+                public void warmCacheForShardRecovery(
+                    Type type,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory
+                ) {}
+            };
+        }
     }
 }

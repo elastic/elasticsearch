@@ -76,6 +76,8 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -92,12 +94,14 @@ public abstract class AbstractClient implements Client {
 
     protected final Settings settings;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
     private final AdminClient admin;
 
     @SuppressWarnings("this-escape")
-    public AbstractClient(Settings settings, ThreadPool threadPool) {
+    public AbstractClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
         this.settings = settings;
         this.threadPool = threadPool;
+        this.projectResolver = projectResolver;
         this.admin = new AdminClient(this);
         this.logger = LogManager.getLogger(this.getClass());
     }
@@ -110,6 +114,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public final ThreadPool threadPool() {
         return this.threadPool;
+    }
+
+    @Override
+    public ProjectResolver projectResolver() {
+        return projectResolver;
     }
 
     @Override
@@ -403,6 +412,25 @@ public abstract class AbstractClient implements Client {
                 try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
                     super.doExecute(action, request, listener);
                 }
+            }
+        };
+    }
+
+    @Override
+    public Client projectClient(ProjectId projectId) {
+        // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
+        // take care of error handling.
+        if (projectResolver.supportsMultipleProjects() == false && projectId.equals(projectResolver.getProjectId())) {
+            return this;
+        }
+        return new FilterClient(this) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                projectResolver.executeOnProject(projectId, () -> super.doExecute(action, request, listener));
             }
         };
     }

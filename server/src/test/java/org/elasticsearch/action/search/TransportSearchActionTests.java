@@ -1754,7 +1754,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     throw new IllegalArgumentException("Not serializable to " + transportVersion);
                 }
             }));
-            NodeClient client = new NodeClient(settings, threadPool);
+            NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
 
             SearchService searchService = mock(SearchService.class);
             when(searchService.getRewriteContext(any(), any(), any(), anyBoolean())).thenReturn(

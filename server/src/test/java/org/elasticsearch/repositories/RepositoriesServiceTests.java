@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -95,7 +96,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
         var actionFilters = new ActionFilters(Set.of());
         client.initialize(
             Map.of(

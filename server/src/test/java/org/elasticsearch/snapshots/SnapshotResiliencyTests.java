@@ -2303,7 +2303,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
-                client = new NodeClient(settings, threadPool);
+                client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
                 this.usageService = new UsageService();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(

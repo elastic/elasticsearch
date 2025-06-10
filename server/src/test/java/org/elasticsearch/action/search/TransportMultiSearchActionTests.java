@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -81,7 +82,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             }
             AtomicInteger counter = new AtomicInteger(0);
             Task task = multiSearchRequest.createTask(randomLong(), "type", "action", null, Collections.emptyMap());
-            NodeClient client = new NodeClient(settings, threadPool) {
+            NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst()) {
                 @Override
                 public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                     assertEquals(task.getId(), request.getParentTask().getId());
@@ -150,7 +151,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         final Executor commonExecutor = executorServices.get(0);
         final Executor rarelyExecutor = executorServices.get(1);
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
-        NodeClient client = new NodeClient(settings, threadPool) {
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @Override
             public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);

@@ -10,6 +10,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +41,7 @@ public class BaseRestHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(this.getClass().getSimpleName() + "ThreadPool");
-        mockClient = new NodeClient(Settings.EMPTY, threadPool);
+        mockClient = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
     }
 
     @Override

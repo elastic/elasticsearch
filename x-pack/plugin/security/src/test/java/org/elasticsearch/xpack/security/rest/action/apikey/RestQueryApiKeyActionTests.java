@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -117,7 +118,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -190,7 +191,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -237,7 +238,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -323,7 +324,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             profileUids = new ArrayList<>(1);
             profileUids.add(randomAlphaOfLength(8));
         }
-        var client = new NodeClient(Settings.EMPTY, threadPool) {
+        var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

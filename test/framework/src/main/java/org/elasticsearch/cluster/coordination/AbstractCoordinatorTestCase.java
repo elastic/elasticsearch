@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -1140,7 +1141,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
                 final var coordinationServices = coordinatorStrategy.getCoordinationServices(
                     threadPool,
                     settings,

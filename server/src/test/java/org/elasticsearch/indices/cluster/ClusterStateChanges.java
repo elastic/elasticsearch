@@ -263,7 +263,7 @@ public class ClusterStateChanges {
                 return indexMetadata;
             }
         };
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
         Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(
             TransportVerifyShardBeforeCloseAction.TYPE,

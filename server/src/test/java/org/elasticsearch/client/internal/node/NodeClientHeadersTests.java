@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
@@ -41,7 +42,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         Map<ActionType<?>, TransportAction<?, ?>> actions = Stream.of(testedActions)
             .collect(Collectors.toMap(Function.identity(), a -> new InternalTransportAction(a.name(), taskManager)));
-        NodeClient client = new NodeClient(settings, threadPool);
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
         client.initialize(actions, taskManager, () -> "test", mock(Transport.Connection.class), null);
         return client;
     }

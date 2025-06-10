@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -101,7 +102,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final ApiKey apiKey = randomApiKeyInfo(withLimitedBy);
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(List.of(apiKey), profileUids);
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -167,7 +168,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         };
         final ApiKey apiKey1 = randomApiKeyInfo(randomBoolean());
         final List<String> profileUids1 = randomSize1ProfileUidsList();
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -241,7 +242,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             profileUids2
         );
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

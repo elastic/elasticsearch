@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -96,7 +97,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
     private static class MockClient extends AbstractClient {
         MockClient(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool);
+            super(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
         }
 
         @Override

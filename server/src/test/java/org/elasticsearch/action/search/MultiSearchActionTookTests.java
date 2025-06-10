@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -137,7 +138,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         final Executor commonExecutor = randomExecutor(threadPool);
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
-        NodeClient client = new NodeClient(settings, threadPool) {
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @Override
             public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);

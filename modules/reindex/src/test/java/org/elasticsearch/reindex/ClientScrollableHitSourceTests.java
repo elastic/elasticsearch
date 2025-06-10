@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -214,7 +215,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         private ExecuteRequest<?, ?> executeRequest;
 
         MockClient(ThreadPool threadPool) {
-            super(Settings.EMPTY, threadPool);
+            super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
         }
 
         @Override

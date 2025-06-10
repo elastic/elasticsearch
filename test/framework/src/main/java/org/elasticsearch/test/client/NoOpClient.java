@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -26,7 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 public class NoOpClient extends AbstractClient {
 
     public NoOpClient(ThreadPool threadPool) {
-        super(Settings.EMPTY, threadPool);
+        super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
     }
 
     @Override

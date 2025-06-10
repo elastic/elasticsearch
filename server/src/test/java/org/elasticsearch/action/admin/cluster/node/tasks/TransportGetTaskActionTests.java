@@ -73,7 +73,7 @@ public class TransportGetTaskActionTests extends ESTestCase {
         var transportService = mock(TransportService.class);
         var clusterService = mock(ClusterService.class);
         var nodeId = "node1";
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

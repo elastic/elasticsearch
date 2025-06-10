@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -68,7 +69,7 @@ public final class TransportRankEvalActionTests extends ESTestCase {
         );
         rankEvalRequest.indicesOptions(expectedIndicesOptions);
 
-        NodeClient client = new NodeClient(settings, null) {
+        NodeClient client = new NodeClient(settings, null, TestProjectResolvers.mustExecuteFirst()) {
             @Override
             public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
                 assertEquals(1, request.requests().size());

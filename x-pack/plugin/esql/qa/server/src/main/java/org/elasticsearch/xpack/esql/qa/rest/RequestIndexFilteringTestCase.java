@@ -13,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -194,10 +193,6 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [idx]"));
     }
 
-    protected boolean canDoRemoteTest() {
-        return false;
-    }
-
     public void testIndicesDontExist() throws IOException {
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
@@ -215,24 +210,16 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
+        assertThat(e.getMessage(), containsString("no such index [foo]"));
 
-        var pattern = from("test1");
-        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()
-            && (RemoteClusterAware.isRemoteIndexName(pattern) == false || canDoRemoteTest())) {
+        // Don't test remote patterns here, we'll test them in the multi-cluster tests
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
             e = expectThrows(
                 ResponseException.class,
-                () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
+                () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))
             );
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-            assertThat(
-                e.getMessage(),
-                // currently we don't support remote clusters in LOOKUP JOIN
-                // this check happens before resolving actual indices and results in a different error message
-                RemoteClusterAware.isRemoteIndexName(pattern)
-                    ? allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
-                    : allOf(containsString("verification_exception"), containsString("Unknown index [foo]"))
-            );
+            assertThat(e.getMessage(), allOf(containsString("verification_exception"), containsString("Unknown index [foo]")));
         }
     }
 

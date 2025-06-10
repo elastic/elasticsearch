@@ -1,0 +1,403 @@
+setup:
+  - requires:
+      cluster_features: [ "simplified_retriever_format" ]
+      reason: "Simplified retriever format"
+      test_runner_features: [ "close_to", "headers", "contains" ]
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 128,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              inference_1:
+                type: semantic_text
+                inference_id: dense-inference-id
+              inference_2:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              text_1:
+                type: text
+              text_2:
+                type: text
+              timestamp:
+                type: date
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index": {"_id": "1"}}
+          {
+            "keyword": "keyword match 1",
+            "inference_1": "you know",
+            "inference_2": "for testing",
+            "text_1": "foo match 1",
+            "text_2": "x match 2",
+            "timestamp": "2000-03-30",
+            "vector": [1]
+          }
+          {"index": {"_id": "2"}}
+          {
+            "keyword": "keyword match 2",
+            "inference_1": "ElasticSearch is an open source",
+            "inference_2": "distributed, RESTful, search engine",
+            "text_1": "bar match 3",
+            "text_2": "y match 4",
+            "timestamp": "2010-02-08",
+            "vector": [2]
+          }
+          {"index": {"_id": "3"}}
+          {
+            "keyword": "keyword match 3",
+            "inference_1": "which is built on top of Lucene internally",
+            "inference_2": "and enjoys all the features it provides",
+            "text_1": "baz match 5",
+            "text_2": "z match 6",
+            "timestamp": "2024-08-08",
+            "vector": [3]
+          }
+
+---
+"Query all fields using the simplified format":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - lte: { hits.hits.0._score: 2.0 }
+  - match: { hits.hits.1._id: "2" }
+  - lte: { hits.hits.1._score: 2.0 }
+  - match: { hits.hits.2._id: "1" }
+  - lte: { hits.hits.2._score: 2.0 }
+
+---
+"Lexical match per-field boosting using the simplified format":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "text_1", "text_2" ]
+              query: "foo 1 z"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - match: { hits.hits.1._id: "3" }
+  - lt: { hits.hits.1._score: 1.0 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: ["text_1", "text_2^3"]
+              query: "foo 1 z"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "3" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - match: { hits.hits.1._id: "1" }
+  - lt: { hits.hits.1._score: 1.0 }
+
+---
+"Semantic match per-field boosting using the simplified format":
+  # The mock inference services generate synthetic vectors that don't accurately represent similarity to non-identical
+  # input, so it's hard to create a test produces intuitive results. Instead, we rely on the fact that the inference
+  # services generate consistent vectors (i.e. same input -> same output) to demonstrate that per-field boosting on
+  # a semantic_text field can change the result order.
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "inference_1", "inference_2" ]
+              query: "distributed, RESTful, search engine"
+              normalizer: "minmax"
+
+  # Semantic-only match, so max score is 1
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - match: { hits.hits.1._id: "3" }
+  - lt: { hits.hits.1._score: 1.0 }
+  - match: { hits.hits.2._id: "1" }
+  - lt: { hits.hits.2._score: 1.0 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "inference_1^3", "inference_2" ]
+              query: "distributed, RESTful, search engine"
+              normalizer: "minmax"
+
+  # Semantic-only match, so max score is 1
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - match: { hits.hits.1._id: "2" }
+  - lt: { hits.hits.1._score: 1.0 }
+  - match: { hits.hits.2._id: "1" }
+  - lt: { hits.hits.2._score: 1.0 }
+
+---
+"Can query keyword fields":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "keyword" ]
+              query: "keyword match 1"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Can query date fields":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "timestamp" ]
+              query: "2010-02-08"
+              normalizer: "minmax"
+
+  # Lexical-only match, so max score is 1
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+
+---
+"Cannot query raw vector fields":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "vector" ]
+              query: "foo"
+              normalizer: "minmax"
+
+  - contains: { error.root_cause.0.reason: "[linear] search failed - retrievers '[standard]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [vector] of type [dense_vector] does not support match queries" }
+
+---
+"Wildcard index patterns that do not resolve to any index are handled gracefully":
+  - do:
+      search:
+        index: wildcard-*
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
+"Multi-index searches are not allowed":
+  - do:
+      indices.create:
+        index: test-index-2
+
+  - do:
+      catch: bad_request
+      search:
+        index: [ test-index, test-index-2 ]
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { error.root_cause.0.reason: "[linear] does not support the simplified query format when querying multiple indices" }
+
+---
+"Wildcard field patterns that do not resolve to any field are handled gracefully":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "wildcard-*" ]
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
+"Cannot mix simplified query format with custom sub-retrievers":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "foo"
+              normalizer: "minmax"
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          keyword: "bar"
+
+  - contains: { error.root_cause.0.reason: "[linear] cannot combine [retrievers] and [query]" }
+
+---
+"Cannot set top-level normalizer when using custom sub-retrievers":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              normalizer: "minmax"
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          keyword: "bar"
+
+  - contains: { error.root_cause.0.reason: "[linear] [normalizer] cannot be provided when [retrievers] is specified" }
+
+---
+"Missing required params":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "foo"
+
+  - contains: { error.root_cause.0.reason: "[linear] [normalizer] must be provided when [query] is specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: ["text_1", "text_2"]
+
+  - contains: { error.root_cause.0.reason: "[linear] [query] must be provided when [fields] is specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              fields: [ "text_1", "text_2" ]
+              query: ""
+
+  - contains: { error.root_cause.0.reason: "[linear] [query] cannot be empty" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear: {}
+
+  - contains: { error.root_cause.0.reason: "[linear] must provide [retrievers] or [query]" }

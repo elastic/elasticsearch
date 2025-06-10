@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -65,7 +66,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @SuppressWarnings("unchecked")
     public T addChild(RetrieverBuilder retrieverBuilder) {
-        innerRetrievers.add(new RetrieverSource(retrieverBuilder, null));
+        innerRetrievers.add(convertToRetrieverSource(retrieverBuilder));
         return (T) this;
     }
 
@@ -97,6 +98,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     public final RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         if (ctx.getPointInTimeBuilder() == null) {
             throw new IllegalStateException("PIT is required");
+        }
+
+        RetrieverBuilder rewritten = doRewrite(ctx);
+        if (rewritten != this) {
+            return rewritten;
         }
 
         // Rewrite prefilters
@@ -290,6 +296,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return rankWindowSize;
     }
 
+    public List<RetrieverSource> innerRetrievers() {
+        return Collections.unmodifiableList(innerRetrievers);
+    }
+
+    public static RetrieverSource convertToRetrieverSource(RetrieverBuilder retrieverBuilder) {
+        return new RetrieverSource(retrieverBuilder, null);
+    }
+
     protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
@@ -314,6 +328,16 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         return sourceBuilder;
+    }
+
+    /**
+     * Perform any custom rewrite logic necessary
+     *
+     * @param ctx The query rewrite context
+     * @return RetrieverBuilder the rewritten retriever
+     */
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        return this;
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

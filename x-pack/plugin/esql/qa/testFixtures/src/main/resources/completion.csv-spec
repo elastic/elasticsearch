@@ -34,7 +34,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 2
-| COMPLETION completion=title WITH test_completion
+| COMPLETION title WITH test_completion
 | KEEP title, completion
 ;
 
@@ -51,7 +51,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 2
-| COMPLETION completion=CONCAT("This is a prompt: ", title) WITH test_completion
+| COMPLETION CONCAT("This is a prompt: ", title) WITH test_completion
 | KEEP title, completion
 ;
 

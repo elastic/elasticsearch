@@ -24,11 +24,6 @@ public class TestPathLookup implements PathLookup {
     }
 
     @Override
-    public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
-        return Stream.empty();
-    }
-
-    @Override
     public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
         return Stream.empty();
     }

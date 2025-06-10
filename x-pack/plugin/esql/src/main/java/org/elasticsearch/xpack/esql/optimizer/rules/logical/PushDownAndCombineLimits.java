@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -64,6 +67,12 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     }
                 }
             }
+            if (unary instanceof Filter filter) {
+                Expression limitAppliedExpression = limitFilterExpressions(filter.condition(), limit, ctx);
+                if (limitAppliedExpression.equals(filter.condition()) == false) {
+                    return limit.replaceChild(filter.with(limitAppliedExpression));
+                }
+            }
         } else if (limit.child() instanceof Join join && join.config().type() == JoinTypes.LEFT) {
             // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
             // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
@@ -71,6 +80,19 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             return duplicateLimitAsFirstGrandchild(limit);
         }
         return limit;
+    }
+
+    /**
+     * Applies a limit to the filter expressions of a condition. Some filter expressions, such as KNN function,
+     * can be optimized by applying the limit directly to them.
+     */
+    private Expression limitFilterExpressions(Expression condition, Limit limit, LogicalOptimizerContext ctx) {
+        return condition.transformDown(exp -> {
+            if (exp instanceof Knn knn) {
+                return knn.replaceLimit((int) limit.limit().fold(ctx.foldCtx()));
+            }
+            return exp;
+        });
     }
 
     /**

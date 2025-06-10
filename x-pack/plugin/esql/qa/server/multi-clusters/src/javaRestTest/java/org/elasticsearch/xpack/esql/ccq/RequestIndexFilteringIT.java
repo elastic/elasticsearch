@@ -36,6 +36,8 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -154,11 +156,25 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
     }
 
-    @Override
-    protected boolean canDoRemoteTest() {
-        return EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled()
-            && Clusters.localClusterVersion().onOrAfter(Version.fromString("9.1.0"));
+    public void testIndicesDontExistWithRemotePattern() throws IOException {
         // TODO: add 8.19 if this is merged to 8.x
+        assumeTrue("Only works with remote LOOKUP JOIN support", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.1.0")));
+
+        int docsTest1 = randomIntBetween(1, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+
+        if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled()) {
+            var pattern = "FROM test1,*:test1";
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
+            );
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(
+                e.getMessage(),
+                allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
+            );
+        }
     }
 
     // We need a separate test since remote missing indices and local missing indices now work differently

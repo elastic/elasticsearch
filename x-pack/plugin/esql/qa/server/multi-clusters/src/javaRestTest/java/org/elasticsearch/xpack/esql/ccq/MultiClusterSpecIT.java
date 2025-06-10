@@ -39,8 +39,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -50,6 +52,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V7;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
@@ -128,6 +131,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V2.capabilityName()));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V7.capabilityName()));
+        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
+            assumeTrue("LOKUP JOIN not supported", supportsIndexModeLookup());
+            assumeTrue("LOOKUP JOIN not yet supported in CCS", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.1.0")));
+        }
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
         assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
@@ -179,6 +186,25 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     // These indices are used in metadata tests so we want them on remote only for consistency
     public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
 
+    // These are loopkup indices, we want them on remotes and locals
+    public static final Set<String> LOOKUP_INDICES = Stream.of(
+        "languages_nested_fields",
+        "languages_lookup",
+        "clientips_lookup",
+        "languages_mixed_numerics",
+        "threat_list",
+        "message_types_lookup",
+        "host_inventory",
+        "ownerships",
+        "languages_lookup_non_unique_key",
+        "lookup_sample_data_ts_nanos",
+        "service_owners"
+    ).map(i -> "/" + i + "/_bulk").collect(Collectors.toSet());
+
+    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_SOURCE_INDICES.stream()
+        .map(i -> "/" + i + "/_bulk")
+        .collect(Collectors.toSet());
+
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk and _query requests.
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
@@ -197,15 +223,17 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 return localClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return remoteClient.performRequest(request);
-            } else if (endpoint.endsWith("/_bulk") && ENRICH_SOURCE_INDICES.stream().noneMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
-                return bulkClient.performRequest(request);
-            } else {
-                Request[] clones = cloneRequests(request, 2);
-                Response resp1 = remoteClient.performRequest(clones[0]);
-                Response resp2 = localClient.performRequest(clones[1]);
-                assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
-                return resp2;
-            }
+            } else if (endpoint.endsWith("/_bulk")
+                && ENRICH_ENDPOINTS.contains(endpoint) == false
+                && LOOKUP_INDICES.contains(endpoint) == false) {
+                    return bulkClient.performRequest(request);
+                } else {
+                    Request[] clones = cloneRequests(request, 2);
+                    Response resp1 = remoteClient.performRequest(clones[0]);
+                    Response resp2 = localClient.performRequest(clones[1]);
+                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
+                    return resp2;
+                }
         });
         doAnswer(invocation -> {
             IOUtils.close(localClient, remoteClient);
@@ -357,9 +385,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsIndexModeLookup() throws IOException {
-        // CCS does not yet support JOIN_LOOKUP_V10 and clusters falsely report they have this capability
-        // return hasCapabilities(List.of(JOIN_LOOKUP_V10.capabilityName()));
-        return false;
+        return hasCapabilities(List.of(JOIN_LOOKUP_V12.capabilityName()));
     }
 
     @Override

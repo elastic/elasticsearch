@@ -15,6 +15,9 @@ public final class AuthenticationField {
 
     public static final String CLOUD_API_KEY_REALM_NAME = "_cloud_api_key";
     public static final String CLOUD_API_KEY_REALM_TYPE = "_cloud_api_key";
+    public static final String CLOUD_API_KEY_ID_KEY = "cloud_api_key_id";
+    public static final String CLOUD_API_KEY_NAME_KEY = "cloud_api_key_name";
+    public static final String CLOUD_API_KEY_INTERNAL_KEY = "cloud_api_key_internal";
 
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";

@@ -236,6 +236,13 @@ public final class Authentication implements ToXContentObject {
         return type;
     }
 
+    public ManagedBy getManagedBy() {
+        if (isCloudApiKey()) {
+            return ManagedBy.CLOUD;
+        }
+        return ManagedBy.ELASTICSEARCH;
+    }
+
     /**
      * Whether the authentication contains a subject run-as another subject. That is, the authentication subject
      * is different from the effective subject.
@@ -748,14 +755,15 @@ public final class Authentication implements ToXContentObject {
      */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
         final User user = effectiveSubject.getUser();
+        final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final String tokenName = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+            final String tokenName = (String) metadata.get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            final String tokenSource = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            final String tokenSource = (String) metadata.get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
@@ -791,15 +799,28 @@ public final class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey() || isCrossClusterAccess()) {
-            final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) metadata.get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
                 builder.field("api_key", Map.of("id", apiKeyId));
             } else {
                 builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
             }
         }
-        // TODO cloud API key fields such as managed_by
+        if (isCloudApiKey()) {
+            final String apiKeyId = (String) metadata.get(AuthenticationField.CLOUD_API_KEY_ID_KEY);
+            final String apiKeyName = (String) metadata.get(AuthenticationField.CLOUD_API_KEY_NAME_KEY);
+            final boolean internal = (boolean) metadata.get(AuthenticationField.CLOUD_API_KEY_INTERNAL_KEY);
+            if (apiKeyName == null) {
+                builder.field("api_key", Map.ofEntries(Map.entry("id", apiKeyId), Map.entry("internal", internal)));
+            } else {
+                builder.field(
+                    "api_key",
+                    Map.ofEntries(Map.entry("id", apiKeyId), Map.entry("name", apiKeyName), Map.entry("internal", internal))
+                );
+            }
+        }
+        builder.field("managed_by", getManagedBy().name());
     }
 
     public static Authentication getAuthenticationFromCrossClusterAccessMetadata(Authentication authentication) {
@@ -1645,6 +1666,14 @@ public final class Authentication implements ToXContentObject {
         TOKEN,
         ANONYMOUS,
         INTERNAL
+    }
+
+    /**
+     *  Indicates if the credentials are managed by Elasticsearch or by the cloud.
+     */
+    public enum ManagedBy {
+        CLOUD,
+        ELASTICSEARCH
     }
 
     public static class AuthenticationSerializationHelper {

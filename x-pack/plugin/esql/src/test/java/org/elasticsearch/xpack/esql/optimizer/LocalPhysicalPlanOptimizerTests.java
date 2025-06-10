@@ -2092,6 +2092,25 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(knnQuery.k(), is(10));
     }
 
+    public void testKnnWithExplicitLimitAndExistingTopK() {
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], {"k": 10})
+            | limit 50
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(50));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(50));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+    }
+
     public void testMultipleKnnQueriesLimit() {
         var query = """
             from test

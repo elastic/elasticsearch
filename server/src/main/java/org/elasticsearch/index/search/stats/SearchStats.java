@@ -49,7 +49,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryFailure;
         private long fetchFailure;
 
-        // This tracks the search execution time across different phases (e.g., query, fetch, etc.), favouring more recent 
+        // This tracks the search execution time across different phases (e.g., query, fetch, etc.), favouring more recent
         // values by assigning them greater significance than older values.
         private double recentSearchLoad;
 

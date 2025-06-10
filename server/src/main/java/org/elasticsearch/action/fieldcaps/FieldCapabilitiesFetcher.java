@@ -259,6 +259,7 @@ class FieldCapabilitiesFetcher {
             fcf = ft -> acceptedTypes.contains(ft.familyTypeName());
         }
 
+        // Exclude internal ".inference" subfields of semantic_text fields from the field capabilities response
         Collection<InferenceFieldMetadata> inferenceFields = context.getMappingLookup().inferenceFields().values();
         for (InferenceFieldMetadata inferenceField : inferenceFields) {
             Predicate<MappedFieldType> next = ft -> ft.name().startsWith(inferenceField.getName() + ".inference") == false;

@@ -753,6 +753,22 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithRenameAs() {
+        // if we change the order and have RENAME ... | WHERE ... the query works?
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" | RENAME content AS body )
+               ( SORT id | LIMIT 3 )
+            | SORT _fork, id
+            | KEEP _fork, id, content, body
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "body"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text", "text"));
+        }
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test

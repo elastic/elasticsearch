@@ -333,3 +333,427 @@ a:long | b:keyword | _fork:keyword
 2      | null      | fork3
 2      | null      | fork4
 ;
+
+forkAfterDrop
+required_capability: fork_v7
+
+FROM languages
+| DROP language_code
+| FORK ( WHERE language_name == "English" | EVAL x = 1 )
+       ( WHERE language_name != "English" )
+| SORT _fork, language_name
+;
+
+language_name:keyword | x:integer | _fork:keyword
+English               | 1         | fork1
+French                | null      | fork2
+German                | null      | fork2
+Spanish               | null      | fork2
+;
+
+forkBranchWithDrop-Ignore
+required_capability: fork_v7
+
+FROM languages
+| FORK ( DROP language_code | WHERE language_name == "English" | EVAL x = 1 )
+       ( WHERE language_name != "English" )
+| SORT _fork, language_name
+;
+
+language_name:keyword | language_code:integer | x:integer  | _fork:keyword
+a | 1 | 2
+;
+
+
+forkBeforeDrop
+required_capability: fork_v7
+
+FROM languages
+| FORK (WHERE language_code == 1 OR language_code == 2)
+       (WHERE language_code == 1)
+| DROP language_code
+| SORT _fork, language_name
+;
+
+language_name:keyword | _fork:keyword
+English               | fork1
+French                | fork1
+English               | fork2
+;
+
+forkBeforeRename
+required_capability: fork_v7
+
+FROM languages
+| FORK (WHERE language_code == 1 OR language_code == 2)
+       (WHERE language_code == 1)
+| RENAME language_code AS code
+| SORT _fork, language_name
+;
+
+code:integer | language_name:keyword | _fork:keyword
+1            | English               | fork1
+2            | French                | fork1
+1            | English               | fork2
+;
+
+forkBranchWithRenameAs-Ignore
+required_capability: fork_v7
+
+FROM languages
+| FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
+       (WHERE language_code == 1 | RENAME language_code AS x)
+| SORT _fork, language_name
+;
+
+language_name:keyword | x:integer | code:integer | _fork:keyword
+1 | 2 | 3 | 4
+;
+
+forkAfterRename
+required_capability: fork_v7
+
+FROM languages
+| RENAME language_code AS code
+| FORK (WHERE code == 1 OR code == 2)
+       (WHERE code == 1)
+| SORT _fork, language_name
+;
+
+code:integer | language_name:keyword | _fork:keyword
+1            | English               | fork1
+2            | French                | fork1
+1            | English               | fork2
+;
+
+
+forkBeforeDissect
+required_capability: fork_v7
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = concat(gender, " foobar")
+| DISSECT x "%{a} %{b}"
+| SORT _fork, emp_no
+| KEEP emp_no, gender, x, a, b, _fork
+;
+
+emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyword
+10048          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork2
+10087          | F              | F foobar  | F         | foobar    | fork2
+;
+
+
+forkBranchWithDissect
+required_capability: fork_v7
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081
+        | EVAL x = concat(gender, " foobar")
+        | DISSECT x "%{a} %{b}")
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no
+| KEEP emp_no, gender, x, a, b, _fork
+;
+
+emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyword
+10048          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | null      | null      | null      | fork2
+10087          | F              | null      | null      | null      | fork2
+;
+
+
+forkAfterDissect
+required_capability: fork_v7
+
+FROM employees
+| EVAL x = concat(gender, " foobar")
+| DISSECT x "%{a} %{b}"
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no
+| KEEP emp_no, gender, x, a, b, _fork
+;
+
+emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyword
+10048          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork2
+10087          | F              | F foobar  | F         | foobar    | fork2
+;
+
+forkAfterEnrich
+required_capability: fork_v7
+
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+| ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+| FORK (WHERE city.name != "Amsterdam")
+       (WHERE city.country.name == "Japan")
+| SORT _fork, city.name
+;
+
+city.country.name:keyword | city.name:keyword   | city.country.continent.planet.name:text | _fork:keyword
+United States of America  | South San Francisco | San Francisco Int'l                     | fork1
+Japan                     | Tokyo               | null                                    | fork1
+Japan                     | Tokyo               | null                                    | fork2
+;
+    
+forkBranchWithEnrich-Ignore
+required_capability: fork_v7
+
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+| FORK (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
+       (WHERE city.country.name == "Japan")
+| SORT _fork, city.name
+;
+
+city.country.name:keyword | city.name:keyword   | city.country.continent.planet.name:text | _fork:keyword
+Netherlands               | Amsterdam           | null | a
+;
+
+forkBeforeEnrich
+required_capability: fork_v7
+
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+| FORK (WHERE city.country.name == "Netherlands")
+       (WHERE city.country.name != "Japan")
+| ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+| SORT _fork, city.name
+;
+
+city.country.name:keyword | city.name:keyword   | _fork:keyword | city.country.continent.planet.name:text
+Netherlands               | Amsterdam           | fork1         | null
+Netherlands               | Amsterdam           | fork2         | null
+United States of America  | South San Francisco | fork2         | San Francisco Int'l
+;
+
+forkBeforeMvExpand
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, job_positions
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| MV_EXPAND job_positions
+| SORT _fork, emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword | _fork:keyword
+10048          | Internship            | fork1
+10081          | Accountant            | fork1
+10081          | Internship            | fork1
+10081          | Accountant            | fork2
+10081          | Internship            | fork2
+10087          | Internship            | fork2
+10087          | Junior Developer      | fork2
+;
+
+forkBranchWithMvExpand-Ignore
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, job_positions
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | MV_EXPAND job_positions)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no, job_positions
+;
+
+emp_no:integer |  job_positions:keyword | _fork:keyword
+1 | 2 | 3
+;
+
+forkAfterMvExpand
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword | _fork:keyword
+10048          | Internship            | fork1
+10081          | Accountant            | fork1
+10081          | Internship            | fork1
+10081          | Accountant            | fork2
+10081          | Internship            | fork2
+10087          | Internship            | fork2
+10087          | Junior Developer      | fork2
+;
+
+// This is a bug we need to solve
+forkBeforeInlineStats-Ignore
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, languages, gender
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| INLINESTATS max_lang = MAX(languages) BY gender 
+| SORT emp_no, gender, _fork
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:keyword
+1 | 2 | 3 | 4 | 5
+;
+
+forkBranchWithInlineStats
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, languages, gender
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081
+        | INLINESTATS x = MAX(languages) BY gender)
+       (WHERE emp_no == 10081 OR emp_no == 10087
+        | INLINESTATS x = MIN(languages))
+        (WHERE emp_no == 10012 OR emp_no == 10012)
+| SORT emp_no, gender, _fork
+;
+
+emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
+10012          | 5                 | null      | null           | fork3
+10048          | 3                 | 3         | M              | fork1
+10081          | 2                 | 3         | M              | fork1
+10081          | 2                 | 2         | M              | fork2
+10087          | 5                 | 2         | F              | fork2
+;
+
+forkAfterInlineStats
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, languages, gender
+| INLINESTATS max_lang = MAX(languages) BY gender 
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT emp_no, gender, _fork
+;
+
+emp_no:integer | languages:integer | max_lang:integer | gender:keyword | _fork:keyword
+10048          | 3                 | 5                | M              | fork1
+10081          | 2                 | 5                | M              | fork1
+10081          | 2                 | 5                | M              | fork2
+10087          | 5                 | 5                | F              | fork2
+;
+
+forkBeforeChangePoint
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, salary
+| EVAL salary=CASE(emp_no==10042, 1000000, salary)
+| FORK (WHERE emp_no > 10100)
+       (WHERE emp_no <= 10100)
+| CHANGE_POINT salary ON emp_no
+| STATS COUNT() by type
+| SORT type
+;
+
+COUNT():long | type:keyword
+1            | spike
+99           | null
+;
+
+forkBranchWithChangePoint
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, salary
+| FORK (EVAL salary=CASE(emp_no==10042, 1000000, salary)
+        | CHANGE_POINT salary ON emp_no
+        | STATS COUNT() by type)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, type, emp_no
+;
+
+COUNT():long | type:keyword | _fork:keyword | emp_no:integer | salary:long
+1            | spike        | fork1         | null           | null
+99           | null         | fork1         | null           | null
+null         | null         | fork2         | 10081          | 50128
+null         | null         | fork2         | 10087          | 32272
+;
+
+forkAfterChangePoint
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, salary
+| EVAL salary = CASE(emp_no==10042, 1000000, salary)
+| CHANGE_POINT salary ON emp_no
+| FORK (STATS a = COUNT() by type)
+       (STATS b = VALUES(type))
+| SORT _fork, a, type, b
+;
+
+a:long | type:keyword | _fork:keyword | b:keyword
+1      | spike        | fork1         | null
+99     | null         | fork1         | null
+null   | null         | fork2         | spike
+;
+
+forkBeforeCompletion
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, first_name, last_name
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| COMPLETION x = CONCAT(first_name, " ", last_name) WITH test_completion
+| SORT _fork, emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | _fork:keyword | x:keyword
+10048          | Florian            | Syrotiuk          | fork1         | FLORIAN SYROTIUK
+10081          | Zhongwei           | Rosen             | fork1         | ZHONGWEI ROSEN
+10081          | Zhongwei           | Rosen             | fork2         | ZHONGWEI ROSEN
+10087          | Xinglin            | Eugenio           | fork2         | XINGLIN EUGENIO
+;
+
+forkBranchWithCompletion
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, first_name, last_name
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081
+       | COMPLETION x = CONCAT(first_name, " ", last_name) WITH test_completion)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | x:keyword        | _fork:keyword
+10048          | Florian            | Syrotiuk          | FLORIAN SYROTIUK | fork1
+10081          | Zhongwei           | Rosen             | ZHONGWEI ROSEN   | fork1
+10081          | Zhongwei           | Rosen             | null             | fork2
+10087          | Xinglin            | Eugenio           | null             | fork2
+;
+
+forkAfterCompletion
+required_capability: fork_v7
+
+FROM employees
+| KEEP emp_no, first_name, last_name
+| COMPLETION x = CONCAT(first_name, " ", last_name) WITH test_completion
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | x:keyword        | _fork:keyword
+10048          | Florian            | Syrotiuk          | FLORIAN SYROTIUK | fork1
+10081          | Zhongwei           | Rosen             | ZHONGWEI ROSEN   | fork1
+10081          | Zhongwei           | Rosen             | ZHONGWEI ROSEN   | fork2
+10087          | Xinglin            | Eugenio           | XINGLIN EUGENIO  | fork2
+;

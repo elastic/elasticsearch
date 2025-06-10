@@ -3432,8 +3432,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFieldAsPrompt() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID AS targetField"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
@@ -3442,8 +3440,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var plan = as(processingCommand("COMPLETION CONCAT(fieldA, fieldB) WITH inferenceID AS targetField"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
@@ -3452,8 +3448,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionDefaultFieldName() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
@@ -3462,8 +3456,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionWithPositionalParameters() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
 
@@ -3473,8 +3465,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionWithNamedParameters() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
 
@@ -3484,8 +3474,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCompletion() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
         expectError("FROM foo* | COMPLETION prompt WITH", "line 1:35: mismatched input '<EOF>' expecting {");

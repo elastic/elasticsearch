@@ -44,6 +44,76 @@ The following retrievers are available:
 `rule`
 :   A [retriever](#rule-retriever) that applies contextual [Searching with query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries.
 
+## Pinned Retriever [pinned-retriever]
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, in the order provided. This is useful for promoting certain documents for particular queries, regardless of their relevance score. The remaining results are filled by a fallback retriever.
+
+#### Parameters [pinned-retriever-parameters]
+
+`ids`
+:   (Optional, array of strings)
+
+    A list of document IDs to pin at the top of the results, in the order provided.
+
+`documents`
+:   (Optional, array of objects)
+
+    A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`fallback`
+:   (Optional, retriever object)
+
+    A retriever to use for retrieving the remaining documents after the pinned ones.
+
+Either `ids` or `documents` must be specified.
+
+### Example using `ids` [pinned-retriever-example-ids]
+
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "ids": ["doc1", "doc2"],
+      "fallback": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Example using `documents` [pinned-retriever-example-documents]
+
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "documents": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "fallback": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ## Standard Retriever [standard-retriever]
 
 A standard retriever returns top documents from a traditional [query](/reference/query-languages/querydsl.md).

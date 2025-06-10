@@ -66,6 +66,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -377,15 +378,14 @@ public class HuggingFaceServiceTests extends ESTestCase {
                             }
                         });
                         var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
-
-                        assertThat(json, is("""
+                        assertThat(json, is(String.format(Locale.ROOT, """
                             {\
                             "error":{\
                             "code":"not_found",\
-                            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+                            "message":"Resource not found at [%s] for request from inference entity id [id] status \
                             [404]. Error message: [Model not found.]",\
                             "type":"hugging_face_error"\
-                            }}"""));
+                            }}""", getUrl(webServer))));
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
                     }
@@ -638,7 +638,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -660,7 +660,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );
@@ -682,7 +682,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         e.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
                     );
                 }
             );

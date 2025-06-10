@@ -103,6 +103,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Vector;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -1839,14 +1840,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         boolean updatableTo(IndexOptions update) {
-            boolean updatable = update.type.equals(this.type);
-            if (updatable) {
+            boolean updatable = false;
+            if (update.type.equals(VectorIndexType.INT4_HNSW)) {
                 Int4HnswIndexOptions int4HnswIndexOptions = (Int4HnswIndexOptions) update;
                 // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
                 // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
                 updatable = int4HnswIndexOptions.m >= this.m && confidenceInterval == int4HnswIndexOptions.confidenceInterval;
+            } else if (update.type.equals(VectorIndexType.BBQ_HNSW)) {
+                updatable = ((BBQHnswIndexOptions) update).m >= m;
             }
-            return updatable || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
+            return updatable;
         }
     }
 

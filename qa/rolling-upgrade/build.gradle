@@ -31,13 +31,6 @@ tasks.register("bcUpgradeTest", StandaloneRestIntegTestTask) {
   usesBwcDistribution(Version.fromString("0.0.0"))
   systemProperty("tests.old_cluster_version", "0.0.0")
   onlyIf("tests.bwc.main.version system property exists") { System.getProperty("tests.bwc.main.version") != null }
-
-  filter {
-    // TODO (ES-12010) investigate these test failures
-    excludeTestsMatching("org.elasticsearch.upgrades.FeatureUpgradeIT")
-    //excludeTestsMatching("org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT")
-    excludeTestsMatching("org.elasticsearch.upgrades.SnapshotBasedRecoveryIT")
-  }
 }
 
 tasks.withType(Test).configureEach {

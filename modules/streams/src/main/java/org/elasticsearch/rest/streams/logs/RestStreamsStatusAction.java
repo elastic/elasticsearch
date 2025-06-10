@@ -11,6 +11,7 @@ package org.elasticsearch.rest.streams.logs;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
@@ -23,28 +24,23 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
+public class RestStreamsStatusAction extends BaseRestHandler {
+
     @Override
     public String getName() {
-        return "streams_logs_set_enabled_action";
+        return "streams_status_action";
     }
 
     @Override
-    public List<Route> routes() {
-        return List.of(new Route(GET, "/_streams/logs/_enable"), new Route(GET, "/_streams/logs/_disable"));
+    public List<RestHandler.Route> routes() {
+        return List.of(new RestHandler.Route(GET, "/_streams/_status"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean enabled = request.path().endsWith("_enable");
-        assert enabled || request.path().endsWith("_disable");
+    protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return restChannel -> client.execute(
-            LogsStreamsActivationToggleAction.INSTANCE,
-            new LogsStreamsActivationToggleAction.Request(
-                RestUtils.getMasterNodeTimeout(request),
-                RestUtils.getAckTimeout(request),
-                enabled
-            ),
+            StreamsStatusAction.INSTANCE,
+            new StreamsStatusAction.Request(RestUtils.getMasterNodeTimeout(request)),
             new RestToXContentListener<>(restChannel)
         );
     }

@@ -43,7 +43,6 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
 
     @Inject
     public TransportLogsStreamsToggleActivation(
-        String actionName,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -51,7 +50,7 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
         ProjectResolver projectResolver
     ) {
         super(
-            actionName,
+            LogsStreamsActivationToggleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,

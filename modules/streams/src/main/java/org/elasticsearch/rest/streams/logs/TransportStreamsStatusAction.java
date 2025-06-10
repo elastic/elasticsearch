@@ -1,0 +1,70 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.rest.streams.logs;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.streams.StreamsMetadata;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+public class TransportStreamsStatusAction extends TransportMasterNodeReadAction<StreamsStatusAction.Request, StreamsStatusAction.Response> {
+
+    private final ProjectResolver projectResolver;
+
+    @Inject
+    public TransportStreamsStatusAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
+        super(
+            StreamsStatusAction.INSTANCE.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StreamsStatusAction.Request::new,
+            StreamsStatusAction.Response::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+        );
+        this.projectResolver = projectResolver;
+    }
+
+    @Override
+    protected void masterOperation(
+        Task task,
+        StreamsStatusAction.Request request,
+        ClusterState state,
+        ActionListener<StreamsStatusAction.Response> listener
+    ) throws Exception {
+        ProjectId projectId = projectResolver.getProjectId();
+        StreamsMetadata streamsState = state.projectState(projectId).metadata().custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
+        boolean logsEnabled = streamsState.isLogsEnabled();
+        StreamsStatusAction.Response response = new StreamsStatusAction.Response(logsEnabled);
+        listener.onResponse(response);
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(StreamsStatusAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+}

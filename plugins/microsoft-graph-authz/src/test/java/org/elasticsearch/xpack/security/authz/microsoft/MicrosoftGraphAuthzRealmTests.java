@@ -117,25 +117,25 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
     }
 
     public void testLookupUser() {
-        final var roleMapper = mockRoleMapper(Set.of(groupId), Set.of(roleName));
-
-        final var realmSettings = realmSettings().build();
-
-        final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
-        final var client = mock(GraphServiceClient.class);
-        when(client.getRequestAdapter()).thenReturn(mock(RequestAdapter.class));
-
-        final var userRequestBuilder = mockGetUser(client);
-        when(userRequestBuilder.get(any())).thenReturn(user(name, email));
-
-        final var graphGroupRequestBuilder = mockGetGroupMembership(userRequestBuilder);
-        when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership(groupId));
-
-        final var licenseState = mockLicense(true);
-
-        final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
-        final var future = new PlainActionFuture<User>();
         try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
+            final var roleMapper = mockRoleMapper(Set.of(groupId), Set.of(roleName));
+
+            final var realmSettings = realmSettings().build();
+
+            final var config = new RealmConfig(realmId, realmSettings, env, threadContext);
+            final var client = mock(GraphServiceClient.class);
+            when(client.getRequestAdapter()).thenReturn(mock(RequestAdapter.class));
+
+            final var userRequestBuilder = mockGetUser(client);
+            when(userRequestBuilder.get(any())).thenReturn(user(name, email));
+
+            final var graphGroupRequestBuilder = mockGetGroupMembership(userRequestBuilder);
+            when(graphGroupRequestBuilder.get(any())).thenReturn(groupMembership(groupId));
+
+            final var licenseState = mockLicense(true);
+
+            final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
+            final var future = new PlainActionFuture<User>();
             realm.lookupUser(username, future);
 
             mockLog.addExpectation(

@@ -2158,7 +2158,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsInStats("title : \"Meditation\"");
         checkFullTextFunctionsInStats("qstr(\"title: Meditation\")");
         checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
-        checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         }

@@ -274,19 +274,6 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     Authentication.AuthenticationType.API_KEY
                 )
             ),
-            entry(
-                "Cloud API key authentication cannot run-as other user",
-                encodeAuthentication(
-                    new Subject(userBar, realm2),
-                    new Subject(
-                        new User("username", "role1", "role2"),
-                        Authentication.RealmRef.newCloudApiKeyRealmRef("node"),
-                        TransportVersion.current(),
-                        Map.of(AuthenticationField.API_KEY_ID_KEY, "cloud-api-key-id")
-                    ),
-                    Authentication.AuthenticationType.API_KEY
-                )
-            ),
             // Authentication type: Realm
             entry(
                 "Realm authentication must have subject type of user",
@@ -377,6 +364,14 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 "Run-as subject type cannot be [API_KEY]",
                 encodeAuthentication(
                     new Subject(userBar, Authentication.RealmRef.newApiKeyRealmRef("node")),
+                    new Subject(userFoo, realm1),
+                    Authentication.AuthenticationType.REALM
+                )
+            ),
+            entry(
+                "Run-as subject type cannot be [CLOUD_API_KEY]",
+                encodeAuthentication(
+                    new Subject(userBar, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     new Subject(userFoo, realm1),
                     Authentication.AuthenticationType.REALM
                 )

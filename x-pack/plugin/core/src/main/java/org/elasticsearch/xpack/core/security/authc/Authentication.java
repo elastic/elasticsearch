@@ -960,10 +960,6 @@ public final class Authentication implements ToXContentObject {
                 );
             }
             checkNoRunAs(this, "Cross cluster access");
-
-        } else if (Subject.Type.CLOUD_API_KEY == authenticatingSubject.getType()) {
-            checkNoRunAs(this, prefixMessage);
-
         } else {
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);

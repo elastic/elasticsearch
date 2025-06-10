@@ -1,0 +1,6 @@
+pr: 129089
+summary: Update `sparse_vector` field mapping to include default setting for token
+  pruning
+area: "Mapping, Relevance"
+type: enhancement
+issues: []

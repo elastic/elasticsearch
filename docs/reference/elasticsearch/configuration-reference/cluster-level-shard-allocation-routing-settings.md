@@ -67,9 +67,9 @@ You can use the following settings to control the rebalancing of shards across t
 `cluster.routing.allocation.allow_rebalance`
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Specify when shard rebalancing is allowed:
 
-* `always` -                    (default) Always allow rebalancing.
+* `always` -                    Always allow rebalancing.
 * `indices_primaries_active` -  Only when all primaries in the cluster are allocated.
-* `indices_all_active` -        Only when all shards (primaries and replicas) in the cluster are allocated.
+* `indices_all_active` -        (default) Only when all shards (primaries and replicas) in the cluster are allocated.
 
 
 `cluster.routing.rebalance.enable`

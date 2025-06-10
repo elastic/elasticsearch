@@ -12,7 +12,6 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -588,7 +587,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/tsdb_index_auto_follow_pattern");
             createAutoFollowRequest.setJsonEntity("""
                 {
-                    "leader_index_patterns": [ ".ds-tsdb-index-*" ],
+                    "leader_index_patterns": [ "tsdb-index-*" ],
                     "remote_cluster": "leader_cluster",
                     "read_poll_timeout": "1000ms",
                     "follow_index_pattern": "{{leader_index}}"
@@ -600,28 +599,23 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 index(leaderClient, dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
                 String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);
-                assertBusy(() -> { assertOK(client().performRequest(new Request("HEAD", "/" + backingIndexName))); });
+                assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + backingIndexName))));
 
                 // rollover
                 Request rolloverRequest = new Request("POST", "/" + dataStream + "/_rollover");
-                rolloverRequest.setJsonEntity("""
-                    {
-                        "conditions": {
-                        "max_docs": "1"
-                        }
-                    }""");
                 leaderClient.performRequest(rolloverRequest);
 
                 assertBusy(() -> {
+                    Map<String, Object> indexExplanation = explainIndex(client(), backingIndexName);
                     assertThat(
                         "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
-                        explainIndex(client(), backingIndexName).get("step"),
+                        indexExplanation.get("step"),
                         is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
                     );
 
-                    assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+                    assertThat(indexExplanation.get("step_info"), is(notNullValue()));
                     assertThat(
-                        (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                        (String) ((Map<String, Object>) indexExplanation.get("step_info")).get("message"),
                         containsString("Waiting until the index's time series end time lapses")
                     );
                 }, 30, TimeUnit.SECONDS);
@@ -967,15 +961,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     private static Map<String, Object> explainIndex(RestClient client, String indexName) throws IOException {
-        RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
-                [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
-                and will be removed in a future release. \
-                See the deprecation documentation for the next major version.""").equals(warnings) == false)
-            .build();
-
         Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
-        explainRequest.setOptions(consumeWarningsOptions);
         Response response = client.performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {

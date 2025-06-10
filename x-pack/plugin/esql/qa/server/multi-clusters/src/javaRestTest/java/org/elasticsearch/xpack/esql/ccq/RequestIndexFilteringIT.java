@@ -18,6 +18,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -151,6 +152,13 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     private static boolean checkVersion(org.elasticsearch.Version version) {
         return version.onOrAfter(Version.fromString("9.1.0"))
             || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+    }
+
+    @Override
+    protected boolean canDoRemoteTest() {
+        return EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled()
+            && Clusters.localClusterVersion().onOrAfter(Version.fromString("9.1.0"));
+        // TODO: add 8.19 if this is merged to 8.x
     }
 
     // We need a separate test since remote missing indices and local missing indices now work differently

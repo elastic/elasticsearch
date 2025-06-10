@@ -52,79 +52,86 @@ public class ShardSearchStatsTests extends ESTestCase {
     }
 
     public void testQueryPhase() {
-        SearchContext sc = createSearchContext(false);
-        shardSearchStatsListener.onPreQueryPhase(sc);
-        shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testQueryPhase_SuggestOnly() {
-        SearchContext sc = createSearchContext(true);
-        shardSearchStatsListener.onPreQueryPhase(sc);
-        shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        try (SearchContext sc = createSearchContext(true)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testQueryPhase_withGroup() {
-        SearchContext sc = createSearchContext(false);
-        shardSearchStatsListener.onPreQueryPhase(sc);
-        shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        SearchStats searchStats = shardSearchStatsListener.stats("_all");
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
 
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testQueryPhase_withGroup_SuggestOnly() {
-        SearchContext sc = createSearchContext(true);
+        try (SearchContext sc = createSearchContext(true)) {
 
-        shardSearchStatsListener.onPreQueryPhase(sc);
-        shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        SearchStats searchStats = shardSearchStatsListener.stats("_all");
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
 
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testQueryPhase_SuggestOnly_Failure() {
-        SearchContext sc = createSearchContext(true);
-        shardSearchStatsListener.onPreQueryPhase(sc);
-        shardSearchStatsListener.onFailedQueryPhase(sc);
+        try (SearchContext sc = createSearchContext(true)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onFailedQueryPhase(sc);
 
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertEquals(0.0, stats.getSearchLoadRate(), 0);
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     public void testQueryPhase_Failure() {
-        SearchContext sc = createSearchContext(false);
-        shardSearchStatsListener.onPreQueryPhase(sc);
-        shardSearchStatsListener.onFailedQueryPhase(sc);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onFailedQueryPhase(sc);
 
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertEquals(0.0, stats.getSearchLoadRate(), 0);
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     public void testFetchPhase() {
-        SearchContext sc = createSearchContext(false);
-        shardSearchStatsListener.onPreFetchPhase(sc);
-        shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreFetchPhase(sc);
+            shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertTrue(stats.getSearchLoadRate() > 0.0);
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testFetchPhase_withGroup() {
-        SearchContext sc = createSearchContext(false);
+        try (SearchContext sc = createSearchContext(false)) {
         shardSearchStatsListener.onPreFetchPhase(sc);
         shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
@@ -134,15 +141,17 @@ public class ShardSearchStatsTests extends ESTestCase {
 
         stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
         assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testFetchPhase_Failure() {
-        SearchContext sc = createSearchContext(false);
-        shardSearchStatsListener.onPreFetchPhase(sc);
-        shardSearchStatsListener.onFailedFetchPhase(sc);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreFetchPhase(sc);
+            shardSearchStatsListener.onFailedFetchPhase(sc);
 
-        SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-        assertEquals(0.0, stats.getSearchLoadRate(), 0);
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     private static SearchContext createSearchContext(boolean suggested) {

@@ -20,7 +20,7 @@ public class SampleSerializationTests extends AbstractLogicalPlanSerializationTe
      */
     @Override
     protected Sample createTestInstance() {
-        return new Sample(randomSource(), randomProbability(), randomSeed(), randomChild(0));
+        return new Sample(randomSource(), randomProbability(), randomChild(0));
     }
 
     public static Literal randomProbability() {
@@ -40,15 +40,13 @@ public class SampleSerializationTests extends AbstractLogicalPlanSerializationTe
     @Override
     protected Sample mutateInstance(Sample instance) throws IOException {
         var probability = instance.probability();
-        var seed = instance.seed();
         var child = instance.child();
-        int updateSelector = randomIntBetween(0, 2);
+        int updateSelector = randomIntBetween(0, 1);
         switch (updateSelector) {
             case 0 -> probability = randomValueOtherThan(probability, SampleSerializationTests::randomProbability);
-            case 1 -> seed = randomValueOtherThan(seed, SampleSerializationTests::randomSeed);
-            case 2 -> child = randomValueOtherThan(child, () -> randomChild(0));
+            case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
             default -> throw new IllegalArgumentException("Invalid selector: " + updateSelector);
         }
-        return new Sample(instance.source(), probability, seed, child);
+        return new Sample(instance.source(), probability, child);
     }
 }

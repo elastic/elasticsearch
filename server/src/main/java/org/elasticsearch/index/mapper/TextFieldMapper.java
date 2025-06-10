@@ -1008,21 +1008,17 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                 };
             }
-            if (isStored()) {
-                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
-            }
             /*
              * If this is a sub-text field try and return the parent's loader. Text
              * fields will always be slow to load and if the parent is exact then we
              * should use that instead.
              */
-            // TODO: should this be removed? I think SyntheticSourceHelper already does this:
             String parentField = blContext.parentField(name());
             if (parentField != null) {
                 MappedFieldType parent = blContext.lookup().fieldType(parentField);
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
-                    if (kwd.hasDocValues() || kwd.isStored()) {
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
                         return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
                             @Override
                             protected String delegatingTo() {
@@ -1031,6 +1027,9 @@ public final class TextFieldMapper extends FieldMapper {
                         };
                     }
                 }
+            }
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
             // _ignored_source field will contain entries for this field if it is not stored
@@ -1580,7 +1579,7 @@ public final class TextFieldMapper extends FieldMapper {
             for (Mapper sub : multiFields) {
                 if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                    if (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored()) {
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         return kwd;
                     }
                 }

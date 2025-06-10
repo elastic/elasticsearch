@@ -118,18 +118,13 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         boolean docValues = hasDocValues(fieldMapping, true);
         boolean store = fieldMapping.getOrDefault("store", false).equals(true);
 
-        // if text sub field is stored, then always use that:
-        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("mf");
-        if (textFieldMapping.getOrDefault("store", false).equals(true)) {
-            return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext);
-        }
-
-        if (docValues || store) {
+        if (normalizer == null && (docValues || store)) {
             // we are using block loader of the parent field
             return KeywordFieldBlockLoaderTests.expectedValue(fieldMapping, value, params, testContext);
         }
 
         // we are using block loader of the text field itself
+        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("mf");
         return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext);
     }
 }

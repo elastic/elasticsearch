@@ -51,7 +51,7 @@ public class PerFieldFormatSupplier {
         if (mapperService != null
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
             && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
-            defaultPostingsFormat = Elasticsearch910Lucene102Codec.DEFAULT_POSTINGS_FORMAT;
+            defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;
         } else {
             // our own posting format using PFOR
             defaultPostingsFormat = es812PostingsFormat;

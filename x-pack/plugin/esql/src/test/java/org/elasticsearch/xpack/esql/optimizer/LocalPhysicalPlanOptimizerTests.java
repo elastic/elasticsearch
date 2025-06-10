@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -1355,6 +1357,29 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .minimumShouldMatch("3")
             .prefixLength(20)
             .tieBreaker(1.0f);
+        assertThat(expectedQuery.toString(), is(planStr.get()));
+    }
+
+    public void testKnnOptionsPushDown() {
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3],
+                { "k": 5, "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            5,
+            10,
+            new RescoreVectorBuilder(7),
+            0.001f
+        ).boost(3.5f);
         assertThat(expectedQuery.toString(), is(planStr.get()));
     }
 

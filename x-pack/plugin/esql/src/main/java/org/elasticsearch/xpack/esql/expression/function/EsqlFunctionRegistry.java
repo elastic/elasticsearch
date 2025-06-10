@@ -178,6 +178,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -483,7 +484,8 @@ public class EsqlFunctionRegistry {
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
+                def(Knn.class, tri(Knn::new), "knn") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

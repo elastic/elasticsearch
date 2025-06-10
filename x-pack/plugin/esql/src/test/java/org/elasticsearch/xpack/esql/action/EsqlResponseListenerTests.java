@@ -21,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class EsqlResponseListenerTests extends ESTestCase {
     private final String LOCAL_CLUSTER_ALIAS = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -44,13 +46,18 @@ public class EsqlResponseListenerTests extends ESTestCase {
         Loggers.addAppender(restSuppressedLogger, appender);
     }
 
+    @After
+    public void clear() {
+        appender.events.clear();
+    }
+
     @AfterClass
     public static void cleanup() {
         appender.stop();
         Loggers.removeAppender(restSuppressedLogger, appender);
     }
 
-    public void testLogPartialResponseErrors() {
+    public void testLogPartialFailures() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(false);
         executionInfo.swapCluster(
             LOCAL_CLUSTER_ALIAS,
@@ -72,6 +79,7 @@ public class EsqlResponseListenerTests extends ESTestCase {
         );
         EsqlResponseListener.logPartialFailures("/_query", Map.of(), executionInfo);
 
+        assertThat(appender.events, hasSize(2));
         LogEvent logEvent = appender.events.get(0);
         assertThat(logEvent.getLevel(), equalTo(Level.WARN));
         assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("path: /_query, params: {}, status: 200"));
@@ -80,6 +88,32 @@ public class EsqlResponseListenerTests extends ESTestCase {
         assertThat(logEvent.getLevel(), equalTo(Level.WARN));
         assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("path: /_query, params: {}, status: 200"));
         assertThat(logEvent.getThrown().getCause().getMessage(), equalTo("error"));
+    }
+
+    public void testLogPartialFailuresRemote() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(false);
+        executionInfo.swapCluster(
+            "remote_cluster",
+            (k, v) -> new EsqlExecutionInfo.Cluster(
+                "remote_cluster",
+                "idx",
+                false,
+                EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
+                10,
+                10,
+                3,
+                0,
+                List.of(new ShardSearchFailure(new Exception("dummy"), target(0))),
+                new TimeValue(4444L)
+            )
+        );
+        EsqlResponseListener.logPartialFailures("/_query", Map.of(), executionInfo);
+
+        assertThat(appender.events, hasSize(1));
+        LogEvent logEvent = appender.events.get(0);
+        assertThat(logEvent.getLevel(), equalTo(Level.WARN));
+        assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("path: /_query, params: {}, status: 200, cluster: remote_cluster"));
+        assertThat(logEvent.getThrown().getCause().getMessage(), equalTo("dummy"));
     }
 
     private SearchShardTarget target(int shardId) {

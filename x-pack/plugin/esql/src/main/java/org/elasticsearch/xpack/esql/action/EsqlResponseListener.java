@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
@@ -237,10 +238,19 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      * Log all partial request failures to the {@code rest.suppressed} logger
      * so an operator can categorize them after the fact.
      */
-    static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo exeuctionInfo) {
-        for (EsqlExecutionInfo.Cluster cluster : exeuctionInfo.getClusters().values()) {
+    static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo executionInfo) {
+        for (EsqlExecutionInfo.Cluster cluster : executionInfo.getClusters().values()) {
             for (ShardSearchFailure failure : cluster.getFailures()) {
-                RestResponse.logSuppressedError(org.apache.logging.log4j.Level.WARN, rawPath, params, RestStatus.OK, failure);
+                RestResponse.logSuppressedError(
+                    org.apache.logging.log4j.Level.WARN,
+                    rawPath,
+                    params,
+                    RestStatus.OK,
+                    cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
+                        ? null
+                        : "cluster: " + cluster.getClusterAlias(),
+                    failure
+                );
             }
         }
     }

@@ -43,7 +43,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String BYTE_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.6.0";
     private static final String QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.12.1";
     private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
-    private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v.18.0";
+    private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.18.0";
 
     public void testScriptByteVectorSearch() throws Exception {
         assumeTrue("byte vector search is not supported on this version", oldClusterHasFeature(BYTE_VECTOR_SEARCH_TEST_FEATURE));

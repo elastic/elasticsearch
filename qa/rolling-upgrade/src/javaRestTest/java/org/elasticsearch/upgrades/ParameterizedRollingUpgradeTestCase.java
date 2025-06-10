@@ -28,6 +28,7 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -150,7 +151,14 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static boolean isOldClusterVersion(String nodeVersion) {
-        return OLD_CLUSTER_VERSION.equals(nodeVersion);
+        return getOldClusterVersion().equals(nodeVersion);
+    }
+
+    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+        if (Objects.equals(System.getProperty("tests.bwc.refspec.main"), buildHash)) {
+            return true;
+        }
+        return isOldClusterVersion(nodeVersion);
     }
 
     protected static boolean isOldCluster() {

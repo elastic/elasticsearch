@@ -137,7 +137,8 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
         List<String> upgradedNodes = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> nodeInfoEntry : nodes.entrySet()) {
             String nodeVersion = extractValue(nodeInfoEntry.getValue(), "version");
-            if (isOldClusterVersion(nodeVersion) == false) {
+            String nodeBuildHash = extractValue(nodeInfoEntry.getValue(), "build_hash");
+            if (isOldClusterVersion(nodeVersion, nodeBuildHash) == false) {
                 upgradedNodes.add(nodeInfoEntry.getKey());
             }
         }

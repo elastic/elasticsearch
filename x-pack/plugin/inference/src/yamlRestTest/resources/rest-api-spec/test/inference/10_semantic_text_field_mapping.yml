@@ -190,7 +190,7 @@ setup:
 
   - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
   - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
-  - length: { "test-index.mappings.properties.dense_field": 2 }
+  - not_exists: test-index.mappings.properties.dense_field.model_settings
 
   - do:
       index:
@@ -223,7 +223,58 @@ setup:
   - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
   - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
   - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
-  - length: { "test-index.mappings.properties.dense_field": 3 }
+  - exists: test-index.mappings.properties.dense_field.model_settings
+
+---
+"Indexes dense vector document with index_options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: index_options introduced in 8.19.0
+  # Checks vector mapping is not updated until first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+  - not_exists: test-index.mappings.properties.dense_field.model_settings
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+                element_type: float
+              chunks:
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+
+  # Checks mapping is updated when first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
+  - exists: test-index.mappings.properties.dense_field.model_settings
 
 ---
 "Field caps with text embedding":
@@ -416,7 +467,7 @@ setup:
                 index_options:
                   dense_vector:
                     type: int8_hnsw
-                    m: 16
+                    m: 20
                     ef_construction: 100
                     confidence_interval: 1.0
 
@@ -425,7 +476,7 @@ setup:
         index: test-index-options
 
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
@@ -446,7 +497,7 @@ setup:
               index_options:
                 dense_vector:
                   type: int8_hnsw
-                  m: 16
+                  m: 20
                   ef_construction: 100
                   confidence_interval: 1.0
               chunks:
@@ -462,77 +513,16 @@ setup:
       indices.get_mapping:
         index: test-index-options
 
-  - match: { test-index-options.mappings.properties.semantic_field: "foo" }
-
-
----
-"Users can set partial dense vector index options and use dense vector defaults for nonspecified options":
-  - requires:
-      cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
-
-  - do:
-      indices.create:
-        index: test-index-options
-        body:
-          settings:
-            index:
-              mapping:
-                semantic_text:
-                  use_legacy_format: false
-          mappings:
-            properties:
-              semantic_field:
-                type: semantic_text
-                inference_id: dense-inference-id
-                index_options:
-                  dense_vector:
-                    type: int8_hnsw
-
-  - do:
-      indices.get_mapping:
-        index: test-index-options
-
-  - match: { "test-index-options.mappings.properties.semantic_field.dense_vector.index_options.type": "int8_hnsw" }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": int8_hnsw }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-
-  - do:
-      index:
-        index: test-index-options
-        id: doc_1
-        body:
-          semantic_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.semantic_field:
-            inference:
-              inference_id: dense-inference-id
-              model_settings:
-                task_type: text_embedding
-                dimensions: 4
-                similarity: cosine
-                element_type: float
-              chunks:
-                semantic_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
-                  - start_offset: 44
-                    end_offset: 67
-                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
-
-  - do:
-      get:
-        index: test-index-options
-        id: doc_1
-
-  - match: { _source.semantic_field: "these are not the droids you're looking for. He's free to go around" }
-
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
 ---
-"Not specifying index options does not return index options":
+"Not specifying index options results in default index options":
   - requires:
       cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
+      reason: Index options introduced in 8.19.0
 
   - do:
       indices.create:
@@ -553,14 +543,18 @@ setup:
       indices.get_mapping:
         index: test-index-options
 
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options
+  - match: { "semantic_field.mappings.properties.dense_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "semantic_field.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "semantic_field.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "semantic_field.mappings.properties.dense_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
 
 
 ---
 "Specifying incompatible dense vector index options will fail":
   - requires:
       cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
+      reason: Index options introduced in 8.19.0
 
   - do:
       catch: /unsupported parameters/
@@ -586,7 +580,7 @@ setup:
 "Specifying unsupported index option types will fail":
   - requires:
       cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
+      reason: Index options introduced in 8.19.0
 
   - do:
       catch: /Unsupported index options type/
@@ -628,7 +622,7 @@ setup:
 "Index option type is required":
   - requires:
       cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
+      reason: Index options introduced in 8.19.0
 
   - do:
       catch: /Required type/
@@ -653,7 +647,7 @@ setup:
 "Model is required for index options":
   - requires:
       cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.18.0
+      reason: Index options introduced in 8.19.0
 
   - do:
       catch: /Model settings must be set to validate index options/

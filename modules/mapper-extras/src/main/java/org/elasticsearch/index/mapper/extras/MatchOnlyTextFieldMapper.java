@@ -102,9 +102,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final TextParams.Analyzers analyzers;
+        private final boolean withinMultiField;
 
         public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean withinMultiField) {
-            super(name, withinMultiField);
+            super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -112,6 +113,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
+            this.withinMultiField = withinMultiField;
         }
 
         @Override
@@ -425,7 +427,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storeSource = storeSource;
-        this.withinMultiField = builder.isWithinMultiField();
+        this.withinMultiField = builder.withinMultiField;
     }
 
     @Override

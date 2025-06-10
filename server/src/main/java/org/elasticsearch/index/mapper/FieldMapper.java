@@ -1384,18 +1384,12 @@ public abstract class FieldMapper extends Mapper {
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
-        protected final boolean withinMultiField;
 
         /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
-            this(name, false);
-        }
-
-        protected Builder(String name, boolean withinMultiField) {
             super(name);
-            this.withinMultiField = withinMultiField;
         }
 
         /**
@@ -1437,10 +1431,6 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
             }
-        }
-
-        public boolean isWithinMultiField() {
-            return withinMultiField;
         }
 
         /**

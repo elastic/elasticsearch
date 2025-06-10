@@ -287,6 +287,8 @@ public final class TextFieldMapper extends FieldMapper {
 
         final TextParams.Analyzers analyzers;
 
+        private final boolean withinMultiField;
+
         public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
             this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceEnabled, false);
         }
@@ -298,7 +300,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean withinMultiField
         ) {
-            super(name, withinMultiField);
+            super(name);
 
             // If synthetic source is used we need to either store this field
             // to recreate the source or use keyword multi-fields for that.
@@ -307,6 +309,7 @@ public final class TextFieldMapper extends FieldMapper {
             //
             // If 'store' parameter was explicitly provided we'll reject the request.
             // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
+            this.withinMultiField = withinMultiField;
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
                 if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)) {
                     return isSyntheticSourceEnabled

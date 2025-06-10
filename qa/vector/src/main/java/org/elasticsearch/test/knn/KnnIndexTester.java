@@ -15,8 +15,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
@@ -35,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * A utility class to create and test KNN indices using Lucene.
@@ -47,7 +50,16 @@ public class KnnIndexTester {
 
     static {
         LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+
+        // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
+        ProcessInfo pinfo = ProcessInfo.fromSystem();
+        Map<String, String> sysprops = pinfo.sysprops();
+        String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
+        Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
+
+        // native access requires logging to be initialized
+        LogConfigurator.configureESLogging();
     }
 
     static final String INDEX_DIR = "target/knn_index";

@@ -35,7 +35,7 @@ tasks.register("bcUpgradeTest", StandaloneRestIntegTestTask) {
   filter {
     // TODO (ES-12010) investigate these test failures
     excludeTestsMatching("org.elasticsearch.upgrades.FeatureUpgradeIT")
-    excludeTestsMatching("org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT")
+    //excludeTestsMatching("org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT")
     excludeTestsMatching("org.elasticsearch.upgrades.SnapshotBasedRecoveryIT")
   }
 }

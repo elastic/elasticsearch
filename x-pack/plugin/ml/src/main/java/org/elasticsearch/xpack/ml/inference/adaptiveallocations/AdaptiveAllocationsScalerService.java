@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -185,15 +184,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             return scalers.values().stream().map(scaler -> {
                 var value = scaler.getNumberOfAllocations();
                 var min = scaler.getMinNumberOfAllocations();
-                var max = scaler.getMaxNumberOfAllocations();
+                var scalesToZero = min == null || min == 0;
 
-                var attributes = new HashMap<String, Object>(3);
-                attributes.put("deployment_id", scaler.getDeploymentId());
-                attributes.put("min_number_of_allocations", min != null ? min : 0);
-                if (max != null) {
-                    attributes.put("max_number_of_allocations", max);
-                }
-                return new LongWithAttributes(value, Collections.unmodifiableMap(attributes));
+                return new LongWithAttributes(
+                    value,
+                    Map.ofEntries(Map.entry("deployment_id", scaler.getDeploymentId()), Map.entry("scales_to_zero", scalesToZero))
+                );
             }).toList();
         }
     }

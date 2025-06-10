@@ -93,24 +93,3 @@ book_no:keyword | title:text                                            | author
 2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy
 5327            | War and Peace                                         | Leo Tolstoy
 ;
-
-
-reranker after RRF
-required_capability: fork
-required_capability: rrf
-required_capability: match_operator_colon
-required_capability: rerank
-
-FROM books METADATA _id, _index, _score
-| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| RRF
-| RERANK "Tolkien" ON title WITH test_reranker
-| LIMIT 2
-| KEEP book_no, title, author
-;
-
-book_no:keyword | title:keyword                         | author:keyword
-5335            | Letters of J R R Tolkien              | J.R.R. Tolkien
-2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien]
-;

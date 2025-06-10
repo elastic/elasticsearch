@@ -244,9 +244,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.NodeScope
     );
 
+    /**
+     * Allow to use concurrent multipart uploads when uploading large batched compound commits, if the object store supports it.
+     */
     public static final Setting<Boolean> OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS = Setting.boolSetting(
         "stateless.object_store.concurrent_multipart_uploads",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

@@ -11,11 +11,9 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
-import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -25,6 +23,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -123,38 +122,32 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    protected abstract int calculateAndWriteCentroids(
+    abstract CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
-        IndexOutput temporaryCentroidOutput,
+        IndexOutput centroidOutput,
         MergeState mergeState,
         float[] globalCentroid
     ) throws IOException;
 
-    abstract long[] buildAndWritePostingsLists(
-        FieldInfo fieldInfo,
-        CentroidAssignmentScorer scorer,
-        FloatVectorValues floatVectorValues,
-        IndexOutput postingsOutput,
-        MergeState mergeState
-    ) throws IOException;
-
-    abstract CentroidAssignmentScorer calculateAndWriteCentroids(
+    abstract CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
+        InfoStream infoStream,
         float[] globalCentroid
     ) throws IOException;
 
     abstract long[] buildAndWritePostingsLists(
         FieldInfo fieldInfo,
-        InfoStream infoStream,
-        CentroidAssignmentScorer scorer,
+        CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
-        IndexOutput postingsOutput
+        IndexOutput postingsOutput,
+        InfoStream infoStream,
+        IntArrayList[] assignmentsByCluster
     ) throws IOException;
 
-    abstract CentroidAssignmentScorer createCentroidScorer(
+    abstract CentroidSupplier createCentroidSupplier(
         IndexInput centroidsInput,
         int numCentroids,
         FieldInfo fieldInfo,
@@ -166,33 +159,31 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         rawVectorDelegate.flush(maxDoc, sortMap);
         for (FieldWriter fieldWriter : fieldWriters) {
             float[] globalCentroid = new float[fieldWriter.fieldInfo.getVectorDimension()];
-            // calculate global centroid
-            for (var vector : fieldWriter.delegate.getVectors()) {
-                for (int i = 0; i < globalCentroid.length; i++) {
-                    globalCentroid[i] += vector[i];
-                }
-            }
-            for (int i = 0; i < globalCentroid.length; i++) {
-                globalCentroid[i] /= fieldWriter.delegate.getVectors().size();
-            }
             // build a float vector values with random access
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
             // build centroids
             long centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
-            final CentroidAssignmentScorer centroidAssignmentScorer = calculateAndWriteCentroids(
+
+            final CentroidAssignments centroidAssignments = calculateAndWriteCentroids(
                 fieldWriter.fieldInfo,
                 floatVectorValues,
                 ivfCentroids,
+                segmentWriteState.infoStream,
                 globalCentroid
             );
+
+            CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.cachedCentroids());
+
             long centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
             final long[] offsets = buildAndWritePostingsLists(
                 fieldWriter.fieldInfo,
-                segmentWriteState.infoStream,
-                centroidAssignmentScorer,
+                centroidSupplier,
                 floatVectorValues,
-                ivfClusters
+                ivfClusters,
+                segmentWriteState.infoStream,
+                centroidAssignments.assignmentsByCluster()
             );
+            // write posting lists
             writeMeta(fieldWriter.fieldInfo, centroidOffset, centroidLength, offsets, globalCentroid);
         }
     }
@@ -240,16 +231,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         };
     }
 
-    static IVFVectorsReader getIVFReader(KnnVectorsReader vectorsReader, String fieldName) {
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
-            vectorsReader = candidateReader.getFieldReader(fieldName);
-        }
-        if (vectorsReader instanceof IVFVectorsReader reader) {
-            return reader;
-        }
-        return null;
-    }
-
     @Override
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
@@ -277,22 +258,25 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 float[] calculatedGlobalCentroid = new float[fieldInfo.getVectorDimension()];
                 final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
                 success = false;
-                CentroidAssignmentScorer centroidAssignmentScorer;
                 long centroidOffset;
                 long centroidLength;
                 String centroidTempName = null;
                 int numCentroids;
                 IndexOutput centroidTemp = null;
+                CentroidAssignments centroidAssignments;
                 try {
                     centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                     centroidTempName = centroidTemp.getName();
-                    numCentroids = calculateAndWriteCentroids(
+
+                    centroidAssignments = calculateAndWriteCentroids(
                         fieldInfo,
                         floatVectorValues,
                         centroidTemp,
                         mergeState,
                         calculatedGlobalCentroid
                     );
+                    numCentroids = centroidAssignments.numCentroids();
+
                     success = true;
                 } finally {
                     if (success == false && centroidTempName != null) {
@@ -311,21 +295,28 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     CodecUtil.writeFooter(centroidTemp);
                     IOUtils.close(centroidTemp);
                     centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
-                    try (IndexInput centroidInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
-                        ivfCentroids.copyBytes(centroidInput, centroidInput.length() - CodecUtil.footerLength());
+                    try (IndexInput centroidsInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
+                        ivfCentroids.copyBytes(centroidsInput, centroidsInput.length() - CodecUtil.footerLength());
                         centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
-                        centroidAssignmentScorer = createCentroidScorer(centroidInput, numCentroids, fieldInfo, calculatedGlobalCentroid);
-                        assert centroidAssignmentScorer.size() == numCentroids;
+
+                        CentroidSupplier centroidSupplier = createCentroidSupplier(
+                            centroidsInput,
+                            numCentroids,
+                            fieldInfo,
+                            calculatedGlobalCentroid
+                        );
+
                         // build a float vector values with random access
                         // build centroids
                         final long[] offsets = buildAndWritePostingsLists(
                             fieldInfo,
-                            centroidAssignmentScorer,
+                            centroidSupplier,
                             floatVectorValues,
                             ivfClusters,
-                            mergeState
+                            mergeState.infoStream,
+                            centroidAssignments.assignmentsByCluster()
                         );
-                        assert offsets.length == centroidAssignmentScorer.size();
+                        assert offsets.length == centroidSupplier.size();
                         writeMeta(fieldInfo, centroidOffset, centroidLength, offsets, calculatedGlobalCentroid);
                     }
                 } finally {
@@ -453,8 +444,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
 
-    interface CentroidAssignmentScorer {
-        CentroidAssignmentScorer EMPTY = new CentroidAssignmentScorer() {
+    interface CentroidSupplier {
+        CentroidSupplier EMPTY = new CentroidSupplier() {
             @Override
             public int size() {
                 return 0;
@@ -464,24 +455,29 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             public float[] centroid(int centroidOrdinal) {
                 throw new IllegalStateException("No centroids");
             }
-
-            @Override
-            public float score(int centroidOrdinal) {
-                throw new IllegalStateException("No centroids");
-            }
-
-            @Override
-            public void setScoringVector(float[] vector) {
-                throw new IllegalStateException("No centroids");
-            }
         };
 
         int size();
 
         float[] centroid(int centroidOrdinal) throws IOException;
+    }
 
-        void setScoringVector(float[] vector);
+    // TODO throw away rawCentroids
+    static class OnHeapCentroidSupplier implements CentroidSupplier {
+        private final float[][] centroids;
 
-        float score(int centroidOrdinal) throws IOException;
+        OnHeapCentroidSupplier(float[][] centroids) {
+            this.centroids = centroids;
+        }
+
+        @Override
+        public int size() {
+            return centroids.length;
+        }
+
+        @Override
+        public float[] centroid(int centroidOrdinal) throws IOException {
+            return centroids[centroidOrdinal];
+        }
     }
 }

@@ -3759,7 +3759,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionTargetField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS translation
+            | COMPLETION translation=CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3801,7 +3801,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionOutputField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS description
+            | COMPLETION description=CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);

@@ -259,15 +259,19 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected final void doTest() throws Throwable {
+    protected void doTest() throws Throwable {
+        doTest(testCase.query);
+    }
+
+    protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
+        if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
+        Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 

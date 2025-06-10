@@ -68,6 +68,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -7999,4 +8001,54 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(changePoint.child(), TopN.class);
         var source = as(topN.child(), EsRelation.class);
     }
+
+    /**
+     * Project[[avg{r}#7, month{r}#20]]
+     * \_Eval[[$$SUM$avg$0{r$}#21 / $$COUNT$avg$1{r$}#22 AS avg#7, DATEFORMAT([79 79 79 79 2d 4d 4d][KEYWORD],month{r}#4) AS month#20]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[month{r}#4],[SUM(salary{f}#14,true[BOOLEAN]) AS $$SUM$avg$0#21, COUNT(salary{f}#14,true[BOOLEAN]) AS
+     *     $$COUNT$avg$1#22, month{r}#4]]
+     *       \_Eval[[DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#16) AS month#4]]
+     *         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testReplaceGroupingByDateFormatWithDateTrunc() {
+
+        List<String> formats = List.of(
+            "yyyy",
+            "YYYY",
+            "MM/yyyy",
+            "yy-mm",
+            "yyyy-dd-MM",
+            "DD",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss"
+        );
+
+        for (var format : formats) {
+            var query = """
+                FROM test
+                | STATS avg = AVG(salary) BY date = DATE_FORMAT("%s", hire_date)
+                """;
+            String format1 = String.format(query, format);
+            var optimized = optimizedPlan(format1);
+
+            var project = as(optimized, Project.class);
+            var eval = as(project.child(), Eval.class);
+            assertThat(eval.fields(), hasSize(2));
+            var dateformat = as(eval.fields().get(1).child(), DateFormat.class);
+
+            var limit = as(eval.child(), Limit.class);
+            var agg = as(limit.child(), Aggregate.class);
+            var ref = as(agg.groupings().getFirst(), ReferenceAttribute.class);
+
+            var eval2 = as(agg.child(), Eval.class);
+            assertThat(eval2.fields(), hasSize(1));
+            var dateTrunc = as(eval2.fields().getFirst().child(), DateTrunc.class);
+            assertThat(eval2.fields().getFirst().toAttribute(), is(ref));
+
+            var source = as(eval2.child(), EsRelation.class);
+        }
+
+    }
+
 }

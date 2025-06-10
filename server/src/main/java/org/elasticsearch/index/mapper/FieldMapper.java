@@ -83,11 +83,11 @@ public abstract class FieldMapper extends Mapper {
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
     /**
-     * @param multiFields    sub fields of this mapper
-     * @param copyTo         copyTo fields of this mapper
-     * @param sourceKeepMode mode for storing the field source in synthetic source mode
-     * @param hasScript      whether a script is defined for the field
-     * @param onScriptError  the behaviour for when the defined script fails at runtime
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param sourceKeepMode   mode for storing the field source in synthetic source mode
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
     protected record BuilderParams(
         MultiFields multiFields,

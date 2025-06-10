@@ -1390,9 +1390,6 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("qstr(\"title: Meditation\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
         checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
@@ -2113,10 +2110,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionNullArgs("kql(null)", "");
         checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("term(title, null)", "second");

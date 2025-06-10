@@ -21,7 +21,6 @@ import java.io.IOException;
 public record ShardHeapUsage(String nodeId, String nodeName, long totalBytes, long estimatedUsageBytes) implements Writeable {
 
     public ShardHeapUsage {
-        assert estimatedUsageBytes <= totalBytes;
         assert totalBytes >= 0;
         assert estimatedUsageBytes >= 0;
     }

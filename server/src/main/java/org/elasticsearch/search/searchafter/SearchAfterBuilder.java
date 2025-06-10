@@ -14,6 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -202,7 +203,19 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     } else {
                         return format.parseBytesRef(value);
                     }
-
+                case CUSTOM:
+                    // TODO: reconsider?
+                    if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
+                        return format.parseLong(
+                            value.toString(),
+                            false,
+                            () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); }
+                        );
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Comparator type [" + sortType.name() + "] for field [" + fieldName + "] is not supported."
+                        );
+                    }
                 default:
                     throw new IllegalArgumentException(
                         "Comparator type [" + sortType.name() + "] for field [" + fieldName + "] is not supported."

@@ -679,7 +679,7 @@ public final class IndexSettings {
     public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
         "index.mapping.use_doc_values_skipper",
-        false,
+        DOC_VALUES_SKIPPER,
         Property.IndexScope,
         Property.Final
     );
@@ -1117,7 +1117,9 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipper = DOC_VALUES_SKIPPER
+            && scopedSettings.get(USE_DOC_VALUES_SKIPPER)
+            && version.onOrAfter(IndexVersions.ENABLE_TSID_HOSTNAME_TIMESTAMP_DOC_VALUES_SKIPPERS_WITH_FF);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {

@@ -64,7 +64,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -77,6 +76,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -1650,7 +1650,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public boolean supportsDimension(int dims) {
-                return dims >= BBQ_MIN_DIMS;
+                return true;
             }
         };
 
@@ -2304,6 +2304,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isVectorEmbedding() {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return elementType.fielddataBuilder(this, fieldDataContext);
         }
@@ -2516,12 +2521,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
-            if (parentFilter != null && indexOptions instanceof BBQIVFIndexOptions) {
-                throw new IllegalArgumentException("IVF index does not support nested queries");
-            }
             Query knnQuery;
             if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
-                knnQuery = new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
+                knnQuery = parentFilter != null
+                    ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        parentFilter,
+                        bbqIndexOptions.defaultNProbe
+                    )
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(
@@ -2767,19 +2779,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName(), indexCreatedVersion).init(this);
-    }
-
-    @Override
-    public void doValidate(MappingLookup mappers) {
-        if (indexOptions instanceof BBQIVFIndexOptions && mappers.nestedLookup().getNestedParent(fullPath()) != null) {
-            throw new IllegalArgumentException(
-                "["
-                    + CONTENT_TYPE
-                    + "] fields with index type ["
-                    + indexOptions.type
-                    + "] cannot be indexed if they're within [nested] mappings"
-            );
-        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {

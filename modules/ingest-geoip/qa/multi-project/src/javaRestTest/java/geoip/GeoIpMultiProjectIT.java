@@ -70,12 +70,12 @@ public class GeoIpMultiProjectIT extends ESRestTestCase {
 
         // download databases for project1
         putGeoIpPipeline(project1);
-        assertBusy(() -> assertDatabasesLoaded(project1), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertDatabasesNotLoaded(project2), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertDatabases(project1, true), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertDatabases(project2, false), 30, TimeUnit.SECONDS);
 
         // download databases for project2
         putGeoIpPipeline(project2);
-        assertBusy(() -> assertDatabasesLoaded(project2), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertDatabases(project2, true), 30, TimeUnit.SECONDS);
     }
 
     private void putGeoIpPipeline(String projectId) throws IOException {
@@ -106,38 +106,7 @@ public class GeoIpMultiProjectIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertDatabasesNotLoaded(String projectId) throws IOException {
-        Request getTaskState = new Request("GET", "/_cluster/state");
-        setRequestProjectId(projectId, getTaskState);
-
-        ObjectPath state = ObjectPath.createFromResponse(assertOK(client().performRequest(getTaskState)));
-
-        List<Map<String, ?>> tasks = state.evaluate("metadata.persistent_tasks.tasks");
-        // Short-circuit to avoid using steams if the list is empty
-        // task should exist but no database should be downloaded
-        if (tasks.isEmpty()) {
-            fail("persistent tasks list is empty, expected at least one task for geoip-downloader");
-        }
-
-        // verify project task id
-        Set<Map<String, ?>> id = tasks.stream()
-            .filter(task -> String.format("%s/geoip-downloader", projectId).equals(task.get("id")))
-            .collect(Collectors.toSet());
-        assertThat(id.size(), equalTo(1));
-
-        // verify no database download
-        Map<String, Object> databases = (Map<String, Object>) tasks.stream().map(task -> {
-            try {
-                return ObjectPath.evaluate(task, "task.geoip-downloader.state.databases");
-            } catch (IOException e) {
-                return null;
-            }
-        }).filter(Objects::nonNull).findFirst().orElse(null);
-        assertNull(databases);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertDatabasesLoaded(String projectId) throws IOException {
+    private void assertDatabases(String projectId, boolean shouldDownload) throws IOException {
         Request getTaskState = new Request("GET", "/_cluster/state");
         setRequestProjectId(projectId, getTaskState);
 
@@ -164,13 +133,18 @@ public class GeoIpMultiProjectIT extends ESRestTestCase {
             }
         }).filter(Objects::nonNull).findFirst().orElse(null);
 
-        assertNotNull(databases);
-
-        for (String name : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
-            Object database = databases.get(name);
-            assertNotNull(database);
-            assertNotNull(ObjectPath.evaluate(database, "md5"));
+        if (shouldDownload) {
+            // verify database downloaded
+            assertNotNull(databases);
+            for (String name : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
+                Object database = databases.get(name);
+                assertNotNull(database);
+                assertNotNull(ObjectPath.evaluate(database, "md5"));
+            }
+        } else {
+            // verify database not downloaded
+            assertNull(databases);
         }
-    }
 
+    }
 }

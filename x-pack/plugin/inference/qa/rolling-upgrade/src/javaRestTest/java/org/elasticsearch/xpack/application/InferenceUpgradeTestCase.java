@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
-    static final String MODELS_RENAMED_TO_ENDPOINTS = "8.15.0";
+    static final String MODELS_RENAMED_TO_ENDPOINTS_FEATURE = "gte_v8.15.0";
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -38,7 +38,7 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(getOldClusterVersion())
         .nodes(NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

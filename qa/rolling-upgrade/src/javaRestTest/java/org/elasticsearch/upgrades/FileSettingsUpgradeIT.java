@@ -17,7 +17,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
-        () -> assumeTrue("Only valid when upgrading from pre-file settings", getOldClusterTestVersion().before(new Version(8, 4, 0)))
+        () -> assumeFalse("Only valid when upgrading from pre-file settings", oldClusterHasFeature("gte_v8.4.0"))
     );
 
     private static final String settingsJSON = """
@@ -54,7 +53,7 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(getOldClusterVersion())
         .nodes(NODE_NUM)
         .setting("path.repo", new Supplier<>() {
             @Override

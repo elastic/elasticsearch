@@ -30,10 +30,9 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterTestVersion())
+            .version(getOldClusterVersion())
             .nodes(NODE_NUM)
             .setting("path.repo", new Supplier<>() {
                 @Override
@@ -47,7 +46,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
 
         // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
         // inconsistent
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        if (Version.fromString(getOldClusterVersion()).before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

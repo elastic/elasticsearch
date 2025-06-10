@@ -35,10 +35,9 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterTestVersion())
+            .version(getOldClusterVersion())
             .nodes(NODE_NUM)
             .user(USER, PASS)
             .setting("xpack.security.autoconfiguration.enabled", "false")
@@ -52,7 +51,7 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
 
         // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
         // inconsistent
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        if (Version.fromString(getOldClusterVersion()).before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

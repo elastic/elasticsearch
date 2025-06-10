@@ -37,14 +37,16 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String BBQ_INDEX_NAME = "bbq_vector_index";
     private static final String FLAT_QUANTIZED_INDEX_NAME = "flat_quantized_vector_index";
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
-    private static final String FLOAT_VECTOR_SEARCH_VERSION = "8.4.0";
-    private static final String BYTE_VECTOR_SEARCH_VERSION = "8.6.0";
-    private static final String QUANTIZED_VECTOR_SEARCH_VERSION = "8.12.1";
-    private static final String FLAT_QUANTIZED_VECTOR_SEARCH_VERSION = "8.13.0";
-    private static final String BBQ_VECTOR_SEARCH_VERSION = "8.18.0";
+
+    // TODO: replace these with proper test features
+    private static final String FLOAT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.4.0";
+    private static final String BYTE_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.6.0";
+    private static final String QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.12.1";
+    private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
+    private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v.18.0";
 
     public void testScriptByteVectorSearch() throws Exception {
-        assumeTrue("byte vector search is not supported on this version", getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION));
+        assumeTrue("byte vector search is not supported on this version", oldClusterHasFeature(BYTE_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             // create index and index 10 random floating point vectors
             String mapping = """
@@ -91,10 +93,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testScriptVectorSearch() throws Exception {
-        assumeTrue(
-            "Float vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(FLOAT_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             // create index and index 10 random floating point vectors
             String mapping = """
@@ -140,10 +139,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testFloatVectorSearch() throws Exception {
-        assumeTrue(
-            "Float vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(FLOAT_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -215,7 +211,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testByteVectorSearch() throws Exception {
-        assumeTrue("Byte vector search is not supported on this version", getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION));
+        assumeTrue("Byte vector search is not supported on this version", oldClusterHasFeature(BYTE_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -288,10 +284,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testQuantizedVectorSearch() throws Exception {
-        assumeTrue(
-            "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(QUANTIZED_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -364,7 +357,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public void testFlatQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(FLAT_QUANTIZED_VECTOR_SEARCH_VERSION)
+            oldClusterHasFeature(FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE)
         );
         if (isOldCluster()) {
             String mapping = """
@@ -434,10 +427,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testBBQVectorSearch() throws Exception {
-        assumeTrue(
-            "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(BBQ_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(BBQ_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -518,10 +508,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testFlatBBQVectorSearch() throws Exception {
-        assumeTrue(
-            "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(BBQ_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(BBQ_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     protected static final int NODE_NUM = 3;
-    protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
@@ -127,11 +127,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         upgradeFailed = false;
     }
 
-    @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
-    protected static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
-    }
-
     protected static boolean oldClusterHasFeature(String featureId) {
         assert oldClusterTestFeatureService != null;
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
@@ -146,8 +141,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return oldIndexVersion;
     }
 
-    protected static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedRollingUpgradeTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
     protected static boolean isOldClusterVersion(String nodeVersion) {

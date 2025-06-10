@@ -29,8 +29,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
-    private static final String HF_EMBEDDINGS_ADDED = "8.12.0";
-    private static final String HF_ELSER_ADDED = "8.12.0";
+    // TODO: replace with proper test features
+    private static final String HF_EMBEDDINGS_TEST_FEATURE = "gte_v8.12.0";
+    private static final String HF_ELSER_TEST_FEATURE = "gte_v8.12.0";
 
     private static MockWebServer embeddingsServer;
     private static MockWebServer elserServer;
@@ -56,10 +57,9 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testHFEmbeddings() throws IOException {
-        var embeddingsSupported = getOldClusterTestVersion().onOrAfter(HF_EMBEDDINGS_ADDED);
-        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
-        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
+        var embeddingsSupported = oldClusterHasFeature(HF_EMBEDDINGS_TEST_FEATURE);
+        String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("Hugging Face embedding service supported", embeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
         final String upgradedClusterId = "upgraded-cluster-embeddings";
@@ -110,9 +110,9 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testElser() throws IOException {
-        var supported = getOldClusterTestVersion().onOrAfter(HF_ELSER_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);
+        var supported = oldClusterHasFeature(HF_ELSER_TEST_FEATURE);
+        String old_cluster_endpoint_identifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("HF elser service supported", supported);
 
         final String oldClusterId = "old-cluster-elser";
         final String upgradedClusterId = "upgraded-cluster-elser";

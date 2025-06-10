@@ -3,6 +3,7 @@ asm = "9.7.1"
 jackson = "2.15.0"
 junit5 = "5.8.1"
 spock = "2.1-groovy-3.0"
+nmcp = "0.1.5"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"
@@ -36,6 +37,7 @@ junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.1"
 junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", version.ref="junit5" }
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
+nmcp = { group = "com.gradleup.nmcp", name = "nmcp", version.ref="nmcp" }
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
 reflections = "org.reflections:reflections:0.9.12"
 shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:8.3.5"
@@ -49,3 +51,4 @@ xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
 ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.2" }
+nmcp-aggregation = { id = "com.gradleup.nmcp.aggregation", version.ref="nmcp" }

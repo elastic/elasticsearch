@@ -151,6 +151,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         rollover.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client).threadPool();
+        verify(client).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -183,6 +184,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         // everything up to date so no action for the client
         verify(client).settings();
         verify(client).threadPool();
+        verify(client).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -214,6 +216,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         rollover.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());  // index rolled over
         verifyNoMoreInteractions(client);
     }
@@ -246,6 +249,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         rollover.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client, times(5)).threadPool();
+        verify(client).projectResolver();
         verify(client).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());  // alias created
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());    // index rolled over
         verifyNoMoreInteractions(client);
@@ -260,6 +264,7 @@ public class MlIndexRolloverTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     static Client mockClientWithRolloverAndAlias() {
         var client = mock(Client.class);
+        when(client.projectClient(any())).thenReturn(client);
 
         doAnswer(invocationOnMock -> {
             ActionListener<RolloverResponse> actionListener = (ActionListener<RolloverResponse>) invocationOnMock.getArguments()[2];

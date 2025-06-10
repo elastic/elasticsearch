@@ -160,6 +160,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         // everything up to date so no action for the client
         verify(client).settings();
         verify(client).threadPool();
+        verify(client).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -179,6 +180,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         updater.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client, times(7)).threadPool();
+        verify(client).projectResolver();
         verify(client, times(2)).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());  // create rollover alias and update
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());  // index rolled over
         verifyNoMoreInteractions(client);
@@ -287,6 +289,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     static Client mockClientWithRolloverAndAlias(String indexName) {
         var client = mock(Client.class);
+        when(client.projectClient(any())).thenReturn(client);
 
         var aliasRequestCount = new AtomicInteger(0);
 

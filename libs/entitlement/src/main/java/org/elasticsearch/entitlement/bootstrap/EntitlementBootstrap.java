@@ -14,9 +14,11 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -26,6 +28,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -38,20 +41,20 @@ public class EntitlementBootstrap {
      * calls to methods protected by entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      *
-     * @param serverPolicyPatch a policy with additional entitlements to patch the embedded server layer policy
-     * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
-     * @param scopeResolver a functor to map a Java Class to the component and module it belongs to.
-     * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
-     * @param dataDirs       data directories for Elasticsearch
-     * @param sharedRepoDirs shared repository directories for Elasticsearch
-     * @param configDir      the config directory for Elasticsearch
-     * @param libDir         the lib directory for Elasticsearch
-     * @param modulesDir     the directory where Elasticsearch modules are
-     * @param pluginsDir     the directory where plugins are installed for Elasticsearch
-     * @param sourcePaths    a map holding the path to each plugin or module jars, by plugin (or module) name.
-     * @param tempDir        the temp directory for Elasticsearch
-     * @param logsDir        the log directory for Elasticsearch
-     * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
+     * @param serverPolicyPatch            additional entitlements to patch the embedded server layer policy
+     * @param pluginPolicies               maps each plugin name to the corresponding {@link Policy}
+     * @param scopeResolver                a functor to map a Java Class to the component and module it belongs to.
+     * @param settingResolver              a functor to resolve a setting name pattern for one or more Elasticsearch settings.
+     * @param dataDirs                     data directories for Elasticsearch
+     * @param sharedRepoDirs               shared repository directories for Elasticsearch
+     * @param configDir                    the config directory for Elasticsearch
+     * @param libDir                       the lib directory for Elasticsearch
+     * @param modulesDir                   the directory where Elasticsearch modules are
+     * @param pluginsDir                   the directory where plugins are installed for Elasticsearch
+     * @param pluginSourcePaths            maps each plugin name to the location of that plugin's code
+     * @param tempDir                      the temp directory for Elasticsearch
+     * @param logsDir                      the log directory for Elasticsearch
+     * @param pidFile                      path to a pid file for Elasticsearch, or {@code null} if one was not specified
      * @param suppressFailureLogPackages   packages for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
@@ -65,35 +68,33 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
-        Map<String, Path> sourcePaths,
+        Map<String, Collection<Path>> pluginSourcePaths,
         Path logsDir,
         Path tempDir,
-        Path pidFile,
+        @Nullable Path pidFile,
         Set<Package> suppressFailureLogPackages
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementInitialization.initializeArgs != null) {
             throw new IllegalStateException("initialization data is already set");
         }
+        PathLookupImpl pathLookup = new PathLookupImpl(
+            getUserHome(),
+            configDir,
+            dataDirs,
+            sharedRepoDirs,
+            libDir,
+            modulesDir,
+            pluginsDir,
+            logsDir,
+            tempDir,
+            pidFile,
+            settingResolver
+        );
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            serverPolicyPatch,
-            pluginPolicies,
-            scopeResolver,
-            new PathLookupImpl(
-                getUserHome(),
-                configDir,
-                dataDirs,
-                sharedRepoDirs,
-                libDir,
-                modulesDir,
-                pluginsDir,
-                logsDir,
-                tempDir,
-                pidFile,
-                settingResolver
-            ),
-            sourcePaths,
-            suppressFailureLogPackages
+            pathLookup,
+            suppressFailureLogPackages,
+            createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
@@ -149,6 +150,25 @@ public class EntitlementBootstrap {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+    }
+
+    private static PolicyManager createPolicyManager(
+        Map<String, Policy> pluginPolicies,
+        PathLookup pathLookup,
+        Policy serverPolicyPatch,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        Map<String, Collection<Path>> pluginSourcePaths
+    ) {
+        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
+
+        return new PolicyManager(
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
+            HardcodedEntitlements.agentEntitlements(),
+            pluginPolicies,
+            scopeResolver,
+            pluginSourcePaths,
+            pathLookup
+        );
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

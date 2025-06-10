@@ -1035,7 +1035,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V6(Build.current().isSnapshot()),
+        FORK_V7(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1178,9 +1178,14 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_ALIASES,
 
         /**
+         * Allows RLIKE to correctly handle the "empty language" flag, `#`.
+         */
+        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
+
+        /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
+        MATCH_PHRASE_FUNCTION;
 
         private final boolean enabled;
 

@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -47,11 +48,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Field '.*' shadowed by field at line .*",
         "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
 
-        // Awaiting fixes
+        // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
-        "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
+        "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
+
+        // Awaiting fixes for correctness
+        "Expecting the following columns \\[.*\\], got" // https://github.com/elastic/elasticsearch/issues/129000
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -84,25 +88,71 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
         List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
+        CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies);
+        EsqlQueryGenerator.QueryExecuted previousResult = null;
         for (int i = 0; i < ITERATIONS; i++) {
-            String command = EsqlQueryGenerator.sourceCommand(indices);
+            List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+            CommandGenerator commandGenerator = EsqlQueryGenerator.sourceCommand();
+            CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), mappingInfo);
+            String command = desc.commandString();
             EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
             if (result.exception() != null) {
                 checkException(result);
-                continue;
+                break;
             }
+            if (checkResults(List.of(), commandGenerator, desc, null, result).success() == false) {
+                break;
+            }
+            previousResult = result;
+            previousCommands.add(desc);
             for (int j = 0; j < MAX_DEPTH; j++) {
                 if (result.outputSchema().isEmpty()) {
                     break;
                 }
-                command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies, lookupIndices);
+                commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
+                desc = commandGenerator.generate(previousCommands, result.outputSchema(), mappingInfo);
+                if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
+                    continue;
+                }
+                command = desc.commandString();
                 result = execute(result.query() + command, result.depth() + 1);
                 if (result.exception() != null) {
                     checkException(result);
                     break;
                 }
+                if (checkResults(previousCommands, commandGenerator, desc, previousResult, result).success() == false) {
+                    break;
+                }
+                previousCommands.add(desc);
+                previousResult = result;
             }
         }
+    }
+
+    private static CommandGenerator.ValidationResult checkResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        EsqlQueryGenerator.QueryExecuted previousResult,
+        EsqlQueryGenerator.QueryExecuted result
+    ) {
+        CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
+            previousCommands,
+            commandDescription,
+            previousResult == null ? null : previousResult.outputSchema(),
+            previousResult == null ? null : previousResult.result(),
+            result.outputSchema(),
+            result.result()
+        );
+        if (outputValidation.success() == false) {
+            for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                    return outputValidation;
+                }
+            }
+            fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
+        }
+        return outputValidation;
     }
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
@@ -114,16 +164,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
 
+    @SuppressWarnings("unchecked")
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
             Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
             List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
+            List<List<Object>> values = (List<List<Object>>) a.get("values");
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, e);
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, new RuntimeException(ae.getMessage()));
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, new RuntimeException(ae.getMessage()));
         }
 
     }
@@ -144,7 +196,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             .toList();
     }
 
-    record LookupIdx(String idxName, String key, String keyType) {}
+    public record LookupIdx(String idxName, String key, String keyType) {}
 
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();

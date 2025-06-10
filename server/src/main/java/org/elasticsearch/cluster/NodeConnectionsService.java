@@ -229,15 +229,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * Time of disconnect in absolute time ({@link ThreadPool#absoluteTimeInMillis()}),
      * and disconnect-causing exception, if any
      */
-    record DisconnectionHistory(long disconnectTimeMillis, @Nullable Exception disconnectCause) {
-        public long getDisconnectTimeMillis() {
-            return disconnectTimeMillis;
-        }
-
-        public Exception getDisconnectCause() {
-            return disconnectCause;
-        }
-    }
+    record DisconnectionHistory(long disconnectTimeMillis, @Nullable Exception disconnectCause) {}
 
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
@@ -382,7 +374,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     /**
      * Receives connection/disconnection events from the transport, and records them in per-node DisconnectionHistory
-     * structures for logging network issues. DisconnectionHistory records are stored their node's ConnectionTarget.
+     * structures for logging network issues. DisconnectionHistory records are stored in their node's ConnectionTarget.
      *
      * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
      * and it has the same ephemeral ID as it did during the last connection; this happens when a connection event

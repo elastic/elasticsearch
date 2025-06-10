@@ -252,8 +252,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void testDisconnectionHistory() {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
-        final long reconnectIntervalMillis = CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis();
-        final TimeValue reconnectIntervalTimeValue = TimeValue.timeValueMillis(reconnectIntervalMillis);
+        final TimeValue reconnectIntervalTimeValue = CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY);
+        final long reconnectIntervalMillis = reconnectIntervalTimeValue.millis();
 
         MockTransport transport = new MockTransport(threadPool);
         TestTransportService transportService = new TestTransportService(transport, threadPool);
@@ -344,12 +344,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     ) {
         DisconnectionHistory disconnectionHistory = service.disconnectionHistoryForNode(node);
         assertNotNull(disconnectionHistory);
-        assertTrue(threadPool.absoluteTimeInMillis() - disconnectionHistory.getDisconnectTimeMillis() >= 0);
-        assertTrue(threadPool.absoluteTimeInMillis() - disconnectionHistory.getDisconnectTimeMillis() <= 200);
+        assertTrue(threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis() >= 0);
+        assertTrue(threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis() <= 200);
         if (disconnectCauseClass != null) {
-            assertThat(disconnectionHistory.getDisconnectCause(), Matchers.isA(disconnectCauseClass));
+            assertThat(disconnectionHistory.disconnectCause(), Matchers.isA(disconnectCauseClass));
         } else {
-            assertNull(disconnectionHistory.getDisconnectCause());
+            assertNull(disconnectionHistory.disconnectCause());
         }
     }
 

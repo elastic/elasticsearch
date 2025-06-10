@@ -131,6 +131,7 @@ public class CsvTestsDataLoader {
     );
     private static final TestDataset AIRPORTS_WEB = new TestDataset("airports_web");
     private static final TestDataset DATE_NANOS = new TestDataset("date_nanos");
+    private static final TestDataset DATE_NANOS_UNION_TYPES = new TestDataset("date_nanos_union_types");
     private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
     private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
     private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries");
@@ -147,6 +148,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset COLORS = new TestDataset("colors");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -201,6 +203,7 @@ public class CsvTestsDataLoader {
         Map.entry(MULTIVALUE_GEOMETRIES.indexName, MULTIVALUE_GEOMETRIES),
         Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
+        Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
@@ -208,7 +211,8 @@ public class CsvTestsDataLoader {
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         Map.entry(LOGS.indexName, LOGS),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
-        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR)
+        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
+        Map.entry(COLORS.indexName, COLORS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

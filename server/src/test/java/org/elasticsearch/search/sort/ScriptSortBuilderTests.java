@@ -15,8 +15,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.ScriptDoubleValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.ScriptStringFieldComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.ScriptVersionFieldComparatorSource;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -301,15 +302,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testBuildCorrectComparatorType() throws IOException {
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.STRING);
         SortField sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
-        assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
+        assertThat(sortField.getComparatorSource(), instanceOf(ScriptStringFieldComparatorSource.class));
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
-        assertThat(sortField.getComparatorSource(), instanceOf(DoubleValuesComparatorSource.class));
+        assertThat(sortField.getComparatorSource(), instanceOf(ScriptDoubleValuesComparatorSource.class));
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.VERSION);
         sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
-        assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
+        assertThat(sortField.getComparatorSource(), instanceOf(ScriptVersionFieldComparatorSource.class));
     }
 
     /**

@@ -216,6 +216,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         return switch (inputDataType) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, (BytesRefBlock) block);
             case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
+            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
             default -> QueryList.rawTermQueryList(field, searchExecutionContext, aliasFilter, block);
         };
     }

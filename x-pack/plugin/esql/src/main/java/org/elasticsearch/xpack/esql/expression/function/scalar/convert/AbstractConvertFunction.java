@@ -99,7 +99,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     @FunctionalInterface
-    interface BuildFactory {
+    public interface BuildFactory {
         ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field);
     }
 

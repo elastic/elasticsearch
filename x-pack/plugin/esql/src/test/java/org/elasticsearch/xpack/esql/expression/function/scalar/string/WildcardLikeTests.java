@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -45,12 +46,13 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(str -> {
-            for (String syntax : new String[] { "\\", "*" }) {
+        final Function<String, String> escapeString = str -> {
+            for (String syntax : new String[] { "\\", "*", "?" }) {
                 str = str.replace(syntax, "\\" + syntax);
             }
             return str;
-        }, () -> "*");
+        };
+        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(escapeString, () -> "*");
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addCases(suppliers);
@@ -90,11 +92,15 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     static Expression buildWildcardLike(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
-        if (args.size() > 2) {
-            Literal caseInsensitive = (Literal) args.get(2);
-            assertThat(caseInsensitive.fold(FoldContext.small()), equalTo(false));
-        }
-        return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString()));
+        Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
+        boolean caseInsesitiveBool = caseInsensitive != null && (boolean) caseInsensitive.fold(FoldContext.small());
+
+        WildcardPattern wildcardPattern = new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString());
+        return caseInsesitiveBool
+            ? new WildcardLike(source, expression, wildcardPattern, true)
+            : (randomBoolean()
+                ? new WildcardLike(source, expression, wildcardPattern)
+                : new WildcardLike(source, expression, wildcardPattern, false));
     }
 
     @AfterClass

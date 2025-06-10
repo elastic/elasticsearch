@@ -5577,7 +5577,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION CONCAT(some text, x) WITH inferenceID AS y
+        // | COMPLETION y=CONCAT(some text, x) WITH inferenceID
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,

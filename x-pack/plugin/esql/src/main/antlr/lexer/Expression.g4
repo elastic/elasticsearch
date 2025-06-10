@@ -87,7 +87,6 @@ DECIMAL_LITERAL
 
 
 AND : 'and';
-AS: 'as';
 ASC : 'asc';
 ASSIGN : '=';
 BY : 'by';

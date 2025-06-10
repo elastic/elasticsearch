@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.stats;
 
-
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

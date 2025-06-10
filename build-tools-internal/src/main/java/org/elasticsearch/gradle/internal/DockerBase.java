@@ -13,7 +13,7 @@ package org.elasticsearch.gradle.internal;
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
 public enum DockerBase {
-    DEFAULT("ubuntu:20.04", "", "apt-get", "Dockerfile"),
+    DEFAULT("ubuntu:24.04", "", "apt-get", "dockerfiles/default/Dockerfile"),
 
     // "latest" here is intentional, since the image name specifies "8"
     UBI("docker.elastic.co/ubi8/ubi-minimal:latest", "-ubi8", "microdnf", "Dockerfile"),
@@ -22,13 +22,11 @@ public enum DockerBase {
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum", "Dockerfile"),
 
     // Chainguard based wolfi image with latest jdk
-    // This is usually updated via renovatebot
-    // spotless:off
     WOLFI(
-        "docker.elastic.co/wolfi/chainguard-base:latest@sha256:1c7f5aa0e7997455b8500d095c7a90e617102d3941eb0757ac62cfea509e09b9",
+        null,
         "-wolfi",
         "apk",
-        "Dockerfile"
+        "dockerfiles/wolfi/Dockerfile"
     ),
     // spotless:on
 
@@ -37,10 +35,10 @@ public enum DockerBase {
     CLOUD_ESS(null, "-cloud-ess", "apk", "Dockerfile.ess"),
 
     CLOUD_ESS_FIPS(
-        "docker.elastic.co/wolfi/chainguard-base-fips:sha256-ebfc3f1d7dba992231747a2e05ad1b859843e81b5e676ad342859d7cf9e425a7",
+        null,
         "-cloud-ess-fips",
         "apk",
-        "Dockerfile.ess-fips"
+        "dockerfiles/cloud_ess_fips/Dockerfile"
     );
 
     private final String image;

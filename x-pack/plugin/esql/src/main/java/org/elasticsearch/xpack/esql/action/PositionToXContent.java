@@ -92,7 +92,7 @@ abstract class PositionToXContent {
                     return builder.value(unsignedLongAsNumber(l));
                 }
             };
-            case KEYWORD, SEMANTIC_TEXT, TEXT -> new PositionToXContent(block) {
+            case KEYWORD, TEXT -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -241,17 +242,28 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Tests that finish then close without calling {@link Operator#getOutput} to
      * retrieve a potential last page, releases all memory.
      */
-    public void testSimpleFinishClose() throws Exception {
+    public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
-        Page page = input.get(0);
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
-            operator.addInput(page);
+            for (Page page : input) {
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
+            }
             operator.finish();
+            // for async operator, we need to wait for async actions to finish.
+            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+            }
         }
     }
 

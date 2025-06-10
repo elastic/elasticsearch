@@ -219,7 +219,12 @@ public class PushQueriesIT extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry(
+                "profile",
+                matchesMap().entry("drivers", instanceOf(List.class))
+                    .entry("planning", matchesMap().extraOk())
+                    .entry("query", matchesMap().extraOk())
+            ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", "text")),
             equalTo(found ? List.of(List.of(value)) : List.of())
         );

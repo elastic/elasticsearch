@@ -11,9 +11,12 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardToRegExp;
 
 /**
  * Similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
@@ -38,9 +41,16 @@ public class WildcardPattern extends AbstractStringPattern {
     }
 
     @Override
-    public Automaton createAutomaton() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    public Automaton createAutomaton(boolean ignoreCase) {
+        return ignoreCase
+            ? Operations.determinize(
+                new RegExp(luceneWildcardToRegExp(wildcard), RegExp.ALL, RegExp.ASCII_CASE_INSENSITIVE).toAutomaton(),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            )
+            : MinimizationOperations.minimize(
+                WildcardQuery.toAutomaton(new Term(null, wildcard)),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            );
     }
 
     @Override

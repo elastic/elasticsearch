@@ -16,7 +16,6 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -27,6 +26,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -159,8 +159,8 @@ public class QueryToFilterAdapter {
                 query = ((ConstantScoreQuery) query).getQuery();
                 continue;
             }
-            if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
-                query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+            if (query instanceof XIndexSortSortedNumericDocValuesRangeQuery) {
+                query = ((XIndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
                 continue;
             }
             if (query instanceof IndexOrDocValuesQuery) {

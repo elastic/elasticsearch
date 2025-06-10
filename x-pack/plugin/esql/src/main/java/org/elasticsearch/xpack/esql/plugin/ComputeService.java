@@ -26,7 +26,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
@@ -231,7 +230,7 @@ public class ComputeService {
                         computeListener.acquireCompute().delegateFailure((l, profiles) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
+                                    var tookTime = execInfo.tookSoFar();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();

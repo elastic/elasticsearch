@@ -72,7 +72,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
@@ -310,10 +309,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         return options;
     }
 
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT, SEMANTIC_TEXT);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text, semantic_text").and(
+        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
             isNotNullAndFoldable(query(), sourceText(), FIRST)
         );
     }

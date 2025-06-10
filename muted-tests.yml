@@ -404,9 +404,6 @@ tests:
     method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
     extractedAssemble, #1]"
     issue: https://github.com/elastic/elasticsearch/issues/119870
-  - class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
-    method: testCreateRequest_WithEntraIdDefined
-    issue: https://github.com/elastic/elasticsearch/issues/125061
   - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
     method: testLuceneVersionConstant
     issue: https://github.com/elastic/elasticsearch/issues/125638
@@ -458,9 +455,9 @@ tests:
   - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
     method: testSearchWhileRelocating
     issue: https://github.com/elastic/elasticsearch/issues/127188
-  - class: org.elasticsearch.compute.operator.ChangePointOperatorTests
-    method: testSimpleFinishClose
-    issue: https://github.com/elastic/elasticsearch/issues/127106
   - class: org.elasticsearch.search.CCSDuelIT
     method: testTerminateAfter
     issue: https://github.com/elastic/elasticsearch/issues/126085
+  - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+    method: testSchedulerCloseWaitsForRunningMerge
+    issue: https://github.com/elastic/elasticsearch/issues/125236

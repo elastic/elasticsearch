@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -63,6 +64,7 @@ import static org.elasticsearch.script.MockScriptPlugin.NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitSize;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -2277,11 +2279,50 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testMixedIntAndLongSortTypes() {
+        assertAcked(
+            prepareCreate("index_long").setMapping("field1", "type=long", "field2", "type=long"),
+            prepareCreate("index_integer").setMapping("field1", "type=integer", "field2", "type=integer"),
+            prepareCreate("index_short").setMapping("field1", "type=short", "field2", "type=short"),
+            prepareCreate("index_byte").setMapping("field1", "type=byte", "field2", "type=byte")
+        );
+
+        for (int i = 0; i < 5; i++) {
+            prepareIndex("index_long").setId(String.valueOf(i)).setSource("field1", i).get(); // missing field2 sorts last
+            prepareIndex("index_integer").setId(String.valueOf(i)).setSource("field1", i).get(); // missing field2 sorts last
+            prepareIndex("index_short").setId(String.valueOf(i)).setSource("field1", i, "field2", i * 10).get();
+            prepareIndex("index_byte").setId(String.valueOf(i)).setSource("field1", i, "field2", i).get();
+        }
+        refresh();
+
+        Object[] searchAfter = null;
+        int[] expectedHitSizes = { 8, 8, 4 };
+        Object[][] expectedLastDocValues = {
+            new Object[] { 1L, 9223372036854775807L },
+            new Object[] { 3L, 9223372036854775807L },
+            new Object[] { 4L, 9223372036854775807L } };
+
+        for (int i = 0; i < 3; i++) {
+            SearchRequestBuilder request = prepareSearch("index_long", "index_integer", "index_short", "index_byte").setSize(8)
+                .addSort(new FieldSortBuilder("field1"))
+                .addSort(new FieldSortBuilder("field2"));
+            if (searchAfter != null) {
+                request.searchAfter(searchAfter);
+            }
+            SearchResponse response = request.get();
+            assertHitSize(response, expectedHitSizes[i]);
+            Object[] lastDocSortValues = response.getHits().getAt(response.getHits().getHits().length - 1).getSortValues();
+            assertThat(lastDocSortValues, equalTo(expectedLastDocValues[i]));
+            searchAfter = lastDocSortValues;
+            response.decRef();
+        }
+    }
+
     public void testSortMixedFieldTypesWithNoDocsForOneType() {
         assertAcked(
             prepareCreate("index_long").setMapping("foo", "type=long"),
             prepareCreate("index_other").setMapping("bar", "type=keyword"),
-            prepareCreate("index_double").setMapping("foo", "type=double")
+            prepareCreate("index_int").setMapping("foo", "type=integer")
         );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
@@ -2290,8 +2331,7 @@ public class FieldSortIT extends ESIntegTestCase {
         refresh();
 
         assertNoFailures(
-            prepareSearch("index_long", "index_double", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
-                .setSize(10)
+            prepareSearch("index_long", "index_int", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean")).setSize(10)
         );
     }
 }

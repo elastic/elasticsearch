@@ -392,5 +392,5 @@ completionCommand
     ;
 
 sampleCommand
-    : DEV_SAMPLE probability=decimalValue seed=integerValue?
+    : DEV_SAMPLE probability=decimalValue
     ;

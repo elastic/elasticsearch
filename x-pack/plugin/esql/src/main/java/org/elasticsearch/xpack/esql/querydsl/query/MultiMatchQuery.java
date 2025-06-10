@@ -73,6 +73,9 @@ public class MultiMatchQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
+        // TODO: create a new builder, group fields by analyzer (combined_fields query), separate groups are combined with dis_max query.
+        // TODO: needs to happen on shard level.
+
         final MultiMatchQueryBuilder queryBuilder = QueryBuilders.multiMatchQuery(query);
         queryBuilder.fields(fields);
         options.forEach((k, v) -> {

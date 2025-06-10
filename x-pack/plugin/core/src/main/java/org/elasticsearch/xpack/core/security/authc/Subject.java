@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CLOUD_API_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CROSS_CLUSTER_ACCESS;
 
 /**
@@ -137,6 +138,13 @@ public class Subject {
                 // A cross cluster access subject can never share resources with non-cross cluster access
                 return false;
             }
+        } else if (eitherIsACloudApiKey(resourceCreatorSubject)) {
+            if (bothAreCloudApiKeys(resourceCreatorSubject)) {
+                return isTheSameApiKey(resourceCreatorSubject);
+            } else {
+                // a cloud API Key cannot access resources created by non-Cloud API Keys or vice versa
+                return false;
+            }
         } else {
             if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
                 return false;
@@ -189,6 +197,14 @@ public class Subject {
 
     private boolean bothAreCrossClusterAccess(Subject resourceCreatorSubject) {
         return CROSS_CLUSTER_ACCESS.equals(getType()) && CROSS_CLUSTER_ACCESS.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean eitherIsACloudApiKey(Subject resourceCreatorSubject) {
+        return CLOUD_API_KEY.equals(getType()) || CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreCloudApiKeys(Subject resourceCreatorSubject) {
+        return CLOUD_API_KEY.equals(getType()) && CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
     }
 
     @Override

@@ -236,13 +236,6 @@ public final class Authentication implements ToXContentObject {
         return type;
     }
 
-    public ManagedBy getManagedBy() {
-        if (isCloudApiKey()) {
-            return ManagedBy.CLOUD;
-        }
-        return ManagedBy.ELASTICSEARCH;
-    }
-
     /**
      * Whether the authentication contains a subject run-as another subject. That is, the authentication subject
      * is different from the effective subject.
@@ -798,29 +791,26 @@ public final class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey() || isCrossClusterAccess()) {
+
+        final String managedBy = (String) metadata.get(AuthenticationField.MANAGED_BY_KEY);
+        if (managedBy != null) {
+            builder.field("managed_by", managedBy);
+        }
+
+        if (isApiKey() || isCrossClusterAccess() || isCloudApiKey()) {
             final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) metadata.get(AuthenticationField.API_KEY_NAME_KEY);
-            if (apiKeyName == null) {
-                builder.field("api_key", Map.of("id", apiKeyId));
-            } else {
-                builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
+            final Map<String, Object> apiKeyField = new HashMap<>();
+            apiKeyField.put("id", apiKeyId);
+            if (apiKeyName != null) {
+                apiKeyField.put("name", apiKeyName);
             }
-        }
-        if (isCloudApiKey()) {
-            final String apiKeyId = (String) metadata.get(AuthenticationField.CLOUD_API_KEY_ID_KEY);
-            final String apiKeyName = (String) metadata.get(AuthenticationField.CLOUD_API_KEY_NAME_KEY);
-            final boolean internal = (boolean) metadata.get(AuthenticationField.CLOUD_API_KEY_INTERNAL_KEY);
-            if (apiKeyName == null) {
-                builder.field("api_key", Map.ofEntries(Map.entry("id", apiKeyId), Map.entry("internal", internal)));
-            } else {
-                builder.field(
-                    "api_key",
-                    Map.ofEntries(Map.entry("id", apiKeyId), Map.entry("name", apiKeyName), Map.entry("internal", internal))
-                );
+            if (isCloudApiKey()) {
+                final boolean internal = (boolean) metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY);
+                apiKeyField.put("internal", internal);
             }
+            builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
-        builder.field("managed_by", getManagedBy().name());
     }
 
     public static Authentication getAuthenticationFromCrossClusterAccessMetadata(Authentication authentication) {
@@ -947,11 +937,8 @@ public final class Authentication implements ToXContentObject {
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        if (authenticatingRealm.isCloudApiKeyRealm()) {
-            // TODO consistency check for cloud API keys
-            return;
-        }
-        checkConsistencyForApiKeyAuthenticatingSubject("API key");
+        final String prefixMessage = authenticatingRealm.isCloudApiKeyRealm() ? "Cloud API key" : "API key";
+        checkConsistencyForApiKeyAuthenticatingSubject(prefixMessage);
         if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
@@ -973,6 +960,10 @@ public final class Authentication implements ToXContentObject {
                 );
             }
             checkNoRunAs(this, "Cross cluster access");
+
+        } else if (Subject.Type.CLOUD_API_KEY == authenticatingSubject.getType()) {
+            checkNoRunAs(this, prefixMessage);
+
         } else {
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);
@@ -1038,7 +1029,9 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
         checkNoDomain(authenticatingRealm, prefixMessage);
         checkNoInternalUser(authenticatingSubject, prefixMessage);
-        checkNoRole(authenticatingSubject, prefixMessage);
+        if (Subject.Type.CLOUD_API_KEY != authenticatingSubject.getType()) {
+            checkNoRole(authenticatingSubject, prefixMessage);
+        }
         if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
             throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
         }
@@ -1080,7 +1073,8 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_NAME,
             FALLBACK_REALM_NAME,
             ATTACH_REALM_NAME,
-            CROSS_CLUSTER_ACCESS_REALM_NAME
+            CROSS_CLUSTER_ACCESS_REALM_NAME,
+            CLOUD_API_KEY_REALM_NAME
         ).contains(realmRef.getName())) {
             return true;
         }
@@ -1090,7 +1084,8 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_TYPE,
             FALLBACK_REALM_TYPE,
             ATTACH_REALM_TYPE,
-            CROSS_CLUSTER_ACCESS_REALM_TYPE
+            CROSS_CLUSTER_ACCESS_REALM_TYPE,
+            CLOUD_API_KEY_REALM_TYPE
         ).contains(realmRef.getType())) {
             return true;
         }

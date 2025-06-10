@@ -22,7 +22,6 @@ import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -66,15 +65,9 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
-
-        for (var bwcProperty : List.of("tests.bwc.main.version", "tests.bwc.refspec.main")) {
-            var value = System.getProperty(bwcProperty);
-            if (value != null) {
-                isBwcTest = true;
-                b.append(" -D").append(bwcProperty).append("=\"").append(value).append("\" ");
-            }
-        }
+        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"))
+            || System.getProperty("tests.bwc.main.version") != null
+            || System.getProperty("tests.bwc.refspec.main") != null;
 
         // append Gradle test runner test filter string
         b.append("\"" + task + "\"");
@@ -183,7 +176,9 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.bwc",
                 "tests.bwc.version",
                 "build.snapshot",
-                "tests.configure_test_clusters_with_one_processor"
+                "tests.configure_test_clusters_with_one_processor",
+                "tests.bwc.main.version",
+                "tests.bwc.refspec.main"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");

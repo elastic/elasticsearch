@@ -50,7 +50,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
     public void testLocalDatabasesEmptyConfig() throws Exception {
         Path configDir = createTempDir();
-        ConfigDatabases configDatabases = new ConfigDatabases(configDir, new GeoIpCache(0));
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, GeoIpCache.createGeoIpCacheWithMaxCount(0));
         configDatabases.initialize(resourceWatcherService);
 
         assertThat(configDatabases.getConfigDatabases(), anEmptyMap());
@@ -64,7 +64,7 @@ public class ConfigDatabasesTests extends ESTestCase {
         copyDatabase("GeoIP2-City-Test.mmdb", configDir.resolve("GeoIP2-City.mmdb"));
         copyDatabase("GeoLite2-City-Test.mmdb", configDir.resolve("GeoLite2-City.mmdb"));
 
-        ConfigDatabases configDatabases = new ConfigDatabases(configDir, new GeoIpCache(0));
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, GeoIpCache.createGeoIpCacheWithMaxCount(0));
         configDatabases.initialize(resourceWatcherService);
 
         assertThat(configDatabases.getConfigDatabases().size(), equalTo(2));
@@ -77,7 +77,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
     public void testDatabasesDynamicUpdateConfigDir() throws Exception {
         Path configDir = prepareConfigDir();
-        ConfigDatabases configDatabases = new ConfigDatabases(configDir, new GeoIpCache(0));
+        ConfigDatabases configDatabases = new ConfigDatabases(configDir, GeoIpCache.createGeoIpCacheWithMaxCount(0));
         configDatabases.initialize(resourceWatcherService);
         {
             assertThat(configDatabases.getConfigDatabases().size(), equalTo(3));
@@ -117,7 +117,7 @@ public class ConfigDatabasesTests extends ESTestCase {
         Path configDir = createTempDir();
         copyDatabase("GeoLite2-City.mmdb", configDir);
 
-        GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000); // real cache to test purging of entries upon a reload
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
         configDatabases.initialize(resourceWatcherService);
         {
@@ -126,7 +126,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity).result();
             assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
         }
@@ -138,7 +138,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity).result();
             assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
         });

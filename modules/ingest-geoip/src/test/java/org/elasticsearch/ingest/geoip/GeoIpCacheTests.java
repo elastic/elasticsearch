@@ -9,8 +9,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.model.AbstractResponse;
-
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.test.ESTestCase;
@@ -25,12 +23,12 @@ import static org.mockito.Mockito.mock;
 public class GeoIpCacheTests extends ESTestCase {
 
     public void testCachesAndEvictsResults() {
-        GeoIpCache cache = new GeoIpCache(1);
-        AbstractResponse response1 = mock(AbstractResponse.class);
-        AbstractResponse response2 = mock(AbstractResponse.class);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1);
+        GeoIpCache.CacheableValue response1 = mock(GeoIpCache.CacheableValue.class);
+        GeoIpCache.CacheableValue response2 = mock(GeoIpCache.CacheableValue.class);
 
         // add a key
-        AbstractResponse cachedResponse = cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> response1);
+        GeoIpCache.CacheableValue cachedResponse = cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> response1);
         assertSame(cachedResponse, response1);
         assertSame(cachedResponse, cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> response1));
         assertSame(cachedResponse, cache.get("127.0.0.1", "path/to/db"));
@@ -44,14 +42,14 @@ public class GeoIpCacheTests extends ESTestCase {
     }
 
     public void testCachesNoResult() {
-        GeoIpCache cache = new GeoIpCache(1);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1);
         final AtomicInteger count = new AtomicInteger(0);
-        Function<String, AbstractResponse> countAndReturnNull = (ip) -> {
+        Function<String, GeoIpCache.CacheableValue> countAndReturnNull = (ip) -> {
             count.incrementAndGet();
             return null;
         };
 
-        AbstractResponse response = cache.putIfAbsent("127.0.0.1", "path/to/db", countAndReturnNull);
+        GeoIpCache.CacheableValue response = cache.putIfAbsent("127.0.0.1", "path/to/db", countAndReturnNull);
         assertNull(response);
         assertNull(cache.putIfAbsent("127.0.0.1", "path/to/db", countAndReturnNull));
         assertEquals(1, count.get());
@@ -61,9 +59,9 @@ public class GeoIpCacheTests extends ESTestCase {
     }
 
     public void testCacheKey() {
-        GeoIpCache cache = new GeoIpCache(2);
-        AbstractResponse response1 = mock(AbstractResponse.class);
-        AbstractResponse response2 = mock(AbstractResponse.class);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(2);
+        GeoIpCache.CacheableValue response1 = mock(GeoIpCache.CacheableValue.class);
+        GeoIpCache.CacheableValue response2 = mock(GeoIpCache.CacheableValue.class);
 
         assertSame(response1, cache.putIfAbsent("127.0.0.1", "path/to/db1", ip -> response1));
         assertSame(response2, cache.putIfAbsent("127.0.0.1", "path/to/db2", ip -> response2));
@@ -72,7 +70,7 @@ public class GeoIpCacheTests extends ESTestCase {
     }
 
     public void testThrowsFunctionsException() {
-        GeoIpCache cache = new GeoIpCache(1);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> {
@@ -83,7 +81,7 @@ public class GeoIpCacheTests extends ESTestCase {
     }
 
     public void testInvalidInit() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new GeoIpCache(-1));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> GeoIpCache.createGeoIpCacheWithMaxCount(-1));
         assertEquals("geoip max cache size must be 0 or greater", ex.getMessage());
     }
 
@@ -91,8 +89,11 @@ public class GeoIpCacheTests extends ESTestCase {
         final long maxCacheSize = 2;
         final AtomicLong testNanoTime = new AtomicLong(0);
         // We use a relative time provider that increments 1ms every time it is called. So each operation appears to take 1ms
-        GeoIpCache cache = new GeoIpCache(maxCacheSize, () -> testNanoTime.addAndGet(TimeValue.timeValueMillis(1).getNanos()));
-        AbstractResponse response = mock(AbstractResponse.class);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCountAndCustomTimeProvider(
+            maxCacheSize,
+            () -> testNanoTime.addAndGet(TimeValue.timeValueMillis(1).getNanos())
+        );
+        GeoIpCache.CacheableValue response = mock(GeoIpCache.CacheableValue.class);
         String databasePath = "path/to/db1";
         String key1 = "127.0.0.1";
         String key2 = "127.0.0.2";

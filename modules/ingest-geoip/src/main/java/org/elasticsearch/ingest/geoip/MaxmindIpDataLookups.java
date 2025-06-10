@@ -109,7 +109,23 @@ final class MaxmindIpDataLookups {
         };
     }
 
-    static class AnonymousIp extends AbstractBase<AnonymousIpResponse, AnonymousIpResponse> {
+    static class CacheableAnonymousIpResponse extends AnonymousIpResponse implements GeoIpCache.CacheableValue {
+
+        CacheableAnonymousIpResponse(AnonymousIpResponse response) {
+            super(
+                response.getIpAddress(),
+                response.isAnonymous(),
+                response.isAnonymousVpn(),
+                response.isHostingProvider(),
+                response.isPublicProxy(),
+                response.isResidentialProxy(),
+                response.isTorExitNode(),
+                response.getNetwork()
+            );
+        }
+    }
+
+    static class AnonymousIp extends AbstractBase<AnonymousIpResponse, CacheableAnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {
             super(
                 properties,
@@ -119,12 +135,12 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected AnonymousIpResponse cacheableRecord(AnonymousIpResponse response) {
-            return response;
+        protected CacheableAnonymousIpResponse cacheableRecord(AnonymousIpResponse response) {
+            return new CacheableAnonymousIpResponse(response);
         }
 
         @Override
-        protected Map<String, Object> transform(final AnonymousIpResponse response) {
+        protected Map<String, Object> transform(final CacheableAnonymousIpResponse response) {
             boolean isHostingProvider = response.isHostingProvider();
             boolean isTorExitNode = response.isTorExitNode();
             boolean isAnonymousVpn = response.isAnonymousVpn();
@@ -160,18 +176,30 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Asn extends AbstractBase<AsnResponse, AsnResponse> {
+    static class CacheableAsnResponse extends AsnResponse implements GeoIpCache.CacheableValue {
+
+        CacheableAsnResponse(AsnResponse response) {
+            super(
+                response.getAutonomousSystemNumber(),
+                response.getAutonomousSystemOrganization(),
+                response.getIpAddress(),
+                response.getNetwork()
+            );
+        }
+    }
+
+    static class Asn extends AbstractBase<AsnResponse, CacheableAsnResponse> {
         Asn(Set<Database.Property> properties) {
             super(properties, AsnResponse.class, (response, ipAddress, network, locales) -> new AsnResponse(response, ipAddress, network));
         }
 
         @Override
-        protected AsnResponse cacheableRecord(AsnResponse response) {
-            return response;
+        protected CacheableAsnResponse cacheableRecord(AsnResponse response) {
+            return new CacheableAsnResponse(response);
         }
 
         @Override
-        protected Map<String, Object> transform(final AsnResponse response) {
+        protected Map<String, Object> transform(final CacheableAsnResponse response) {
             Long asn = response.getAutonomousSystemNumber();
             String organizationName = response.getAutonomousSystemOrganization();
             Network network = response.getNetwork();
@@ -354,7 +382,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class ConnectionType extends AbstractBase<ConnectionTypeResponse, ConnectionTypeResponse> {
+    static class CacheableConnectionTypeResponse extends ConnectionTypeResponse implements GeoIpCache.CacheableValue {
+
+        CacheableConnectionTypeResponse(ConnectionTypeResponse response) {
+            super(response.getConnectionType(), response.getIpAddress(), response.getNetwork());
+        }
+    }
+
+    static class ConnectionType extends AbstractBase<ConnectionTypeResponse, CacheableConnectionTypeResponse> {
         ConnectionType(final Set<Database.Property> properties) {
             super(
                 properties,
@@ -364,12 +399,12 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected ConnectionTypeResponse cacheableRecord(ConnectionTypeResponse response) {
-            return response;
+        protected CacheableConnectionTypeResponse cacheableRecord(ConnectionTypeResponse response) {
+            return new CacheableConnectionTypeResponse(response);
         }
 
         @Override
-        protected Map<String, Object> transform(final ConnectionTypeResponse response) {
+        protected Map<String, Object> transform(final CacheableConnectionTypeResponse response) {
             ConnectionTypeResponse.ConnectionType connectionType = response.getConnectionType();
 
             Map<String, Object> data = new HashMap<>();
@@ -479,7 +514,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Domain extends AbstractBase<DomainResponse, DomainResponse> {
+    static class CacheableDomainResponse extends DomainResponse implements GeoIpCache.CacheableValue {
+
+        CacheableDomainResponse(DomainResponse response) {
+            super(response.getDomain(), response.getIpAddress(), response.getNetwork());
+        }
+    }
+
+    static class Domain extends AbstractBase<DomainResponse, CacheableDomainResponse> {
         Domain(final Set<Database.Property> properties) {
             super(
                 properties,
@@ -489,12 +531,12 @@ final class MaxmindIpDataLookups {
         }
 
         @Override
-        protected DomainResponse cacheableRecord(DomainResponse response) {
-            return response;
+        protected CacheableDomainResponse cacheableRecord(DomainResponse response) {
+            return new CacheableDomainResponse(response);
         }
 
         @Override
-        protected Map<String, Object> transform(final DomainResponse response) {
+        protected Map<String, Object> transform(final CacheableDomainResponse response) {
             String domain = response.getDomain();
 
             Map<String, Object> data = new HashMap<>();
@@ -784,18 +826,25 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Isp extends AbstractBase<IspResponse, IspResponse> {
+    static class CacheableIspResponse extends IspResponse implements GeoIpCache.CacheableValue {
+
+        CacheableIspResponse(IspResponse response) {
+            super(response, response.getIpAddress(), response.getNetwork());
+        }
+    }
+
+    static class Isp extends AbstractBase<IspResponse, CacheableIspResponse> {
         Isp(final Set<Database.Property> properties) {
             super(properties, IspResponse.class, (response, ipAddress, network, locales) -> new IspResponse(response, ipAddress, network));
         }
 
         @Override
-        protected IspResponse cacheableRecord(IspResponse response) {
-            return response;
+        protected CacheableIspResponse cacheableRecord(IspResponse response) {
+            return new CacheableIspResponse(response);
         }
 
         @Override
-        protected Map<String, Object> transform(final IspResponse response) {
+        protected Map<String, Object> transform(final CacheableIspResponse response) {
             String isp = response.getIsp();
             String ispOrganization = response.getOrganization();
             String mobileNetworkCode = response.getMobileNetworkCode();
@@ -867,7 +916,9 @@ final class MaxmindIpDataLookups {
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}
      */
-    private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD> implements IpDataLookup {
+    private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD extends GeoIpCache.CacheableValue>
+        implements
+            IpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;

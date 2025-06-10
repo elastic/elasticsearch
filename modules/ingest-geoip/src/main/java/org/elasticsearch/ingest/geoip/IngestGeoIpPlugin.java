@@ -120,7 +120,7 @@ public class IngestGeoIpPlugin extends Plugin
         ingestService.set(parameters.ingestService);
 
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
-        GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
+        GeoIpCache geoIpCache = GeoIpCache.createGeoIpCacheWithMaxCount(cacheSize);
         DatabaseNodeService registry = new DatabaseNodeService(
             parameters.env,
             parameters.client,

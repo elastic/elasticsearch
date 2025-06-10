@@ -73,10 +73,12 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
-    public static CityResponse getCity(Reader reader, String ip) throws IOException {
+    public static IpDataLookup.Result<CityResponse> getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
-        return data == null ? null : new CityResponse(data, ip, record.getNetwork(), List.of("en"));
+        return data == null
+            ? null
+            : new IpDataLookup.Result<>(new CityResponse(data, ip, record.getNetwork(), List.of("en")), ip, record.getNetwork().toString());
     }
 
     /**
@@ -85,9 +87,15 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
-    public static CountryResponse getCountry(Reader reader, String ip) throws IOException {
+    public static IpDataLookup.Result<CountryResponse> getCountry(Reader reader, String ip) throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
         CountryResponse data = record.getData();
-        return data == null ? null : new CountryResponse(data, ip, record.getNetwork(), List.of("en"));
+        return data == null
+            ? null
+            : new IpDataLookup.Result<>(
+                new CountryResponse(data, ip, record.getNetwork(), List.of("en")),
+                ip,
+                record.getNetwork().toString()
+            );
     }
 }

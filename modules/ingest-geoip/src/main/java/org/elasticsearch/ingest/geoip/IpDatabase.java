@@ -33,10 +33,12 @@ public interface IpDatabase extends AutoCloseable {
      * @param ipAddress the address to lookup
      * @param responseProvider a method for extracting a response from a {@link Reader}, usually this will be a method reference
      * @return a possibly-null response
-     * @param <RESPONSE> the type of response that will be returned
      */
     @Nullable
-    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider);
+    <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    );
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

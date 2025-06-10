@@ -105,7 +105,10 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
 
     @Override
     @Nullable
-    public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+    public <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    ) {
         return cache.putIfAbsent(ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);

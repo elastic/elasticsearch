@@ -96,7 +96,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         IpDatabase database = databaseNodeService.getDatabase(databaseFileName);
         assertNotNull(database);
         assertThat(database.getDatabaseType(), equalTo(databaseType));
-        CountryResponse countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry);
+        CountryResponse countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry).result();
         assertNotNull(countryResponse);
         Country country = countryResponse.getCountry();
         assertNotNull(country);

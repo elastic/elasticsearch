@@ -333,7 +333,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
     private DatabaseReaderLazyLoader loader(final String databaseName) {
         Path path = tmpDir.resolve(databaseName);
         copyDatabase(databaseName, path);
-        final GeoIpCache cache = new GeoIpCache(1000);
+        final GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
         return new DatabaseReaderLazyLoader(cache, path, null);
     }
 }

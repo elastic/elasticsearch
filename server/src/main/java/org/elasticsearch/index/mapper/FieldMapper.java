@@ -83,33 +83,24 @@ public abstract class FieldMapper extends Mapper {
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
     /**
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
-     * @param sourceKeepMode   mode for storing the field source in synthetic source mode
-     * @param hasScript         whether a script is defined for the field
-     * @param onScriptError     the behaviour for when the defined script fails at runtime
-     * @param currentFieldIsAMultiField whether current field is part of a multi-field definition
+     * @param multiFields    sub fields of this mapper
+     * @param copyTo         copyTo fields of this mapper
+     * @param sourceKeepMode mode for storing the field source in synthetic source mode
+     * @param hasScript      whether a script is defined for the field
+     * @param onScriptError  the behaviour for when the defined script fails at runtime
      */
     protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
         Optional<SourceKeepMode> sourceKeepMode,
         boolean hasScript,
-        OnScriptError onScriptError,
-        boolean currentFieldIsAMultiField
+        OnScriptError onScriptError
     ) {
         public static BuilderParams empty() {
             return empty;
         }
 
-        private static final BuilderParams empty = new BuilderParams(
-            MultiFields.empty(),
-            CopyTo.empty(),
-            Optional.empty(),
-            false,
-            null,
-            false
-        );
+        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
     }
 
     protected final MappedFieldType mappedFieldType;
@@ -611,7 +602,6 @@ public abstract class FieldMapper extends Mapper {
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                builder.currentFieldIsAMultiField = true;
                 mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
@@ -1394,20 +1384,24 @@ public abstract class FieldMapper extends Mapper {
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
-        protected boolean currentFieldIsAMultiField = false;
+        protected final boolean withinMultiField;
 
         /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
+            this(name, false);
+        }
+
+        protected Builder(String name, boolean withinMultiField) {
             super(name);
+            this.withinMultiField = withinMultiField;
         }
 
         /**
          * Initialises all parameters from an existing mapper
          */
         public Builder init(FieldMapper initializer) {
-            this.currentFieldIsAMultiField = initializer.builderParams.currentFieldIsAMultiField;
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
@@ -1423,14 +1417,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected BuilderParams builderParams(FieldMapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-            return new BuilderParams(
-                multiFieldsBuilder.build(mainFieldBuilder, context),
-                copyTo,
-                sourceKeepMode,
-                hasScript,
-                onScriptError,
-                mainFieldBuilder.currentFieldIsAMultiField
-            );
+            return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
@@ -1450,6 +1437,10 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
             }
+        }
+
+        public boolean isWithinMultiField() {
+            return withinMultiField;
         }
 
         /**

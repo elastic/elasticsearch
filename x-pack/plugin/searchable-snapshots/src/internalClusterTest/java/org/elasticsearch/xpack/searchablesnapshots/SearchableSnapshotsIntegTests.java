@@ -1310,7 +1310,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertNoFailures(refreshResult);
     }
 
-
     private TaskInfo getTaskForActionFromMaster(String action) {
         ListTasksResponse response = client().execute(
             TransportListTasksAction.TYPE,

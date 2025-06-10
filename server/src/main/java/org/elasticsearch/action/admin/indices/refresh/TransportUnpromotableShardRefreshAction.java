@@ -159,7 +159,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         assert Engine.UNKNOWN_PRIMARY_TERM < primaryTerm : primaryTerm;
         var segmentGeneration = request.getSegmentGeneration();
         assert Engine.RefreshResult.UNKNOWN_GENERATION < segmentGeneration : segmentGeneration;
-        
+
         ActionListener.run(responseListener, listener -> {
             shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> ActionResponse.Empty.INSTANCE));
         });

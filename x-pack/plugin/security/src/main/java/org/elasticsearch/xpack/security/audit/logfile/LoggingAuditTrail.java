@@ -1635,7 +1635,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
+            if (authentication.isApiKey() || authentication.isCrossClusterAccess() || authentication.isCloudApiKey()) {
                 logEntry.with(
                     API_KEY_ID_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)

@@ -25,7 +25,10 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.streams.logs.LogsStreamsActivationToggleAction;
 import org.elasticsearch.rest.streams.logs.RestSetLogStreamsEnabledAction;
+import org.elasticsearch.rest.streams.logs.RestStreamsStatusAction;
+import org.elasticsearch.rest.streams.logs.StreamsStatusAction;
 import org.elasticsearch.rest.streams.logs.TransportLogsStreamsToggleActivation;
+import org.elasticsearch.rest.streams.logs.TransportStreamsStatusAction;
 
 import java.util.Collections;
 import java.util.List;
@@ -50,14 +53,17 @@ public class StreamsPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            return List.of(new RestSetLogStreamsEnabledAction());
+            return List.of(new RestSetLogStreamsEnabledAction(), new RestStreamsStatusAction());
         }
         return Collections.emptyList();
     }
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(new ActionHandler(LogsStreamsActivationToggleAction.INSTANCE, TransportLogsStreamsToggleActivation.class));
+        return List.of(
+            new ActionHandler(LogsStreamsActivationToggleAction.INSTANCE, TransportLogsStreamsToggleActivation.class),
+            new ActionHandler(StreamsStatusAction.INSTANCE, TransportStreamsStatusAction.class)
+        );
     }
 
     @Override

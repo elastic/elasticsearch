@@ -2131,6 +2131,7 @@ setup:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
+          path : /_mapping
           capabilities: [ dense_vector_updatable_bbq ]
   - do:
       indices.create:
@@ -2276,6 +2277,7 @@ setup:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
+          path : /_mapping
           capabilities: [ dense_vector_updatable_bbq ]
   - do:
       indices.create:
@@ -2396,6 +2398,7 @@ setup:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
+          path : /_mapping
           capabilities: [ dense_vector_updatable_bbq ]
   - do:
       indices.create:

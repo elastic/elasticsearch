@@ -19,22 +19,15 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     private final int[] slice;
 
     FloatVectorValuesSlice(FloatVectorValues allValues, int[] slice) {
-        assert slice == null || slice.length <= allValues.size();
+        assert slice != null;
+        assert slice.length <= allValues.size();
         this.allValues = allValues;
-        if (slice != null && slice.length == allValues.size()) {
-            this.slice = null;
-        } else {
-            this.slice = slice;
-        }
+        this.slice = slice;
     }
 
     @Override
     public float[] vectorValue(int ord) throws IOException {
-        if (this.slice == null) {
-            return this.allValues.vectorValue(ord);
-        } else {
-            return this.allValues.vectorValue(this.slice[ord]);
-        }
+        return this.allValues.vectorValue(this.slice[ord]);
     }
 
     @Override
@@ -44,20 +37,12 @@ class FloatVectorValuesSlice extends FloatVectorValues {
 
     @Override
     public int size() {
-        if (slice == null) {
-            return allValues.size();
-        } else {
-            return slice.length;
-        }
+        return slice.length;
     }
 
     @Override
     public int ordToDoc(int ord) {
-        if (this.slice == null) {
-            return ord;
-        } else {
-            return this.slice[ord];
-        }
+        return this.slice[ord];
     }
 
     @Override

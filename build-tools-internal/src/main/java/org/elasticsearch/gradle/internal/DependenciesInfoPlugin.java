@@ -48,10 +48,7 @@ public class DependenciesInfoPlugin implements Plugin<Project> {
         );
 
         dependenciesInfoFilesConfiguration.attributes(
-            attributes -> attributes.attribute(
-                Usage.USAGE_ATTRIBUTE,
-                project.getObjects().named(Usage.class, USAGE_ATTRIBUTE)
-            )
+            attributes -> attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, USAGE_ATTRIBUTE))
         );
         project.getArtifacts().add("dependenciesInfoFiles", depsInfo);
 

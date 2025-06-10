@@ -17,6 +17,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
@@ -119,9 +120,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
                 List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
-                InferenceAction.Request inferenceRequest = generateRequest(featureData);
+                RerankRequestChunker chunker = new RerankRequestChunker(featureData);
+                InferenceAction.Request inferenceRequest = generateRequest(chunker.getChunkedInputs());
                 try {
-                    executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+                    executeAsyncWithOrigin(
+                        client,
+                        INFERENCE_ORIGIN,
+                        InferenceAction.INSTANCE,
+                        inferenceRequest,
+                        chunker.parseChunkedRerankResultsListener(inferenceListener)
+                    );
                 } finally {
                     inferenceRequest.decRef();
                 }
@@ -156,6 +164,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
+        // TODO: Try running the RerankRequestChunker here.
         return new InferenceAction.Request(
             TaskType.RERANK,
             inferenceId,

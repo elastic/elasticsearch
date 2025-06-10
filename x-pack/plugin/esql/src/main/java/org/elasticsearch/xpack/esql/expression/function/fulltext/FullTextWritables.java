@@ -23,16 +23,13 @@ public class FullTextWritables {
         entries.add(Match.ENTRY);
         entries.add(MultiMatch.ENTRY);
         entries.add(Kql.ENTRY);
+        entries.add(MatchPhrase.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
         }
         if (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled()) {
             entries.add(Score.ENTRY);
-        }
-
-        if (EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled()) {
-            entries.add(MatchPhrase.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

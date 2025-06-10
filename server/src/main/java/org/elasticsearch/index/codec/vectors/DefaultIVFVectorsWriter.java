@@ -107,7 +107,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float variance = m2 / (clusters.length - 1);
         logger.debug(
             "Centroid count: {} min: {} max: {} mean: {} stdDev: {} variance: {}",
-            clusters.length, min, max, mean, Math.sqrt(variance), variance
+            clusters.length,
+            min,
+            max,
+            mean,
+            Math.sqrt(variance),
+            variance
         );
     }
 

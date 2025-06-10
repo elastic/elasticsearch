@@ -26,6 +26,40 @@ Returns top documents from a <<search-api-knn,knn search>>, in the context of a 
 * <<linear-retriever,*Linear Retriever*>>.
 Combines the top results from multiple sub-retrievers using a weighted sum of their scores. Allows to specify different
 weights for each retriever, as well as independently normalize the scores from each result set.
+
+[discrete]
+[[linear-retriever-parameters]]
+==== Linear Retriever Parameters
+
+`retrievers`
+:   (Required, array of objects)
+    A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum. Each configuration can have a different weight and normalization depending on the specified retriever.
+
+Each entry specifies the following parameters:
+
+`retriever`
+:   (Required, a `retriever` object)
+    Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
+
+`weight`
+:   (Optional, float)
+    The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
+
+`normalizer`
+:   (Optional, String)
+    Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
+
+    * `none`
+    * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
+
+        ```
+        score = (score - min) / (max - min)
+        ```
+
+    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
+
+See also the hybrid search example for how to independently configure and apply normalizers to retrievers.
+
 * <<rrf-retriever,*RRF Retriever*>>.
 Combines and ranks multiple first-stage retrievers using the reciprocal rank fusion (RRF) algorithm.
 Allows you to combine multiple result sets with different relevance indicators into a single result set.

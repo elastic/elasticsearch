@@ -72,11 +72,19 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         List<NamedExpression> newProjections = new ArrayList<>();
-
+        Map<NamedExpression, Attribute> referenceAttributes = new HashMap<>();
         boolean groupingChanged = false;
 
         List<Alias> newEvals = new ArrayList<>();
         int[] counter = new int[] { 0 };
+
+        // Count DateFormat occurrences to avoid incorrect grouping when replacing multiple DATE_FORMAT with DATE_TRUNC
+        int[] dateFormatCount = new int[] { 0 };
+        for (Expression g : newGroupings) {
+            if (g instanceof Alias as && as.child() instanceof DateFormat) {
+                dateFormatCount[0]++;
+            }
+        }
 
         // start with the groupings since the aggs might reuse/reference them
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
@@ -95,7 +103,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     // Move the alias into an eval and replace it with its attribute.
                     groupingChanged = true;
                     var attr = as.toAttribute();
-                    if (asChild instanceof DateFormat df) {
+                    if (asChild instanceof DateFormat df && dateFormatCount[0] == 1) {
                         // Extract the format pattern and field from DateFormat
                         Literal format = (Literal) df.children().getFirst();
                         Expression field = df.children().get(1);
@@ -115,7 +123,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                             // Create a new eval alias for the optimized expression
                             Alias newEval = as.replaceChild(expression);
                             newEvals.add(newEval);
-                            newProjections.add(newEval.toAttribute());
+                            referenceAttributes.put(attr, newEval.toAttribute());
                             evalNames.put(as.name(), attr);
                             as = alias;
                         }
@@ -178,11 +186,12 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 if (ref != null) {
                     aggsChanged.set(true);
                     newAggs.add(ref);
+                    newProjections.add(referenceAttributes.getOrDefault(ref, ref.toAttribute()));
+                    continue;
                 }
-            } else {
-                newAggs.add(a);
-                newProjections.add(a.toAttribute());
             }
+            newAggs.add(a);
+            newProjections.add(a.toAttribute());
         }
 
         if (evals.size() > 0) {
@@ -285,18 +294,21 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     return new Literal(source, ChronoUnit.HOURS.getDuration(), DataType.TIME_DURATION);
                 } else if (formatterAsString.contains(ChronoField.AMPM_OF_DAY.toString())) {
                     return new Literal(source, ChronoUnit.HALF_DAYS, DataType.TIME_DURATION);
-                } else if (formatterAsString.contains(ChronoField.DAY_OF_WEEK.toString())) {
-                    return new Literal(source, Period.ofDays(1), DataType.DATE_PERIOD);
-                } else if (formatterAsString.contains(ChronoField.ALIGNED_WEEK_OF_MONTH.toString())) {
-                    return new Literal(source, Period.ofDays(7), DataType.DATE_PERIOD);
-                } else if (formatterAsString.contains(ChronoField.MONTH_OF_YEAR.toString())) {
-                    return new Literal(source, Period.ofMonths(1), DataType.DATE_PERIOD);
-                } else if (formatterAsString.contains(IsoFields.QUARTER_OF_YEAR.toString())) {
-                    return new Literal(source, Period.ofMonths(3), DataType.DATE_PERIOD);
-                } else if (formatterAsString.contains(ChronoField.YEAR_OF_ERA.toString())
-                    || formatterAsString.contains(ChronoField.YEAR.toString())) {
-                        return new Literal(source, Period.ofYears(1), DataType.DATE_PERIOD);
-                    }
+                } else if (formatterAsString.contains(ChronoField.DAY_OF_WEEK.toString())
+                    || formatterAsString.contains(ChronoField.DAY_OF_MONTH.toString())
+                    || formatterAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
+                        return new Literal(source, Period.ofDays(1), DataType.DATE_PERIOD);
+                    } else if (formatterAsString.contains(ChronoField.ALIGNED_WEEK_OF_MONTH.toString())
+                        || formatterAsString.contains(ChronoField.ALIGNED_WEEK_OF_YEAR.toString())) {
+                            return new Literal(source, Period.ofDays(7), DataType.DATE_PERIOD);
+                        } else if (formatterAsString.contains(ChronoField.MONTH_OF_YEAR.toString())) {
+                            return new Literal(source, Period.ofMonths(1), DataType.DATE_PERIOD);
+                        } else if (formatterAsString.contains(IsoFields.QUARTER_OF_YEAR.toString())) {
+                            return new Literal(source, Period.ofMonths(3), DataType.DATE_PERIOD);
+                        } else if (formatterAsString.contains(ChronoField.YEAR_OF_ERA.toString())
+                            || formatterAsString.contains(ChronoField.YEAR.toString())) {
+                                return new Literal(source, Period.ofYears(1), DataType.DATE_PERIOD);
+                            }
         } catch (IllegalArgumentException ignored) {}
         return null;
     }

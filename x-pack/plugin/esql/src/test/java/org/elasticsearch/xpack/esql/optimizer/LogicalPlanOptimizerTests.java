@@ -7999,12 +7999,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Project[[avg{r}#7, month{r}#20]]
-     * \_Eval[[$$SUM$avg$0{r$}#21 / $$COUNT$avg$1{r$}#22 AS avg#7, DATEFORMAT([79 79 79 79 2d 4d 4d][KEYWORD],month{r}#4) AS month#20]]
+     * Project[[avg{r}#7, date{r}#4]]
+     * \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#7]]
      *   \_Limit[1000[INTEGER],false]
-     *     \_Aggregate[[month{r}#4],[SUM(salary{f}#14,true[BOOLEAN]) AS $$SUM$avg$0#21, COUNT(salary{f}#14,true[BOOLEAN]) AS
-     *     $$COUNT$avg$1#22, month{r}#4]]
-     *       \_Eval[[DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#16) AS month#4]]
+     *     \_Aggregate[[date{r}#4],[SUM(salary{f}#14,true[BOOLEAN]) AS $$SUM$avg$0#20, COUNT(salary{f}#14,true[BOOLEAN]) AS $$COUNT$av
+     * g$1#21, date{r}#4]]
+     *       \_Eval[[DATEFORMAT([79 79 79 79][KEYWORD],hire_date{f}#16) AS date#4]]
      *         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
     public void testReplaceGroupingByDateFormatWithDateTrunc() {
@@ -8016,7 +8016,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             "yy-mm",
             "yyyy-dd-MM",
             "DD",
-            "yyyy-MM-dd HH:mm:ss",
             "yyyy-MM-dd HH:mm:ss"
         );
 
@@ -8045,6 +8044,45 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var source = as(eval2.child(), EsRelation.class);
         }
 
+    }
+
+    /**
+     * Project[[avg{r}#10, date{r}#4, date2{r}#7]]
+     * \_Eval[[$$SUM$avg$0{r$}#24 / $$COUNT$avg$1{r$}#25 AS avg#10]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date{r}#4, date2{r}#7],[SUM(salary{f}#18,true[BOOLEAN]) AS $$SUM$avg$0#24, COUNT(salary{f}#18,true[BOOLEAN]) A
+     * S $$COUNT$avg$1#25, date{r}#4, date2{r}#7]]
+     *       \_Eval[[DATEFORMAT([79 79 79 79 2d 64 64][KEYWORD],hire_date{f}#20) AS date#4, DATEFORMAT([64 64][KEYWORD],hire_date{
+     * f}#20) AS date2#7]]
+     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testReplaceGroupingByDateFormatWithDateTrunc2() {
+        var query = """
+            FROM test
+            | STATS avg = AVG(salary) BY date = DATE_FORMAT("yyyy-dd", hire_date), date2 = DATE_FORMAT("dd", hire_date)
+            """;
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        // var dateformat = as(eval.fields().get(1).child(), DateFormat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(2));
+        var grouping1 = as(agg.groupings().getFirst(), ReferenceAttribute.class);
+        var grouping2 = as(agg.groupings().get(1), ReferenceAttribute.class);
+
+        var eval2 = as(agg.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(2));
+        var dateFormat1 = as(eval2.fields().getFirst().child(), DateFormat.class);
+        var dateFormat2 = as(eval2.fields().getFirst().child(), DateFormat.class);
+
+        assertThat(eval2.fields().getFirst().toAttribute(), is(grouping1));
+        assertThat(eval2.fields().get(1).toAttribute(), is(grouping2));
+
+        var source = as(eval2.child(), EsRelation.class);
     }
 
 }

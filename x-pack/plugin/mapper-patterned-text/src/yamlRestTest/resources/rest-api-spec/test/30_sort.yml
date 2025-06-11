@@ -1,0 +1,35 @@
+simple:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              message:
+                type: patterned_text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "id": 1, "message": "some log message with no arg"  }'
+          - '{ "create": { } }'
+          - '{ "id": 2, "message": "another log message with arg 1234 and arg 5678 and a mixed one ABCD9"  }'
+          - '{ "create": { } }'
+          - '{ "id": 3, "message": "some log message with no arg"  }'
+          - '{ "create": { } }'
+          - '{ "id": 4, "message": "another log message with arg 1234 and arg 8765 and a mixed one ABCD1"  }'
+
+  - do:
+      search:
+        index: test
+        sort: message
+
+  - match: { hits.hits.0._source.message: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9" }
+  - match: { hits.hits.1._source.message: "another log message with arg 1234 and arg 8765 and a mixed one ABCD1" }
+  - match: { hits.hits.2._source.message: "some log message with no arg" }
+  - match: { hits.hits.3._source.message: "some log message with no arg" }

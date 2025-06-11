@@ -8045,7 +8045,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
      */
     public void testSamplePushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         var plan = physicalPlan("""
             FROM test

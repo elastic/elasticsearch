@@ -19,8 +19,6 @@ DELETE _ilm/policy/pre-dsl-ilm-policy
 --------------------------------------------------
 // TEARDOWN
 
-//////////////////////////
-
 [discrete]
 [[migrate-dsl-ilm-tldr]]
 ==== TL;DR

@@ -702,20 +702,24 @@ public class ClusterChangedEventTests extends ESTestCase {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         final Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata());
+        // The refactorings required to pass an explicit project ID to this method (and the state creation methods) is not worth it.
+        final var previousProject = previousState.metadata().projects().values().iterator().next();
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(previousProject);
         if (changeClusterUUID || addedIndices.size() > 0 || deletedIndices.size() > 0) {
             // there is some change in metadata cluster state
             if (changeClusterUUID) {
                 metaBuilder.clusterUUID(UUIDs.randomBase64UUID());
             }
             for (Index index : addedIndices) {
-                metaBuilder.put(createIndexMetadata(index), true);
+                projectBuilder.put(createIndexMetadata(index), true);
             }
             for (Index index : deletedIndices) {
-                metaBuilder.remove(index.getName());
-                IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaBuilder.indexGraveyard());
+                projectBuilder.remove(index.getName());
+                IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(projectBuilder.indexGraveyard());
                 graveyardBuilder.addTombstone(index);
-                metaBuilder.indexGraveyard(graveyardBuilder.build());
+                projectBuilder.indexGraveyard(graveyardBuilder.build());
             }
+            metaBuilder.put(projectBuilder);
             builder.metadata(metaBuilder);
         }
         if (numNodesToRemove > 0) {

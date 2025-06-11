@@ -119,6 +119,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -282,6 +283,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final QueryRewriteInterceptor queryRewriteInterceptor;
     final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
 
     @Override
@@ -411,6 +413,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchOperationListeners = builder.searchOperationListener;
         this.slowLogFieldProvider = builder.slowLogFieldProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
+        this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -801,6 +804,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
+            searchStatsSettings,
             mergeMetrics
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -900,6 +904,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
+            searchStatsSettings,
             mergeMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));

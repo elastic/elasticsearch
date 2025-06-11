@@ -68,6 +68,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -256,6 +257,7 @@ public class IndexModuleTests extends ESTestCase {
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP
         );
         module.setReaderWrapper(s -> new Wrapper());
@@ -286,6 +288,7 @@ public class IndexModuleTests extends ESTestCase {
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP
         );
 
@@ -314,6 +317,7 @@ public class IndexModuleTests extends ESTestCase {
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP
         );
 
@@ -670,6 +674,7 @@ public class IndexModuleTests extends ESTestCase {
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP
         );
 
@@ -695,6 +700,7 @@ public class IndexModuleTests extends ESTestCase {
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP
         );
 
@@ -800,6 +806,7 @@ public class IndexModuleTests extends ESTestCase {
             MapperMetrics.NOOP,
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP
         );
     }

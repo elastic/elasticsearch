@@ -61,7 +61,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
     }
 
     public void testReductionMinute() {
-        testReduction(Rounding.DateTimeUnit.MINUTES_OF_HOUR, 0.01 * MILLIS_IN_MINUTE);
+        testReduction(Rounding.DateTimeUnit.MINUTE_OF_HOUR, 0.01 * MILLIS_IN_MINUTE);
     }
 
     public void testReductionHour() {

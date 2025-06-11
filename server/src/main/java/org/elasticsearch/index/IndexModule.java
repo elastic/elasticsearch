@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
@@ -180,6 +181,7 @@ public final class IndexModule {
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
 
     /**
@@ -204,6 +206,7 @@ public final class IndexModule {
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
+        final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics
     ) {
         this.indexSettings = indexSettings;
@@ -220,6 +223,7 @@ public final class IndexModule {
         this.recoveryStateFactories = recoveryStateFactories;
         this.mapperMetrics = mapperMetrics;
         this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
     }
 
@@ -558,6 +562,7 @@ public final class IndexModule {
                 mapperMetrics,
                 queryRewriteInterceptor,
                 indexingStatsSettings,
+                searchStatsSettings,
                 mergeMetrics
             );
             success = true;

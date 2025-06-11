@@ -68,6 +68,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -171,6 +172,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final MapperMetrics mapperMetrics;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
     private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
 
     @SuppressWarnings("this-escape")
@@ -210,6 +212,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperMetrics mapperMetrics,
         QueryRewriteInterceptor queryRewriteInterceptor,
         IndexingStatsSettings indexingStatsSettings,
+        SearchStatsSettings searchStatsSettings,
         MergeMetrics mergeMetrics
     ) {
         super(indexSettings);
@@ -296,6 +299,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
         updateFsyncTaskIfNecessary();
     }
@@ -588,6 +592,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCommitListener,
                 mapperMetrics,
                 indexingStatsSettings,
+                searchStatsSettings,
                 mergeMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

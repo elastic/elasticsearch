@@ -1052,11 +1052,57 @@ alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1
 ;
 
 doubleShadowing
+required_capability: inlinestats_v8
 
 FROM employees
 | INLINESTATS salary = min(salary) BY gender
 | INLINESTATS salary = max(salary) BY gender
 | KEEP salary, gender
-| SORT gender DESC
+| SORT salary DESC, gender 
 | LIMIT 5
+;
+
+salary:integer |gender:keyword
+25976          |F              
+25976          |F              
+25976          |F              
+25976          |F              
+25976          |F
+;
+
+doubleShadowingWithEval
+required_capability: inlinestats_v8
+
+from employees
+| eval salary = salary/100
+| inlinestats salary=min(salary) by gender
+| inlinestats salary=max(salary) by gender
+| keep salary, gender
+| sort salary desc, gender
+| limit 5
+;
+
+salary:integer|gender:keyword
+259           |F              
+259           |F              
+259           |F              
+259           |F              
+259           |F
+;
+
+doubleShadowingWithDoubleStats
+required_capability: inlinestats_v8
+
+from employees
+| stats salary=min(salary) by gender
+| stats salary=max(salary) by gender
+| inlinestats salary=min(salary)
+| inlinestats salary=max(salary)
+;
+ignoreOrder:true
+
+gender:keyword |salary:integer    
+null           |25324          
+F              |25324          
+M              |25324
 ;

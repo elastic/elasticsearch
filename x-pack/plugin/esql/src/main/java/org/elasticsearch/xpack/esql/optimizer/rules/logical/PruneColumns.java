@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -39,15 +40,18 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     public LogicalPlan apply(LogicalPlan plan) {
         // track used references
         var used = plan.outputSet().asBuilder();
+        // track inlinestats' own aggregation output (right-hand side of the join) so that any other plan on the left-hand side of the
+        // inline join won't have it's columns pruned due to the lack of "visibility" into the right hand side output/Attributes
+        var inlineJoinRightOutput = new ArrayList<Attribute>();
         Holder<Boolean> forkPresent = new Holder<>(false);
 
         // while going top-to-bottom (upstream)
         var pl = plan.transformDown(p -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs. It is perfectly fine that transformDown descends
-            // first into the left side, adding all kinds of attributes to the `used` set, and then descends into the right side - even
-            // though the `used` set will contain stuff only used in the left hand side. That's because any attribute that is used in the
-            // left hand side must have been created in the left side as well. Even field attributes belonging to the same index fields will
-            // have different name ids in the left and right hand sides - as in the extreme example
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINESTATS. It is perfectly fine that
+            // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
+            // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
+            // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
+            // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
             // skip nodes that simply pass the input through
@@ -63,6 +67,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 return p;
             }
 
+            if (p instanceof InlineJoin ij) {
+                inlineJoinRightOutput.addAll(ij.right().outputSet());
+            }
+
             // remember used
             boolean recheck;
             // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
@@ -70,7 +78,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck = false;
                 if (p instanceof Aggregate aggregate) {
-                    var remaining = removeUnused(aggregate.aggregates(), used);
+                    var remaining = removeUnused(aggregate.aggregates(), used, inlineJoinRightOutput);
 
                     if (remaining != null) {
                         if (remaining.isEmpty()) {
@@ -97,7 +105,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         }
                     }
                 } else if (p instanceof Eval eval) {
-                    var remaining = removeUnused(eval.fields(), used);
+                    var remaining = removeUnused(eval.fields(), used, inlineJoinRightOutput);
                     // no fields, no eval
                     if (remaining != null) {
                         if (remaining.isEmpty()) {
@@ -111,7 +119,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
                     // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
                     // it works differently as we extract all fields (other than the join key) that the EsRelation has.
-                    var remaining = removeUnused(esr.output(), used);
+                    var remaining = removeUnused(esr.output(), used, inlineJoinRightOutput);
                     if (remaining != null) {
                         p = new EsRelation(esr.source(), esr.indexPattern(), esr.indexMode(), esr.indexNameWithModes(), remaining);
                     }
@@ -131,14 +139,15 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Prunes attributes from the list not found in the given set.
      * Returns null if no changed occurred.
      */
-    private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet.Builder used) {
+    private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet.Builder used, List<Attribute> exceptions) {
         var clone = new ArrayList<>(named);
         var it = clone.listIterator(clone.size());
 
         // due to Eval, go in reverse
         while (it.hasPrevious()) {
             N prev = it.previous();
-            if (used.contains(prev.toAttribute()) == false) {
+            var attr = prev.toAttribute();
+            if (used.contains(attr) == false && exceptions.contains(attr) == false) {
                 it.remove();
             } else {
                 used.addAll(prev.references());

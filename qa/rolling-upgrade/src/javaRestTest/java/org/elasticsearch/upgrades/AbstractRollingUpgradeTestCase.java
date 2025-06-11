@@ -47,7 +47,8 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
         // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
-        // inconsistent. Assume "versionless" clusters (serverless) do not need this.
+        // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and
+        // do not need this.
         if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");

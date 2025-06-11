@@ -38,8 +38,7 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
         () -> assumeTrue(
             "Only valid when upgrading from pre-file settings",
-            Version.tryParse(getOldClusterVersion()).map(v -> v.before(new Version(8, 4, 0))).orElse(false) // Assume "versionless" clusters
-                                                                                                            // do not need this
+            Version.tryParse(getOldClusterVersion()).map(v -> v.before(new Version(8, 4, 0))).orElse(false)
         )
     );
 

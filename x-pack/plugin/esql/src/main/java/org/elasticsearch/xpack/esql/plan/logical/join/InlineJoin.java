@@ -59,7 +59,16 @@ public class InlineJoin extends Join {
      * Replaces the stubbed source with the actual source.
      */
     public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
-        return stubbed.transformUp(StubRelation.class, stubRelation -> source);
+        // here we could have used stubbed.transformUp(StubRelation.class, stubRelation -> source)
+        // but transformUp skips changing a node if its tranformed variant it's equal to its original variant.
+        // A StubRelation can contain in its output ReferenceAttributes which do not use NameIds for equality, but only names and
+        // two ReferenceAttributes with the same name are equal and the transformation will not be applied.
+        return stubbed.transformUp(UnaryPlan.class, up -> {
+            if (up.child() instanceof StubRelation) {
+                return up.replaceChild(source);
+            }
+            return up;
+        });
     }
 
     /**

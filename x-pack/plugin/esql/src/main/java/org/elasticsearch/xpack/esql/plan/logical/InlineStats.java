@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
@@ -101,6 +102,9 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
         for (Expression g : groupings) {
             namedGroupings.add(Expressions.attribute(g));
         }
+        // last named grouping wins, just like it happens for regular STATS
+        // ie BY x = field_1, x = field_2, the grouping is actually performed on second x (field_2)
+        namedGroupings = mergeOutputAttributes(namedGroupings, emptyList());
 
         List<Attribute> leftFields = new ArrayList<>(groupings.size());
         List<Attribute> rightFields = new ArrayList<>(groupings.size());

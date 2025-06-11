@@ -218,7 +218,7 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10007          |393084805              |2.863684210555556E8          |4                |5                    |F
 ;
 
-three-Ignore
+three
 required_capability: inlinestats_v8
 // fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
 
@@ -312,16 +312,28 @@ FROM airports
 // end::extreme-airports-result[]
 ;
 
-brokenwhy-Ignore
+mvMinMvExpand
 required_capability: join_planning_v1
+required_capability: inlinestats_v8
 
 FROM airports
+| EVAL original_type = type
 | INLINESTATS min_scalerank=MIN(scalerank) BY type
 | MV_EXPAND type
-| WHERE scalerank == MV_MIN(scalerank);
+| EVAL mvMin_scalerank = MV_MIN(scalerank)
+| WHERE scalerank == MV_MIN(scalerank)
+| SORT abbrev DESC NULLS LAST
+| LIMIT 7
+;
 
-abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
-           GWL | [mid, military] | 9                 | [2, 4]
+abbrev:keyword |city:keyword   |city_location:geo_point |country:keyword|                 location:geo_point       | name:text           |scalerank:integer|original_type:keyword |min_scalerank:integer|type:keyword|mvMin_scalerank:integer
+ZRH            |Zürich         |POINT (8.5411 47.3744)  |Switzerland    |POINT (8.56221279534765 47.4523895064915) |Zurich Int'l         |3                |major                 |2                    |major       |3              
+ZNZ            |Zanzibar       |POINT (39.199 -6.165)   |Tanzania       |POINT (39.2223319841558 -6.21857034620282)|Zanzibar             |4                |mid                   |2                    |mid         |4              
+ZLO            |Cihuatlán      |POINT (-104.5667 19.25) |Mexico         |POINT (-104.560095200097 19.1480860285854)|Playa de Oro Int'l   |7                |mid                   |2                    |mid         |7              
+ZHHH           |Wuhan          |POINT (114.2881 30.5872)|China          |POINT (114.24694737615 30.6017141196702)  |Wang-Chia Tun Airbase|6                |[mid, military]       |[2, 4]               |mid         |6              
+ZHHH           |Wuhan          |POINT (114.2881 30.5872)|China          |POINT (114.24694737615 30.6017141196702)  |Wang-Chia Tun Airbase|6                |[mid, military]       |[2, 4]               |military    |6              
+ZGC            |Lanzhou        |POINT (103.8318 36.0617)|China          |POINT (103.615415363043 36.5078842461237) |Lanzhou Zhongchuan   |6                |mid                   |2                    |mid         |6              
+ZAR            |Zaria          |POINT (7.7 11.0667)     |Nigeria        |POINT (7.68726764310577 11.1352958601071) |Zaria                |8                |mid                   |2                    |mid         |8              
 ;
 
 afterStats
@@ -627,11 +639,10 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
            ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) | 2              |            20 |          -100
 ;
 
-byTwoCalculatedSecondOverwrites-Ignore
+byTwoCalculatedSecondOverwrites
 required_capability: join_planning_v1
 required_capability: stats_alias_collision_warnings
-// fails with
-// line 1:78: Plan [InlineJoin[LEFT,[x{r}#20, x{r}#23],[x{r}#20, x{r}#23],[x{r}#23, x{r}#23]]] optimized incorrectly due to missing references from left hand side [x{r}#20]
+required_capability: inlinestats_v8
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -644,18 +655,16 @@ FROM airports
 ;
 warning:Line 5:4: Field 'x' shadowed by field at line 6:3
 
-abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
-           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
-           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |       40 | 2
-           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
+abbrev:keyword | scalerank:integer |             location:geo_point             | min_sl:integer| x:double 
+           ZRH |                 3 | POINT (8.56221279534765 47.4523895064915)  | 2             | 10 
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) | 2             | 40
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) | 2             | -100
 ;
 
-byTwoCalculatedSecondOverwritesReferencingFirst-Ignore
+byTwoCalculatedSecondOverwritesReferencingFirst
 required_capability: join_planning_v1
 required_capability: stats_alias_collision_warnings
-// fails with
-// line 1:105: Plan [Aggregate[[x{r}#45],[MIN(scalerank{f}#50,true[BOOLEAN]) AS min_sl, x{r}#45]]] optimized incorrectly due to missing references [x{r}#45]
-// line 1:105: Plan [InlineJoin[LEFT,[x{r}#42, x{r}#45],[x{r}#42, x{r}#45],[x{r}#45, x{r}#45]]] optimized incorrectly due to missing references from left hand side [x{r}#42]
+required_capability: inlinestats_v8
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -669,35 +678,33 @@ FROM airports
 ;
 warning:Line 6:4: Field 'x' shadowed by field at line 7:3
 
-abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
-           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
-           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |       40 | 2
-           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
+abbrev:keyword | scalerank:integer |             location:geo_point             | min_sl:integer| x:double 
+           ZRH |                 3 | POINT (8.56221279534765 47.4523895064915)  | 2             | 10 
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) | 2             | 40
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) | 2             | -100
 ;
 
 
-groupShadowsAgg-Ignore
+groupShadowsAgg
 required_capability: join_planning_v1
 required_capability: stats_alias_collision_warnings
-// fails with
-// line 1:134: column [location] cannot be used as an aggregate once declared in the STATS BY grouping key [lat_10 = ROUND(ST_Y(location), -1)]
+required_capability: inlinestats_v8
 
 FROM airports
 | WHERE abbrev IS NOT NULL
 | KEEP abbrev, scalerank, location
 | INLINESTATS min_sl=MIN(scalerank)
-            , lat_10 = ROUND(ST_Y(location), -1)
-           BY lat_10 = ROUND(ST_Y(location), -1)
+           BY min_sl = ROUND(ST_Y(location), -1)
             , lon_10 = ROUND(ST_X(location), -1)
 | SORT abbrev DESC
 | LIMIT 3
 ;
-warning:Line 5:3: Field 'lat_10' shadowed by field at line 6:4
+warning:Line 4:15: Field 'min_sl' shadowed by field at line 5:4
 
-abbrev:keyword | scalerank:integer |             location:geo_point             | lat_10:double | lon_10:double | min_sl:integer
-           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |            50 |            10 | 2
-           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |           -10 |            40 | 4
-           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |            20 |          -100 | 2
+abbrev:keyword | scalerank:integer |             location:geo_point             | min_sl:double | lon_10:double
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |            50 |            10
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |           -10 |            40
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |            20 |          -100
 ;
 
 groupShadowsField
@@ -1106,3 +1113,81 @@ null           |25324
 F              |25324          
 M              |25324
 ;
+
+renamingGroupingWithItself
+required_capability: inlinestats_v8
+
+FROM employees
+| EVAL x = gender
+| INLINESTATS min_sl = MIN(salary) BY x = x
+| SORT salary DESC
+| KEEP salary, x, gender, min_sl, emp_no
+| LIMIT 5
+;
+
+salary:integer |x:keyword|gender:keyword |min_sl:integer |emp_no:integer     
+74999          |M        |M              |25945          |10029          
+74970          |M        |M              |25945          |10045          
+74572          |F        |F              |25976          |10007          
+73851          |F        |F              |25976          |10027          
+73717          |null     |null           |25324          |10019
+;
+
+overridingGroupings
+required_capability: inlinestats_v8
+
+FROM employees
+| INLINESTATS min_sl = MIN(salary) BY x = gender, x = languages
+| KEEP salary, x, gender, min_sl, emp_no
+| SORT salary
+| LIMIT 5
+;
+warning:Line 2:39: Field 'x' shadowed by field at line 2:51
+
+salary:integer |x:integer      |gender:keyword |min_sl:integer |emp_no:integer    
+25324          |5              |null           |25324          |10015          
+25945          |5              |M              |25324          |10035          
+25976          |1              |F              |25976          |10092          
+26436          |3              |M              |26436          |10048          
+27215          |4              |F              |27215          |10057
+;
+
+overridingExpressionGroupings
+required_capability: inlinestats_v8
+
+FROM employees
+| INLINESTATS min_sl = MIN(salary) BY x = TO_LOWER(gender), x = CONCAT(gender, gender)
+| SORT salary DESC
+| KEEP salary, x, gender, min_sl, emp_no
+| LIMIT 5
+;
+warning:Line 2:39: Field 'x' shadowed by field at line 2:61
+
+salary:integer |x:keyword      |gender:keyword |min_sl:integer |emp_no:integer 
+74999          |MM             |M              |25945          |10029          
+74970          |MM             |M              |25945          |10045          
+74572          |FF             |F              |25976          |10007          
+73851          |FF             |F              |25976          |10027          
+73717          |null           |null           |25324          |10019          
+;
+
+reusingEvalExpressions_UsedInGroupings
+required_capability: inlinestats_v8
+
+FROM employees
+| KEEP salary, gender, emp_no
+| EVAL x = TO_LOWER(gender), x = CONCAT(x, " ", x)
+| INLINESTATS min_sl = MIN(salary) BY x
+| SORT salary DESC
+| LIMIT 5
+;
+
+salary:integer |gender:keyword |emp_no:integer |min_sl:integer |       x:keyword       
+74999          |M              |10029          |25945          |m m            
+74970          |M              |10045          |25945          |m m            
+74572          |F              |10007          |25976          |f f            
+73851          |F              |10027          |25976          |f f            
+73717          |null           |10019          |25324          |null           
+;
+
+

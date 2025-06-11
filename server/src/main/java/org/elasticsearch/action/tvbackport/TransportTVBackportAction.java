@@ -23,10 +23,7 @@ public class TransportTVBackportAction extends TransportAction<TVBackportRequest
     private static final Logger logger = LogManager.getLogger(TransportTVBackportAction.class);
 
     @Inject
-    public TransportTVBackportAction(
-        ActionFilters actionFilters,
-        TransportService transportService
-    ) {
+    public TransportTVBackportAction(ActionFilters actionFilters, TransportService transportService) {
         super(TVBackportAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 

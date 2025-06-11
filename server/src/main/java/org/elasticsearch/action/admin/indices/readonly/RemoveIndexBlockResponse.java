@@ -30,57 +30,43 @@ public class RemoveIndexBlockResponse extends AcknowledgedResponse {
 
     public static final RemoveIndexBlockResponse EMPTY = new RemoveIndexBlockResponse(true, List.of());
 
-    private final List<RemoveBlockResult> indices;
+    private final List<RemoveBlockResult> results;
 
     public RemoveIndexBlockResponse(StreamInput in) throws IOException {
         super(in);
-        indices = in.readCollectionAsList(RemoveBlockResult::new);
+        results = in.readCollectionAsImmutableList(RemoveBlockResult::new);
     }
 
-    public RemoveIndexBlockResponse(boolean acknowledged, List<RemoveBlockResult> indices) {
+    public RemoveIndexBlockResponse(boolean acknowledged, List<RemoveBlockResult> results) {
         super(acknowledged);
-        this.indices = List.copyOf(Objects.requireNonNull(indices, "indices must not be null"));
+        this.results = List.copyOf(Objects.requireNonNull(results, "results must not be null"));
     }
 
     /**
      * Returns the list of {@link RemoveBlockResult}.
      */
-    public List<RemoveBlockResult> getIndices() {
-        return indices;
+    public List<RemoveBlockResult> getResults() {
+        return results;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(indices);
+        out.writeCollection(results);
     }
 
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("indices");
-        for (RemoveBlockResult index : indices) {
-            index.toXContent(builder, params);
+        for (RemoveBlockResult result : results) {
+            result.toXContent(builder, params);
         }
         builder.endArray();
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (super.equals(o)) {
-            RemoveIndexBlockResponse that = (RemoveIndexBlockResponse) o;
-            return Objects.equals(indices, that.indices);
-        }
-        return false;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), indices);
-    }
-
-    @Override
     public String toString() {
-        return "RemoveIndexBlockResponse{" + "acknowledged=" + isAcknowledged() + ", indices=" + indices + '}';
+        return Strings.toString(this);
     }
 
     public static class RemoveBlockResult implements Writeable, ToXContentObject {

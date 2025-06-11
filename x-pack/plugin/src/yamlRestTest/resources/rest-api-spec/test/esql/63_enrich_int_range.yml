@@ -203,6 +203,5 @@ teardown:
   - do:
       catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[DOUBLE\]/
       esql.query:
-        allow_partial_results: false
         body:
           query: 'FROM employees | ENRICH ages-policy ON salary | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'

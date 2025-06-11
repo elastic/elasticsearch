@@ -266,12 +266,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
+        builder.query(query);
+        builder.allowPartialResults(false); // we want any error to fail the test
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
-        Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
+        Map<String, Object> answer = runEsql(builder, testCase.assertWarnings(deduplicateExactWarnings()));
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -296,7 +298,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    private Map<?, ?> tooks() throws IOException {
+    private static Map<?, ?> tooks() throws IOException {
         Request request = new Request("GET", "/_xpack/usage");
         HttpEntity entity = client().performRequest(request).getEntity();
         Map<?, ?> usage = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);

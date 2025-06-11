@@ -416,7 +416,7 @@ setup:
                 index_options:
                   dense_vector:
                     type: int8_hnsw
-                    m: 16
+                    m: 20
                     ef_construction: 100
                     confidence_interval: 1.0
 
@@ -425,7 +425,7 @@ setup:
         index: test-index-options
 
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
@@ -446,7 +446,7 @@ setup:
               index_options:
                 dense_vector:
                   type: int8_hnsw
-                  m: 16
+                  m: 20
                   ef_construction: 100
                   confidence_interval: 1.0
               chunks:
@@ -462,7 +462,10 @@ setup:
       indices.get_mapping:
         index: test-index-options
 
-  - match: { test-index-options.mappings.properties.semantic_field: "foo" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
 ---
 "Not specifying index options returns default index options":

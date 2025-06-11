@@ -193,8 +193,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                 }
             } else if (CHUNKING_SETTINGS_FIELD.equals(currentFieldName)) {
                 chunkingSettings = parser.map();
-            } else if (token.isValue()) {
-                // Ignore other fields
             } else {
                 parser.skipChildren();
             }

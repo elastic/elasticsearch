@@ -24,6 +24,11 @@ public class NoneChunkingSettingsTests extends AbstractWireSerializingTestCase<N
     }
 
     @Override
+    protected boolean shouldBeSame(NoneChunkingSettings newInstance) {
+        return true;
+    }
+
+    @Override
     protected NoneChunkingSettings mutateInstance(NoneChunkingSettings instance) throws IOException {
         return null;
     }

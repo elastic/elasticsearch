@@ -184,10 +184,11 @@ public class EsqlSession {
             new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
+                    LogicalPlan optimizedPlan = optimizedPlan(analyzedPlan);
                     preMapper.preMapper(
-                        analyzedPlan,
+                        optimizedPlan,
                         listener.delegateFailureAndWrap(
-                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l)
+                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l)
                         )
                     );
                 }

@@ -271,6 +271,27 @@ setup:
   - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [vector] of type [dense_vector] does not support match queries" }
 
 ---
+"Filters are propagated":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+              filter:
+                - term:
+                    keyword: "keyword match 1"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.0001 } }
+
+---
 "Wildcard index patterns that do not resolve to any index are handled gracefully":
   - do:
       search:

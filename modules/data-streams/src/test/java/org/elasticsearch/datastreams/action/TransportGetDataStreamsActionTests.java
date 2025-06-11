@@ -11,14 +11,19 @@ package org.elasticsearch.datastreams.action;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -27,15 +32,21 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createIndexMetadata;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
@@ -317,9 +328,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             null
         );
 
-        var name1 = DataStream.getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
-        var name2 = DataStream.getDefaultBackingIndexName("ds-1", 2, instant.toEpochMilli());
-        var name3 = DataStream.getDefaultBackingIndexName("ds-1", 3, twoHoursAgo.toEpochMilli());
+        var name1 = getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
+        var name2 = getDefaultBackingIndexName("ds-1", 2, instant.toEpochMilli());
+        var name3 = getDefaultBackingIndexName("ds-1", 3, twoHoursAgo.toEpochMilli());
         assertThat(
             response.getDataStreams(),
             contains(
@@ -351,8 +362,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), nullValue());
-        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+        assertThat(response.getDataGlobalRetention(), nullValue());
+        DataStreamGlobalRetention dataGlobalRetention = new DataStreamGlobalRetention(
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
@@ -361,9 +372,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 Settings.builder()
                     .put(
                         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
-                        globalRetention.defaultRetention()
+                        dataGlobalRetention.defaultRetention()
                     )
-                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
+                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
             )
         );
@@ -378,7 +389,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             new IndexSettingProviders(Set.of()),
             null
         );
-        assertThat(response.getGlobalRetention(), equalTo(globalRetention));
+        assertThat(response.getDataGlobalRetention(), equalTo(dataGlobalRetention));
+        // We used the default failures retention here which is greater than the max
+        assertThat(response.getFailuresGlobalRetention(), equalTo(new DataStreamGlobalRetention(null, dataGlobalRetention.maxRetention())));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_disabled() {
@@ -526,5 +539,167 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .orElse("bad"),
             equalTo("standard")
         );
+    }
+
+    public void testGetEffectiveSettingsTemplateOnlySettings() {
+        // Set a lifecycle only in the template, and make sure that is in the response:
+        ProjectId projectId = randomProjectIdOrDefault();
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+
+        ClusterState state = getClusterStateWithDataStreamWithSettings(
+            projectId,
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.EMPTY,
+            Settings.EMPTY
+        );
+
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            state.projectState(projectId),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(templatePolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(templateIndexMode));
+    }
+
+    public void testGetEffectiveSettingsComponentTemplateOnlySettings() {
+        // Set a lifecycle only in the template, and make sure that is in the response:
+        ProjectId projectId = randomProjectIdOrDefault();
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+
+        ClusterState state = getClusterStateWithDataStreamWithSettings(
+            projectId,
+            Settings.EMPTY,
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.EMPTY
+        );
+
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            state.projectState(projectId),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(templatePolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(templateIndexMode));
+    }
+
+    public void testGetEffectiveSettings() {
+        ProjectId projectId = randomProjectIdOrDefault();
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        final String templatePolicy = "templatePolicy";
+        final String templateIndexMode = IndexMode.LOOKUP.getName();
+        final String dataStreamPolicy = "dataStreamPolicy";
+        final String dataStreamIndexMode = IndexMode.LOGSDB.getName();
+        // Now set a lifecycle in both the template and the data stream, and make sure the response has the data stream one:
+        ClusterState state = getClusterStateWithDataStreamWithSettings(
+            projectId,
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
+                .put(IndexSettings.MODE.getKey(), templateIndexMode)
+                .build(),
+            Settings.builder()
+                .put(IndexMetadata.LIFECYCLE_NAME, dataStreamPolicy)
+                .put(IndexSettings.MODE.getKey(), dataStreamIndexMode)
+                .build()
+        );
+        GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
+            state.projectState(projectId),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            new IndexSettingProviders(Set.of()),
+            null
+        );
+        assertNotNull(response.getDataStreams());
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo(dataStreamPolicy));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo(dataStreamIndexMode));
+    }
+
+    private static ClusterState getClusterStateWithDataStreamWithSettings(
+        ProjectId projectId,
+        Settings templateSettings,
+        Settings componentTemplateSettings,
+        Settings dataStreamSettings
+    ) {
+        String dataStreamName = "data-stream-1";
+        int numberOfBackingIndices = randomIntBetween(1, 5);
+        long currentTime = System.currentTimeMillis();
+        int replicas = 0;
+        boolean replicated = false;
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        builder.put(
+            "template_1",
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("*"))
+                .template(Template.builder().settings(templateSettings))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .componentTemplates(List.of("component_template_1"))
+                .build()
+        );
+        ComponentTemplate componentTemplate = new ComponentTemplate(
+            Template.builder().settings(componentTemplateSettings).build(),
+            null,
+            null,
+            null
+        );
+        builder.componentTemplates(Map.of("component_template_1", componentTemplate));
+
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numberOfBackingIndices; backingIndexNumber++) {
+            backingIndices.add(
+                createIndexMetadata(
+                    getDefaultBackingIndexName(dataStreamName, backingIndexNumber, currentTime),
+                    true,
+                    templateSettings,
+                    replicas
+                )
+            );
+        }
+        List<IndexMetadata> allIndices = new ArrayList<>(backingIndices);
+
+        DataStream ds = DataStream.builder(
+            dataStreamName,
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setReplicated(replicated).build();
+        builder.put(ds);
+
+        for (IndexMetadata index : allIndices) {
+            builder.put(index, false);
+        }
+        return ClusterState.builder(new ClusterName("_name")).putProjectMetadata(builder.build()).build();
     }
 }

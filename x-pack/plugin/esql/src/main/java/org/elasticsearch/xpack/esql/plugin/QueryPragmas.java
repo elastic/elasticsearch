@@ -32,7 +32,7 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 3);
+    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
     private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -65,6 +65,9 @@ public final class QueryPragmas implements Writeable {
         Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1);
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
         Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+
+    public static final Setting<Integer> UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS = //
+        Setting.intSetting("unavailable_shard_resolution_attempts", 10, -1);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
@@ -154,6 +157,14 @@ public final class QueryPragmas implements Writeable {
      */
     public int maxConcurrentShardsPerNode() {
         return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
+    }
+
+    /**
+     * Amount of attempts moved shards could be retried.
+     * This setting is protecting query from endlessly chasing moving shards.
+     */
+    public int unavailableShardResolutionAttempts() {
+        return UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS.get(settings);
     }
 
     /**

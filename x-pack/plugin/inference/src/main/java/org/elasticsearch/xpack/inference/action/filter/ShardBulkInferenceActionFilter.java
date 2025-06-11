@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,6 +79,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
+import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
+import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -112,6 +115,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final ModelRegistry modelRegistry;
     private final XPackLicenseState licenseState;
     private final IndexingPressure indexingPressure;
+    private final InferenceStats inferenceStats;
     private volatile long batchSizeInBytes;
 
     public ShardBulkInferenceActionFilter(
@@ -119,13 +123,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
         XPackLicenseState licenseState,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        InferenceStats inferenceStats
     ) {
         this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.licenseState = licenseState;
         this.indexingPressure = indexingPressure;
+        this.inferenceStats = inferenceStats;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
     }
@@ -386,10 +392,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 public void onResponse(List<ChunkedInference> results) {
                     try (onFinish) {
                         var requestsIterator = requests.iterator();
+                        int success = 0;
                         for (ChunkedInference result : results) {
                             var request = requestsIterator.next();
                             var acc = inferenceResults.get(request.bulkItemIndex);
                             if (result instanceof ChunkedInferenceError error) {
+                                recordRequestCountMetrics(inferenceProvider.model, 1, error.exception());
                                 acc.addFailure(
                                     new InferenceException(
                                         "Exception when running inference id [{}] on field [{}]",
@@ -399,6 +407,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     )
                                 );
                             } else {
+                                success++;
                                 acc.addOrUpdateResponse(
                                     new FieldInferenceResponse(
                                         request.field(),
@@ -412,12 +421,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 );
                             }
                         }
+                        if (success > 0) {
+                            recordRequestCountMetrics(inferenceProvider.model, success, null);
+                        }
                     }
                 }
 
                 @Override
                 public void onFailure(Exception exc) {
                     try (onFinish) {
+                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.bulkItemIndex,
@@ -433,7 +446,23 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
             inferenceProvider.service()
-                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
+                .chunkedInfer(
+                    inferenceProvider.model(),
+                    null,
+                    inputs,
+                    Map.of(),
+                    InputType.INTERNAL_INGEST,
+                    TimeValue.MAX_VALUE,
+                    completionListener
+                );
+        }
+
+        private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
+            Map<String, Object> requestCountAttributes = new HashMap<>();
+            requestCountAttributes.putAll(modelAttributes(model));
+            requestCountAttributes.putAll(responseAttributes(throwable));
+            requestCountAttributes.put("inference_source", "semantic_text_bulk");
+            inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
         }
 
         /**

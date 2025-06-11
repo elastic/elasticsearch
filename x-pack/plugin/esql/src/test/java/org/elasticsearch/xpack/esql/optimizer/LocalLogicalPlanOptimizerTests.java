@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -22,14 +23,18 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -37,6 +42,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -56,6 +62,7 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -77,6 +84,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -149,10 +157,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Project[[last_name{f}#6]]
+     * Project[[last_name{r}#7]]
      * \_Eval[[null[KEYWORD] AS last_name]]
-     *  \_Limit[10000[INTEGER]]
-     *   \_EsRelation[test][_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      */
     public void testMissingFieldInProject() {
         var plan = plan("""
@@ -166,12 +174,45 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var project = as(localPlan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("last_name"));
-        as(projections.get(0), FieldAttribute.class);
+        as(projections.get(0), ReferenceAttribute.class);
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("last_name"));
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(DataType.KEYWORD));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+        assertThat(Expressions.names(source.output()), not(contains("last_name")));
+    }
+
+    /*
+     * Expects a similar plan to testMissingFieldInProject() above, except for the Alias's child value
+     * Project[[last_name{r}#4]]
+     * \_Eval[[[66 6f 6f][KEYWORD] AS last_name]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testReassignedMissingFieldInProject() {
+        var plan = plan("""
+              from test
+            | keep last_name
+            | eval last_name = "foo"
+            """);
+
+        var testStats = statsForMissingField("last_name");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("last_name"));
+        as(projections.get(0), ReferenceAttribute.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("last_name"));
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(new BytesRef("foo")));
         assertThat(literal.dataType(), is(DataType.KEYWORD));
 
         var limit = as(eval.child(), Limit.class);
@@ -600,6 +641,109 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
+    /*
+     * Limit[1000[INTEGER],false]
+     * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]
+     *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     */
+    public void testReplaceUpperStringCasinqgWithInsensitiveRLike() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE \"VALÜ*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rlike = as(filter.condition(), RLike.class);
+        var field = as(rlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertThat(rlike.pattern().pattern(), is("VALÜ*"));
+        assertThat(rlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern
+    public void testReplaceLowerStringCasingWithInsensitiveRLike() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"valü*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rlike = as(filter.condition(), RLike.class);
+        var field = as(rlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertThat(rlike.pattern().pattern(), is("valü*"));
+        assertThat(rlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndRLikeWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"VALÜ*\"");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    // same plan as in testReplaceUpperStringCasingWithInsensitiveRLike, but with LIKE instead of RLIKE
+    public void testReplaceUpperStringCasingWithInsensitiveLike() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) LIKE \"VALÜ*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var wlike = as(filter.condition(), WildcardLike.class);
+        var field = as(wlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertThat(wlike.pattern().pattern(), is("VALÜ*"));
+        assertThat(wlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern
+    public void testReplaceLowerStringCasingWithInsensitiveLike() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"valü*\"");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var wlike = as(filter.condition(), WildcardLike.class);
+        var field = as(wlike.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertThat(wlike.pattern().pattern(), is("valü*"));
+        assertThat(wlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndLikeWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[],[SUM($$integer_long_field$converted_to$long{f$}#5,true[BOOLEAN]) AS sum(integer_long_field::long)#3]]
+     *   \_Filter[ISNOTNULL($$integer_long_field$converted_to$long{f$}#5)]
+     *     \_EsRelation[test*][!integer_long_field, $$integer_long_field$converted..]
+     */
+    public void testUnionTypesInferNonNullAggConstraint() {
+        LogicalPlan coordinatorOptimized = plan("FROM test* | STATS sum(integer_long_field::long)", analyzerWithUnionTypeMapping());
+        var plan = localPlan(coordinatorOptimized, TEST_SEARCH_STATS);
+
+        var limit = asLimit(plan, 1000);
+        var agg = as(limit.child(), Aggregate.class);
+        var filter = as(agg.child(), Filter.class);
+        var relation = as(filter.child(), EsRelation.class);
+
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        var unionTypeField = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("$$integer_long_field$converted_to$long", unionTypeField.name());
+        assertEquals("integer_long_field", unionTypeField.fieldName().string());
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
@@ -610,12 +754,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         return empty;
     }
 
-    private LogicalPlan plan(String query) {
+    private LogicalPlan plan(String query, Analyzer analyzer) {
         var analyzed = analyzer.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
         return optimized;
+    }
+
+    private LogicalPlan plan(String query) {
+        return plan(query, analyzer);
     }
 
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
@@ -628,6 +776,31 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlan localPlan(String query) {
         return localPlan(plan(query), TEST_SEARCH_STATS);
+    }
+
+    private static Analyzer analyzerWithUnionTypeMapping() {
+        InvalidMappedField unionTypeField = new InvalidMappedField(
+            "integer_long_field",
+            Map.of("integer", Set.of("test1"), "long", Set.of("test2"))
+        );
+
+        EsIndex test = new EsIndex(
+            "test*",
+            Map.of("integer_long_field", unionTypeField),
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
+        );
+        IndexResolution getIndexResult = IndexResolution.valid(test);
+
+        return new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                emptyPolicyResolution(),
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     @Override

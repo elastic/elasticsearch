@@ -30,8 +30,11 @@ For more information, see [Monitor a cluster](docs-content://deploy-manage/monit
 ### General monitoring settings [general-monitoring-settings]
 
 `xpack.monitoring.enabled`
-:   [7.8.0] ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) This deprecated setting has no effect.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting))
 
+    :::{admonition} Deprecated in 7.8.0
+    This deprecated setting has no effect.
+    :::
 
 ### Monitoring collection settings [monitoring-collection-settings]
 
@@ -39,36 +42,72 @@ $$$monitoring-settings-description$$$
 The `xpack.monitoring.collection` settings control how data is collected from your {{es}} nodes.
 
 `xpack.monitoring.collection.enabled`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0]  Set to `true` to enable the collection of monitoring data. When this setting is `false` (default), {{es}} monitoring data is not collected and all monitoring data from other sources such as {{kib}}, Beats, and {{ls}} is ignored.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Set to `true` to enable the collection of monitoring data. When this setting is `false` (default), {{es}} monitoring data is not collected and all monitoring data from other sources such as {{kib}}, Beats, and {{ls}} is ignored.
 
 $$$xpack-monitoring-collection-interval$$$
 
 `xpack.monitoring.collection.interval` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   [6.3.0] ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)) Setting to `-1` to disable data collection is no longer supported beginning with 7.0.0.
+:   :::{admonition} Deprecated in 6.3.0
+    This setting was deprecated in 6.3.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Setting to `-1` to disable data collection is no longer supported beginning with 7.0.0.
 
     Controls how often data samples are collected. Defaults to `10s`. If you modify the collection interval, set the `xpack.monitoring.min_interval_seconds` option in `kibana.yml` to the same value.
 
 
 `xpack.monitoring.elasticsearch.collection.enabled`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Controls whether statistics about your {{es}} cluster should be collected. Defaults to `true`. This is different from `xpack.monitoring.collection.enabled`, which allows you to enable or disable all monitoring collection. However, this setting simply disables the collection of {{es}} data while still allowing other data (e.g., {{kib}}, {{ls}}, Beats, or APM Server monitoring data) to pass through this cluster.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether statistics about your {{es}} cluster should be collected. Defaults to `true`. This is different from `xpack.monitoring.collection.enabled`, which allows you to enable or disable all monitoring collection. However, this setting simply disables the collection of {{es}} data while still allowing other data (e.g., {{kib}}, {{ls}}, Beats, or APM Server monitoring data) to pass through this cluster.
 
 `xpack.monitoring.collection.cluster.stats.timeout`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Timeout for collecting the cluster statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Timeout for collecting the cluster statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.node.stats.timeout`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Timeout for collecting the node statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Timeout for collecting the node statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.indices`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Controls which indices the {{monitor-features}} collect data from. Defaults to all indices. Specify the index names as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for example `test*`. You can explicitly exclude indices by prepending `-`. For example `test*,-test3` will monitor all indexes that start with `test` except for `test3`. System indices like .security* or .kibana* always start with a `.` and generally should be monitored. Consider adding `.*` to the list of indices ensure monitoring of system indices. For example: `.*,test*,-test3`
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls which indices the {{monitor-features}} collect data from. Defaults to all indices. Specify the index names as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for example `test*`. You can explicitly exclude indices by prepending `-`. For example `test*,-test3` will monitor all indexes that start with `test` except for `test3`. System indices like .security* or .kibana* always start with a `.` and generally should be monitored. Consider adding `.*` to the list of indices ensure monitoring of system indices. For example: `.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Timeout for collecting index statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Timeout for collecting index statistics, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Controls whether or not all recoveries are collected. Set to `true` to collect only active recoveries. Defaults to `false`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether or not all recoveries are collected. Set to `true` to collect only active recoveries. Defaults to `false`.
 
 `xpack.monitoring.collection.index.recovery.timeout`
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Timeout for collecting the recovery information, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Timeout for collecting the recovery information, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
 `xpack.monitoring.collection.min_interval_seconds` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the minimum number of seconds that a time bucket in a chart can represent. If you modify the `xpack.monitoring.collection.interval`, use the same value in this setting.
@@ -78,7 +117,11 @@ $$$xpack-monitoring-collection-interval$$$
 $$$xpack-monitoring-history-duration$$$
 
 `xpack.monitoring.history.duration` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Dynamic](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings))  [7.16.0] Retention duration beyond which the indices created by a monitoring exporter are automatically deleted, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `7d` (7 days).
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Retention duration beyond which the indices created by a monitoring exporter are automatically deleted, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `7d` (7 days).
 
     This setting has a minimum value of `1d` (1 day) to ensure that something is being monitored and it cannot be disabled.
 
@@ -88,7 +131,7 @@ $$$xpack-monitoring-history-duration$$$
 
 
 `xpack.monitoring.exporters`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Configures where the agent stores monitoring data. By default, the agent uses a local exporter that indexes monitoring data on the cluster where it is installed. Use an HTTP exporter to send data to a separate monitoring cluster. For more information, see [Local exporter settings](#local-exporter-settings), [HTTP exporter settings](#http-exporter-settings), and [How it works](docs-content://deploy-manage/monitor/stack-monitoring.md).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Configures where the agent stores monitoring data. By default, the agent uses a local exporter that indexes monitoring data on the cluster where it is installed. Use an HTTP exporter to send data to a separate monitoring cluster. For more information, see [Local exporter settings](#local-exporter-settings), [HTTP exporter settings](#http-exporter-settings), and [How it works](docs-content://deploy-manage/monitor/stack-monitoring.md).
 
 
 ### Local exporter settings [local-exporter-settings]
@@ -103,17 +146,28 @@ xpack.monitoring.exporters.my_local:
 ```
 
 `type`
-:   [7.16.0] The value for a Local exporter must always be `local` and it is required.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    The value for a Local exporter must always be `local` and it is required.
 
 `use_ingest`
 :   Whether to supply a placeholder pipeline to the cluster and a pipeline processor with every bulk request. The default value is `true`. If disabled, then it means that it will not use pipelines, which means that a future release cannot automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled`
-:   [7.16.0] Whether to create cluster alerts for this cluster. The default value is `true`. To use this feature, {{watcher}} must be enabled. If you have a basic license, cluster alerts are not displayed.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Whether to create cluster alerts for this cluster. The default value is `true`. To use this feature, {{watcher}} must be enabled. If you have a basic license, cluster alerts are not displayed.
 
 `wait_master.timeout`
-:   [7.16.0] Time to wait for the master node to setup `local` exporter for monitoring, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). After that wait period, the non-master nodes warn the user for possible missing configuration. Defaults to `30s`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
 
+Time to wait for the master node to setup `local` exporter for monitoring, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). After that wait period, the non-master nodes warn the user for possible missing configuration. Defaults to `30s`.
 
 ### HTTP exporter settings [http-exporter-settings]
 
@@ -126,10 +180,18 @@ xpack.monitoring.exporters.my_remote:
 ```
 
 `type`
-:   [7.16.0] The value for an HTTP exporter must always be `http` and it is required.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    The value for an HTTP exporter must always be `http` and it is required.
 
 `host`
-:   [7.16.0] Host supports multiple formats, both as an array or as a single value. Supported formats include `hostname`, `hostname:port`, `http://hostname` `http://hostname:port`, `https://hostname`, and `https://hostname:port`. Hosts cannot be assumed. The default scheme is always `http` and the default port is always `9200` if not supplied as part of the `host` string.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Host supports multiple formats, both as an array or as a single value. Supported formats include `hostname`, `hostname:port`, `http://hostname` `http://hostname:port`, `https://hostname`, and `https://hostname:port`. Hosts cannot be assumed. The default scheme is always `http` and the default port is always `9200` if not supplied as part of the `host` string.
 
     ```yaml
     xpack.monitoring.exporters:
@@ -149,25 +211,53 @@ xpack.monitoring.exporters.my_remote:
 
 
 `auth.username`
-:   [7.16.0] The username is required if `auth.secure_password` is supplied.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    The username is required if `auth.secure_password` is supplied.
 
 `auth.secure_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))  [7.16.0] The password for the `auth.username`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings)) The password for the `auth.username`.
 
 `connection.timeout`
-:   [7.16.0] Amount of time that the HTTP connection is supposed to wait for a socket to open for the request, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). The default value is `6s`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Amount of time that the HTTP connection is supposed to wait for a socket to open for the request, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). The default value is `6s`.
 
 `connection.read_timeout`
-:   [7.16.0] Amount of time that the HTTP connection is supposed to wait for a socket to send back a response, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). The default value is `10 * connection.timeout` (`60s` if neither are set).
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Amount of time that the HTTP connection is supposed to wait for a socket to send back a response, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). The default value is `10 * connection.timeout` (`60s` if neither are set).
 
 `ssl`
-:   [7.16.0] Each HTTP exporter can define its own TLS / SSL settings or inherit them. See [{{monitoring}} TLS/SSL settings](#ssl-monitoring-settings).
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Each HTTP exporter can define its own TLS / SSL settings or inherit them. See [{{monitoring}} TLS/SSL settings](#ssl-monitoring-settings).
 
 `proxy.base_path`
-:   [7.16.0] The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk requests would then be sent as `/base/path/_bulk`). There is no default value.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk requests would then be sent as `/base/path/_bulk`). There is no default value.
 
 `headers`
-:   [7.16.0] Optional headers that are added to every request, which can assist with routing requests through proxies.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Optional headers that are added to every request, which can assist with routing requests through proxies.
 
     ```yaml
     xpack.monitoring.exporters.my_remote:
@@ -180,16 +270,28 @@ xpack.monitoring.exporters.my_remote:
 
 
 `index.name.time_format`
-:   [7.16.0] A mechanism for changing the default date suffix for daily monitoring indices. The default format is `yyyy.MM.dd`. For example, `.monitoring-es-7-2021.08.26`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    A mechanism for changing the default date suffix for daily monitoring indices. The default format is `yyyy.MM.dd`. For example, `.monitoring-es-7-2021.08.26`.
 
 `use_ingest`
 :   Whether to supply a placeholder pipeline to the monitoring cluster and a pipeline processor with every bulk request. The default value is `true`. If disabled, then it means that it will not use pipelines, which means that a future release cannot automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled`
-:   [7.16.0] Whether to create cluster alerts for this cluster. The default value is `true`. To use this feature, {{watcher}} must be enabled. If you have a basic license, cluster alerts are not displayed.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Whether to create cluster alerts for this cluster. The default value is `true`. To use this feature, {{watcher}} must be enabled. If you have a basic license, cluster alerts are not displayed.
 
 `cluster_alerts.management.blacklist`
-:   [7.16.0] Prevents the creation of specific cluster alerts. It also removes any applicable watches that already exist in the current cluster.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    Prevents the creation of specific cluster alerts. It also removes any applicable watches that already exist in the current cluster.
 
     You can add any of the following watch identifiers to the list of blocked alerts:
 
@@ -208,7 +310,11 @@ xpack.monitoring.exporters.my_remote:
 You can configure the following TLS/SSL settings.
 
 `xpack.monitoring.exporters.$NAME.ssl.supported_protocols`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting))  [7.16.0] Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM’s SSL provider supports TLSv1.3, the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is `TLSv1.2,TLSv1.1`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported protocols with versions. Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM’s SSL provider supports TLSv1.3, the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is `TLSv1.2,TLSv1.1`.
 
     {{es}} relies on your JDK’s implementation of SSL and TLS. View [Supported SSL/TLS versions by JDK version](docs-content://deploy-manage/security/supported-ssltls-versions-by-jdk-version.md) for more information.
 
@@ -218,31 +324,29 @@ You can configure the following TLS/SSL settings.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.verification_mode`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting))  [7.16.0] Controls the verification of certificates.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
 
-    ::::{dropdown} Valid values
-    `full`
-    :   Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
-
-    `certificate`
-    :   Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
-
-    `none`
-    :   Performs no certificate validation.
-
-        ::::{important}
-        Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
-        ::::
-
-
-    ::::
-
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the verification of certificates.
 
     Defaults to `full`.
 
+    **Valid values**:
+    * `full`: Validates that the provided certificate: has an issue date that’s within the `not_before` and `not_after` dates; chains to a trusted Certificate Authority (CA); has a `hostname` or IP address that matches the names within the certificate.
+    * `certificate`: Validates the provided certificate and verifies that it’s signed by a trusted authority (CA), but doesn’t check the certificate `hostname`.
+    * `none`: Performs no certificate validation.
+
+      ::::{important}
+      Setting certificate validation to `none` disables many security benefits of SSL/TLS, which is very dangerous. Only set this value if instructed by Elastic Support as a temporary diagnostic mechanism when attempting to resolve TLS errors.
+      ::::
 
 `xpack.monitoring.exporters.$NAME.ssl.cipher_suites`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting))  [7.16.0] Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Supported cipher suites vary depending on which version of Java you use. For example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`, `TLS_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`, `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
     For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
 
@@ -257,28 +361,52 @@ The following settings are used to specify a private key, certificate, and the t
 When using PEM encoded files, use the following settings:
 
 `xpack.monitoring.exporters.$NAME.ssl.key`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] Path to a PEM encoded file containing the private key.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Path to a PEM encoded file containing the private key.
 
     If HTTP client authentication is required, it uses this file. You cannot use this setting and `ssl.keystore.path` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.key_passphrase`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional. [7.17.0] Prefer `ssl.secure_key_passphrase` instead.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.secure_key_passphrase` instead.
+    :::
 
     You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.secure_key_passphrase`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The passphrase that is used to decrypt the private key. Since the key might not be encrypted, this value is optional.
 
 `xpack.monitoring.exporters.$NAME.ssl.certificate`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] Specifies the path for the PEM encoded certificate (or certificate chain) that is associated with the key.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the path for the PEM encoded certificate (or certificate chain) that is associated with the key.
 
     This setting can be used only if `ssl.key` is set.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.certificate_authorities`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] List of paths to PEM encoded certificate files that should be trusted.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to PEM encoded certificate files that should be trusted.
 
     This setting and `ssl.truststore.path` cannot be used at the same time.
 
@@ -289,40 +417,72 @@ When using PEM encoded files, use the following settings:
 When using Java keystore files (JKS), which contain the private key, certificate and certificates that should be trusted, use the following settings:
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.path`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The path for the keystore file that contains a private key and certificate.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path for the keystore file that contains a private key and certificate.
 
     It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and `ssl.key` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The password for the keystore.
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.secure_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] The password for the keystore.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.secure_key_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] The password for the key in the keystore. The default is the keystore password.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the key in the keystore. The default is the keystore password.
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.path`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The path for the keystore that contains the certificates to trust. It must be either a Java keystore (jks) or a PKCS#12 file.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path for the keystore that contains the certificates to trust. It must be either a Java keystore (jks) or a PKCS#12 file.
 
     You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The password for the truststore.
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.secure_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] Password for the truststore.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Password for the truststore.
 
 
 ### PKCS#12 files [monitoring-pkcs12-files]
@@ -332,46 +492,94 @@ When using Java keystore files (JKS), which contain the private key, certificate
 PKCS#12 files are configured in the same way as Java keystore files:
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.path`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The path for the keystore file that contains a private key and certificate.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path for the keystore file that contains a private key and certificate.
 
     It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and `ssl.key` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.type`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The password for the keystore. [7.17.0] Prefer `ssl.keystore.secure_password` instead.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The password for the keystore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_password` instead.
+    :::
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.secure_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] The password for the keystore.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore.
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.key_password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password. [7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The password for the key in the keystore. The default is the keystore password.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.keystore.secure_key_password` instead.
+    :::
 
     You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.keystore.secure_key_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] The password for the key in the keystore. The default is the keystore password.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the key in the keystore. The default is the keystore password.
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.path`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The path for the keystore that contains the certificates to trust. It must be either a Java keystore (jks) or a PKCS#12 file.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path for the keystore that contains the certificates to trust. It must be either a Java keystore (jks) or a PKCS#12 file.
 
     You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.type`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.password`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) [7.16.0] The password for the truststore. [7.17.0] Prefer `ssl.truststore.secure_password` instead.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The password for the truststore.
+
+    :::{admonition} Deprecated in 7.17.0
+    Prefer `ssl.truststore.secure_password` instead.
+    :::
 
     You cannot use this setting and `ssl.truststore.secure_password` at the same time.
 
 
 `xpack.monitoring.exporters.$NAME.ssl.truststore.secure_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) [7.16.0] Password for the truststore.
+:   :::{admonition} Deprecated in 7.16.0
+    This setting was deprecated in 7.16.0.
+    :::
+
+    ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Password for the truststore.
 
 
 

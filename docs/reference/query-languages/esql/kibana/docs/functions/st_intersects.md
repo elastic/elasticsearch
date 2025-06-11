@@ -4,7 +4,7 @@
 Returns true if two geometries intersect.
 They intersect if they have any point in common, including their interior points
 (points along lines or within polygons).
-This is the inverse of the [ST_DISJOINT](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/spatial-functions#esql-st_disjoint) function.
+This is the inverse of the [ST_DISJOINT](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions#esql-st_disjoint) function.
 In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
 
 ```esql

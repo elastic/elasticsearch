@@ -226,7 +226,6 @@ public class ModelRegistry implements ClusterStateListener {
      */
     public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
         synchronized (this) {
-            assert lastMetadata != null : "initial cluster state not set yet";
             if (lastMetadata == null) {
                 throw new IllegalStateException("initial cluster state not set yet");
             }
@@ -613,10 +612,10 @@ public class ModelRegistry implements ClusterStateListener {
                         format(
                             "Failed to rollback while handling failure to update inference endpoint [%s]. "
                                 + "Endpoint may be in an inconsistent state due to [%s]",
-                            inferenceEntityId
+                            inferenceEntityId,
+                            configResponse.buildFailureMessage()
                         ),
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        configResponse.buildFailureMessage()
+                        RestStatus.INTERNAL_SERVER_ERROR
                     )
                 );
             } else {

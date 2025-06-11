@@ -193,7 +193,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        terminal.addSecretInput("Typedthisandhitenter\r");
+        terminal.addSecretInput("Typedthisandhitenter\r\n");
         execute("-x", "foo");
         assertSecureString("foo", "Typedthisandhitenter", password);
     }

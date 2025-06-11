@@ -136,6 +136,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -193,11 +194,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -472,6 +475,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (randomBoolean()) {
             builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values()));
+        }
         return builder;
     }
 
@@ -580,7 +586,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 internalCluster().clearDisruptionScheme();
             }
             try {
-                if (cluster() != null) {
+                if (cluster() != null && cluster().size() > 0) {
                     if (currentClusterScope != Scope.TEST) {
                         Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
 
@@ -906,7 +912,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+                new GetDataStreamAction.Request(SAFE_AWAIT_TIMEOUT, new String[] { dataStreamName })
             )
         );
         assertThat(response.getDataStreams().size(), equalTo(1));
@@ -938,6 +944,39 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         });
         assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+    }
+
+    /**
+     * Waits for the node {@code viaNode} to see {@code masterNodeName} as the master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     *
+     * @param viaNode the node to check the cluster state one
+     * @param masterNodeName the master node name that we wait for
+     */
+    public void awaitMasterNode(String viaNode, String masterNodeName) {
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false),
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
+    }
+
+    /**
+     * Waits for a random node in the cluster to not see a master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     */
+    public void awaitMasterNotFound() {
+        var viaNode = internalCluster().getRandomNodeName();
+        // We use a temporary state listener instead of `awaitClusterState` here because the `ClusterStateObserver` doesn't run the
+        // predicate if the cluster state version didn't change. When a master node leaves the cluster (i.e. what this method is used for),
+        // the cluster state version is not incremented.
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> state.nodes().getMasterNode() == null,
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */
@@ -1171,6 +1210,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static String getNodeId(String nodeName) {
         return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
+    }
+
+    /**
+     * @return A map of the cluster node Ids to their node names.
+     */
+    public static Map<String, String> nodeIdsToNames() {
+        var names = internalCluster().getNodeNames();
+        Map<String, String> nodeIdsToNames = new HashMap<>();
+        for (var name : names) {
+            nodeIdsToNames.put(getNodeId(name), name);
+        }
+        return nodeIdsToNames;
+
     }
 
     /**
@@ -1748,8 +1800,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static void awaitIndexExists(String index, Client client, TimeValue timeout) {
         assertThat("wildcards not supported", index, allOf(not(Metadata.ALL), not(containsString("*"))));
-        safeGet(
-            client.admin().cluster().prepareHealth(timeout, index).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED).execute()
+        assertNoTimeout(
+            client.admin()
+                .cluster()
+                .prepareHealth(timeout, index)
+                .setTimeout(timeout)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
         );
     }
 

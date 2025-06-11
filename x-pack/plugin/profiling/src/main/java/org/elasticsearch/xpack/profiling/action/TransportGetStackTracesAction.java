@@ -115,6 +115,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      */
     private static final String CUSTOM_EVENT_SUB_AGGREGATION_NAME = "custom_event_group";
 
+    /**
+     * This is the default sampling rate for profiling events that we use if no sampling rate is
+     * stored in the backend (backwards compatibility).
+     */
+    public static final double DEFAULT_SAMPLING_FREQUENCY = 19.0d;
+
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
     private final ClusterService clusterService;
@@ -249,7 +255,6 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ActionListener<GetStackTracesResponse> submitListener,
         GetStackTracesResponseBuilder responseBuilder
     ) {
-
         CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
@@ -286,7 +291,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
                     String stackTraceID = stacktraceBucket.getKeyAsString();
 
-                    TraceEventID eventID = new TraceEventID("", "", "", stackTraceID);
+                    TraceEventID eventID = new TraceEventID("", "", "", stackTraceID, DEFAULT_SAMPLING_FREQUENCY);
                     TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
                     event.count += count;
                     subGroups.collectResults(stacktraceBucket, event);
@@ -337,6 +342,16 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(groupByHostId);
+        TermsAggregationBuilder groupByExecutableName = new TermsAggregationBuilder("group_by")
+            // 'size' specifies the max number of host IDs we support per request.
+            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
+            .field("process.executable.name")
+            // missing("") is used to include documents where the field is missing.
+            .missing("")
+            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
+            // Especially with high cardinality fields, this makes aggregations really slow.
+            .executionHint("map")
+            .subAggregation(groupByThreadName);
         SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
@@ -351,53 +366,89 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 new TermsAggregationBuilder("group_by")
                     // 'size' specifies the max number of host ID we support per request.
                     .size(MAX_TRACE_EVENTS_RESULT_SIZE)
-                    .field("process.executable.name")
-                    // missing("") is used to include documents where the field is missing.
-                    .missing("")
+                    .field("Stacktrace.sampling_frequency")
+                    // missing(DEFAULT_SAMPLING_RATE) is used to include documents where the field is missing.
+                    .missing((long) DEFAULT_SAMPLING_FREQUENCY)
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
-                    .subAggregation(groupByThreadName)
+                    .subAggregation(groupByExecutableName)
+                    .subAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
-                long totalCount = getAggValueAsLong(searchResponse, "total_count");
+                // The count values for events are scaled up to the highest sampling frequency.
+                // For example, if the highest sampling frequency is 100, an event with frequency=20 and count=1
+                // will be upscaled to count=5 (100/20 * count).
+                // For this, we need to find the highest frequency in the result set.
+                long maxSamplingFrequency = 0;
+                Terms samplingFrequencies = searchResponse.getAggregations().get("group_by");
+                for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
+                    final double samplingFrequency = samplingFrequencyBucket.getKeyAsNumber().doubleValue();
+                    if (samplingFrequency > maxSamplingFrequency) {
+                        maxSamplingFrequency = (long) samplingFrequency;
+                    }
+                }
+
+                // Calculate a scaled-up total count (scaled up to the highest sampling frequency).
+                long totalCount = 0;
+                for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
+                    InternalNumericMetricsAggregation.SingleValue count = samplingFrequencyBucket.getAggregations().get("total_count");
+                    final double samplingFrequency = samplingFrequencyBucket.getKeyAsNumber().doubleValue();
+                    final double samplingFactor = maxSamplingFrequency / samplingFrequency;
+                    totalCount += Math.round(count.value() * samplingFactor);
+                }
 
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
 
                 // Sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-                // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
+                // The term dictionary is lexicographically sorted, and using the same order reduces the number of page faults
                 // needed to load it.
                 long totalFinalCount = 0;
                 Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(MAX_TRACE_EVENTS_RESULT_SIZE);
 
-                Terms executableNames = searchResponse.getAggregations().get("group_by");
-                for (Terms.Bucket executableBucket : executableNames.getBuckets()) {
-                    String executableName = executableBucket.getKeyAsString();
+                // Walk over all nested aggregations.
+                // The outermost aggregation is the sampling frequency.
+                // The next level is the executable name, followed by the thread name, host ID and stacktrace ID.
+                // the innermost aggregation contains the count of samples for each stacktrace ID.
+                for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
+                    final double samplingFrequency = samplingFrequencyBucket.getKeyAsNumber().doubleValue();
+                    final double samplingFactor = maxSamplingFrequency / samplingFrequency;
 
-                    Terms threads = executableBucket.getAggregations().get("group_by");
-                    for (Terms.Bucket threadBucket : threads.getBuckets()) {
-                        String threadName = threadBucket.getKeyAsString();
+                    Terms executableNames = samplingFrequencyBucket.getAggregations().get("group_by");
+                    for (Terms.Bucket executableBucket : executableNames.getBuckets()) {
+                        String executableName = executableBucket.getKeyAsString();
 
-                        Terms hosts = threadBucket.getAggregations().get("group_by");
-                        for (Terms.Bucket hostBucket : hosts.getBuckets()) {
-                            String hostID = hostBucket.getKeyAsString();
+                        Terms threads = executableBucket.getAggregations().get("group_by");
+                        for (Terms.Bucket threadBucket : threads.getBuckets()) {
+                            String threadName = threadBucket.getKeyAsString();
 
-                            Terms stacktraces = hostBucket.getAggregations().get("group_by");
-                            for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
-                                Sum count = stacktraceBucket.getAggregations().get("count");
-                                int finalCount = resampler.adjustSampleCount((int) count.value());
-                                if (finalCount <= 0) {
-                                    continue;
+                            Terms hosts = threadBucket.getAggregations().get("group_by");
+                            for (Terms.Bucket hostBucket : hosts.getBuckets()) {
+                                String hostID = hostBucket.getKeyAsString();
+
+                                Terms stacktraces = hostBucket.getAggregations().get("group_by");
+                                for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                                    Sum count = stacktraceBucket.getAggregations().get("count");
+                                    int finalCount = resampler.adjustSampleCount((int) Math.round(count.value() * samplingFactor));
+                                    if (finalCount <= 0) {
+                                        continue;
+                                    }
+
+                                    totalFinalCount += finalCount;
+
+                                    String stackTraceID = stacktraceBucket.getKeyAsString();
+                                    TraceEventID eventID = new TraceEventID(
+                                        executableName,
+                                        threadName,
+                                        hostID,
+                                        stackTraceID,
+                                        maxSamplingFrequency
+                                    );
+                                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
+                                    event.count += finalCount;
+                                    subGroups.collectResults(stacktraceBucket, event);
                                 }
-                                totalFinalCount += finalCount;
-
-                                String stackTraceID = stacktraceBucket.getKeyAsString();
-
-                                TraceEventID eventID = new TraceEventID(executableName, threadName, hostID, stackTraceID);
-                                TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
-                                event.count += finalCount;
-                                subGroups.collectResults(stacktraceBucket, event);
                             }
                         }
                     }
@@ -629,8 +680,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             );
 
             responseBuilder.getStackTraceEvents().forEach((eventId, event) -> {
-                event.annualCO2Tons += co2Calculator.getAnnualCO2Tons(eventId.hostID(), event.count);
-                event.annualCostsUSD += costCalculator.annualCostsUSD(eventId.hostID(), event.count);
+                event.annualCO2Tons += co2Calculator.getAnnualCO2Tons(eventId.hostID(), event.count, eventId.samplingFrequency());
+                event.annualCostsUSD += costCalculator.annualCostsUSD(eventId.hostID(), event.count, eventId.samplingFrequency());
             });
 
             log.debug(watch::report);

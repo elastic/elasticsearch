@@ -474,7 +474,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -20,7 +21,8 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
+import java.util.function.Supplier;
+
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -34,10 +36,17 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "basic_credentials_client";
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3"));
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)

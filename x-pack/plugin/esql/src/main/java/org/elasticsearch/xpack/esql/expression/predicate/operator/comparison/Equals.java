@@ -11,13 +11,20 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -118,6 +125,32 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
             EqualsNanosMillisEvaluator.Factory::new,
             EqualsMillisNanosEvaluator.Factory::new
         );
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (right() instanceof Literal lit) {
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+                if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
+                    return Translatable.YES_BUT_RECHECK_NEGATED;
+                }
+            }
+        }
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (right() instanceof Literal lit) {
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+                String value = ((BytesRef) lit.value()).utf8ToString();
+                if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, value)) {
+                    String name = handler.nameOf(fa);
+                    return new SingleValueQuery(new EqualsSyntheticSourceDelegate(source(), name, value), name, true);
+                }
+            }
+        }
+        return super.asQuery(pushdownPredicates, handler);
     }
 
     @Override

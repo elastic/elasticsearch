@@ -12,6 +12,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -130,6 +132,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceRunner inferenceRunner;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
@@ -157,7 +160,16 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceRunner = transportActionServices.inferenceRunner();
         this.clusterService = transportActionServices.clusterService();
-        this.dataNodeComputeHandler = new DataNodeComputeHandler(this, searchService, transportService, exchangeService, esqlExecutor);
+        this.projectResolver = transportActionServices.projectResolver();
+        this.dataNodeComputeHandler = new DataNodeComputeHandler(
+            this,
+            clusterService,
+            projectResolver,
+            searchService,
+            transportService,
+            exchangeService,
+            esqlExecutor
+        );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,
@@ -183,7 +195,7 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.size() == 0) {
-            executePlan(sessionId, rootTask, physicalPlan, configuration, foldContext, execInfo, listener, null);
+            executePlan(sessionId, rootTask, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
             return;
         }
 
@@ -208,7 +220,7 @@ public class ComputeService {
             var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
             var computeContext = new ComputeContext(
                 mainSessionId,
-                "single",
+                "main.final",
                 LOCAL_CLUSTER,
                 List.of(),
                 configuration,
@@ -231,21 +243,35 @@ public class ComputeService {
                 )
             ) {
                 runCompute(rootTask, computeContext, finalMainPlan, localListener.acquireCompute());
-            }
 
-            for (PhysicalPlan subplan : subplans) {
-                var childSessionId = newChildSession(sessionId);
-                ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
-                // funnel sub plan pages into the main plan exchange source
-                mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
-                executePlan(childSessionId, rootTask, subplan, configuration, foldContext, execInfo, ActionListener.wrap(result -> {
-                    exchangeSink.addCompletionListener(
-                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                for (int i = 0; i < subplans.size(); i++) {
+                    var subplan = subplans.get(i);
+                    var childSessionId = newChildSession(sessionId);
+                    ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
+                    // funnel sub plan pages into the main plan exchange source
+                    mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                    var subPlanListener = localListener.acquireCompute();
+
+                    executePlan(
+                        childSessionId,
+                        rootTask,
+                        subplan,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        "subplan-" + i,
+                        ActionListener.wrap(result -> {
+                            exchangeSink.addCompletionListener(
+                                ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
+                            );
+                            subPlanListener.onResponse(result.completionInfo());
+                        }, e -> {
+                            exchangeService.finishSinkHandler(childSessionId, e);
+                            subPlanListener.onFailure(e);
+                        }),
+                        () -> exchangeSink.createExchangeSink(() -> {})
                     );
-                }, e -> {
-                    exchangeService.finishSinkHandler(childSessionId, e);
-                    finalListener.onFailure(e);
-                }), () -> exchangeSink.createExchangeSink(() -> {}));
+                }
             }
         }
     }
@@ -257,6 +283,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
@@ -294,7 +321,7 @@ public class ComputeService {
             }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
-                "single",
+                profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 List.of(),
                 configuration,
@@ -380,7 +407,7 @@ public class ComputeService {
                         rootTask,
                         new ComputeContext(
                             sessionId,
-                            "final",
+                            profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             List.of(),
                             configuration,
@@ -417,7 +444,7 @@ public class ComputeService {
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
-                                if (configuration.allowPartialResults()) {
+                                if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
@@ -435,6 +462,10 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
+                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        continue;
+                    }
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
                         rootTask,
@@ -517,6 +548,12 @@ public class ComputeService {
                 new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
+        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
+            context.foldCtx(),
+            contexts,
+            searchService.getIndicesService().getAnalysis(),
+            defaultDataPartitioning
+        );
         final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -532,12 +569,7 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceRunner,
-                new EsPhysicalOperationProviders(
-                    context.foldCtx(),
-                    contexts,
-                    searchService.getIndicesService().getAnalysis(),
-                    defaultDataPartitioning
-                ),
+                physicalOperationProviders,
                 contexts
             );
 
@@ -589,6 +621,10 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    String profileDescription(String qualifier, String label) {
+        return qualifier == null ? label : qualifier + "." + label;
     }
 
     Runnable cancelQueryOnFailure(CancellableTask task) {

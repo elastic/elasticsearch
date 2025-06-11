@@ -3,7 +3,7 @@
 ### TO DATETIME
 Converts an input value to a date value.
 A string will only be successfully converted if it’s respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`.
-To convert dates in other formats, use [`DATE_PARSE`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/date-time-functions#esql-date_parse).
+To convert dates in other formats, use [`DATE_PARSE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/date-time-functions#esql-date_parse).
 
 ```esql
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]

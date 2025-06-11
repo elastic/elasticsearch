@@ -31,6 +31,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private final ThreadContext threadContext;
     private final ChannelHandlerContext ctx;
     private boolean closing = false;
+    private boolean readLastChunk = false;
     private HttpBody.ChunkHandler handler;
     private ThreadContext.StoredContext requestContext;
     private final ChannelFutureListener closeListener = future -> doClose();
@@ -49,6 +50,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     @Override
     public void setHandler(ChunkHandler chunkHandler) {
+        assert ctx.channel().eventLoop().inEventLoop() : Thread.currentThread().getName();
         this.handler = chunkHandler;
     }
 
@@ -70,10 +72,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     public void handleNettyContent(HttpContent httpContent) {
+        assert ctx.channel().eventLoop().inEventLoop() : Thread.currentThread().getName();
         if (closing) {
             httpContent.release();
             read();
         } else {
+            assert readLastChunk == false;
             try (var ignored = threadContext.restoreExistingContext(requestContext)) {
                 var isLast = httpContent instanceof LastHttpContent;
                 var buf = Netty4Utils.toReleasableBytesReference(httpContent.content());
@@ -82,8 +86,9 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 }
                 handler.onNext(buf, isLast);
                 if (isLast) {
-                    read();
+                    readLastChunk = true;
                     ctx.channel().closeFuture().removeListener(closeListener);
+                    read();
                 }
             }
         }
@@ -99,6 +104,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     private void doClose() {
+        assert ctx.channel().eventLoop().inEventLoop() : Thread.currentThread().getName();
         closing = true;
         try (var ignored = threadContext.restoreExistingContext(requestContext)) {
             for (var tracer : tracingHandlers) {
@@ -108,6 +114,8 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 handler.close();
             }
         }
-        read();
+        if (readLastChunk == false) {
+            read();
+        }
     }
 }

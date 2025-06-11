@@ -32,7 +32,6 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -52,7 +51,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -238,10 +236,8 @@ public final class IndexPrivilege extends Privilege {
      */
     private static final Map<String, IndexPrivilege> VALUES = combineSortedInOrder(
         sortByAccessLevel(
-            Stream.of(
-                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
-                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store", MANAGE_FAILURE_STORE) : null
-            ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+            Stream.of(entry("read_failure_store", READ_FAILURE_STORE), entry("manage_failure_store", MANAGE_FAILURE_STORE))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         ),
         sortByAccessLevel(
             Stream.of(
@@ -400,7 +396,7 @@ public final class IndexPrivilege extends Privilege {
                         + part
                         + "]. a privilege must be either "
                         + "one of the predefined fixed indices privileges ["
-                        + Strings.collectionToCommaDelimitedString(VALUES.entrySet())
+                        + Strings.collectionToCommaDelimitedString(names().stream().sorted().collect(Collectors.toList()))
                         + "] or a pattern over one of the available index"
                         + " actions";
                     logger.debug(errorMessage);

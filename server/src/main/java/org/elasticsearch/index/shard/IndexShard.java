@@ -117,6 +117,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.FieldUsageStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -203,7 +204,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexCache indexCache;
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
-    private final ShardSearchStats searchStats = new ShardSearchStats();
+    private final ShardSearchStats searchStats;
     private final ShardFieldUsageTracker fieldUsageTracker;
     private final String shardUuid = UUIDs.randomBase64UUID();
     private final long shardCreationTime;
@@ -308,6 +309,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos = -1L; // use -1 to indicate this has not yet been set to its true value
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private volatile long indexingTaskExecutionTimeBeforeShardStartedInNanos;
     private volatile double recentIndexingLoadAtShardStarted;
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
@@ -340,7 +342,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
         final MapperMetrics mapperMetrics,
-        final IndexingStatsSettings indexingStatsSettings
+        final IndexingStatsSettings indexingStatsSettings,
+        final SearchStatsSettings searchStatsSettings
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -368,6 +371,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
+        this.searchStats = new ShardSearchStats(searchStatsSettings);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(searchOperationListener, searchStats),
             logger
@@ -569,6 +573,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // unlikely case that getRelativeTimeInNanos() returns exactly -1, we advance by 1ns to avoid that special value.
                 startedRelativeTimeInNanos = (relativeTimeInNanos != -1L) ? relativeTimeInNanos : 0L;
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+                indexingTaskExecutionTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingExecutionTimeInNanos();
                 recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
@@ -1401,6 +1406,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttled,
             throttleTimeInMillis,
             indexingTimeBeforeShardStartedInNanos,
+            indexingTaskExecutionTimeBeforeShardStartedInNanos,
             timeSinceShardStartedInNanos,
             currentTimeInNanos,
             recentIndexingLoadAtShardStarted
@@ -2652,7 +2658,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
     public Closeable acquireHistoryRetentionLock() {
         return getEngine().acquireHistoryRetentionLock();
@@ -2730,6 +2736,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexEventListener;
     }
 
+    /** Activate throttling for this shard. If {@link IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE}
+     * setting is set to true, throttling will pause indexing completely. Otherwise, indexing will be throttled to one thread.
+     */
     public void activateThrottling() {
         try {
             getEngine().activateThrottling();
@@ -3233,6 +3242,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void noopUpdate() {
         internalIndexingStats.noopUpdate();
+    }
+
+    /**
+     * Increment relevant stats when indexing buffers are written to disk using indexing threads,
+     * in order to apply back-pressure on indexing.
+     * @param tookInNanos  time it took to write the indexing buffers for this shard (in ns)
+     * @see IndexingMemoryController#writePendingIndexingBuffers()
+     */
+    public void addWriteIndexBuffersToIndexThreadsTime(long tookInNanos) {
+        internalIndexingStats.writeIndexingBuffersTime(tookInNanos);
     }
 
     public void maybeCheckIndex() {

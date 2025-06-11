@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -134,7 +135,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
         blobStore.setDisruption(new Disruption() {
             @Override
             public byte[] onRead(byte[] actualContents, long position, long length) throws IOException {
@@ -158,7 +159,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.abortWritePermitted(false);
         request.rareActionProbability(0.0); // not found on an early read or an overwrite is ok
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -212,7 +213,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
         request.rareActionProbability(0.0);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -234,9 +235,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        // requests that create copies count as two blobs. Halving the count ensures that we trigger the disruption
-        // even if every request is a copy
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount() / 2));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
 
@@ -526,6 +525,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertEquals(OperationPurpose.REPOSITORY_ANALYSIS, purpose);
     }
 
+    private static CountDown createDisruptionCountdown(RepositoryAnalyzeAction.Request request) {
+        // requests that create copies count as two blobs. Halving the count ensures that we trigger the disruption
+        // even if every request is a copy
+        return new CountDown(between(1, request.getBlobCount() / 2));
+    }
+
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
 
         static final String DISRUPTABLE_REPO_TYPE = "disruptable";
@@ -541,7 +546,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
-                metadata -> new DisruptableRepository(
+                (projectId, metadata) -> new DisruptableRepository(
+                    projectId,
                     metadata,
                     namedXContentRegistry,
                     clusterService,
@@ -558,6 +564,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
 
         DisruptableRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
@@ -565,7 +572,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             BlobPath basePath
         ) {
-            super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
         }
 
         void setBlobStore(BlobStore blobStore) {

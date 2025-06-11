@@ -1,0 +1,511 @@
+setup:
+  - requires:
+      cluster_features: 'pinned_retriever_supported'
+      reason: 'test requires pinned retriever implementation'
+  - do:
+      indices.create:
+        index: test-index1
+  - do:
+      indices.create:
+        index: test-index2
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index1
+        body:
+          - index:
+              _id: doc1
+          - { "text": "document one" }
+          - index:
+              _id: doc2
+          - { "text": "document two" }
+          - index:
+              _id: doc3
+          - { "text": "document three" }
+          - index:
+              _id: doc4
+          - { "text": "document four" }
+          - index:
+              _id: doc5
+          - { "text": "document five" }
+  - do:
+      bulk:
+        refresh: true
+        index: test-index2
+        body:
+          - index:
+              _id: idx2-docA
+          - { "text": "index two document A" }
+          - index:
+              _id: idx2-docB
+          - { "text": "index two document B" }
+
+---
+"pinned retriever parameter variations":
+  - skip: { features: headers }
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              docs:
+                - _index: test-index1
+                  _id: doc1
+                - _index: test-index1
+                  _id: doc2
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
+
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score < 100.0 }
+
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              docs:
+                - _index: test-index1
+                  _id: doc1
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score < 100.0 }
+
+---
+"pinned retriever dynamic pinning and ordering":
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc2"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc3"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc2 }
+  - match: { hits.hits.2._score < 100.0 }
+  - match: { hits.hits.3._id: doc4 }
+  - match: { hits.hits.4._id: doc5 }
+
+---
+"pinned retriever with pagination":
+  - skip: { features: headers }
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          size: 1
+          from: 1
+          retriever:
+            pinned:
+              ids: ["doc1", "doc2"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: doc2 }
+  - match: { hits.hits.0._score: 1.7014122E38 }
+
+---
+"pinned retriever with explicit sort on score":
+  - skip: { features: headers }
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc2"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+                  sort: [ "_score" ]
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
+
+---
+"pinned retriever with rank window size":
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc2"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+              rank_window_size: 1
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc2"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+              rank_window_size: 10
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.2._score < 100.0 }
+
+---
+"pinned retriever explanation":
+  - skip: { features: headers }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc2"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+          explain: true
+
+  - match: { hits.hits.0._id: doc1 }
+  - gt: { hits.hits.0._score: 1.0 }
+  - match:
+      hits.hits.0._explanation.description: "Pinned document, original explanation:"
+  - match:
+      hits.hits.0._explanation.details.0.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries."
+
+  - match: { hits.hits.1._id: doc2 }
+  - gt: { hits.hits.1._score: 1.0 }
+  - match:
+      hits.hits.1._explanation.description: "Pinned document, original explanation:"
+  - match:
+      hits.hits.1._explanation.details.0.description: "doc [1] with an original score of [1.7014122E38] is at rank [2] from the following source queries."
+
+---
+"pinned retriever with empty parameters":
+  - do:
+      catch: /Either 'ids' or 'docs' must be provided and non-empty for pinned retriever/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+---
+"pinned retriever error case - both ids and docs":
+  - do:
+      catch: /Both 'ids' and 'docs' cannot be specified at the same time/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              docs:
+                - _index: test-index1
+                  _id: doc2
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+---
+"pinned retriever error case - duplicate id":
+  - do:
+      catch: /duplicate id found/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "doc1"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+---
+"pinned retriever error case - duplicate doc":
+  - do:
+      catch: /duplicate doc found/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              docs:
+                - _index: test-index1
+                  _id: doc1
+                - _index: test-index1
+                  _id: doc1
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+---
+"pinned retriever with ids and empty docs array should fail":
+  - do:
+      catch: /Both 'ids' and 'docs' cannot be specified at the same time/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              docs: []
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+---
+"pinned retriever errors if sorting by anything other than score":
+  - do:
+      catch: /\[pinned\] retriever only supports sorting by score/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+                  sort: [ { "_id": "desc" } ]
+
+---
+"pinned retriever error case - null inner query":
+  - do:
+      catch: /illegal_argument_exception.+reason=pinned retriever requires retriever with associated query/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1"]
+              retriever:
+                standard: {}
+
+---
+"pinned retriever with non-existent id":
+  - skip: { features: headers }
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "nonexistent_doc", "doc3"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014126E38 }
+  - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc2 }
+  - match: { hits.hits.2._score < 100.0 }
+
+---
+"pinned retriever with non-existent doc specified via docs":
+  - skip: { features: headers }
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              docs:
+                - _index: test-index1
+                  _id: doc1
+                - _index: test-index1
+                  _id: nonexistent_doc
+                - _index: test-index1
+                  _id: doc3
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014126E38 }
+  - match: { hits.hits.1._id: doc3 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: doc2 }
+  - match: { hits.hits.2._score < 100.0 }
+  - match: { hits.hits.3._id: doc4 }
+  - match: { hits.hits.4._id: doc5 }
+
+---
+"pinned retriever multi-index vs single-index filtering":
+  - skip: { features: headers }
+
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1,test-index2
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "idx2-docA"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 7 }
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.1._id: idx2-docA }
+  - match: { hits.hits.2._id: idx2-docB }
+  - match: { hits.hits.3._id: doc2 }
+  - match: { hits.hits.4._id: doc3 }
+  - match: { hits.hits.5._id: doc4 }
+  - match: { hits.hits.6._id: doc5 }
+
+  - do:
+      headers: { Content-Type: application/json }
+      search:
+        index: test-index1
+        body:
+          retriever:
+            pinned:
+              ids: ["doc1", "idx2-docA"]
+              retriever:
+                standard:
+                  query:
+                    match: { text: "document" }
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 } 
+  - match: { hits.hits.0._id: doc1 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: doc2 }          
+  - match: { hits.hits.2._id: doc3 }
+  - match: { hits.hits.3._id: doc4 }
+  - match: { hits.hits.4._id: doc5 }
+
+
+
+  

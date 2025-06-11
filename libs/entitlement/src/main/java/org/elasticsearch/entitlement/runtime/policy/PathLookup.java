@@ -10,14 +10,31 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
-public record PathLookup(
-    Path homeDir,
-    Path configDir,
-    Path[] dataDirs,
-    Path[] sharedRepoDirs,
-    Path tempDir,
-    Function<String, Stream<String>> settingResolver
-) {}
+/**
+ * Resolves paths for known directories checked by entitlements.
+ */
+public interface PathLookup {
+    enum BaseDir {
+        USER_HOME,
+        CONFIG,
+        DATA,
+        SHARED_REPO,
+        LIB,
+        MODULES,
+        PLUGINS,
+        LOGS,
+        TEMP
+    }
+
+    Path pidFile();
+
+    Stream<Path> getBaseDirPaths(BaseDir baseDir);
+
+    /**
+     * @return all paths obtained by resolving all values of the given setting under all
+     * paths of the given {@code baseDir}.
+     */
+    Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName);
+}

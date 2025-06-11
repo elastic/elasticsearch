@@ -131,7 +131,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
-        private Boolean allPartialResults = null;
+        private Boolean allowPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -178,6 +178,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        /**
+         * Allow sending pragmas even in non-snapshot builds.
+         */
+        public RequestObjectBuilder pragmasOk() throws IOException {
+            builder.field("accept_pragma_risks", true);
+            return this;
+        }
+
         Boolean keepOnCompletion() {
             return keepOnCompletion;
         }
@@ -209,9 +217,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder allPartialResults(boolean allPartialResults) {
-            this.allPartialResults = allPartialResults;
+        public RequestObjectBuilder allowPartialResults(boolean allowPartialResults) {
+            this.allowPartialResults = allowPartialResults;
             return this;
+        }
+
+        public Boolean allowPartialResults() {
+            return allowPartialResults;
         }
 
         public RequestObjectBuilder build() throws IOException {
@@ -1010,7 +1022,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(21, columns.size());
+            assertEquals(22, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }
@@ -1235,7 +1247,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
-    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
+        throws IOException {
         if (mode == ASYNC) {
             return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
         } else {
@@ -1276,6 +1289,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String id = (String) json.get("id");
 
         var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
+        var supportsSuggestedCast = clusterHasCapability("POST", "/_query", List.of(), List.of("suggested_cast")).orElse(false);
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
@@ -1321,13 +1335,39 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         // assert initial contents, if any, are the same as async get contents
         if (initialColumns != null) {
-            assertEquals(initialColumns, result.get("columns"));
+            if (supportsSuggestedCast == false) {
+                assertEquals(
+                    removeOriginalTypesAndSuggestedCast(initialColumns),
+                    removeOriginalTypesAndSuggestedCast(result.get("columns"))
+                );
+            } else {
+                assertEquals(initialColumns, result.get("columns"));
+            }
             assertEquals(initialValues, result.get("values"));
         }
 
         assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
+    }
+
+    private static Object removeOriginalTypesAndSuggestedCast(Object response) {
+        if (response instanceof ArrayList<?> columns) {
+            var newColumns = new ArrayList<>();
+            for (var column : columns) {
+                if (column instanceof Map<?, ?> columnMap) {
+                    var newMap = new HashMap<>(columnMap);
+                    newMap.remove("original_types");
+                    newMap.remove("suggested_cast");
+                    newColumns.add(newMap);
+                } else {
+                    newColumns.add(column);
+                }
+            }
+            return newColumns;
+        } else {
+            return response;
+        }
     }
 
     public void testAsyncGetWithoutContentType() throws IOException {
@@ -1368,15 +1408,84 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesMap().entry("name", "integer").entry("type", "integer")),
             values
         );
+    }
 
+    public void testReplaceStringCasingWithInsensitiveWildcardMatch() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "reserved": {
+                        "type": "keyword"
+                    },
+                    "optional": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+        doc.setJsonEntity("""
+            {
+                "reserved": "_\\"_$_(_)_+_._[_]_^_{_|_}___",
+                "optional": "_#_&_<_>___"
+            }
+            """);
+        client().performRequest(doc);
+        var query = "FROM " + testIndexName() + """
+            | WHERE TO_LOWER(reserved) LIKE "_\\"_$_(_)_+_._[_]_^_{_|_}*"
+            | WHERE TO_LOWER(optional) LIKE "_#_&_<_>*"
+            | KEEP reserved, optional
+            """;
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("_\"_$_(_)_+_._[_]_^_{_|_}___", "_#_&_<_>___"))));
+    }
+
+    public void testRLikeHandlingOfEmptyLanguagePattern() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "field": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        for (var val : List.of("#", "foo#bar")) {
+            Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "field": "%s"
+                }
+                """.formatted(val));
+            client().performRequest(doc);
+        }
+        // pushed down, matches nothing
+        var query = "FROM " + testIndexName() + " | WHERE TO_LOWER(field) RLIKE \"#\"";
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches nothing
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches one doc
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"\\\\#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"))));
+
+        // matches both docs
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \".*\\\\#.*\" | SORT field";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
-        if (requestObject.allPartialResults != null) {
-            request.addParameter("allow_partial_results", String.valueOf(requestObject.allPartialResults));
+        if (requestObject.allowPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
         }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();

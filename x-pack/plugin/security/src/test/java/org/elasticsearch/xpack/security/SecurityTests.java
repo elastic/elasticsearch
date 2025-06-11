@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -43,6 +45,7 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -77,12 +80,15 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -99,6 +105,9 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -157,15 +166,33 @@ public class SecurityTests extends ESTestCase {
     private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension implements SecurityExtension {
-        private String realmType;
+        private final String realmType;
+        private final ServiceAccountTokenStore serviceAccountTokenStore;
+        private final String extensionName;
 
         DummyExtension(String realmType) {
+            this(realmType, "DummyExtension", null);
+        }
+
+        DummyExtension(String realmType, String extensionName, @Nullable ServiceAccountTokenStore serviceAccountTokenStore) {
             this.realmType = realmType;
+            this.extensionName = extensionName;
+            this.serviceAccountTokenStore = serviceAccountTokenStore;
+        }
+
+        @Override
+        public String extensionName() {
+            return extensionName;
         }
 
         @Override
         public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
             return Collections.singletonMap(realmType, config -> null);
+        }
+
+        @Override
+        public ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+            return serviceAccountTokenStore;
         }
     }
 
@@ -266,12 +293,70 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(realms.realmFactory("myrealm"));
     }
 
-    public void testCustomRealmExtensionConflict() throws Exception {
+    public void testCustomRealmExtensionConflict() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createComponents(Settings.EMPTY, new DummyExtension(FileRealmSettings.TYPE))
         );
         assertEquals("Realm type [" + FileRealmSettings.TYPE + "] is already registered", e.getMessage());
+    }
+
+    public void testServiceAccountTokenStoreExtensionSuccess() throws Exception {
+        Collection<Object> components = createComponents(
+            Settings.EMPTY,
+            new DummyExtension(
+                "test_realm",
+                "DummyExtension",
+                (token, listener) -> listener.onResponse(
+                    ServiceAccountTokenStore.StoreAuthenticationResult.successful(TokenInfo.TokenSource.FILE)
+                )
+            )
+        );
+        ServiceAccountService serviceAccountService = findComponent(ServiceAccountService.class, components);
+        assertNotNull(serviceAccountService);
+        FileServiceAccountTokenStore fileServiceAccountTokenStore = findComponent(FileServiceAccountTokenStore.class, components);
+        assertNull(fileServiceAccountTokenStore);
+        IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
+        assertNull(indexServiceAccountTokenStore);
+        var account = randomFrom(ServiceAccountService.getServiceAccounts().values());
+        assertThrows(IllegalStateException.class, () -> serviceAccountService.createIndexToken(null, null, null));
+        var future = new PlainActionFuture<Authentication>();
+        serviceAccountService.authenticateToken(ServiceAccountToken.newToken(account.id(), "test"), "test", future);
+        assertTrue(future.get().isServiceAccount());
+    }
+
+    public void testSeveralServiceAccountTokenStoreExtensionFail() {
+        IllegalStateException exception = assertThrows(
+            IllegalStateException.class,
+            () -> createComponents(
+                Settings.EMPTY,
+                new DummyExtension(
+                    "test_realm_1",
+                    "DummyExtension1",
+                    (token, listener) -> listener.onResponse(
+                        ServiceAccountTokenStore.StoreAuthenticationResult.successful(TokenInfo.TokenSource.FILE)
+                    )
+                ),
+                new DummyExtension(
+                    "test_realm_2",
+                    "DummyExtension2",
+                    (token, listener) -> listener.onResponse(
+                        ServiceAccountTokenStore.StoreAuthenticationResult.successful(TokenInfo.TokenSource.FILE)
+                    )
+                )
+            )
+        );
+        assertThat(exception.getMessage(), containsString("More than one extension provided a ServiceAccountTokenStore override: "));
+    }
+
+    public void testNoServiceAccountTokenStoreExtension() throws Exception {
+        Collection<Object> components = createComponents(Settings.EMPTY);
+        ServiceAccountService serviceAccountService = findComponent(ServiceAccountService.class, components);
+        assertNotNull(serviceAccountService);
+        FileServiceAccountTokenStore fileServiceAccountTokenStore = findComponent(FileServiceAccountTokenStore.class, components);
+        assertNotNull(fileServiceAccountTokenStore);
+        IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
+        assertNotNull(indexServiceAccountTokenStore);
     }
 
     public void testAuditEnabled() throws Exception {
@@ -377,7 +462,8 @@ public class SecurityTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             List.of(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here

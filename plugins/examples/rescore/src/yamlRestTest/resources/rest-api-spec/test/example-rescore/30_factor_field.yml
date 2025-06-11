@@ -49,6 +49,24 @@ setup:
   - match: { hits.hits.2._score: 10 }
 
 ---
+"referencing a missing field returns bad request":
+  - requires:
+      cluster_features: [ "search.rescorer.missing.field.bad.request" ]
+      reason: "Testing the behaviour change with this feature"
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          rescore:
+            example:
+              factor: 1
+              factor_field: missing
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Missing value for field [missing]" }
+
+---
 "sorted based on a numeric field and rescored based on a factor field using a window size":
   - do:
       search:

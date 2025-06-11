@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -36,6 +34,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -61,7 +60,6 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -610,27 +608,35 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testMetadataGlobalStateChangesOnIndexDeletions() {
+        final var projectId = randomProjectIdOrDefault();
         IndexGraveyard.Builder builder = IndexGraveyard.builder();
         builder.addTombstone(new Index("idx1", UUIDs.randomBase64UUID()));
-        final Metadata metadata1 = Metadata.builder().indexGraveyard(builder.build()).build();
-        builder = IndexGraveyard.builder(metadata1.getProject().indexGraveyard());
+        final Metadata metadata1 = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(builder.build())).build();
+        builder = IndexGraveyard.builder(metadata1.getProject(projectId).indexGraveyard());
         builder.addTombstone(new Index("idx2", UUIDs.randomBase64UUID()));
-        final Metadata metadata2 = Metadata.builder(metadata1).indexGraveyard(builder.build()).build();
+        final Metadata metadata2 = Metadata.builder(metadata1)
+            .put(ProjectMetadata.builder(metadata1.getProject(projectId)).indexGraveyard(builder.build()))
+            .build();
         assertFalse("metadata not equal after adding index deletions", Metadata.isGlobalStateEquals(metadata1, metadata2));
         final Metadata metadata3 = Metadata.builder(metadata2).build();
         assertTrue("metadata equal when not adding index deletions", Metadata.isGlobalStateEquals(metadata2, metadata3));
     }
 
     public void testXContentWithIndexGraveyard() throws IOException {
+        @FixForMultiProject // XContent serialization and parsing with a random project ID currently only works when serializing in MP mode
+        final var projectId = ProjectId.DEFAULT;
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();
+        final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         Metadata.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
-            assertThat(fromXContentMeta.getProject().indexGraveyard(), equalTo(originalMeta.getProject().indexGraveyard()));
+            assertThat(
+                fromXContentMeta.getProject(projectId).indexGraveyard(),
+                equalTo(originalMeta.getProject(projectId).indexGraveyard())
+            );
         }
     }
 
@@ -978,15 +984,16 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {
+        final var projectId = randomProjectIdOrDefault();
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();
+        final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final BytesStreamOutput out = new BytesStreamOutput();
         originalMeta.writeTo(out);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Metadata fromStreamMeta = Metadata.readFrom(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
         );
-        assertThat(fromStreamMeta.getProject().indexGraveyard(), equalTo(fromStreamMeta.getProject().indexGraveyard()));
+        assertThat(fromStreamMeta.getProject(projectId).indexGraveyard(), equalTo(originalMeta.getProject(projectId).indexGraveyard()));
     }
 
     public void testFindMappings() throws IOException {
@@ -1394,20 +1401,6 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.custom("custom2"), sameInstance(custom2));
     }
 
-    public void testBuilderRemoveProjectCustomIf() {
-        var custom1 = new TestProjectCustomMetadata();
-        var custom2 = new TestProjectCustomMetadata();
-        var builder = Metadata.builder();
-        builder.putCustom("custom1", custom1);
-        builder.putCustom("custom2", custom2);
-
-        builder.removeProjectCustomIf((key, value) -> Objects.equals(key, "custom1"));
-
-        var metadata = builder.build();
-        assertThat(metadata.getProject().custom("custom1"), nullValue());
-        assertThat(metadata.getProject().custom("custom2"), sameInstance(custom2));
-    }
-
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
@@ -1690,38 +1683,6 @@ public class MetadataTests extends ESTestCase {
                 assertThat(fromStreamProject.dataStreams().get(name), equalTo(value));
             });
         }
-    }
-
-    public void testMetadataSerializationPreMultiProject() throws IOException {
-        final Metadata orig = randomMetadata();
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        orig.writeTo(out);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-        assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
-    }
-
-    public void testDiffSerializationPreMultiProject() throws IOException {
-        final Metadata meta1 = randomMetadata(1);
-        final Metadata meta2 = randomMetadata(2);
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final Diff<Metadata> diff = meta2.diff(meta1);
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        diff.writeTo(out);
-
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Diff<Metadata> read = Metadata.readDiffFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-
-        final Metadata applied = read.apply(meta1);
-        assertTrue(Metadata.isGlobalStateEquals(meta2, applied));
     }
 
     public void testGetNonExistingProjectThrows() {

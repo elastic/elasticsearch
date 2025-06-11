@@ -17,12 +17,16 @@ import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTe
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.LongStream;
 
@@ -41,7 +45,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -94,6 +98,160 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             long group = groups.getLong(i);
             sum.assertSimpleGroup(input, sums, i, group);
             max.assertSimpleGroup(input, maxs, i, group);
+        }
+    }
+
+    public void testTopNNullsLast() {
+        boolean ascOrder = randomBoolean();
+        var groups = new Long[] { 0L, 10L, 20L, 30L, 40L, 50L };
+        if (ascOrder) {
+            Arrays.sort(groups, Comparator.reverseOrder());
+        }
+        var mode = AggregatorMode.SINGLE;
+        var groupChannel = 0;
+        var aggregatorChannels = List.of(1);
+
+        try (
+            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, false, 3))),
+                mode,
+                List.of(
+                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                ),
+                randomPageSize(),
+                null
+            ).get(driverContext())
+        ) {
+            var page = new Page(
+                BlockUtils.fromList(
+                    blockFactory(),
+                    List.of(
+                        List.of(groups[1], 2L),
+                        Arrays.asList(null, 1L),
+                        List.of(groups[2], 4L),
+                        List.of(groups[3], 8L),
+                        List.of(groups[3], 16L)
+                    )
+                )
+            );
+            operator.addInput(page);
+
+            page = new Page(
+                BlockUtils.fromList(
+                    blockFactory(),
+                    List.of(
+                        List.of(groups[5], 64L),
+                        List.of(groups[4], 32L),
+                        List.of(List.of(groups[1], groups[5]), 128L),
+                        List.of(groups[0], 256L),
+                        Arrays.asList(null, 512L)
+                    )
+                )
+            );
+            operator.addInput(page);
+
+            operator.finish();
+
+            var outputPage = operator.getOutput();
+
+            var groupsBlock = (LongBlock) outputPage.getBlock(0);
+            var sumBlock = (LongBlock) outputPage.getBlock(1);
+            var maxBlock = (LongBlock) outputPage.getBlock(2);
+
+            assertThat(groupsBlock.getPositionCount(), equalTo(3));
+            assertThat(sumBlock.getPositionCount(), equalTo(3));
+            assertThat(maxBlock.getPositionCount(), equalTo(3));
+
+            assertThat(groupsBlock.getTotalValueCount(), equalTo(3));
+            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
+            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
+
+            assertThat(
+                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
+                equalTo(List.of(List.of(groups[3]), List.of(groups[5]), List.of(groups[4])))
+            );
+            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(24L), List.of(192L), List.of(32L))));
+            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(16L), List.of(128L), List.of(32L))));
+
+            outputPage.releaseBlocks();
+        }
+    }
+
+    public void testTopNNullsFirst() {
+        boolean ascOrder = randomBoolean();
+        var groups = new Long[] { 0L, 10L, 20L, 30L, 40L, 50L };
+        if (ascOrder) {
+            Arrays.sort(groups, Comparator.reverseOrder());
+        }
+        var mode = AggregatorMode.SINGLE;
+        var groupChannel = 0;
+        var aggregatorChannels = List.of(1);
+
+        try (
+            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, true, 3))),
+                mode,
+                List.of(
+                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                ),
+                randomPageSize(),
+                null
+            ).get(driverContext())
+        ) {
+            var page = new Page(
+                BlockUtils.fromList(
+                    blockFactory(),
+                    List.of(
+                        List.of(groups[1], 2L),
+                        Arrays.asList(null, 1L),
+                        List.of(groups[2], 4L),
+                        List.of(groups[3], 8L),
+                        List.of(groups[3], 16L)
+                    )
+                )
+            );
+            operator.addInput(page);
+
+            page = new Page(
+                BlockUtils.fromList(
+                    blockFactory(),
+                    List.of(
+                        List.of(groups[5], 64L),
+                        List.of(groups[4], 32L),
+                        List.of(List.of(groups[1], groups[5]), 128L),
+                        List.of(groups[0], 256L),
+                        Arrays.asList(null, 512L)
+                    )
+                )
+            );
+            operator.addInput(page);
+
+            operator.finish();
+
+            var outputPage = operator.getOutput();
+
+            var groupsBlock = (LongBlock) outputPage.getBlock(0);
+            var sumBlock = (LongBlock) outputPage.getBlock(1);
+            var maxBlock = (LongBlock) outputPage.getBlock(2);
+
+            assertThat(groupsBlock.getPositionCount(), equalTo(3));
+            assertThat(sumBlock.getPositionCount(), equalTo(3));
+            assertThat(maxBlock.getPositionCount(), equalTo(3));
+
+            assertThat(groupsBlock.getTotalValueCount(), equalTo(2));
+            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
+            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
+
+            assertThat(
+                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
+                equalTo(Arrays.asList(null, List.of(groups[5]), List.of(groups[4])))
+            );
+            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(513L), List.of(192L), List.of(32L))));
+            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(512L), List.of(128L), List.of(32L))));
+
+            outputPage.releaseBlocks();
         }
     }
 }

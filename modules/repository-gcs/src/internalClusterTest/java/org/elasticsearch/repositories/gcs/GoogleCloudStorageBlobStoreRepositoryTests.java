@@ -276,7 +276,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(
+                (projectId, metadata) -> new GoogleCloudStorageRepository(
+                    projectId,
                     metadata,
                     registry,
                     this.storageService,
@@ -343,7 +344,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             }
 
             if (exchange.getRequestHeaders().containsKey(IDEMPOTENCY_TOKEN)) {
-                return exchange.getRequestHeaders().getFirst(IDEMPOTENCY_TOKEN);
+                String idempotencyToken = exchange.getRequestHeaders().getFirst(IDEMPOTENCY_TOKEN);
+                // In the event of a resumable retry, the GCS client uses the same idempotency token for
+                // the retry status check and the subsequent retries.
+                // Including the range header allows us to disambiguate between the requests
+                // see https://github.com/googleapis/java-storage/issues/3040
+                if (exchange.getRequestHeaders().containsKey("Content-Range")) {
+                    idempotencyToken += " " + exchange.getRequestHeaders().getFirst("Content-Range");
+                }
+                return idempotencyToken;
             }
 
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");

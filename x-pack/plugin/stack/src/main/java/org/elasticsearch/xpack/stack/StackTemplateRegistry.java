@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +38,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 14;
+    public static final int REGISTRY_VERSION = 16;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -118,9 +119,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
         this.clusterService = clusterService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
         this.componentTemplateConfigs = loadComponentTemplateConfigs();

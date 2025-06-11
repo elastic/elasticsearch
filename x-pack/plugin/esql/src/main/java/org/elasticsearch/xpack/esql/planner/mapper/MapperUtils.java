@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -53,7 +54,7 @@ import java.util.List;
 /**
  * Class for sharing code across Mappers.
  */
-class MapperUtils {
+public class MapperUtils {
     private MapperUtils() {}
 
     static PhysicalPlan mapLeaf(LeafPlan p) {
@@ -176,5 +177,14 @@ class MapperUtils {
 
     static PhysicalPlan unsupported(LogicalPlan p) {
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
+    }
+
+    public static boolean hasScoreAttribute(List<? extends Attribute> attributes) {
+        for (Attribute attr : attributes) {
+            if (MetadataAttribute.isScoreAttribute(attr)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

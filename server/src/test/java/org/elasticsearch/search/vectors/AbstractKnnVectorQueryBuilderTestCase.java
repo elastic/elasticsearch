@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
@@ -46,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
@@ -144,7 +147,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             fieldName,
             k,
             numCands,
-            randomRescoreVectorBuilder(),
+            isIndextypeBBQ() ? randomBBQRescoreVectorBuilder() : randomRescoreVectorBuilder(),
             randomFloat()
         );
 
@@ -159,6 +162,14 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
 
         return queryBuilder;
+    }
+
+    private boolean isIndextypeBBQ() {
+        return indexType.equals("bbq_hnsw") || indexType.equals("bbq_flat");
+    }
+
+    protected RescoreVectorBuilder randomBBQRescoreVectorBuilder() {
+        return new RescoreVectorBuilder(randomBoolean() ? DEFAULT_OVERSAMPLE : randomFloatBetween(1.0f, 10.0f, false));
     }
 
     protected RescoreVectorBuilder randomRescoreVectorBuilder() {
@@ -176,14 +187,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
             query = ((VectorSimilarityQuery) query).getInnerKnnQuery();
         }
-        Integer k = queryBuilder.k();
-        if (k == null) {
+        int k;
+        if (queryBuilder.k() == null) {
             k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
+        } else {
+            k = queryBuilder.k();
         }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             if (queryBuilder.rescoreVectorBuilder().oversample() > 0) {
                 RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-                assertEquals(k.intValue(), (rescoreQuery.k()));
+                assertEquals(k, (rescoreQuery.k()));
                 query = rescoreQuery.innerQuery();
             } else {
                 assertFalse(query instanceof RescoreKnnVectorQuery);
@@ -202,14 +215,34 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            Float oversample = queryBuilder.rescoreVectorBuilder().oversample();
+            float oversample = queryBuilder.rescoreVectorBuilder().oversample();
             k = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * oversample));
             numCands = Math.max(numCands, k);
         }
 
+        final KnnSearchStrategy expectedStrategy = context.getIndexSettings()
+            .getIndexVersionCreated()
+            .onOrAfter(IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC)
+                ? DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                : DenseVectorFieldMapper.FilterHeuristic.FANOUT.getKnnSearchStrategy();
+
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE, BIT -> new ESKnnByteVectorQuery(VECTOR_FIELD, queryBuilder.queryVector().asByteVector(), k, numCands, filterQuery);
-            case FLOAT -> new ESKnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector().asFloatVector(), k, numCands, filterQuery);
+            case BYTE, BIT -> new ESKnnByteVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asByteVector(),
+                k,
+                numCands,
+                filterQuery,
+                expectedStrategy
+            );
+            case FLOAT -> new ESKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                queryBuilder.queryVector().asFloatVector(),
+                k,
+                numCands,
+                filterQuery,
+                expectedStrategy
+            );
         };
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();

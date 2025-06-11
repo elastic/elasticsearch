@@ -28,7 +28,10 @@ service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
-the embedding generation, indexing, and query to use.
+the embedding generation, indexing, and query to use. 
+Newly created indices with `semantic_text` fields using dense embeddings will be
+[quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
+to `bbq_hnsw` automatically.
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:
@@ -92,7 +95,7 @@ PUT my-index-000003
 ## Parameters for `semantic_text` fields [semantic-text-params]
 
 `inference_id`
-:   (Required, string) {{infer-cap}} endpoint that will be used to generate
+:   (Optional, string) {{infer-cap}} endpoint that will be used to generate
 embeddings for the field. By default, `.elser-2-elasticsearch` is used. This
 parameter cannot be updated. Use
 the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
@@ -110,29 +113,28 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 
 `chunking_settings`
 :   (Optional, object) Settings for chunking text into smaller passages.
-If specified, these will override the chunking settings set in the {infer-cap}
+If specified, these will override the chunking settings set in the {{infer-cap}}
 endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
 
-::::{dropdown} Valid values for `chunking_settings`
-`type`
-:   Indicates the type of chunking strategy to use. Valid values are `word` or
-`sentence`. Required.
+    **Valid values for `chunking_settings`**:
 
-`max_chunk_size`
-:   The maximum number of works in a chunk. Required.
+    `type`
+    :   Indicates the type of chunking strategy to use. Valid values are `word` or
+    `sentence`. Required.
 
-`overlap`
-:   The number of overlapping words allowed in chunks. This cannot be defined as
-more than half of the `max_chunk_size`. Required for `word` type chunking
-settings.
+    `max_chunk_size`
+    :   The maximum number of works in a chunk. Required.
 
-`sentence_overlap`
-:   The number of overlapping sentences allowed in chunks. Valid values are `0`
-or `1`. Required for `sentence` type chunking settings
+    `overlap`
+    :   The number of overlapping words allowed in chunks. This cannot be defined as
+    more than half of the `max_chunk_size`. Required for `word` type chunking
+    settings.
 
-::::
+    `sentence_overlap`
+    :   The number of overlapping sentences allowed in chunks. Valid values are `0`
+    or `1`. Required for `sentence` type chunking settings
 
 ## {{infer-cap}} endpoint validation [infer-endpoint-validation]
 
@@ -247,9 +249,15 @@ is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 
-Updates that use scripts are not supported for an index contains a
-`semantic_text` field. Even if the script targets non-`semantic_text` fields,
-the update will fail when the index contains a `semantic_text` field.
+For indices containing `semantic_text` fields, updates that use scripts have the
+following behavior:
+
+* Are supported through
+  the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
+* Are not supported through
+  the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1)
+  and will fail. Even if the script targets non-`semantic_text` fields, the
+  update will fail when the index contains a `semantic_text` field.
 
 ## `copy_to` and multi-fields support [copy-to-support]
 
@@ -311,4 +319,5 @@ PUT test-index
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [Dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-
+* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
+  Cross-Cluster Replication (CCR).

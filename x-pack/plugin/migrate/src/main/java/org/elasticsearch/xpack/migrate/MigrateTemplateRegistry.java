@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.migrate;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,9 +32,10 @@ public class MigrateTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
     }
 
     @Override

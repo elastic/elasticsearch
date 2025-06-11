@@ -113,19 +113,11 @@ The following parameters are accepted by `keyword` fields:
     The `index.mapping.dimension_fields.limit` [index setting](/reference/elasticsearch/index-settings/time-series.md) limits the number of dimensions in an index.
 
     Dimension fields have the following constraints:
-
     * The `doc_values` and `index` mapping parameters must be `true`.
-    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints:
-
-        * The field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
+    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints: the field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
 
 
 ## Synthetic `_source` [keyword-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 Synthetic source may sort `keyword` fields and remove duplicates. For example:
 
@@ -232,6 +224,42 @@ Will become:
 ```console-result
 {
   "kwd": ["bar", "baz", "foo", "bang"]
+}
+```
+
+If `null_value` is configured, `null` values are replaced with the `null_value` in synthetic source:
+
+$$$synthetic-source-keyword-example-null-value$$$
+
+```console
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "kwd": { "type": "keyword", "null_value": "NA" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", null, "bar"]
+}
+```
+
+Will become:
+
+```console-result
+{
+  "kwd": ["NA", "bar", "foo"]
 }
 ```
 

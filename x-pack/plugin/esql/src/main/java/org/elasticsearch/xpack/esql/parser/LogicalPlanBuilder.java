@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -94,12 +95,10 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
- *
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -383,8 +382,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
+        Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Integer i) {
+            if (i < 0) {
+                throw new ParsingException(source, "Invalid value for LIMIT [" + val + "], expecting a non negative integer");
+            }
+            return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
+        } else {
+            throw new ParsingException(
+                source,
+                "Invalid value for LIMIT [" + val + ": " + val.getClass().getSimpleName() + "], expecting a non negative integer"
+            );
+        }
     }
 
     @Override
@@ -636,7 +645,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans);
+            return new Fork(source(ctx), subPlans, List.of());
         };
     }
 
@@ -730,7 +739,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitFields(ctx.fields()));
+        Literal inferenceId = ctx.inferenceId != null
+            ? inferenceId(ctx.inferenceId)
+            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+
+        return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }
 
     @Override
@@ -767,5 +780,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             "Query parameter [{}] is not a string and cannot be used as inference id",
             ctx.parameter().getText()
         );
+    }
+
+    public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
+        var probability = visitDecimalValue(ctx.probability);
+        return plan -> new Sample(source(ctx), probability, plan);
     }
 }

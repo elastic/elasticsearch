@@ -96,6 +96,20 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitRerankField(EsqlBaseParser.RerankFieldContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitFromCommand(EsqlBaseParser.FromCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -454,6 +468,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

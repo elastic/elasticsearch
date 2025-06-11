@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.hamcrest.Matcher;
 
 import java.util.Collections;
@@ -21,7 +20,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
 // TODO: rework these tests to mock jvm option finder so they can run with security manager, no forking needed
-@WithoutSecurityManager
 public class MachineDependentHeapTests extends ESTestCase {
 
     public void testDefaultHeapSize() throws Exception {
@@ -58,13 +56,13 @@ public class MachineDependentHeapTests extends ESTestCase {
     }
 
     public void testMlOnlyOptions() throws Exception {
-        assertHeapOptions(1, containsInAnyOrder("-Xmx408m", "-Xms408m"), "ml");
-        assertHeapOptions(4, containsInAnyOrder("-Xmx1636m", "-Xms1636m"), "ml");
-        assertHeapOptions(32, containsInAnyOrder("-Xmx8192m", "-Xms8192m"), "ml");
-        assertHeapOptions(64, containsInAnyOrder("-Xmx11468m", "-Xms11468m"), "ml");
+        assertHeapOptions(1, containsInAnyOrder("-Xmx272m", "-Xms272m"), "ml");
+        assertHeapOptions(4, containsInAnyOrder("-Xmx1092m", "-Xms1092m"), "ml");
+        assertHeapOptions(32, containsInAnyOrder("-Xmx5460m", "-Xms5460m"), "ml");
+        assertHeapOptions(64, containsInAnyOrder("-Xmx7644m", "-Xms7644m"), "ml");
         // We'd never see a node this big in Cloud, but this assertion proves that the 31GB absolute maximum
         // eventually kicks in (because 0.4 * 16 + 0.1 * (263 - 16) > 31)
-        assertHeapOptions(263, containsInAnyOrder("-Xmx31744m", "-Xms31744m"), "ml");
+        assertHeapOptions(263, containsInAnyOrder("-Xmx21228m", "-Xms21228m"), "ml");
     }
 
     public void testDataNodeOptions() throws Exception {

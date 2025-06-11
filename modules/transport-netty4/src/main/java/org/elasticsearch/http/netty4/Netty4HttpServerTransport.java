@@ -371,7 +371,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
 
             // from this point in pipeline every handler must call ctx or channel #read() when ready to process next HTTP part
-            ch.pipeline().addLast(new FlowControlHandler());
             if (Assertions.ENABLED) {
                 // missing reads are hard to catch, but we can detect absence of reads within interval
                 long missingReadIntervalMs = 10_000;
@@ -429,6 +428,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (ResourceLeakDetector.isEnabled()) {
                 ch.pipeline().addLast(new Netty4LeakDetectionHandler());
             }
+            // See https://github.com/netty/netty/issues/15053: the combination of FlowControlHandler and HttpContentDecompressor above
+            // can emit multiple chunks per read, but HttpBody.Stream requires chunks to arrive one-at-a-time so until that issue is
+            // resolved we must add another flow controller here:
+            ch.pipeline().addLast(new FlowControlHandler());
             ch.pipeline()
                 .addLast(
                     "pipelining",

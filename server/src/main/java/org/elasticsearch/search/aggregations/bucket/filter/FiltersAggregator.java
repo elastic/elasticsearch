@@ -12,7 +12,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
-import org.apache.lucene.search.DisjunctionDISIApproximation;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
@@ -313,10 +312,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             // and the cost of per-filter doc iterator is smaller than maxDoc, indicating that there are docs matching the main
             // query but not the filter query.
             final boolean hasOtherBucket = otherBucketKey != null;
-            final boolean usesCompetitiveIterator = (parent == null
-                && hasOtherBucket == false
-                && filterWrappers.isEmpty() == false
-                && totalCost < aggCtx.getLeafReaderContext().reader().maxDoc());
+            // TODO: https://github.com/elastic/elasticsearch/issues/126955
+            // competitive iterator is currently broken, we would rather be slow than broken
+            final boolean usesCompetitiveIterator = false;
 
             if (filterWrappers.size() == 1) {
                 return new SingleFilterLeafCollector(
@@ -328,11 +326,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     hasOtherBucket
                 );
             }
-            if (usesCompetitiveIterator) {
-                return new MultiFilterCompetitiveLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
-            } else {
-                return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
-            }
+            // TODO: https://github.com/elastic/elasticsearch/issues/126955
+            return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
         }
     }
 
@@ -453,46 +448,6 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         @Override
         public DocIdSetIterator competitiveIterator() {
             return null;
-        }
-    }
-
-    private final class MultiFilterCompetitiveLeafCollector extends AbstractLeafCollector {
-
-        private final DisjunctionDISIApproximation disjunctionDisi;
-
-        MultiFilterCompetitiveLeafCollector(
-            LeafBucketCollector sub,
-            List<FilterMatchingDisiWrapper> filterWrappers,
-            int numFilters,
-            int totalNumKeys,
-            boolean hasOtherBucket
-        ) {
-            super(sub, numFilters, totalNumKeys, true, hasOtherBucket);
-            assert filterWrappers.isEmpty() == false;
-            disjunctionDisi = DisjunctionDISIApproximation.of(filterWrappers, Long.MAX_VALUE);
-        }
-
-        public void collect(int doc, long bucket) throws IOException {
-            boolean matched = false;
-            int target = disjunctionDisi.advance(doc);
-            if (target == doc) {
-                for (DisiWrapper w = disjunctionDisi.topList(); w != null; w = w.next) {
-                    FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
-                    if (topMatch.checkDocForMatch(doc)) {
-                        collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
-                        matched = true;
-                    }
-                }
-            }
-
-            if (hasOtherBucket && false == matched) {
-                collectBucket(sub, doc, bucketOrd(bucket, numFilters));
-            }
-        }
-
-        @Override
-        public DocIdSetIterator competitiveIterator() {
-            return disjunctionDisi;
         }
     }
 

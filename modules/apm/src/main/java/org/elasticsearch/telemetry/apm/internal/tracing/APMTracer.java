@@ -39,8 +39,6 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -145,11 +143,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         assert this.enabled;
         assert this.services == null;
 
-        return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
-            var openTelemetry = GlobalOpenTelemetry.get();
-            var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
-            return new APMServices(tracer, openTelemetry);
-        });
+        var openTelemetry = GlobalOpenTelemetry.get();
+        var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
+        return new APMServices(tracer, openTelemetry);
     }
 
     private void destroyApmServices() {
@@ -175,7 +171,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        spans.computeIfAbsent(spanId, _spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
+        spans.computeIfAbsent(spanId, _spanId -> {
             logger.trace("Tracing [{}] [{}]", spanId, spanName);
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
@@ -198,7 +194,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             updateThreadContext(traceContext, services, contextForNewSpan);
 
             return contextForNewSpan;
-        }));
+        });
     }
 
     /**
@@ -282,8 +278,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public Releasable withScope(Traceable traceable) {
         final Context context = spans.get(traceable.getSpanId());
         if (context != null) {
-            var scope = AccessController.doPrivileged((PrivilegedAction<Scope>) context::makeCurrent);
-            return scope::close;
+            return context.makeCurrent()::close;
         }
         return () -> {};
     }
@@ -309,6 +304,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                     spanBuilder.setAttribute(key, (Double) value);
                 } else if (value instanceof Boolean) {
                     spanBuilder.setAttribute(key, (Boolean) value);
+                } else if (value == null) {
+                    throw new IllegalArgumentException("span attributes cannot have a null value");
                 } else {
                     throw new IllegalArgumentException(
                         "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
@@ -380,10 +377,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
         if (span != null) {
             logger.trace("Finishing trace [{}]", traceable);
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                span.end();
-                return null;
-            });
+            span.end();
         }
     }
 
@@ -392,10 +386,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     @Override
     public void stopTrace() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Span.current().end();
-            return null;
-        });
+        Span.current().end();
     }
 
     @Override

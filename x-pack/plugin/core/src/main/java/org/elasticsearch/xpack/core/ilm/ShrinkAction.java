@@ -187,7 +187,7 @@ public class ShrinkAction implements LifecycleAction {
             preShrinkBranchingKey,
             checkNotWriteIndex,
             lastOrNextStep,
-            (indexMetadata, clusterState, listener) -> {
+            (indexMetadata, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
                         "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
@@ -287,8 +287,8 @@ public class ShrinkAction implements LifecycleAction {
             dataStreamCheckBranchingKey,
             aliasKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

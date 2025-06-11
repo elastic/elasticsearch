@@ -45,7 +45,6 @@ public final class GeoIpCache {
         return new GeoIpCache(System::nanoTime, CacheBuilder.<CacheKey, CacheableValue>builder().setMaximumWeight(maxSize).build());
     }
 
-    // TODO PETE: Make plugin use this instead of the other factory method when the settings require it
     static GeoIpCache createGeoIpCacheWithMaxBytes(ByteSizeValue maxByteSize) {
         if (maxByteSize.getBytes() < 0) {
             throw new IllegalArgumentException("geoip max cache size in bytes must be 0 or greater");

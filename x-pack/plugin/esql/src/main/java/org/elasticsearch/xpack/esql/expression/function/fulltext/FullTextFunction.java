@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
@@ -17,15 +18,23 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -42,12 +51,15 @@ import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -134,7 +146,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryBuilder);
+        return Objects.hash(super.hashCode(), query, queryBuilder);
     }
 
     @Override
@@ -143,7 +155,7 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
     }
 
     @Override
@@ -320,5 +332,58 @@ public abstract class FullTextFunction extends Function
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+    }
+
+    protected static void populateOptionsMap(
+        final MapExpression options,
+        final Map<String, Object> optionsMap,
+        final TypeResolutions.ParamOrdinal paramOrdinal,
+        final String sourceText,
+        final Map<String, DataType> allowedOptions
+    ) throws InvalidArgumentException {
+        for (EntryExpression entry : options.entryExpressions()) {
+            Expression optionExpr = entry.key();
+            Expression valueExpr = entry.value();
+            TypeResolution resolution = isFoldable(optionExpr, sourceText, paramOrdinal).and(
+                isFoldable(valueExpr, sourceText, paramOrdinal)
+            );
+            if (resolution.unresolved()) {
+                throw new InvalidArgumentException(resolution.message());
+            }
+            Object optionExprLiteral = ((Literal) optionExpr).value();
+            Object valueExprLiteral = ((Literal) valueExpr).value();
+            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
+            // validate the optionExpr is supported
+            DataType dataType = allowedOptions.get(optionName);
+            if (dataType == null) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText, allowedOptions.keySet())
+                );
+            }
+            try {
+                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+            } catch (InvalidArgumentException e) {
+                throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
+            }
+        }
+    }
+
+    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
+        String fieldName = fieldAttribute.name();
+        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+            fieldName = multiTypeEsField.getName();
+        }
+        return fieldName;
+    }
+
+    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
+        Expression fieldExpression = field;
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
     }
 }

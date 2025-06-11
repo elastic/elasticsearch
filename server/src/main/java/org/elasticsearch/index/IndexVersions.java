@@ -133,6 +133,7 @@ public class IndexVersions {
     public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ_BACKPORT_8_X = def(8_530_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X = def(8_531_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(8_533_0_00, Version.LUCENE_9_12_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

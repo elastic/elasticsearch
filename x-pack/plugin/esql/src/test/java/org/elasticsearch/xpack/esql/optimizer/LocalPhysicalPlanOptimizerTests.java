@@ -2115,23 +2115,52 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(knnQuery.k(), is(10));
     }
 
-    public void testKnnWithExplicitLimit() {
+    public void testKnnWithoExplicitLimitSortedAndCommandsInBetween() {
         var query = """
-            from test
+            from test metadata _score
             | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | keep _score
             | limit 10
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
-        var limitExec = as(plan, LimitExec.class);
-        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
-        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
-        var projectExec = as(exchangeExec.child(), ProjectExec.class);
-        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
-        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        var projectExec = as(plan, ProjectExec.class);
+        var topNExec = as(projectExec.child(), TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec2 = as(exchangeExec.child(), ProjectExec.class);
+        var queryExec = as(projectExec2.child(), EsQueryExec.class);
         assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
         var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
         assertThat(knnQuery.k(), is(10));
+    }
+
+    public void testKnnWithExplicitLimit() {
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2]) or match(text, "blue")
+            | sort _score desc, text asc
+            | keep text, dense_vector
+            | limit 140
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var projectExec = as(plan, ProjectExec.class);
+        var topNExec = as(projectExec.child(), TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(140));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec2 = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec2.child(), FieldExtractExec.class);
+        var topNExec2 = as(fieldExtractExec.child(), TopNExec.class);
+        assertThat(topNExec2.limit().fold(FoldContext.small()), is(140));
+        var fieldExtractExec2 = as(topNExec2.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec2.child(), EsQueryExec.class);
+        assertNull(queryExec.limit());
+        var expectedQuery = boolQuery()
+            .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 140, null, null, null))
+            .should(matchQuery("text", "blue").lenient(true));
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 
     public void testKnnWithExplicitLimitAndExistingTopK() {

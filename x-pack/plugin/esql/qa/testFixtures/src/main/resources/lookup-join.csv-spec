@@ -4587,6 +4587,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 lookupJoinOnTimeSeriesIndex
 required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM k8s
 | RENAME network.bytes_in AS language_code

@@ -778,12 +778,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                EsqlTestUtils.emptyPolicyResolution()
-            ),
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
             TEST_VERIFIER
         );
     }

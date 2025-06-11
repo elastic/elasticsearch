@@ -782,8 +782,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
+                EsqlTestUtils.emptyPolicyResolution()
             ),
             TEST_VERIFIER
         );

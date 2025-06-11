@@ -7,7 +7,7 @@ steps:
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 1"
-        key: "bwc-snapshots"
+        key: "bwc-snapshots-part1"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart1
         timeout_in_minutes: 300
         matrix:
@@ -19,7 +19,7 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 2"
-        key: "bwc-snapshots"
+        key: "bwc-snapshots-part2"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart2
         timeout_in_minutes: 300
         matrix:
@@ -31,7 +31,7 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 3"
-        key: "bwc-snapshots"
+        key: "bwc-snapshots-part3"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart3
         timeout_in_minutes: 300
         matrix:
@@ -43,7 +43,7 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 4"
-        key: "bwc-snapshots"
+        key: "bwc-snapshots-part4"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:
@@ -55,7 +55,7 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 5"
-        key: "bwc-snapshots"
+        key: "bwc-snapshots-part4"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:

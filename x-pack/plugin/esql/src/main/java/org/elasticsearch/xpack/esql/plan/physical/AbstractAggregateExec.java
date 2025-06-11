@@ -115,6 +115,8 @@ public abstract class AbstractAggregateExec extends UnaryExec implements Estimat
 
     protected abstract AbstractAggregateExec withEstimatedSize(int estimatedRowSize);
 
+    public abstract AbstractAggregateExec withMode(AggregatorMode newMode);
+
     public AggregatorMode getMode() {
         return mode;
     }

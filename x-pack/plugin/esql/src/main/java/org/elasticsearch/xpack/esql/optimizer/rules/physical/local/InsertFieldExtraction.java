@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -53,7 +54,7 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
              * it loads the field lazily. If we have more than one field we need to
              * make sure the fields are loaded for the standard hash aggregator.
              */
-            if (p instanceof AggregateExec agg) {
+            if (p instanceof AbstractAggregateExec agg) {
                 var ordinalAttributes = agg.ordinalAttributes();
                 missing.removeAll(Expressions.references(ordinalAttributes));
             }

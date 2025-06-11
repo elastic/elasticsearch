@@ -104,6 +104,11 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
     }
 
     @Override
+    public TopNAggregateExec withMode(AggregatorMode newMode) {
+        return new TopNAggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize, order, limit);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, order, limit, child());
     }

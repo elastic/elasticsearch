@@ -65,6 +65,7 @@ public class AggregateExec extends AbstractAggregateExec implements EstimatesRow
         return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
+    @Override
     public AggregateExec withMode(AggregatorMode newMode) {
         return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
     }

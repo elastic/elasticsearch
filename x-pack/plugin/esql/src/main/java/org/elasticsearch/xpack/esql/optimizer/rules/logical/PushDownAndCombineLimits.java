@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -72,6 +73,17 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 if (limitAppliedExpression.equals(filter.condition()) == false) {
                     return limit.replaceChild(filter.with(limitAppliedExpression));
                 }
+            }
+            else if (unary instanceof OrderBy orderBy) {
+                return limit.replaceChild(orderBy.transformDown(lp -> {
+                    if (lp instanceof Filter filter) {
+                        Expression limitAppliedExpression = limitFilterExpressions(filter.condition(), limit, ctx);
+                        if (limitAppliedExpression.equals(filter.condition()) == false) {
+                            return filter.with(limitAppliedExpression);
+                        }
+                    }
+                    return lp;
+                }));
             }
         } else if (limit.child() instanceof Join join && join.config().type() == JoinTypes.LEFT) {
             // Left joins increase the number of rows if any join key has multiple matches from the right hand side.

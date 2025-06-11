@@ -2073,6 +2073,45 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
     }
 
+    public void testKnnWithoutExplicitLimitSorted() {
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var topNExec = as(plan, TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
+    }
+
+    public void testKnnWithoExplicitLimitSorted() {
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var topNExec = as(plan, TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+    }
+
     public void testKnnWithExplicitLimit() {
         var query = """
             from test

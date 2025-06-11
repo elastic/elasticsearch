@@ -163,9 +163,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.normalizer = normalizer;
         this.weights = weights;
         this.normalizers = normalizers;
-
-        // TODO: Validate simplified query format args here?
-        // Otherwise some of the validation is skipped when creating the retriever programmatically.
     }
 
     @Override

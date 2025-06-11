@@ -1,0 +1,6 @@
+pr: 129158
+summary: Fix unsupported privileges error message during role and API key creation
+area: Authorization
+type: enhancement
+issues:
+  - 128132

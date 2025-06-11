@@ -1,0 +1,5 @@
+pr: 128913
+summary: "[apm-data] Enable 'date_detection' for all apm data streams"
+area: Data streams
+type: enhancement
+issues: []

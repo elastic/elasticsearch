@@ -97,7 +97,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     private static boolean isVersionCompatibleWithExcludeVectors(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19);
+        return version.onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19);
     }
 
     public boolean fetchSource() {

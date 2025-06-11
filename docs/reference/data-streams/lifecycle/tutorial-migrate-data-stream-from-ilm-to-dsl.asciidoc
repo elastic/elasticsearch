@@ -11,6 +11,16 @@ being managed by data stream lifecycle. As we'll see, {ilm-init} and data stream
 can co-manage a data stream; however, an index can only be managed by one system at
 a time.
 
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/dsl-data-stream
+DELETE _index_template/dsl-data-stream-template
+DELETE _ilm/policy/pre-dsl-ilm-policy
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
 [discrete]
 [[migrate-dsl-ilm-tldr]]
 ==== TL;DR
@@ -488,15 +498,3 @@ GET _data_stream/dsl-data-stream
 Had we removed the {ilm-init} policy from the index template when we <<update-index-template-for-dsl, updated>>
 it, the write index of the data stream will now be `Unmanaged` because the index
 wouldn't have the {ilm-init} policy configured to fallback onto.
-
-//////////////////////////
-[source,console]
---------------------------------------------------
-DELETE _data_stream/dsl-data-stream
-DELETE _index_template/dsl-data-stream-template
-DELETE _ilm/policy/pre-dsl-ilm-policy
---------------------------------------------------
-// TEST[continued]
-
-//////////////////////////
-

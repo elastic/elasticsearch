@@ -287,11 +287,19 @@ public final class TextFieldMapper extends FieldMapper {
 
         final TextParams.Analyzers analyzers;
 
+        private final boolean withinMultiField;
+
         public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
-            this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceEnabled);
+            this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceEnabled, false);
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexAnalyzers indexAnalyzers,
+            boolean isSyntheticSourceEnabled,
+            boolean withinMultiField
+        ) {
             super(name);
 
             // If synthetic source is used we need to either store this field
@@ -300,10 +308,17 @@ public final class TextFieldMapper extends FieldMapper {
             // storing the field without requiring users to explicitly set 'store'.
             //
             // If 'store' parameter was explicitly provided we'll reject the request.
-            this.store = Parameter.storeParam(
-                m -> ((TextFieldMapper) m).store,
-                () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
-            );
+            // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
+            this.withinMultiField = withinMultiField;
+            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19)) {
+                    return isSyntheticSourceEnabled
+                        && this.withinMultiField == false
+                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                } else {
+                    return isSyntheticSourceEnabled;
+                }
+            });
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -484,7 +499,13 @@ public final class TextFieldMapper extends FieldMapper {
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings())),
+        (n, c) -> new Builder(
+            n,
+            c.indexVersionCreated(),
+            c.getIndexAnalyzers(),
+            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
+            c.isWithinMultiField()
+        ),
         MINIMUM_COMPATIBILITY_VERSION
     );
 
@@ -1307,6 +1328,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo phraseFieldInfo;
 
     private final boolean isSyntheticSourceEnabled;
+    private final boolean isWithinMultiField;
 
     private TextFieldMapper(
         String simpleName,
@@ -1340,6 +1362,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
         this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
+        this.isWithinMultiField = builder.withinMultiField;
     }
 
     @Override
@@ -1363,7 +1386,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabled).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField).init(this);
     }
 
     @Override

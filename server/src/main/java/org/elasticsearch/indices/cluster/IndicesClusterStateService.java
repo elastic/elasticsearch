@@ -702,10 +702,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
                     return;
                 }
-            } else if (shardRouting.recoverySource().getType() == Type.RESHARD_SPLIT_TARGET) {
-                ShardId sourceShardId = ((RecoverySource.ReshardSplitTargetRecoverySource) shardRouting.recoverySource())
-                    .getSourceShardId();
-                sourceNode = findSourceNodeForSplitTargetRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
+            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
+                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
                     return;
@@ -997,7 +996,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private static DiscoveryNode findSourceNodeForSplitTargetRecovery(
+    private static DiscoveryNode findSourceNodeForReshardSplitRecovery(
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         ShardId sourceShardId

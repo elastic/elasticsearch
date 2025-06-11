@@ -112,7 +112,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.PEER || sourceNode != null
             : "peer recovery requires source node but it is null";
-        assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT_TARGET || sourceNode != null
+        assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
             : "reshard split target recovery requires source node but it is null";
         timer.start();
     }

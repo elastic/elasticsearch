@@ -91,8 +91,7 @@ public final class StoreRecovery {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.EMPTY_STORE
                 || recoveryType == RecoverySource.Type.EXISTING_STORE
-                || recoveryType == RecoverySource.Type.RESHARD_SPLIT_TARGET
-                : "expected one of store recovery types but was: " + recoveryType;
+                || recoveryType == RecoverySource.Type.RESHARD_SPLIT : "expected one of store recovery types but was: " + recoveryType;
             logger.debug("starting recovery from store ...");
             final var recoveryListener = recoveryListener(indexShard, listener);
             try {

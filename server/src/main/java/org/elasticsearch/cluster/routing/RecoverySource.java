@@ -32,7 +32,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
- * - {@link ReshardSplitTargetRecoverySource} recovery of a shard that is created as a result of a resharding split
+ * - {@link ReshardSplitRecoverySource} recovery of a shard that is created as a result of a resharding split
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
@@ -52,8 +52,6 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     }
 
     public static RecoverySource readFrom(StreamInput in) throws IOException {
-        // TODO is transport version check needed?
-
         Type type = Type.values()[in.readByte()];
         return switch (type) {
             case EMPTY_STORE -> EmptyStoreRecoverySource.INSTANCE;
@@ -61,7 +59,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             case PEER -> PeerRecoverySource.INSTANCE;
             case SNAPSHOT -> new SnapshotRecoverySource(in);
             case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
-            case RESHARD_SPLIT_TARGET -> new ReshardSplitTargetRecoverySource(in);
+            case RESHARD_SPLIT -> new ReshardSplitRecoverySource(in);
         };
     }
 
@@ -84,7 +82,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         PEER,
         SNAPSHOT,
         LOCAL_SHARDS,
-        RESHARD_SPLIT_TARGET
+        RESHARD_SPLIT
     }
 
     public abstract Type getType();
@@ -330,20 +328,20 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
      * Recovery of a shard that is created as a result of a resharding split.
      * Not to be confused with _split API.
      */
-    public static class ReshardSplitTargetRecoverySource extends RecoverySource {
+    public static class ReshardSplitRecoverySource extends RecoverySource {
         private final ShardId sourceShardId;
 
-        public ReshardSplitTargetRecoverySource(ShardId sourceShardId) {
+        public ReshardSplitRecoverySource(ShardId sourceShardId) {
             this.sourceShardId = sourceShardId;
         }
 
-        ReshardSplitTargetRecoverySource(StreamInput in) throws IOException {
+        ReshardSplitRecoverySource(StreamInput in) throws IOException {
             sourceShardId = new ShardId(in);
         }
 
         @Override
         public Type getType() {
-            return Type.RESHARD_SPLIT_TARGET;
+            return Type.RESHARD_SPLIT;
         }
 
         public ShardId getSourceShardId() {

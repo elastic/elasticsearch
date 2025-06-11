@@ -226,8 +226,15 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some remove blocks
-        final var future1 = indicesAdmin().prepareRemoveBlock(APIBlock.WRITE, "test-1").execute();
-        final var future2 = indicesAdmin().prepareRemoveBlock(APIBlock.WRITE, "test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, APIBlock.WRITE, "test-1")
+            .execute();
+        final var future2 = indicesAdmin().prepareRemoveBlock(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            APIBlock.WRITE,
+            "test-2",
+            "test-3"
+        ).execute();
 
         // check the queue for the remove-block tasks
         assertThat(findPendingTasks(masterService, "remove-index-block-[write]"), hasSize(2));
@@ -237,13 +244,13 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         // assert that the requests were acknowledged
         final var resp1 = future1.get();
         assertAcked(resp1);
-        assertThat(resp1.getIndices(), hasSize(1));
-        assertThat(resp1.getIndices().get(0).getIndex().getName(), is("test-1"));
+        assertThat(resp1.getResults(), hasSize(1));
+        assertThat(resp1.getResults().get(0).getIndex().getName(), is("test-1"));
 
         final var resp2 = future2.get();
         assertAcked(resp2);
-        assertThat(resp2.getIndices(), hasSize(2));
-        assertThat(resp2.getIndices().stream().map(r -> r.getIndex().getName()).toList(), containsInAnyOrder("test-2", "test-3"));
+        assertThat(resp2.getResults(), hasSize(2));
+        assertThat(resp2.getResults().stream().map(r -> r.getIndex().getName()).toList(), containsInAnyOrder("test-2", "test-3"));
 
         // and assert that all the blocks are removed
         for (String index : List.of("test-1", "test-2", "test-3")) {

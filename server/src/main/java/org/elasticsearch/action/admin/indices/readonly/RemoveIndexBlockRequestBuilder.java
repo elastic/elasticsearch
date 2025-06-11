@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Builder for remove index block request
@@ -22,8 +23,14 @@ public class RemoveIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
     RemoveIndexBlockResponse,
     RemoveIndexBlockRequestBuilder> {
 
-    public RemoveIndexBlockRequestBuilder(ElasticsearchClient client, APIBlock block, String... indices) {
-        super(client, TransportRemoveIndexBlockAction.TYPE, new RemoveIndexBlockRequest(block, indices));
+    public RemoveIndexBlockRequestBuilder(
+        ElasticsearchClient client,
+        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        APIBlock block,
+        String... indices
+    ) {
+        super(client, TransportRemoveIndexBlockAction.TYPE, new RemoveIndexBlockRequest(masterTimeout, ackTimeout, block, indices));
     }
 
     /**

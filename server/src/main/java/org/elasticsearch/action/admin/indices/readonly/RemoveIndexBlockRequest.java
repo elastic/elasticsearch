@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,8 +44,8 @@ public class RemoveIndexBlockRequest extends AcknowledgedRequest<RemoveIndexBloc
     /**
      * Constructs a new request for the specified block and indices
      */
-    public RemoveIndexBlockRequest(APIBlock block, String... indices) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public RemoveIndexBlockRequest(TimeValue masterTimeout, TimeValue ackTimeout, APIBlock block, String... indices) {
+        super(masterTimeout, ackTimeout);
         this.block = Objects.requireNonNull(block);
         this.indices = Objects.requireNonNull(indices);
     }

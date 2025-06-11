@@ -43,11 +43,11 @@ public class RestRemoveIndexBlockAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RemoveIndexBlockRequest removeIndexBlockRequest = new RemoveIndexBlockRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
             IndexMetadata.APIBlock.fromName(request.param("block")),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        removeIndexBlockRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        removeIndexBlockRequest.ackTimeout(getAckTimeout(request));
         removeIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, removeIndexBlockRequest.indicesOptions()));
         return channel -> client.admin().indices().removeBlock(removeIndexBlockRequest, new RestToXContentListener<>(channel));
     }

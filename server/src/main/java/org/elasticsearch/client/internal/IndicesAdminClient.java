@@ -223,8 +223,13 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportAddIndexBlockAction.TYPE, request, listener);
     }
 
-    public RemoveIndexBlockRequestBuilder prepareRemoveBlock(APIBlock block, String... indices) {
-        return new RemoveIndexBlockRequestBuilder(this, block, indices);
+    public RemoveIndexBlockRequestBuilder prepareRemoveBlock(
+        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        APIBlock block,
+        String... indices
+    ) {
+        return new RemoveIndexBlockRequestBuilder(this, masterTimeout, ackTimeout, block, indices);
     }
 
     public void removeBlock(RemoveIndexBlockRequest request, ActionListener<RemoveIndexBlockResponse> listener) {

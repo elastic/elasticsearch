@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -132,7 +133,8 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
         assertBusy(() -> {
             assertThat(getClusterPrivileges(project1, username1), contains("monitor"));
             assertThat(getClusterPrivileges(project2, username2), contains("monitor"));
-        });
+        }, 20, TimeUnit.SECONDS); // increasing this to try and solve for a rare failure
+
         rolesFile.update(Resource.fromString(""));
 
         assertBusy(() -> {

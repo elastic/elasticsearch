@@ -31,11 +31,6 @@ tasks.register("bcUpgradeTest", StandaloneRestIntegTestTask) {
   usesBwcDistribution(Version.fromString("0.0.0"))
   systemProperty("tests.old_cluster_version", "0.0.0")
   onlyIf("tests.bwc.main.version system property exists") { System.getProperty("tests.bwc.main.version") != null }
-  filter {
-    // filter tests initially for quicker iterations
-    // TODO remove once expanding the test set to other modules
-    includeTestsMatching("org.elasticsearch.upgrades.IndexingIT")
-  }
 }
 
 tasks.withType(Test).configureEach {

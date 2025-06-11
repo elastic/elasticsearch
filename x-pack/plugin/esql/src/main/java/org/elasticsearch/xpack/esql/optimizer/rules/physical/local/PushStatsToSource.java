@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -41,10 +41,10 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 /**
  * Looks for the case where certain stats exist right before the query and thus can be pushed down.
  */
-public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
+public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<AbstractAggregateExec, LocalPhysicalOptimizerContext> {
 
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
+    protected PhysicalPlan rule(AbstractAggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         PhysicalPlan plan = aggregateExec;
         if (aggregateExec.child() instanceof EsQueryExec queryExec) {
             var tuple = pushableStats(aggregateExec, context);
@@ -72,7 +72,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
     }
 
     private Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
-        AggregateExec aggregate,
+        AbstractAggregateExec aggregate,
         LocalPhysicalOptimizerContext context
     ) {
         AttributeMap.Builder<EsStatsQueryExec.Stat> statsBuilder = AttributeMap.builder();

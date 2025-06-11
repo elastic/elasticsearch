@@ -19,19 +19,19 @@ setup:
       index:
         index: test
         id:    "2"
-        body:  { "foo": "Apache Lucene powers Elasticsearch" }
+        body:  { "foo": "Found 5 errors for service [cheddar1]" }
 
   - do:
       index:
         index: test
         id:    "3"
-        body:  { "foo": "Elasticsearch is based on Apache Lucene" }
+        body:  { "foo": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
 
   - do:
       index:
         index: test
         id:    "4"
-        body:  { "foo": "The Apache Software Foundation manages many projects including Lucene" }
+        body:  { "foo": "Found some errors for cheddar data service" }
 
   - do:
       indices.refresh: {}
@@ -70,7 +70,7 @@ Match query:
         body:
           query:
             match:
-              foo: powers
+              foo: 5
 
   - match: { "hits.total.value": 1 }
   - match: { "hits.hits.0._score": 1.0 }
@@ -84,7 +84,7 @@ Match Phrase query:
         body:
           query:
             match_phrase:
-              foo: "lucene powers"
+              foo: "5 errors"
 
   - match: { "hits.total.value": 1 }
   - match: { "hits.hits.0._score": 1.0 }
@@ -98,23 +98,11 @@ Match Phrase Prefix query:
         body:
           query:
             match_phrase_prefix:
-              foo: "lucene pow"
+              foo: "5 err"
 
   - match: { "hits.total.value": 1 }
   - match: { "hits.hits.0._score": 1.0 }
 
----
-Match template query:
-
-  - do:
-      search:
-        index: test
-        body:
-          query:
-            match:
-              foo.template: powers
-
-  - match: { "hits.total.value": 1 }
 
 ---
 Query String query with phrase:
@@ -125,12 +113,11 @@ Query String query with phrase:
         body:
           query:
             query_string:
-              query: '"lucene powers"'
+              query: '"5 errors"'
               default_field: "foo"
 
   - match: { "hits.total.value": 1 }
   - match: { "hits.hits.0._score": 1.0 }
-
 
 
 ---
@@ -142,7 +129,7 @@ Regexp query:
         body:
           query:
             regexp:
-              foo: "lu.*ne"
+              foo: "ser.*ce"
 
   - match: { "hits.total.value": 3 }
   - match: { "hits.hits.0._score": 1.0 }
@@ -156,7 +143,7 @@ Wildcard query:
         body:
           query:
             wildcard:
-              foo: "lu*ne"
+              foo: "ser*ce"
 
   - match: { "hits.total.value": 3 }
   - match: { "hits.hits.0._score": 1.0 }
@@ -170,7 +157,7 @@ Prefix query:
         body:
           query:
             prefix:
-              foo: "luc"
+              foo: "ser"
 
   - match: { "hits.total.value": 3 }
   - match: { "hits.hits.0._score": 1.0 }
@@ -184,7 +171,7 @@ Fuzzy query:
         body:
           query:
             fuzzy:
-              foo: "lucane"
+              foo: "errars"
 
   - match: { "hits.total.value": 3 }
   - match: { "hits.hits.0._score": 1.0 }
@@ -199,7 +186,7 @@ Span query:
         body:
           query:
             span_term:
-              foo: lucene
+              foo: errors
 
 ---
 Term intervals query:
@@ -212,7 +199,7 @@ Term intervals query:
             intervals:
               foo:
                 match:
-                  query: "apache lucene"
+                  query: "for service"
                   max_gaps: 1
 
   - match: { "hits.total.value": 2 }
@@ -228,7 +215,7 @@ Prefix intervals query:
             intervals:
               foo:
                 prefix:
-                  prefix: "luc"
+                  prefix: "ser"
 
   - match: { "hits.total.value": 3 }
 
@@ -243,9 +230,9 @@ Wildcard intervals query:
             intervals:
               foo:
                 wildcard:
-                  pattern: "*ase*"
+                  pattern: "*edda*"
 
-  - match: { "hits.total.value": 1 }
+  - match: { "hits.total.value": 3 }
 
 ---
 Fuzzy intervals query:
@@ -258,7 +245,7 @@ Fuzzy intervals query:
             intervals:
               foo:
                 fuzzy:
-                  term: "lucane"
+                  term: "servace"
 
   - match: { "hits.total.value": 3 }
 
@@ -271,14 +258,14 @@ Wildcard highlighting:
         body:
           query:
             match:
-              foo: "many"
+              foo: "5"
           highlight:
             fields:
               "*": {}
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._source.foo: "The Apache Software Foundation manages many projects including Lucene" }
-  - match: { hits.hits.0.highlight.foo.0: "The Apache Software Foundation manages <em>many</em> projects including Lucene" }
+  - match: { hits.hits.0._source.foo: "Found 5 errors for service [cheddar1]" }
+  - match: { hits.hits.0.highlight.foo.0: "Found <em>5</em> errors for service [cheddar1]" }
 
 ---
 Terms aggregation:
@@ -290,7 +277,7 @@ Terms aggregation:
           aggs:
             term_agg:
               terms:
-                field: foo.template
+                field: foo.text
 
   - match: { hits.total.value: 4 }
   - length: { aggregations.term_agg.buckets: 10 }

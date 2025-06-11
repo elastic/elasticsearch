@@ -255,7 +255,7 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         bulk.get();
     }
 
-    protected void populateRemoteIndices(String clusterAlias, String indexName, int numShards) throws IOException {
+    protected void populateRemoteIndices(String clusterAlias, String indexName, int numShards) {
         Client remoteClient = client(clusterAlias);
         assertAcked(
             remoteClient.admin()

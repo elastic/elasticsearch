@@ -60,7 +60,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param shardId         shard id of the group
      * @param shards          shards to iterate
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
-     * @param skip            if true, then this group won't have matches, and it can be safely skipped from the search
+     * @param skip            if true, then this group won't have matches (due to an index level block),
+     *                        and it can be safely skipped from the search
      */
     public SearchShardIterator(
         @Nullable String clusterAlias,
@@ -83,7 +84,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param searchContextId        the point-in-time specified for this group if exists
      * @param searchContextKeepAlive the time interval that data nodes should extend the keep alive of the point-in-time
      * @param prefiltered            if true, then this group already executed the can_match phase
-     * @param skip                   if true, then this group won't have matches, and it can be safely skipped from the search
+     * @param skip                   if true, then this group won't have matches (due to can match, or an index level block),
+     *                               and it can be safely skipped from the search
      */
     public SearchShardIterator(
         @Nullable String clusterAlias,

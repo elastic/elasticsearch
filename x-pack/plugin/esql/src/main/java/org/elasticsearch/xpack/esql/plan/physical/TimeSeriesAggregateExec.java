@@ -97,6 +97,21 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         );
     }
 
+    @Override
+    public TimeSeriesAggregateExec withAggregates(List<? extends NamedExpression> aggregates) {
+        return new TimeSeriesAggregateExec(
+            source(),
+            child(),
+            groupings,
+            aggregates,
+            mode,
+            intermediateAttributes,
+            estimatedRowSize,
+            timeBucket
+        );
+    }
+
+    @Override
     public TimeSeriesAggregateExec withMode(AggregatorMode newMode) {
         return new TimeSeriesAggregateExec(
             source(),
@@ -111,7 +126,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     }
 
     @Override
-    protected AggregateExec withEstimatedSize(int estimatedRowSize) {
+    protected TimeSeriesAggregateExec withEstimatedSize(int estimatedRowSize) {
         return new TimeSeriesAggregateExec(
             source(),
             child(),

@@ -108,7 +108,7 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
     }
 
     @Override
-    protected TopNAggregateExec withEstimatedSize(int estimatedRowSize) {
+    public TopNAggregateExec withAggregates(List<? extends NamedExpression> aggregates) {
         return new TopNAggregateExec(
             source(),
             child(),
@@ -130,6 +130,21 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
             groupings,
             aggregates,
             newMode,
+            intermediateAttributes,
+            estimatedRowSize,
+            order,
+            limit
+        );
+    }
+
+    @Override
+    protected TopNAggregateExec withEstimatedSize(int estimatedRowSize) {
+        return new TopNAggregateExec(
+            source(),
+            child(),
+            groupings,
+            aggregates,
+            mode,
             intermediateAttributes,
             estimatedRowSize,
             order,

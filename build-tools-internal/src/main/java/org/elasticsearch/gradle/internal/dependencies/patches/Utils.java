@@ -24,9 +24,11 @@ import java.util.Enumeration;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -109,7 +111,19 @@ public class Utils {
                     }
                 } else {
                     try (InputStream is = jarFile.getInputStream(entry)) {
-                        if (unsignJar == false || entryName.matches("META-INF/.*\\.SF") == false) {
+                        if (unsignJar && entryName.equals("META-INF/MANIFEST.MF")) {
+                            var manifest = new Manifest(is);
+                            for (var manifestEntry : manifest.getEntries().entrySet()) {
+                                var nonSignatureAttributes = new Attributes();
+                                for (var attribute : manifestEntry.getValue().entrySet()) {
+                                    if (attribute.getKey().toString().endsWith("Digest") == false) {
+                                        nonSignatureAttributes.put(attribute.getKey(), attribute.getValue());
+                                    }
+                                }
+                                manifestEntry.setValue(nonSignatureAttributes);
+                            }
+                            manifest.write(jos);
+                        } else if (unsignJar == false || entryName.matches("META-INF/.*\\.SF") == false) {
                             // Read the entry's data and write it to the new JAR
                             is.transferTo(jos);
                         }

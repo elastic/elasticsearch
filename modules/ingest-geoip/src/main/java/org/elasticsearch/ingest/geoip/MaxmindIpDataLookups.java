@@ -229,7 +229,7 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    record CacheableCityResponse(
+    public record CacheableCityResponse(
         Boolean isInEuropeanUnion,
         String countryIsoCode,
         String countryName,
@@ -246,7 +246,29 @@ final class MaxmindIpDataLookups {
         Boolean registeredCountryIsInEuropeanUnion,
         String registeredCountryIsoCode,
         String registeredCountryName
-    ) {}
+    ) implements GeoIpCache.CacheableValue {
+
+        public static CacheableCityResponse from(CityResponse response) {
+            return new CacheableCityResponse(
+                MaxmindIpDataLookups.isInEuropeanUnion(response.getCountry()),
+                response.getCountry().getIsoCode(),
+                response.getCountry().getName(),
+                response.getContinent().getCode(),
+                response.getContinent().getName(),
+                MaxmindIpDataLookups.regionIsoCode(response.getCountry(), response.getMostSpecificSubdivision()),
+                response.getMostSpecificSubdivision().getName(),
+                response.getCity().getName(),
+                response.getLocation().getTimeZone(),
+                response.getLocation().getLatitude(),
+                response.getLocation().getLongitude(),
+                response.getLocation().getAccuracyRadius(),
+                response.getPostal().getCode(),
+                MaxmindIpDataLookups.isInEuropeanUnion(response.getRegisteredCountry()),
+                response.getRegisteredCountry().getIsoCode(),
+                response.getRegisteredCountry().getName()
+            );
+        }
+    }
 
     static class City extends AbstractBase<CityResponse, Result<CacheableCityResponse>> {
         City(final Set<Database.Property> properties) {
@@ -255,36 +277,10 @@ final class MaxmindIpDataLookups {
 
         @Override
         protected Result<CacheableCityResponse> cacheableRecord(CityResponse response) {
-            final com.maxmind.geoip2.record.Country country = response.getCountry();
-            final Continent continent = response.getContinent();
-            final Subdivision subdivision = response.getMostSpecificSubdivision();
-            final com.maxmind.geoip2.record.City city = response.getCity();
-            final Location location = response.getLocation();
-            final Postal postal = response.getPostal();
-            final com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
-            final Traits traits = response.getTraits();
-
             return new Result<>(
-                new CacheableCityResponse(
-                    isInEuropeanUnion(country),
-                    country.getIsoCode(),
-                    country.getName(),
-                    continent.getCode(),
-                    continent.getName(),
-                    regionIsoCode(country, subdivision),
-                    subdivision.getName(),
-                    city.getName(),
-                    location.getTimeZone(),
-                    location.getLatitude(),
-                    location.getLongitude(),
-                    location.getAccuracyRadius(),
-                    postal.getCode(),
-                    isInEuropeanUnion(registeredCountry),
-                    registeredCountry.getIsoCode(),
-                    registeredCountry.getName()
-                ),
-                traits.getIpAddress(),
-                traits.getNetwork().toString()
+                CacheableCityResponse.from(response),
+                response.getTraits().getIpAddress(),
+                response.getTraits().getNetwork().toString()
             );
         }
 
@@ -422,7 +418,7 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    record CacheableCountryResponse(
+    public record CacheableCountryResponse(
         Boolean isInEuropeanUnion,
         String countryIsoCode,
         String countryName,
@@ -431,7 +427,21 @@ final class MaxmindIpDataLookups {
         Boolean registeredCountryIsInEuropeanUnion,
         String registeredCountryIsoCode,
         String registeredCountryName
-    ) {}
+    ) implements GeoIpCache.CacheableValue {
+
+        public static CacheableCountryResponse from(CountryResponse response) {
+            return new CacheableCountryResponse(
+                MaxmindIpDataLookups.isInEuropeanUnion(response.getCountry()),
+                response.getCountry().getIsoCode(),
+                response.getCountry().getName(),
+                response.getContinent().getCode(),
+                response.getContinent().getName(),
+                MaxmindIpDataLookups.isInEuropeanUnion(response.getRegisteredCountry()),
+                response.getRegisteredCountry().getIsoCode(),
+                response.getRegisteredCountry().getName()
+            );
+        }
+    }
 
     static class Country extends AbstractBase<CountryResponse, Result<CacheableCountryResponse>> {
         Country(final Set<Database.Property> properties) {
@@ -440,23 +450,10 @@ final class MaxmindIpDataLookups {
 
         @Override
         protected Result<CacheableCountryResponse> cacheableRecord(CountryResponse response) {
-            final com.maxmind.geoip2.record.Country country = response.getCountry();
-            final Continent continent = response.getContinent();
-            final com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
-            final Traits traits = response.getTraits();
             return new Result<>(
-                new CacheableCountryResponse(
-                    isInEuropeanUnion(country),
-                    country.getIsoCode(),
-                    country.getName(),
-                    continent.getCode(),
-                    continent.getName(),
-                    isInEuropeanUnion(registeredCountry),
-                    registeredCountry.getIsoCode(),
-                    registeredCountry.getName()
-                ),
-                traits.getIpAddress(),
-                traits.getNetwork().toString()
+                CacheableCountryResponse.from(response),
+                response.getTraits().getIpAddress(),
+                response.getTraits().getNetwork().toString()
             );
         }
 
@@ -589,7 +586,7 @@ final class MaxmindIpDataLookups {
         Boolean registeredCountryIsInEuropeanUnion,
         String registeredCountryIsoCode,
         String registeredCountryName
-    ) {}
+    ) implements GeoIpCache.CacheableValue {}
 
     static class Enterprise extends AbstractBase<EnterpriseResponse, Result<CacheableEnterpriseResponse>> {
         Enterprise(final Set<Database.Property> properties) {

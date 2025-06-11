@@ -71,29 +71,34 @@ public final class GeoIpTestUtils {
      * A static city-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
-     * Like this: {@code CityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
+     * Like this: {@code CacheableCityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
-    public static IpDataLookup.Result<CityResponse> getCity(Reader reader, String ip) throws IOException {
+    public static IpDataLookup.Result<MaxmindIpDataLookups.CacheableCityResponse> getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
         return data == null
             ? null
-            : new IpDataLookup.Result<>(new CityResponse(data, ip, record.getNetwork(), List.of("en")), ip, record.getNetwork().toString());
+            : new IpDataLookup.Result<>(
+                MaxmindIpDataLookups.CacheableCityResponse.from(new CityResponse(data, ip, record.getNetwork(), List.of("en"))),
+                ip,
+                record.getNetwork().toString()
+            );
     }
 
     /**
      * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
-     * Like this: {@code CountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
+     * Like this: {@code CacheableCountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
-    public static IpDataLookup.Result<CountryResponse> getCountry(Reader reader, String ip) throws IOException {
+    public static IpDataLookup.Result<MaxmindIpDataLookups.CacheableCountryResponse> getCountry(Reader reader, String ip)
+        throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
         CountryResponse data = record.getData();
         return data == null
             ? null
             : new IpDataLookup.Result<>(
-                new CountryResponse(data, ip, record.getNetwork(), List.of("en")),
+                MaxmindIpDataLookups.CacheableCountryResponse.from(new CountryResponse(data, ip, record.getNetwork(), List.of("en"))),
                 ip,
                 record.getNetwork().toString()
             );

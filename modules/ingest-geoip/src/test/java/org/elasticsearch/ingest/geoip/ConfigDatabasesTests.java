@@ -9,10 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.model.CityResponse;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.CacheableCityResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -126,8 +125,8 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity).result();
-            assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
+            CacheableCityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity).result();
+            assertThat(cityResponse.cityName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
         }
 
@@ -138,8 +137,8 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity).result();
-            assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
+            CacheableCityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity).result();
+            assertThat(cityResponse.cityName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
         });
 

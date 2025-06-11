@@ -9,13 +9,11 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.record.Country;
-
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.CacheableCountryResponse;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
@@ -96,11 +94,9 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         IpDatabase database = databaseNodeService.getDatabase(databaseFileName);
         assertNotNull(database);
         assertThat(database.getDatabaseType(), equalTo(databaseType));
-        CountryResponse countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry).result();
+        CacheableCountryResponse countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry).result();
         assertNotNull(countryResponse);
-        Country country = countryResponse.getCountry();
-        assertNotNull(country);
-        assertThat(country.getName(), equalTo("Sweden"));
+        assertThat(countryResponse.countryName(), equalTo("Sweden"));
     }
 
     /*

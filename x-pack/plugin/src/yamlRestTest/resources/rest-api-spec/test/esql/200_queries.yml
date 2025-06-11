@@ -28,7 +28,7 @@ List with no running queries:
 ---
 Get with invalid task ID:
   - do:
-      catch: /invalid id[:] \[foobar\]/
+      catch: /invalid id[:] \[foobar\]|malformed task id foobar/
       esql.get_query:
         id: "foobar"
 

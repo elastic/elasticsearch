@@ -8,16 +8,14 @@ The `RENAME` processing command renames one or more columns.
 RENAME old_name1 AS new_name1[, ..., old_nameN AS new_nameN]
 ```
 
-::::{note}
-
-Starting with the versions 8.19.0 and 9.1.0, the following syntax is also supported:
+The following syntax is also supported {applies_to}`stack: ga 9.1`:
 
 ```esql
 RENAME new_name1 = old_name1[, ..., new_nameN = old_nameN]
 ```
 
-The two syntax flavours can be used interchangeably.
-
+::::{tip}
+Both syntax options can be used interchangeably but we recommend sticking to one for consistency and readability.
 ::::
 
 **Parameters**

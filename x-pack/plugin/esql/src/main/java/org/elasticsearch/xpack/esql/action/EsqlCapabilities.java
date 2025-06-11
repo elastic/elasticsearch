@@ -1035,7 +1035,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V6(Build.current().isSnapshot()),
+        FORK_V7(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1077,7 +1077,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE(Build.current().isSnapshot()),
+        SAMPLE_V2(Build.current().isSnapshot()),
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1185,7 +1185,12 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support knn function
+         */
+        KNN_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

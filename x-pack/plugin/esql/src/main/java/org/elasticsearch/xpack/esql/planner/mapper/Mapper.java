@@ -200,6 +200,37 @@ public class Mapper {
         return MapperUtils.mapUnary(unary, mappedChild);
     }
 
+    private PhysicalPlan mapToFragmentExec(LogicalPlan logical, PhysicalPlan child) {
+        Holder<Boolean> hasFragment = new Holder<>(false);
+
+        var childTransformed = child.transformUp(f -> {
+            // Once we reached FragmentExec, we stuff our Enrich under it
+            if (f instanceof FragmentExec) {
+                hasFragment.set(true);
+                return new FragmentExec(logical);
+            }
+            if (f instanceof EnrichExec enrichExec) {
+                // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
+                assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
+                return enrichExec.child();
+            }
+            if (f instanceof UnaryExec unaryExec) {
+                if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
+                    return f;
+                } else {
+                    return unaryExec.child();
+                }
+            }
+            // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
+            return f;
+        });
+
+        if (hasFragment.get()) {
+            return childTransformed;
+        }
+        return null;
+    }
+
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
@@ -216,6 +247,11 @@ public class Mapper {
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec fragment) {
                 return new FragmentExec(bp);
+            }
+
+            var leftPlan = mapToFragmentExec(bp, left);
+            if (leftPlan != null) {
+                return leftPlan;
             }
 
             PhysicalPlan right = map(bp.right());

@@ -440,6 +440,11 @@ public class EsqlCapabilities {
         RENAME_SEQUENTIAL_PROCESSING,
 
         /**
+         * Support for assignment in RENAME, besides the use of `AS` keyword.
+         */
+        RENAME_ALLOW_ASSIGNMENT,
+
+        /**
          * Support for removing empty attribute in merging output.
          * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
          */

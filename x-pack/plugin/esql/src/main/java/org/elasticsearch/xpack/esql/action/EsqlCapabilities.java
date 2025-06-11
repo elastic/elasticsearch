@@ -440,6 +440,11 @@ public class EsqlCapabilities {
         RENAME_SEQUENTIAL_PROCESSING,
 
         /**
+         * Support for assignment in RENAME, besides the use of `AS` keyword.
+         */
+        RENAME_ALLOW_ASSIGNMENT,
+
+        /**
          * Support for removing empty attribute in merging output.
          * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
          */
@@ -1077,7 +1082,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE(Build.current().isSnapshot()),
+        SAMPLE_V2(Build.current().isSnapshot()),
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1185,7 +1190,12 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION;
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support knn function
+         */
+        KNN_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

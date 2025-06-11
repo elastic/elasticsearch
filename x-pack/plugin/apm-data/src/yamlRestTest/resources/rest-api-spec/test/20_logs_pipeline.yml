@@ -11,10 +11,10 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset: "apm.error", "namespace": "eventdataset"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset": "apm.error", "namespace": "eventdataset"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
 
           - create: {}
-          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset: "apm.error", "namespace": "eventdataset"}, "event": {"dataset": "foo"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset": "apm.error", "namespace": "eventdataset"}, "event": {"dataset": "foo"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
 
   - is_false: errors
 
@@ -34,10 +34,10 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset: "apm.app.foo", "namespace": "eventdataset"}, "message": "foo"}'
+          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset": "apm.app.foo", "namespace": "eventdataset"}, "message": "foo"}'
 
           - create: {}
-          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset: "apm.app.foo", "namespace": "eventdataset"}, "event": {"dataset": "foo"}, "message": "foo"}'
+          - '{"@timestamp": "2017-06-22", "data_stream": {"type": "log", "dataset": "apm.app.foo", "namespace": "eventdataset"}, "event": {"dataset": "foo"}, "message": "foo"}'
 
   - is_false: errors
 

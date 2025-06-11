@@ -5,8 +5,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
-- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -519,6 +517,12 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/129148
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.EnrichLookupStatsBug ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129228
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.EnrichLookupStatsBug SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129229
 
 # Examples:
 #

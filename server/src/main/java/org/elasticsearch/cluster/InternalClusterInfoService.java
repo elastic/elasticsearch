@@ -90,7 +90,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-    private volatile Map<String, Long> estimatedHeapUsagePerNode;
+    private volatile Map<String, Long> shardHeapUsagePerNode;
     private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
@@ -114,7 +114,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
-        this.shardHeapUsages = Map.of();
+        this.maxHeapPerNode = Map.of();
+        this.shardHeapUsagePerNode = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -205,13 +206,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             shardHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, Long> currentShardHeapUsages) {
-                    estimatedHeapUsagePerNode = currentShardHeapUsages;
+                    shardHeapUsagePerNode = currentShardHeapUsages;
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for nodes", e);
-                    estimatedHeapUsagePerNode = Map.of();
+                    shardHeapUsagePerNode = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -440,7 +441,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
         final Map<String, ShardHeapUsage> shardHeapUsages = new HashMap<>();
         maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-            final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
+            final Long estimatedHeapUsage = shardHeapUsagePerNode.get(nodeId);
             if (estimatedHeapUsage != null) {
                 shardHeapUsages.put(nodeId, new ShardHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }

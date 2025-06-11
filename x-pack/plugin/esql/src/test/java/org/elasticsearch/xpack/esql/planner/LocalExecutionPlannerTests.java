@@ -205,6 +205,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null,
             esPhysicalOperationProviders(shardContexts),
             shardContexts
         );

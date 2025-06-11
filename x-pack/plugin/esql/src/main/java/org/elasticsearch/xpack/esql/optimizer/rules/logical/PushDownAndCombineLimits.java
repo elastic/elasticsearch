@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -38,7 +39,11 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // We want to preserve the duplicated() value of the smaller limit, so we'll use replaceChild.
             return parentLimitValue < childLimitValue ? limit.replaceChild(childLimit.child()) : childLimit;
         } else if (limit.child() instanceof UnaryPlan unary) {
-            if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
+            if (unary instanceof Eval
+                || unary instanceof Project
+                || unary instanceof RegexExtract
+                || unary instanceof Enrich
+                || unary instanceof Completion) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down

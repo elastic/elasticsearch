@@ -412,6 +412,20 @@ allprojects {
           }
         }
       }
+    } else if(project.path.startsWith(":qa:")) {
+      tasks.register('checkPart6') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+      tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart6") { name ->
+        if(name.endsWith("#bwcTestPart6")) {
+          project.getTasks().register(name) {
+            task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part6") })
+          }
+        }
+      }
     } else {
       tasks.register('checkPart1') {
         dependsOn 'check'

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -98,27 +97,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                     }
                 }
                 if (changedAggregates) {
-                    exec = switch (agg) {
-                        case TimeSeriesAggregateExec tsAggExec -> new TimeSeriesAggregateExec(
-                            agg.source(),
-                            agg.child(),
-                            agg.groupings(),
-                            orderedAggregates,
-                            agg.getMode(),
-                            agg.intermediateAttributes(),
-                            agg.estimatedRowSize(),
-                            tsAggExec.timeBucket()
-                        );
-                        default -> new AggregateExec(
-                            agg.source(),
-                            agg.child(),
-                            agg.groupings(),
-                            orderedAggregates,
-                            agg.getMode(),
-                            agg.intermediateAttributes(),
-                            agg.estimatedRowSize()
-                        );
-                    };
+                    exec = agg.withAggregates(orderedAggregates);
                 }
             }
             if (exec instanceof EvalExec evalExec) {

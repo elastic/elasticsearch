@@ -511,6 +511,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test081SymlinksAreFollowedWithEnvironmentVariableFiles
   issue: https://github.com/elastic/elasticsearch/issues/128867
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
+  issue: https://github.com/elastic/elasticsearch/issues/129149
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/129148
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.EnrichLookupStatsBug ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129228
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.EnrichLookupStatsBug SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129229
 
 # Examples:
 #

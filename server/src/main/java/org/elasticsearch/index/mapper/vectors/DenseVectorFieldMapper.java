@@ -2114,6 +2114,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isVectorEmbedding() {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return elementType.fielddataBuilder(this, fieldDataContext);
         }
@@ -2347,6 +2352,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (elementType != ElementType.FLOAT) {
                 // Just float dense vector support for now
                 return null;
+            }
+
+            if (dims == null) {
+                // No data has been indexed yet
+                return BlockLoader.CONSTANT_NULLS;
             }
 
             if (indexed) {

@@ -20,16 +20,12 @@ public class PatternedTextDocValues extends SortedSetDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
 
-    PatternedTextDocValues(
-        SortedSetDocValues templateDocValues,
-        SortedSetDocValues argsDocValues
-    ) {
+    PatternedTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName)
-        throws IOException {
+    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName) throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         if (templateDocValues.getValueCount() == 0) {
             return null;

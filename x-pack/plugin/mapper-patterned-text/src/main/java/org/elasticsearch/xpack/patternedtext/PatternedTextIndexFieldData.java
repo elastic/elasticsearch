@@ -8,18 +8,15 @@
 package org.elasticsearch.xpack.patternedtext;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -56,14 +53,7 @@ public class PatternedTextIndexFieldData extends AbstractIndexOrdinalsFieldData 
             SortedSetOrdinalsIndexFieldData templateFieldData = templateFieldDataBuilder.build(cache, breakerService);
             SortedSetOrdinalsIndexFieldData argsFieldData = argsFieldDataBuilder.build(cache, breakerService);
             ToScriptFieldFactory<SortedSetDocValues> factory = (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n);
-            return new PatternedTextIndexFieldData(
-                name,
-                cache,
-                breakerService,
-                factory,
-                templateFieldData,
-                argsFieldData
-            );
+            return new PatternedTextIndexFieldData(name, cache, breakerService, factory, templateFieldData, argsFieldData);
         }
     }
 

@@ -271,11 +271,7 @@ public class PatternedTextFieldType extends StringFieldType implements DynamicFi
             KEYWORD,
             (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
         );
-        return new PatternedTextIndexFieldData.Builder(
-            name(),
-            templateDataBuilder,
-            argsDataBuilder
-        );
+        return new PatternedTextIndexFieldData.Builder(name(), templateDataBuilder, argsDataBuilder);
     }
 
     String templateFieldName() {

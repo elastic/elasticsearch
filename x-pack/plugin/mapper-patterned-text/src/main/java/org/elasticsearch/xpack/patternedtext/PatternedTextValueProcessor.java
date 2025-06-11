@@ -16,8 +16,7 @@ public class PatternedTextValueProcessor {
     private static final String DELIMITER = "[\\s\\[\\]]";
     private static final String SPACE = " ";
 
-    record Parts(String template, List<String> args) {
-    }
+    record Parts(String template, List<String> args) {}
 
     static Parts split(String text) {
         StringBuilder template = new StringBuilder();

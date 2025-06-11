@@ -65,7 +65,10 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
             + "some text with arg1 and arg2";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals("[%W][%W][%W][action_controller][INFO]: [%W] some text with %W and %W", parts.template());
-        assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2"));
+        assertThat(
+            parts.args(),
+            Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "18be2355-6306-4a00-9db9-f0696aa1a225", "arg1", "arg2")
+        );
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 
@@ -81,7 +84,10 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         String text = "[2020-08-18T00:58:56.751+00:00][15][2354][action_controller][INFO]: at 2020-08-18 00:58:56 +0000 and arg1";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
         assertEquals("[%W][%W][%W][action_controller][INFO]: at %W %W %W and %W", parts.template());
-        assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "2020-08-18", "00:58:56", "+0000", "arg1"));
+        assertThat(
+            parts.args(),
+            Matchers.contains("2020-08-18T00:58:56.751+00:00", "15", "2354", "2020-08-18", "00:58:56", "+0000", "arg1")
+        );
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
 }

@@ -223,15 +223,15 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), parentName, field);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj)
-            && Objects.equals(parentName, ((FieldAttribute) obj).parentName)
-            && Objects.equals(field, ((FieldAttribute) obj).field);
+    protected boolean innerEquals(Object o) {
+        var other = (FieldAttribute) o;
+        return super.innerEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override

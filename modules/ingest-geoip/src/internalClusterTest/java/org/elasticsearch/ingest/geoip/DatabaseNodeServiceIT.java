@@ -94,7 +94,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         IpDatabase database = databaseNodeService.getDatabase(databaseFileName);
         assertNotNull(database);
         assertThat(database.getDatabaseType(), equalTo(databaseType));
-        CacheableCountryResponse countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry).result();
+        CacheableCountryResponse countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry);
         assertNotNull(countryResponse);
         assertThat(countryResponse.countryName(), equalTo("Sweden"));
     }

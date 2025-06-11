@@ -73,16 +73,12 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CacheableCityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
-    public static IpDataLookup.Result<MaxmindIpDataLookups.CacheableCityResponse> getCity(Reader reader, String ip) throws IOException {
+    public static MaxmindIpDataLookups.CacheableCityResponse getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
         return data == null
             ? null
-            : new IpDataLookup.Result<>(
-                MaxmindIpDataLookups.CacheableCityResponse.from(new CityResponse(data, ip, record.getNetwork(), List.of("en"))),
-                ip,
-                record.getNetwork().toString()
-            );
+            : MaxmindIpDataLookups.CacheableCityResponse.from(new CityResponse(data, ip, record.getNetwork(), List.of("en")));
     }
 
     /**
@@ -91,16 +87,11 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CacheableCountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
-    public static IpDataLookup.Result<MaxmindIpDataLookups.CacheableCountryResponse> getCountry(Reader reader, String ip)
-        throws IOException {
+    public static MaxmindIpDataLookups.CacheableCountryResponse getCountry(Reader reader, String ip) throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
         CountryResponse data = record.getData();
         return data == null
             ? null
-            : new IpDataLookup.Result<>(
-                MaxmindIpDataLookups.CacheableCountryResponse.from(new CountryResponse(data, ip, record.getNetwork(), List.of("en"))),
-                ip,
-                record.getNetwork().toString()
-            );
+            : MaxmindIpDataLookups.CacheableCountryResponse.from(new CountryResponse(data, ip, record.getNetwork(), List.of("en")));
     }
 }

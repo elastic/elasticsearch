@@ -128,9 +128,8 @@ public class TransportRemoveIndexBlockAction extends TransportMasterNodeAction<R
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     final var tuple = MetadataIndexStateService.removeIndexBlock(
-                        projectId,
+                        currentState.projectState(projectId),
                         concreteIndices,
-                        currentState,
                         request.getBlock()
                     );
                     results = tuple.v2();

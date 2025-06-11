@@ -1160,25 +1160,18 @@ public class MetadataIndexStateService {
     }
 
     public static Tuple<ClusterState, List<RemoveBlockResult>> removeIndexBlock(
-        final ProjectId projectId,
+        ProjectState projectState,
         final Index[] indices,
-        final ClusterState currentState,
         final APIBlock block
     ) {
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectState.metadata());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(projectState.blocks());
         final List<String> effectivelyUnblockedIndices = new ArrayList<>();
         final Map<String, RemoveBlockResult> results = new HashMap<>();
 
         for (Index index : indices) {
             try {
-                if (currentState.metadata().hasProject(projectId) == false) {
-                    results.put(index.getName(), new RemoveBlockResult(index, new IndexNotFoundException(index)));
-                    continue;
-                }
-
-                final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
-                final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
+                final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
                 if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                     results.put(index.getName(), new RemoveBlockResult(index, new IndexClosedException(index)));
                     continue;
@@ -1192,7 +1185,7 @@ public class MetadataIndexStateService {
                 boolean hasUUIDBlock = false;
 
                 // Check for UUID-based blocks (temporary blocks created during add operation)
-                final Set<ClusterBlock> clusterBlocks = currentState.blocks().indices(projectId).get(index.getName());
+                final Set<ClusterBlock> clusterBlocks = projectState.blocks().indices(projectState.projectId()).get(index.getName());
                 if (clusterBlocks != null) {
                     for (ClusterBlock clusterBlock : clusterBlocks) {
                         if (clusterBlock.id() == block.block.id()) {
@@ -1221,14 +1214,14 @@ public class MetadataIndexStateService {
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .build();
 
-                    metadata.getProject(projectId).put(updatedMetadata, true);
+                    projectBuilder.put(updatedMetadata, true);
                 }
 
                 // Remove all blocks with the same ID (including UUID-based temporary blocks)
                 if (hasUUIDBlock) {
-                    blocks.removeIndexBlockWithId(projectId, index.getName(), block.block.id());
+                    blocks.removeIndexBlockWithId(projectState.projectId(), index.getName(), block.block.id());
                 } else {
-                    blocks.removeIndexBlock(projectId, index.getName(), block.block);
+                    blocks.removeIndexBlock(projectState.projectId(), index.getName(), block.block);
                 }
 
                 effectivelyUnblockedIndices.add(index.getName());
@@ -1242,7 +1235,10 @@ public class MetadataIndexStateService {
         }
 
         logger.info("completed removing [index.blocks.{}] block from indices {}", block.name, effectivelyUnblockedIndices);
-        return Tuple.tuple(ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build(), List.copyOf(results.values()));
+        return Tuple.tuple(
+            ClusterState.builder(projectState.cluster()).putProjectMetadata(projectBuilder).blocks(blocks).build(),
+            List.copyOf(results.values())
+        );
     }
 
     private class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {

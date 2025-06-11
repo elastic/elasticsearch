@@ -496,12 +496,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test073RunEsAsDifferentUserAndGroupWithoutBindMounting
   issue: https://github.com/elastic/elasticsearch/issues/128996
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.LookupJoinOnTimeSeriesIndex ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129078
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.LookupJoinOnTimeSeriesIndex SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129082
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=upgraded_cluster/70_ilm/Test Lifecycle Still There And Indices Are Still Managed}
   issue: https://github.com/elastic/elasticsearch/issues/129097
@@ -523,6 +517,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.EnrichLookupStatsBug SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129229
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.MultipleBatches*
+  issue: https://github.com/elastic/elasticsearch/issues/129210
 
 # Examples:
 #

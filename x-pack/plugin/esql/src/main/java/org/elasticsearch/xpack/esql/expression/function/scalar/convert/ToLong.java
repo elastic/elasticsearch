@@ -134,7 +134,8 @@ public class ToLong extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
-        return safeDoubleToLong(dbl);
+        throw new UnsupportedOperationException("SAFDSAF");
+//        return safeDoubleToLong(dbl);
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })

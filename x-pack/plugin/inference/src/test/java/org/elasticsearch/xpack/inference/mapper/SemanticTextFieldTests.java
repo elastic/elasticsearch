@@ -118,12 +118,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     @Override
     protected SemanticTextField createTestInstance() {
         List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
-        TestModel testModel = TestModel.createRandomInstance();
         try { // try catch required for override
             return randomSemanticText(
                 useLegacyFormat,
                 NAME,
-                testModel,
+                TestModel.createRandomInstance(),
                 generateRandomChunkingSettings(),
                 rawValues,
                 randomFrom(XContentType.values())

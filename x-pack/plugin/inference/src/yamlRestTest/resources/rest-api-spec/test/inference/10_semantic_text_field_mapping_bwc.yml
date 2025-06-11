@@ -36,6 +36,23 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-compatible-with-bbq
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 64,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-index
         body:
@@ -187,8 +204,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -196,14 +213,17 @@ setup:
                 dimensions: 4
                 similarity: cosine
                 element_type: float
+              index_options:
+                dense_vector:
+                  type: int8_hnsw
+                  m: 16
+                  ef_construction: 100
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
-                  - start_offset: 44
-                    end_offset: 67
-                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+                - text: "these are not the droids you're looking for"
+                  embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                - text: "He's free to go around"
+                  embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+        refresh: true
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -220,17 +240,78 @@ setup:
   - requires:
       cluster_features: "semantic_text.index_options"
       reason: index_options introduced in 8.19.0
+
+  - do:
+      indices.create:
+        index: test-index-options-with-bbq
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+
   # Checks vector mapping is not updated until first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index-options-with-bbq
+
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.inference_id": dense-inference-id-compatible-with-bbq }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+  - not_exists: test-index-options-with-bbq.mappings.properties.dense_field.model_settings
+
+  - do:
+      index:
+        index: test-index-options-with-bbq
+        id: doc_2
+        body:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: dense-inference-id-compatible-with-bbq
+              model_settings:
+                task_type: text_embedding
+                dimensions: 64
+                similarity: cosine
+                element_type: float
+              chunks:
+                - text: "these are not the droids you're looking for"
+                  embeddings: [ 0.05, -0.03, -0.03, 0.06, 0.01, -0.02, 0.07, 0.02, -0.04, 0.03, 0.00, 0.05, -0.06, 0.04, -0.01, 0.02, -0.05, 0.01, 0.03, -0.02, 0.06, -0.04, 0.00, 0.05, -0.03, 0.02, 0.01, -0.01, 0.04, -0.06, 0.03, 0.02, -0.02, 0.06, -0.01, 0.00, 0.04, -0.05, 0.01, 0.03, -0.04, 0.02, -0.03, 0.05, -0.02, 0.01, 0.03, -0.06, 0.04, 0.00, -0.01, 0.06, -0.03, 0.02, 0.01, -0.04, 0.05, -0.01, 0.00, 0.04, -0.05, 0.02, 0.03, -0.02 ]
+                - text: "He's free to go around"
+                  embeddings: [ 0.05, -0.03, -0.03, 0.06, 0.01, -0.02, 0.07, 0.02, -0.04, 0.03, 0.00, 0.05, -0.06, 0.04, -0.01, 0.02, -0.05, 0.01, 0.03, -0.02, 0.06, -0.04, 0.00, 0.05, -0.03, 0.02, 0.01, -0.01, 0.04, -0.06, 0.03, 0.02, -0.02, 0.06, -0.01, 0.00, 0.04, -0.05, 0.01, 0.03, -0.04, 0.02, -0.03, 0.05, -0.02, 0.01, 0.03, -0.06, 0.04, 0.00, -0.01, 0.06, -0.03, 0.02, 0.01, -0.04, 0.05, -0.01, 0.00, 0.04, -0.05, 0.02, 0.03, -0.02 ]
+        refresh: true
+
+  # Checks mapping is updated when first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index-options-with-bbq
+
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.inference_id": dense-inference-id-compatible-with-bbq }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.model_settings.task_type": text_embedding }
+  - exists: test-index-options-with-bbq.mappings.properties.dense_field.model_settings
+
+---
+"Indexes dense vector document with index_options falls back to int8_hnsw for non-compatible models":
+  # Checks mapping is not updated until first doc arrives
   - do:
       indices.get_mapping:
         index: test-index
 
   - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
   - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
-  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.type": int8_hnsw }
   - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
   - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.rescore_vector.oversample": 3 }
   - not_exists: test-index.mappings.properties.dense_field.model_settings
 
   - do:
@@ -238,8 +319,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -247,14 +328,17 @@ setup:
                 dimensions: 4
                 similarity: cosine
                 element_type: float
+              index_options:
+                dense_vector:
+                  type: int8_hnsw
+                  m: 16
+                  ef_construction: 100
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
-                  - start_offset: 44
-                    end_offset: 67
-                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+                - text: "these are not the droids you're looking for"
+                  embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                - text: "He's free to go around"
+                  embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+        refresh: true
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -263,8 +347,11 @@ setup:
 
   - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
   - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
-  - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.type": int8_hnsw }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
   - exists: test-index.mappings.properties.dense_field.model_settings
+  - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
 
 ---
 "Field caps with text embedding":
@@ -431,11 +518,11 @@ setup:
 
   - do:
       index:
-        index: test-index-options
+        index: test-index_options
         id: doc_1
         body:
-          semantic_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.semantic_field:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -450,13 +537,11 @@ setup:
                   ef_construction: 100
                   confidence_interval: 1.0
               chunks:
-                semantic_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
-                  - start_offset: 44
-                    end_offset: 67
-                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+                - text: "these are not the droids you're looking for"
+                  embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                - text: "He's free to go around"
+                  embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+        refresh: true
 
   - do:
       indices.get_mapping:
@@ -475,7 +560,7 @@ setup:
 
   - do:
       indices.create:
-        index: test-index-options
+        index: test-index-options-with-bbq
         body:
           settings:
             index:
@@ -486,16 +571,16 @@ setup:
             properties:
               semantic_field:
                 type: semantic_text
-                inference_id: dense-inference-id
+                inference_id: dense-inference-id-compatible-with-bbq
 
   - do:
       indices.get_mapping:
-        index: test-index-options
+        index: test-index-options-with-bbq
 
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": bbq_hnsw }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
 
 
 ---

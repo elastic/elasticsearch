@@ -35,6 +35,23 @@ setup:
             }
           }
 
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-compatible-with-bbq
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 64,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
 
   - do:
       indices.create:
@@ -233,7 +250,7 @@ setup:
 
   - do:
       indices.create:
-        index: test-index-options
+        index: test-index-options-with-bbq
         body:
           settings:
             index:
@@ -244,24 +261,72 @@ setup:
             properties:
               dense_field:
                 type: semantic_text
-                inference_id: dense-inference-id
+                inference_id: dense-inference-id-compatible-with-bbq
 
   # Checks vector mapping is not updated until first doc arrives
   - do:
       indices.get_mapping:
-        index: test-index-options
+        index: test-index-options-with-bbq
 
-  - match: { "test-index-options.mappings.properties.dense_field.type": semantic_text }
-  - match: { "test-index-options.mappings.properties.dense_field.inference_id": dense-inference-id }
-  - match: { "test-index-options.mappings.properties.dense_field.index_options.dense_vector.type": bbq_hnsw }
-  - match: { "test-index-options.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
-  - match: { "test-index-options.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.dense_field.index_options.dense_vector.rescore_vector.oversample": 3 }
-  - not_exists: test-index-options.mappings.properties.dense_field.model_settings
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.inference_id": dense-inference-id-compatible-with-bbq }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+  - not_exists: test-index-options-with-bbq.mappings.properties.dense_field.model_settings
 
   - do:
       index:
-        index: test-index-options
+        index: test-index-options-with-bbq
+        id: doc_2
+        body:
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
+            inference:
+              inference_id: dense-inference-id-compatible-with-bbq
+              model_settings:
+                task_type: text_embedding
+                dimensions: 64
+                similarity: cosine
+                element_type: float
+              chunks:
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [ 0.05, -0.03, -0.03, 0.06, 0.01, -0.02, 0.07, 0.02, -0.04, 0.03, 0.00, 0.05, -0.06, 0.04, -0.01, 0.02, -0.05, 0.01, 0.03, -0.02, 0.06, -0.04, 0.00, 0.05, -0.03, 0.02, 0.01, -0.01, 0.04, -0.06, 0.03, 0.02, -0.02, 0.06, -0.01, 0.00, 0.04, -0.05, 0.01, 0.03, -0.04, 0.02, -0.03, 0.05, -0.02, 0.01, 0.03, -0.06, 0.04, 0.00, -0.01, 0.06, -0.03, 0.02, 0.01, -0.04, 0.05, -0.01, 0.00, 0.04, -0.05, 0.02, 0.03, -0.02 ]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [ 0.05, -0.03, -0.03, 0.06, 0.01, -0.02, 0.07, 0.02, -0.04, 0.03, 0.00, 0.05, -0.06, 0.04, -0.01, 0.02, -0.05, 0.01, 0.03, -0.02, 0.06, -0.04, 0.00, 0.05, -0.03, 0.02, 0.01, -0.01, 0.04, -0.06, 0.03, 0.02, -0.02, 0.06, -0.01, 0.00, 0.04, -0.05, 0.01, 0.03, -0.04, 0.02, -0.03, 0.05, -0.02, 0.01, 0.03, -0.06, 0.04, 0.00, -0.01, 0.06, -0.03, 0.02, 0.01, -0.04, 0.05, -0.01, 0.00, 0.04, -0.05, 0.02, 0.03, -0.02 ]
+
+
+  # Checks mapping is updated when first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index-options-with-bbq
+
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.inference_id": dense-inference-id-compatible-with-bbq }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.model_settings.task_type": text_embedding }
+  - exists: test-index-options-with-bbq.mappings.properties.dense_field.model_settings
+
+---
+"Indexes dense vector document with index_options falls back to int8_hnsw for non-compatible models":
+  # Checks mapping is not updated until first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.type": int8_hnsw }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
+  - not_exists: test-index.mappings.properties.dense_field.model_settings
+
+  - do:
+      index:
+        index: test-index
         id: doc_2
         body:
           dense_field: "these are not the droids you're looking for. He's free to go around"
@@ -285,12 +350,15 @@ setup:
   # Checks mapping is updated when first doc arrives
   - do:
       indices.get_mapping:
-        index: test-index-options
+        index: test-index
 
-  - match: { "test-index-options.mappings.properties.dense_field.type": semantic_text }
-  - match: { "test-index-options.mappings.properties.dense_field.inference_id": dense-inference-id }
-  - match: { "test-index-options.mappings.properties.dense_field.model_settings.task_type": text_embedding }
-  - exists: test-index-options.mappings.properties.dense_field.model_settings
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.type": int8_hnsw }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index.mappings.properties.dense_field.index_options.dense_vector.ef_construction": 100 }
+  - exists: test-index.mappings.properties.dense_field.model_settings
+  - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
 
 ---
 "Field caps with text embedding":
@@ -536,7 +604,7 @@ setup:
 
   - do:
       indices.create:
-        index: test-index-options
+        index: test-index-options-with-bbq
         body:
           settings:
             index:
@@ -547,16 +615,16 @@ setup:
             properties:
               semantic_field:
                 type: semantic_text
-                inference_id: dense-inference-id
+                inference_id: dense-inference-id-compatible-with-bbq
 
   - do:
       indices.get_mapping:
-        index: test-index-options
+        index: test-index-options-with-bbq
 
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": bbq_hnsw }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.type": bbq_hnsw }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-with-bbq.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
 
 
 

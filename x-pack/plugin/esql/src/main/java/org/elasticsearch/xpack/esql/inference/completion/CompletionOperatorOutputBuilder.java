@@ -51,6 +51,11 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
      */
     @Override
     public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
+        if (inferenceResponse == null) {
+            outputBlockBuilder.appendNull();
+            return;
+        }
+
         ChatCompletionResults completionResults = inferenceResults(inferenceResponse);
 
         if (completionResults == null) {

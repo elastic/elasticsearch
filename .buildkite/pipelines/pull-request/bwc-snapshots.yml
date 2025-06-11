@@ -55,7 +55,7 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 5"
-        key: "bwc-snapshots-part4"
+        key: "bwc-snapshots-part5"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:

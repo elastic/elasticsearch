@@ -17,6 +17,10 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.serverless.multiproject.ServerlessMultiProjectPlugin;
+import co.elastic.elasticsearch.serverless.multiproject.action.DeleteProjectAction;
+import co.elastic.elasticsearch.serverless.multiproject.action.TransportGetProjectStatusAction;
+import co.elastic.elasticsearch.settings.secure.ServerlessSecureSettingsPlugin;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
@@ -55,6 +59,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -67,6 +72,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -86,6 +93,7 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.Measurement;
@@ -94,13 +102,16 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -112,7 +123,9 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -125,6 +138,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -232,6 +246,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         plugins.add(MockTransportService.TestPlugin.class);
         if (addMockFsRepository()) {
             plugins.add(ConcurrentMultiPartUploadsMockFsRepository.Plugin.class);
+        }
+        if (multiProjectIntegrationTest()) {
+            plugins.add(ServerlessSecureSettingsPlugin.class);
+            plugins.add(ServerlessMultiProjectPlugin.class);
         }
         return List.copyOf(plugins);
     }
@@ -367,6 +385,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             builder.put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), STATELESS_HOLLOW_DS_NON_WRITE_TTL);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), STATELESS_HOLLOW_TTL);
+        }
+        if (multiProjectIntegrationTest()) {
+            builder.put(ServerlessMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true);
         }
         return builder;
     }
@@ -1098,5 +1119,150 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE, threshold)
             .put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, partSize)
             .build();
+    }
+
+    private static final AtomicLong reservedStateVersionCounter = new AtomicLong(1);
+
+    // TODO: Extract file manipulation code to an utility class, see also ES-12052
+    protected void putProject(ProjectId projectId) throws Exception {
+        putProject(
+            projectId,
+            Settings.builder()
+                .put("stateless.object_store.type", "fs")
+                .put("stateless.object_store.bucket", "project_" + projectId)
+                .put("stateless.object_store.base_path", "base_path")
+                .put("stateless.object_store.client", "default")
+                .build(),
+            Settings.EMPTY
+        );
+    }
+
+    protected void putProject(ProjectId projectId, Settings projectSettings, Settings projectSecrets) throws Exception {
+        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
+        final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
+        assertTrue(fileSettingsService.watching());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        final long newVersion = reservedStateVersionCounter.incrementAndGet();
+
+        final String settingsJson = addProjectIdToSettingsJson(fileSettingsService, newVersion, projectId.id());
+
+        final var projectSettingsJson = Strings.format("""
+            {
+                 "metadata": {
+                     "version": "%s",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "project_settings": %s
+                 }
+            }""", newVersion, projectSettings.toString());
+
+        final var projectSecretsJson = Strings.format("""
+            {
+                 "metadata": {
+                     "version": "%s",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "project_secrets": {
+                        "string_secrets": %s,
+                        "file_secrets": %s
+                     }
+                 }
+            }""", newVersion, projectSecrets.toString(), "{}");
+
+        Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"), projectSettingsJson);
+        Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"), projectSecretsJson);
+        Files.writeString(fileSettingsService.watchedFile(), settingsJson);
+
+        // Ensure the project exist
+        assertBusy(() -> {
+            final var request = new TransportGetProjectStatusAction.Request(TEST_REQUEST_TIMEOUT, projectId.id());
+            assertThat(
+                safeGet(client().execute(TransportGetProjectStatusAction.INSTANCE, request)).getProjectId(),
+                equalTo(projectId.id())
+            );
+        });
+
+        // Ensure the latest update is processed
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterState -> Objects.equals(
+                    clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).version(),
+                    newVersion
+                )
+            )
+        );
+    }
+
+    protected void removeProject(ProjectId projectId) throws IOException {
+        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
+        final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
+        assertTrue(fileSettingsService.watching());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        final long newVersion = reservedStateVersionCounter.incrementAndGet();
+
+        final String settingsJson = removeProjectIdFromSettingsJson(fileSettingsService, newVersion, projectId.id());
+
+        Files.deleteIfExists(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"));
+        Files.deleteIfExists(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"));
+        Files.writeString(fileSettingsService.watchedFile(), settingsJson);
+
+        @FixForMultiProject(description = "Remove the API call once https://elasticco.atlassian.net/browse/ES-11454 is resolved")
+        final var request = new DeleteProjectAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, projectId);
+        assertTrue(safeGet(client().execute(DeleteProjectAction.INSTANCE, request)).isAcknowledged());
+    }
+
+    private String addProjectIdToSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)
+        throws IOException {
+        return updateSettingsJson(fileSettingsService, newVersion, map -> {
+            @SuppressWarnings("unchecked")
+            final var projects = (Collection<String>) map.getOrDefault("projects", new HashSet<>());
+            final var added = projects.add(projectId);
+            logger.info("--> {} project [{}]", added ? "add" : "update", projectId);
+            map.put("projects", projects);
+        });
+    }
+
+    private String removeProjectIdFromSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)
+        throws IOException {
+        return updateSettingsJson(fileSettingsService, newVersion, map -> {
+            @SuppressWarnings("unchecked")
+            final var projects = (Collection<String>) map.getOrDefault("projects", new HashSet<>());
+            final var removed = projects.remove(projectId);
+            if (removed == false) {
+                logger.info("--> project [{}] does not exist in the test cluster", projectId);
+                return;
+            }
+            logger.info("--> removing project [{}]", projectId);
+            map.put("projects", projects);
+        });
+    }
+
+    private String updateSettingsJson(FileSettingsService fileSettingsService, long newVersion, Consumer<Map<String, Object>> updater)
+        throws IOException {
+        final Map<String, Object> map;
+        if (Files.exists(fileSettingsService.watchedFile())) {
+            map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(fileSettingsService.watchedFile()), false);
+        } else {
+            map = XContentHelper.convertToMap(JSON.xContent(), """
+                {
+                     "metadata": {
+                         "version": "0",
+                         "compatibility": "8.4.0"
+                     },
+                     "state": {
+                     },
+                     "projects": []
+                }""", false);
+        }
+
+        updater.accept(map);
+        @SuppressWarnings("unchecked")
+        final var metadata = (Map<String, Object>) map.get("metadata");
+        assertNotNull(metadata);
+        metadata.put("version", Strings.format("%s", newVersion));
+
+        return XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON);
     }
 }

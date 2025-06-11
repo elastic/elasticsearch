@@ -177,7 +177,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
             List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> new MatchAllDocsQuery(),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
             pageSize,
@@ -1333,7 +1333,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> new MatchAllDocsQuery(),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
@@ -1583,7 +1583,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
                 contexts,
-                ctx -> new MatchAllDocsQuery(),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,

@@ -70,7 +70,15 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
+:   Do not index any string with more characters than this value. This is important because `keyword`
+    fields will reject documents with `keyword` fields that encode to utf-8 longer than `32766` bytes.
+    If you need to never reject documents, this should have some value `<=8191`. All documents with
+    more characters will just skip building the index for this field.
+    The defaults are complicated. It's `2147483647` (effectively unbounded) in standard indices and
+    `8191` in logsdb indices. So, if unspecified, standard indices *can* reject documents. And logsdb indices
+    will index the document, but skip this field.
+    The [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields
+    defaults to a `text` field with a sub-`keyword` field with an `ignore_above` of `256`.
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.

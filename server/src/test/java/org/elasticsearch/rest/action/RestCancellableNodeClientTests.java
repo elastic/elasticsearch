@@ -303,6 +303,10 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             // if the channel is already closed, the listener gets notified immediately, from the same thread.
             if (open.get() == false) {
                 listener.onResponse(null);
+                // Handle scenario where awaitClose() was called before any calls to addCloseListener(), this ensures closeLatch is pulled.
+                if (closeListener.isDone() == false) {
+                    closeListener.onResponse(ActionListener.noop());
+                }
             } else {
                 assertFalse("close listener already set, only one is allowed!", closeListener.isDone());
                 closeListener.onResponse(ActionListener.assertOnce(listener));

@@ -673,16 +673,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         Arrays.sort(copyFields);
         ChunkingSettings fieldTypeChunkingSettings = fieldType().getChunkingSettings();
         Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
-        SemanticTextIndexOptions indexOptions = fieldType().getIndexOptions();
 
-        return new InferenceFieldMetadata(
-            fullPath(),
-            fieldType().getInferenceId(),
-            fieldType().getSearchInferenceId(),
-            copyFields,
-            asMap,
-            indexOptions
-        );
+        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields, asMap);
     }
 
     @Override
@@ -1048,7 +1040,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         useLegacyFormat,
                         name(),
                         null,
-                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkingSettings, indexOptions, chunkMap),
+                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkingSettings, chunkMap),
                         source.sourceContentType()
                     )
                 );

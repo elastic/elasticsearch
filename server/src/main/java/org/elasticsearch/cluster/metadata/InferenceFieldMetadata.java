@@ -28,7 +28,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_CHUNKING_CONFIG;
 import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_CHUNKING_CONFIG_8_19;
-import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_INDEX_OPTIONS;
 
 /**
  * Contains inference field data for fields.
@@ -42,23 +41,15 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
-    static final String INDEX_OPTIONS_FIELD = "index_options";
 
     private final String name;
     private final String inferenceId;
     private final String searchInferenceId;
     private final String[] sourceFields;
     private final Map<String, Object> chunkingSettings;
-    private final SemanticTextIndexOptions indexOptions;
 
-    public InferenceFieldMetadata(
-        String name,
-        String inferenceId,
-        String[] sourceFields,
-        Map<String, Object> chunkingSettings,
-        SemanticTextIndexOptions indexOptions
-    ) {
-        this(name, inferenceId, inferenceId, sourceFields, chunkingSettings, indexOptions);
+    public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields, Map<String, Object> chunkingSettings) {
+        this(name, inferenceId, inferenceId, sourceFields, chunkingSettings);
     }
 
     public InferenceFieldMetadata(
@@ -66,15 +57,13 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String inferenceId,
         String searchInferenceId,
         String[] sourceFields,
-        Map<String, Object> chunkingSettings,
-        SemanticTextIndexOptions indexOptions
+        Map<String, Object> chunkingSettings
     ) {
         this.name = Objects.requireNonNull(name);
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings != null ? Map.copyOf(chunkingSettings) : null;
-        this.indexOptions = indexOptions;
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
@@ -92,11 +81,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         } else {
             this.chunkingSettings = null;
         }
-        if (input.getTransportVersion().onOrAfter(SEMANTIC_TEXT_INDEX_OPTIONS)) {
-            this.indexOptions = input.readOptionalWriteable(SemanticTextIndexOptions::new);
-        } else {
-            this.indexOptions = null;
-        }
     }
 
     @Override
@@ -110,9 +94,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_CHUNKING_CONFIG)
             || out.getTransportVersion().isPatchFrom(SEMANTIC_TEXT_CHUNKING_CONFIG_8_19)) {
             out.writeGenericMap(chunkingSettings);
-        }
-        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_INDEX_OPTIONS)) {
-            out.writeOptionalWriteable(indexOptions);
         }
     }
 
@@ -160,10 +141,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         return chunkingSettings;
     }
 
-    public SemanticTextIndexOptions getIndexOptions() {
-        return indexOptions;
-    }
-
     public static Diff<InferenceFieldMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(InferenceFieldMetadata::new, in);
     }
@@ -194,7 +171,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String inferenceId = null;
         String searchInferenceId = null;
         Map<String, Object> chunkingSettings = null;
-        SemanticTextIndexOptions indexOptions = null;
         List<String> inputFields = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -217,8 +193,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                 }
             } else if (CHUNKING_SETTINGS_FIELD.equals(currentFieldName)) {
                 chunkingSettings = parser.map();
-            } else if (INDEX_OPTIONS_FIELD.equals(currentFieldName)) {
-                indexOptions = null; // TODO implement parsing
             } else if (token.isValue()) {
                 // Ignore other fields
             } else {
@@ -230,8 +204,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             inferenceId,
             searchInferenceId == null ? inferenceId : searchInferenceId,
             inputFields.toArray(String[]::new),
-            chunkingSettings,
-            indexOptions
+            chunkingSettings
         );
     }
 }

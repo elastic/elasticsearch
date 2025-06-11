@@ -95,7 +95,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.randomSemanticTextIndexOptions;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
@@ -828,19 +828,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                                 fieldName1,
                                 model1,
                                 chunkingSettings,
-                                indexOptions,
                                 List.of("a b", "c"),
                                 XContentType.JSON
                             ),
-                            randomSemanticText(
-                                useLegacyFormat,
-                                fieldName2,
-                                model2,
-                                chunkingSettings,
-                                indexOptions,
-                                List.of("d e f"),
-                                XContentType.JSON
-                            )
+                            randomSemanticText(useLegacyFormat, fieldName2, model2, chunkingSettings, List.of("d e f"), XContentType.JSON)
                         )
                     )
                 )
@@ -1041,7 +1032,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             fieldName,
             model,
             chunkingSettings,
-            indexOptions,
             List.of("a"),
             XContentType.JSON
         );
@@ -1071,7 +1061,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             "field",
             model,
             chunkingSettings,
-            indexOptions,
             List.of("a"),
             XContentType.JSON
         );
@@ -1083,7 +1072,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 randomSemanticText.inference().inferenceId(),
                 null,
                 randomSemanticText.inference().chunkingSettings(),
-                randomSemanticText.inference().indexOptions(),
                 randomSemanticText.inference().chunks()
             ),
             randomSemanticText.contentType()
@@ -1129,13 +1117,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             useLegacyFormat,
             fieldName,
             List.of(),
-            new SemanticTextField.InferenceResult(
-                inferenceId,
-                modelSettings,
-                generateRandomChunkingSettings(),
-                modelSettings.taskType() == TaskType.TEXT_EMBEDDING ? randomSemanticTextIndexOptions(TaskType.TEXT_EMBEDDING) : null,
-                Map.of()
-            ),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, generateRandomChunkingSettings(), Map.of()),
             XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
@@ -1344,6 +1326,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X)
         );
         assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
+    }
+
+    public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {
+        TaskType taskType = randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING);
+        return randomSemanticTextIndexOptions(taskType);
+    }
+
+    public static SemanticTextIndexOptions randomSemanticTextIndexOptions(TaskType taskType) {
+
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            return randomBoolean()
+                ? null
+                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, randomIndexOptionsAll());
+        }
+
+        return null;
     }
 
     @Override

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.cluster.metadata.SemanticTextIndexOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -126,8 +125,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 NAME,
                 testModel,
                 generateRandomChunkingSettings(),
-                null, // TODO: There is a bug in these tests, because allowed IndexOptions depend on index versions that may be incompatible
-                      // with how we generate random index options
                 rawValues,
                 randomFrom(XContentType.values())
             );
@@ -279,7 +276,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         String fieldName,
         Model model,
         ChunkingSettings chunkingSettings,
-        SemanticTextIndexOptions indexOptions,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
@@ -296,7 +292,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             fieldName,
             model,
             chunkingSettings,
-            indexOptions,
             inputs,
             results,
             contentType
@@ -308,7 +303,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         String fieldName,
         Model model,
         ChunkingSettings chunkingSettings,
-        SemanticTextIndexOptions indexOptions,
         List<String> inputs,
         ChunkedInference results,
         XContentType contentType
@@ -344,7 +338,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 model.getInferenceEntityId(),
                 new MinimalServiceSettings(model),
                 chunkingSettings,
-                indexOptions,
                 Map.of(fieldName, chunks)
             ),
             contentType

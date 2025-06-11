@@ -80,7 +80,6 @@ public record SemanticTextField(
         String inferenceId,
         MinimalServiceSettings modelSettings,
         ChunkingSettings chunkingSettings,
-        SemanticTextIndexOptions indexOptions,
         Map<String, List<Chunk>> chunks
     ) {}
 
@@ -181,9 +180,6 @@ public record SemanticTextField(
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
         }
-        if (inference.indexOptions != null) {
-            builder.field(INDEX_OPTIONS_FIELD, inference.indexOptions);
-        }
 
         if (useLegacyFormat) {
             builder.startArray(CHUNKS_FIELD);
@@ -254,13 +250,7 @@ public record SemanticTextField(
             Map<String, Object> chunkingSettings = (Map<String, Object>) args[2];
             SemanticTextIndexOptions indexOptions = (SemanticTextIndexOptions) args[3];
             Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[4];
-            return new InferenceResult(
-                inferenceId,
-                modelSettings,
-                ChunkingSettingsBuilder.fromMap(chunkingSettings, false),
-                indexOptions,
-                chunks
-            );
+            return new InferenceResult(inferenceId, modelSettings, ChunkingSettingsBuilder.fromMap(chunkingSettings, false), chunks);
         }
     );
 

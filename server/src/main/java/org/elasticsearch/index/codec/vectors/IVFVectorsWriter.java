@@ -55,6 +55,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final FlatVectorsWriter rawVectorDelegate;
     private final SegmentWriteState segmentWriteState;
 
+    @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate) throws IOException {
         this.segmentWriteState = state;
         this.rawVectorDelegate = rawVectorDelegate;

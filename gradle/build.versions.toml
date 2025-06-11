@@ -45,7 +45,7 @@ snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
 spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }
-spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.25.0"
+spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:7.0.4"
 wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 

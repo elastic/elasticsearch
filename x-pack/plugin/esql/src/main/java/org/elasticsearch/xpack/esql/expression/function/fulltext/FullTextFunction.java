@@ -181,7 +181,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return FullTextFunction::checkFullTextQueryFunctions;
+        return this::checkFullTextQueryFunctions;
     }
 
     /**
@@ -190,7 +190,7 @@ public abstract class FullTextFunction extends Function
      * @param plan root plan to check
      * @param failures failures found
      */
-    private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
+    private void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
 
@@ -219,21 +219,23 @@ public abstract class FullTextFunction extends Function
             checkFullTextFunctionsInAggs(agg, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType()));
+                failures.add(fail(ftf, notSupportedErroMessage(), ftf.functionName(), ftf.functionType()));
             });
         }
     }
 
-    private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
+    protected void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
         agg.groupings().forEach(exp -> {
             exp.forEachDown(e -> {
                 if (e instanceof FullTextFunction ftf) {
-                    failures.add(
-                        fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType())
-                    );
+                    failures.add(fail(ftf, notSupportedErroMessage(), ftf.functionName(), ftf.functionType()));
                 }
             });
         });
+    }
+
+    protected String notSupportedErroMessage() {
+        return "[{}] {} is only supported in WHERE and STATS commands";
     }
 
     /**

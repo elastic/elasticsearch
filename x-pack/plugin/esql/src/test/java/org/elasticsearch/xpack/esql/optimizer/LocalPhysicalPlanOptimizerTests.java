@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -1475,10 +1476,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         testMultipleFullTextFunctionFilterPushdown(testCase);
         testFullTextFunctionsDisjunctionPushdown(testCase);
         testFullTextFunctionsDisjunctionWithFiltersPushdown(testCase);
-        testFullTextFunctionWithStatsWherePushable(testCase);
-        testFullTextFunctionWithStatsPushableAndNonPushableCondition(testCase);
-        testFullTextFunctionStatsWithNonPushableCondition(testCase);
-        testFullTextFunctionWithStatsBy(testCase);
+        if (testCase.fullTextFunction != Knn.class) {
+            testFullTextFunctionWithStatsWherePushable(testCase);
+            testFullTextFunctionWithStatsPushableAndNonPushableCondition(testCase);
+            testFullTextFunctionStatsWithNonPushableCondition(testCase);
+            testFullTextFunctionWithStatsBy(testCase);
+        }
     }
 
     private void testBasicFullTextFunction(FullTextFunctionTestCase testCase) {

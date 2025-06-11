@@ -1357,40 +1357,45 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(title, \"Meditation\")", "function");
-        checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
-        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
-        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
-        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        String defaultErrorMsg = "is only supported in WHERE and STATS commands";
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(title, \"Meditation\")", "function", defaultErrorMsg);
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator", defaultErrorMsg);
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function", defaultErrorMsg);
+        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function", defaultErrorMsg);
+        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function", defaultErrorMsg);
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function", defaultErrorMsg);
         }
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function", defaultErrorMsg);
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function", "is only supported in WHERE commands");
         }
     }
 
-    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
-        throws Exception {
+    private void checkFullTextFunctionsOnlyAllowedInWhere(
+        String functionName,
+        String functionInvocation,
+        String functionType,
+        String errorMsg
+    ) throws Exception {
         assertThat(
             error("from test | eval y = " + functionInvocation, fullTextAnalyzer),
-            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+            containsString("[" + functionName + "] " + functionType + " " + errorMsg)
         );
         assertThat(
             error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
-            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+            containsString("[" + functionName + "] " + functionType + " " + errorMsg)
         );
         assertThat(
             error("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
-            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+            containsString("[" + functionName + "] " + functionType + " " + errorMsg)
         );
         if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
             assertThat(
                 error("row a = " + functionInvocation, fullTextAnalyzer),
-                containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+                containsString("[" + functionName + "] " + functionType + " " + errorMsg)
             );
         }
     }
@@ -2215,7 +2220,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
+            checkFullTextFunctionsInStatsError("knn(vector, [0, 1, 2])");
         }
     }
 
@@ -2231,6 +2236,25 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),
             containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
+    }
+
+    private void checkFullTextFunctionsInStatsError(String functionInvocation) {
+        assertThat(
+            error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
+        assertThat(
+            error("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer),
+            containsString("is only supported in WHERE commands")
+        );
+        assertThat(
+            error("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer),
+            containsString("is only supported in WHERE commands")
+        );
+        assertThat(
+            error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),
+            containsString("is only supported in WHERE commands")
         );
     }
 

@@ -130,10 +130,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             IndexOptions builderIndexOptions = indexOptions.getValue();
-            if (builderIndexOptions == null &&
-                mappingParserContext != null &&
-                shouldHaveDefaultPruningConfig(mappingParserContext.indexVersionCreated())
-            ) {
+            if (builderIndexOptions == null
+                && mappingParserContext != null
+                && shouldHaveDefaultPruningConfig(mappingParserContext.indexVersionCreated())) {
                 builderIndexOptions = new IndexOptions(true, new TokenPruningConfig());
             }
 

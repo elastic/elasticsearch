@@ -129,6 +129,11 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
+
+        @Override
+        public boolean useDefaultPostingsFormat() {
+            return true;
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -550,6 +555,13 @@ public enum IndexMode {
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;
+    }
+
+    /**
+     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     */
+    public boolean useDefaultPostingsFormat() {
+        return false;
     }
 
     /**

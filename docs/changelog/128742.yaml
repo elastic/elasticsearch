@@ -1,0 +1,5 @@
+pr: 128742
+summary: "Account for Java direct memory on machine learning nodes to prevent out-of-memory crashes."
+area: Machine Learning
+type: bug
+issues: []

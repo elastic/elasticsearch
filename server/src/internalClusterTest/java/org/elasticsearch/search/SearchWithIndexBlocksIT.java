@@ -126,8 +126,7 @@ public class SearchWithIndexBlocksIT extends ESIntegTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueSeconds(10)))
             );
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertHitCount(searchResponse, 0);
+            assertHitCount(client().search(searchRequest), 0);
         } finally {
             if (pitId != null) {
                 client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();

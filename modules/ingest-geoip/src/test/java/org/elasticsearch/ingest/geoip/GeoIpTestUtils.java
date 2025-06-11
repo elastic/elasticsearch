@@ -17,6 +17,8 @@ import com.maxmind.geoip2.model.CountryResponse;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.CacheableCityResponse;
+import org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.CacheableCountryResponse;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,7 +44,7 @@ public final class GeoIpTestUtils {
         return path.toFile().isDirectory();
     }
 
-    public static void copyDatabase(final String databaseName, final Path destination) {
+    static void copyDatabase(final String databaseName, final Path destination) {
         try (InputStream is = GeoIpTestUtils.class.getResourceAsStream("/" + databaseName)) {
             if (is == null) {
                 throw new FileNotFoundException("Resource [" + databaseName + "] not found in classpath");
@@ -54,13 +56,13 @@ public final class GeoIpTestUtils {
         }
     }
 
-    public static void copyDefaultDatabases(final Path directory) {
+    static void copyDefaultDatabases(final Path directory) {
         for (final String database : DEFAULT_DATABASES) {
             copyDatabase(database, directory);
         }
     }
 
-    public static void copyDefaultDatabases(final Path directory, ConfigDatabases configDatabases) {
+    static void copyDefaultDatabases(final Path directory, ConfigDatabases configDatabases) {
         for (final String database : DEFAULT_DATABASES) {
             copyDatabase(database, directory);
             configDatabases.updateDatabase(directory.resolve(database), true);
@@ -73,12 +75,10 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CacheableCityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
-    public static MaxmindIpDataLookups.CacheableCityResponse getCity(Reader reader, String ip) throws IOException {
+    public static CacheableCityResponse getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
-        return data == null
-            ? null
-            : MaxmindIpDataLookups.CacheableCityResponse.from(new CityResponse(data, ip, record.getNetwork(), List.of("en")));
+        return data == null ? null : CacheableCityResponse.from(new CityResponse(data, ip, record.getNetwork(), List.of("en")));
     }
 
     /**
@@ -87,11 +87,9 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CacheableCountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
-    public static MaxmindIpDataLookups.CacheableCountryResponse getCountry(Reader reader, String ip) throws IOException {
+    public static CacheableCountryResponse getCountry(Reader reader, String ip) throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
         CountryResponse data = record.getData();
-        return data == null
-            ? null
-            : MaxmindIpDataLookups.CacheableCountryResponse.from(new CountryResponse(data, ip, record.getNetwork(), List.of("en")));
+        return data == null ? null : CacheableCountryResponse.from(new CountryResponse(data, ip, record.getNetwork(), List.of("en")));
     }
 }

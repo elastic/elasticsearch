@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -145,4 +148,25 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(Operations.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.get(Set.of("all")).automaton), is(true));
     }
 
+    public void testInvalidPrivilegeErrorMessage() {
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> IndexPrivilege.values().containsKey(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexPrivilege.get(Set.of(unknownPrivilege))
+        );
+
+        final String expectedFullErrorMessage = "unknown index privilege ["
+            + unknownPrivilege
+            + "]. a privilege must be either "
+            + "one of the predefined fixed indices privileges ["
+            + Strings.collectionToCommaDelimitedString(IndexPrivilege.names().stream().sorted().collect(Collectors.toList()))
+            + "] or a pattern over one of the available index"
+            + " actions";
+
+        assertEquals(expectedFullErrorMessage, exception.getMessage());
+    }
 }

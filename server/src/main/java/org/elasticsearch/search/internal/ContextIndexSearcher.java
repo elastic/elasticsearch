@@ -13,6 +13,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -20,10 +22,12 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -202,7 +206,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             rewriteTimer = profiler.startRewriteTime();
         }
         try {
-            return super.rewrite(original);
+            Query query = original;
+            for (Query rewrittenQuery = query.rewrite(this); rewrittenQuery != query; rewrittenQuery = query.rewrite(this)) {
+                query = rewrittenQuery;
+            }
+            checkNumNestedClauses(query, new int[1]);
+            return query;
         } catch (TimeExceededException e) {
             timeExceeded = true;
             return new MatchNoDocsQuery("rewrite timed out");
@@ -212,6 +221,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime(rewriteTimer);
             }
+        }
+    }
+
+    private void checkNumNestedClauses(Query query, int[] numClauses) {
+        switch (query) {
+            case BooleanQuery booleanQuery -> {
+                // recurse into nested boolean queries
+                for (BooleanClause clause : booleanQuery.clauses()) {
+                    checkNumNestedClauses(clause.query(), numClauses);
+                }
+            }
+            case MultiPhraseQuery multiPhraseQuery -> numClauses[0] += multiPhraseQuery.getTermArrays().length;
+            case DisjunctionMaxQuery disjunctionMaxQuery -> numClauses[0] += disjunctionMaxQuery.getDisjuncts().size();
+            default -> numClauses[0]++;
+        }
+        if (numClauses[0] > getMaxClauseCount()) {
+            throw new TooManyNestedClauses();
         }
     }
 

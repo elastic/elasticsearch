@@ -935,7 +935,7 @@ A `pinned` retriever returns top documents by always placing specific documents 
 
     A list of document IDs to pin at the top of the results, in the order provided.
 
-`documents`
+`docs`
 :   (Optional, array of objects)
 
     A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
@@ -945,16 +945,16 @@ A `pinned` retriever returns top documents by always placing specific documents 
 
     A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
 
-Either `ids` or `documents` must be specified.
+Either `ids` or `docs` must be specified.
 
-### Example using `documents` [pinned-retriever-example-documents]
+### Example using `docs` [pinned-retriever-example-documents]
 
 ```console
 GET /restaurants/_search
 {
   "retriever": {
     "pinned": {
-      "documents": [
+      "docs": [
         { "_id": "doc1", "_index": "my-index" },
         { "_id": "doc2" }
       ],

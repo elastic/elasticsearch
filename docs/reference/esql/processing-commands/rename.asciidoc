@@ -11,6 +11,15 @@ The `RENAME` processing command renames one or more columns.
 RENAME old_name1 AS new_name1[, ..., old_nameN AS new_nameN]
 ----
 
+The following syntax is also supported:
+
+[source,esql]
+----
+RENAME new_name1 = old_name1[, ..., new_nameN = old_nameN]
+----
+
+TIP: Both syntax options can be used interchangeably but we recommend sticking to one for consistency and readability.
+
 *Parameters*
 
 `old_nameX`::

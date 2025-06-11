@@ -111,7 +111,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         int min = docs.docs().getInt(0);
         int max = docs.docs().getInt(docs.getPositionCount() - 1);
         int length = max - min + 1;
-        try (T scoreBuilder = createVectorBuilder(blockFactory, length)) {
+        try (T scoreBuilder = createVectorBuilder(blockFactory, docs.getPositionCount())) {
             if (length == docs.getPositionCount() && length > 1) {
                 return segmentState.scoreDense(scoreBuilder, min, max);
             }

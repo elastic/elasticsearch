@@ -31,6 +31,9 @@ configurations {
     attributes {
       attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
     }
+    attributes {
+      attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, DependenciesInfoPlugin.USAGE_ATTRIBUTE))
+    }
   }
   featuresMetadata {
     attributes {

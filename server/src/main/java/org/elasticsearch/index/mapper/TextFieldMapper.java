@@ -300,6 +300,12 @@ public final class TextFieldMapper extends FieldMapper {
             // storing the field without requiring users to explicitly set 'store'.
             //
             // If 'store' parameter was explicitly provided we'll reject the request.
+
+            /* NOTE: I am fairly sure the above is strictly not true.  Testing seems
+            show that we do not reject the mapping, even when there is no compatible keyword
+            field and the mapping sets store to false.  --MT 2025-06-11
+             */
+
             this.store = Parameter.storeParam(
                 m -> ((TextFieldMapper) m).store,
                 () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false

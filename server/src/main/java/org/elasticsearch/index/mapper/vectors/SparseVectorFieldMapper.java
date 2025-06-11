@@ -105,8 +105,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Objects::toString
         ).acceptsNull();
 
+        private final MappingParserContext mappingParserContext;
+
         public Builder(String name) {
             super(name);
+            mappingParserContext = null;
+        }
+
+        public Builder(String name, @Nullable MappingParserContext mappingParserContext) {
+            super(name);
+            this.mappingParserContext = mappingParserContext;
         }
 
         public Builder setStored(boolean value) {
@@ -121,9 +129,17 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
+            IndexOptions builderIndexOptions = indexOptions.getValue();
+            if (builderIndexOptions == null &&
+                mappingParserContext != null &&
+                shouldHaveDefaultPruningConfig(mappingParserContext.indexVersionCreated())
+            ) {
+                builderIndexOptions = new IndexOptions(true, new TokenPruningConfig());
+            }
+
             return new SparseVectorFieldMapper(
                 leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), indexOptions.getValue()),
+                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue(), builderIndexOptions),
                 builderParams(this, context)
             );
         }
@@ -171,7 +187,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(ERROR_MESSAGE_8X);
         }
 
-        return new Builder(n);
+        return new Builder(n, c);
     }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
@@ -270,20 +286,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         private TokenPruningConfig getDefaultPruningConfig(SearchExecutionContext context) {
             IndexVersion indexVersion = context.indexVersionCreated();
-
-            if (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
-                // default pruning for 9.1.0+ is true for this index
-                return new TokenPruningConfig();
-            }
-
-            if (indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
-                // default pruning for 8.19.0+ is true for this index
-                return new TokenPruningConfig();
-            }
-
-            // the index version is before we added index_options support
-            // so pruning is off by default
-            return null;
+            return (shouldHaveDefaultPruningConfig(indexVersion)) ? new TokenPruningConfig() : null;
         }
 
         private static String indexedValueForSearch(Object value) {
@@ -313,7 +316,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), null).init(this);
     }
 
     @Override
@@ -389,6 +392,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static boolean shouldHaveDefaultPruningConfig(IndexVersion indexVersion) {
+        if (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)) {
+            // default pruning for 9.1.0+ is true for this index
+            return true;
+        }
+
+        // default pruning for 8.19.0+ is true for this index
+        if (indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+            return true;
+        }
+
+        return false;
     }
 
     private static class SparseVectorValueFetcher implements ValueFetcher {

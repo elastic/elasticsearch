@@ -29,10 +29,12 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
@@ -51,8 +53,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +82,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.field("type", "sparse_vector");
     }
 
-    protected void mappingWithIndexOptions(XContentBuilder b) throws IOException {
+    protected void minimalMappingWithExplicitIndexOptions(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
         b.startObject("index_options");
         {
@@ -131,7 +135,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMappingWithExplicitIndexOptions)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
@@ -153,6 +157,19 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
+    }
+
+    public void testMappingWithoutIndexOptionsUsesDefaults() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMappingWithExplicitIndexOptions)), mapper.mappingSource().toString());
+
+        IndexVersion preIndexOptionsVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            UPGRADE_TO_LUCENE_10_0_0,
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION
+        );
+        DocumentMapper previousMapper = createDocumentMapper(preIndexOptionsVersion, fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), previousMapper.mappingSource().toString());
     }
 
     public void testDotInFieldName() throws Exception {
@@ -579,7 +596,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testTypeQueryFinalizationWithIndexExplicit() throws Exception {
         IndexVersion version = IndexVersion.current();
-        MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptions));
+        MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
 
         // query should be pruned via explicit index options
         performTypeQueryFinalizationTest(
@@ -758,7 +775,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             return createMapperService(indexVersion, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
         }
 
-        return createMapperService(indexVersion, fieldMapping(this::mappingWithIndexOptions));
+        return createMapperService(indexVersion, fieldMapping(this::minimalMapping));
     }
 
     private static List<WeightedToken> QUERY_VECTORS = List.of(

@@ -59,6 +59,8 @@ public interface TaskAwareRequest {
      */
     // TODO remove the above overload, use only this one.
     default Task createTask(
+        // TODO this is only nullable in tests, where the MockNode does not guarantee the localNodeId is set before calling this method. We
+        // We should fix the tests, and replace this and id with TaskId instead.
         @Nullable String localNodeId,
         long id,
         String type,

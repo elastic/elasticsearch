@@ -292,6 +292,7 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM = def(9_092_0_00);
     public static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = def(9_093_0_00);
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = def(9_094_0_00);
+    public static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = def(9_095_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

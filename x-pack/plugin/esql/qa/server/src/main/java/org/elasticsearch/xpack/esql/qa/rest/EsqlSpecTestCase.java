@@ -273,6 +273,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
         Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
 
+        var isPartial = answer.get("is_partial");
+        assertTrue("unexpected partial results", isPartial == null || (boolean) isPartial == false);
+
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");

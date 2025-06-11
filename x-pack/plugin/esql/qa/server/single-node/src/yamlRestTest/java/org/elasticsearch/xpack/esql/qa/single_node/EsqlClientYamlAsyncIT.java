@@ -26,7 +26,7 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return updateEsqlQueryDoSections(createParameters(), doSection -> {
+        return updateEsqlQueryDoSections(partialResultsCheckingParatmers(), doSection -> {
             ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi("esql.async_query");
             for (Map<String, Object> body : copy.getBodies()) {
                 body.put("wait_for_completion_timeout", "30m");

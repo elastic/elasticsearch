@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -53,6 +54,9 @@ import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAU
  *
  */
 public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<LinearRetrieverBuilder> {
+    public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature(
+        "linear_retriever.multi_fields_query_format_support"
+    );
 
     public static final String NAME = "linear";
 

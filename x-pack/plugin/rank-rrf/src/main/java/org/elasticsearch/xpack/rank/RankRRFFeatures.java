@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 
 import java.util.Set;
 
@@ -19,7 +20,6 @@ import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_R
 public class RankRRFFeatures implements FeatureSpecification {
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
-    public static final NodeFeature SIMPLIFIED_RETRIEVER_FORMAT = new NodeFeature("simplified_retriever_format");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -32,7 +32,7 @@ public class RankRRFFeatures implements FeatureSpecification {
             INNER_RETRIEVERS_FILTER_SUPPORT,
             LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX,
             LINEAR_RETRIEVER_L2_NORM,
-            SIMPLIFIED_RETRIEVER_FORMAT
+            LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT
         );
     }
 }

@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: [ "simplified_retriever_format" ]
-      reason: "Simplified retriever format"
+      cluster_features: [ "linear_retriever.multi_fields_query_format_support" ]
+      reason: "Linear retriever multi-fields query format support"
       test_runner_features: [ "close_to", "headers", "contains" ]
 
   - do:

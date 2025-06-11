@@ -3,7 +3,7 @@
 //
 
 simpleFork
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK ( WHERE emp_no == 10001 )
@@ -18,7 +18,7 @@ emp_no:integer | _fork:keyword
 ;
 
 forkWithWhereSortAndLimit
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
@@ -38,7 +38,7 @@ emp_no:integer | first_name:keyword | _fork:keyword
 ;
 
 fiveFork
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK ( WHERE emp_no == 10005 )
@@ -59,7 +59,7 @@ fork5         | 10001
 ;
 
 forkWithWhereSortDescAndLimit
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
@@ -76,7 +76,7 @@ fork2         | 10087          | Xinglin
 ;
 
 forkWithCommonPrefilter
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | WHERE emp_no > 10050
@@ -94,7 +94,7 @@ fork2         | 10100
 ;
 
 forkWithSemanticSearchAndScore
-required_capability: fork_v7
+required_capability: fork_v8
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -114,7 +114,7 @@ fork2         | 6.093784261960139E18  | 2           | all we have to decide is w
 ;
 
 forkWithEvals
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = "abc" | EVAL y = 1)
@@ -131,7 +131,7 @@ fork2         | 10087          | def       | null      | 2
 ;
 
 forkWithStats
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
@@ -152,7 +152,7 @@ fork4         | null           | 100    | 10001     | null
 ;
 
 forkWithDissect
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -172,7 +172,7 @@ fork2         | 10081          | Rosen     | 10081     | null      | Zhongwei
 ;
 
 forkWithMixOfCommands
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -197,7 +197,7 @@ fork4         | 10081          | abc       | aaa       | null      | null
 ;
 
 forkWithFiltersOnConstantValues
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | EVAL z = 1
@@ -218,7 +218,7 @@ fork3         | null           | 100    | 10100     | 10001
 ;
 
 forkWithUnsupportedAttributes
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM heights
 | FORK (SORT description DESC | LIMIT 1 | EVAL x = length(description) )
@@ -232,7 +232,7 @@ Medium Height       | null                     | null      | fork2
 ;
 
 forkAfterLookupJoin
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | EVAL language_code = languages
@@ -253,7 +253,7 @@ fork3         | 10081          | 2                     | Klingon
 ;
 
 forkBeforeLookupJoin
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | EVAL language_code = languages
@@ -275,7 +275,7 @@ fork3         | 10081          | 2                     | French
 
 
 forkBeforeStats
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -293,7 +293,7 @@ c:long | m:keyword
 ;
 
 forkBeforeStatsWithWhere
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -312,7 +312,7 @@ a:long | b:keyword
 ;
 
 forkBeforeStatsByWithWhere
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | WHERE emp_no == 10048 OR emp_no == 10081
@@ -335,7 +335,7 @@ a:long | b:keyword | _fork:keyword
 ;
 
 forkAfterDrop
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM languages
 | DROP language_code
@@ -352,7 +352,7 @@ Spanish               | null      | fork2
 ;
 
 forkBranchWithDrop-Ignore
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM languages
 | FORK ( DROP language_code | WHERE language_name == "English" | EVAL x = 1 )
@@ -366,7 +366,7 @@ a | 1 | 2
 
 
 forkBeforeDrop
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM languages
 | FORK (WHERE language_code == 1 OR language_code == 2)
@@ -382,7 +382,7 @@ English               | fork2
 ;
 
 forkBeforeRename
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM languages
 | FORK (WHERE language_code == 1 OR language_code == 2)
@@ -398,7 +398,7 @@ code:integer | language_name:keyword | _fork:keyword
 ;
 
 forkBranchWithRenameAs-Ignore
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM languages
 | FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
@@ -411,7 +411,7 @@ language_name:keyword | x:integer | code:integer | _fork:keyword
 ;
 
 forkAfterRename
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM languages
 | RENAME language_code AS code
@@ -428,7 +428,7 @@ code:integer | language_name:keyword | _fork:keyword
 
 
 forkBeforeDissect
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
@@ -448,7 +448,7 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 
 
 forkBranchWithDissect
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081
@@ -468,7 +468,7 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 
 
 forkAfterDissect
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | EVAL x = concat(gender, " foobar")
@@ -487,7 +487,7 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 ;
 
 forkAfterEnrich
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
@@ -505,7 +505,7 @@ Japan                     | Tokyo               | null                          
 ;
     
 forkBranchWithEnrich-Ignore
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
@@ -520,7 +520,7 @@ Netherlands               | Amsterdam           | null | a
 ;
 
 forkBeforeEnrich
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
@@ -538,7 +538,7 @@ United States of America  | South San Francisco | fork2         | San Francisco 
 ;
 
 forkBeforeMvExpand
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, job_positions
@@ -559,7 +559,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 ;
 
 forkBranchWithMvExpand-Ignore
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, job_positions
@@ -573,7 +573,7 @@ emp_no:integer |  job_positions:keyword | _fork:keyword
 ;
 
 forkAfterMvExpand
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, job_positions
@@ -595,7 +595,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 
 // This is a bug we need to solve
 forkBeforeInlineStats-Ignore
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -611,7 +611,7 @@ emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:k
 ;
 
 forkBranchWithInlineStats
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -632,7 +632,7 @@ emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
 ;
 
 forkAfterInlineStats
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -650,7 +650,7 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword | _fork:k
 ;
 
 forkBeforeChangePoint
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, salary
@@ -668,7 +668,7 @@ COUNT():long | type:keyword
 ;
 
 forkBranchWithChangePoint
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, salary
@@ -687,7 +687,7 @@ null         | null         | fork2         | 10087          | 32272
 ;
 
 forkAfterChangePoint
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, salary
@@ -705,7 +705,7 @@ null   | null         | fork2         | spike
 ;
 
 forkBeforeCompletion
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, first_name, last_name
@@ -723,7 +723,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _fork:keyword | x:keyw
 ;
 
 forkBranchWithCompletion
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, first_name, last_name
@@ -741,7 +741,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | x:keyword        | _fo
 ;
 
 forkAfterCompletion
-required_capability: fork_v7
+required_capability: fork_v8
 
 FROM employees
 | KEEP emp_no, first_name, last_name

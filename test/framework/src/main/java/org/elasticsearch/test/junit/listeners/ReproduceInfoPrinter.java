@@ -65,7 +65,9 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
+        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"))
+            || System.getProperty("tests.bwc.main.version") != null
+            || System.getProperty("tests.bwc.refspec.main") != null;
 
         // append Gradle test runner test filter string
         b.append("\"" + task + "\"");
@@ -174,7 +176,9 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.bwc",
                 "tests.bwc.version",
                 "build.snapshot",
-                "tests.configure_test_clusters_with_one_processor"
+                "tests.configure_test_clusters_with_one_processor",
+                "tests.bwc.main.version",
+                "tests.bwc.refspec.main"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");

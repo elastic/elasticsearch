@@ -171,3 +171,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include 'qa:vector'

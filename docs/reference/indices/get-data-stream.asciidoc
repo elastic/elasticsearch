@@ -330,7 +330,8 @@ The API returns the following response:
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
-      "rollover_on_write": false
+      "rollover_on_write": false,
+      "settings": {}
     },
     {
       "name": "my-data-stream-two",
@@ -361,7 +362,8 @@ The API returns the following response:
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
-      "rollover_on_write": false
+      "rollover_on_write": false,
+      "settings": {}
     }
   ]
 }

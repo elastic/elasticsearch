@@ -151,7 +151,8 @@ and that the next generation index will also be managed by {ilm-init}:
       "allow_custom_routing": false,
       "replicated": false,
       "index_mode": "standard",
-      "rollover_on_write": false
+      "rollover_on_write": false,
+      "settings": {}
     }
   ]
 }
@@ -293,7 +294,8 @@ GET _data_stream/dsl-data-stream
       "allow_custom_routing": false,
       "replicated": false,
       "index_mode": "standard",
-      "rollover_on_write": false
+      "rollover_on_write": false,
+      "settings": {}
     }
   ]
 }
@@ -377,7 +379,8 @@ GET _data_stream/dsl-data-stream
       "allow_custom_routing": false,
       "replicated": false,
       "index_mode": "standard",
-      "rollover_on_write": false
+      "rollover_on_write": false,
+      "settings": {}
     }
   ]
 }
@@ -479,7 +482,8 @@ GET _data_stream/dsl-data-stream
       "allow_custom_routing": false,
       "replicated": false,
       "index_mode": "standard",
-      "rollover_on_write": false
+      "rollover_on_write": false,
+      "settings": {}
     }
   ]
 }

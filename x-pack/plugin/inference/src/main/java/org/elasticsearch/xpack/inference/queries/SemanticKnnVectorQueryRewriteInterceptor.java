@@ -148,6 +148,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             );
         }
 
+        copy.boost(original.boost());
+        copy.queryName(original.queryName());
         copy.addFilterQueries(original.filterQueries());
         copy.addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return copy;
@@ -187,6 +189,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             );
         }
 
+        newQueryBuilder.boost(original.boost());
+        newQueryBuilder.queryName(original.queryName());
         newQueryBuilder.addFilterQueries(original.filterQueries());
         return newQueryBuilder;
     }

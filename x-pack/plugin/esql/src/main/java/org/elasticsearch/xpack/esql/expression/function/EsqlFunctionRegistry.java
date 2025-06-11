@@ -444,7 +444,8 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
-                def(QueryString.class, bi(QueryString::new), "qstr") } };
+                def(QueryString.class, bi(QueryString::new), "qstr"),
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
 
     }
 
@@ -455,8 +456,7 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
-                def(Term.class, bi(Term::new), "term"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
+                def(Term.class, bi(Term::new), "term") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

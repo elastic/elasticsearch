@@ -145,7 +145,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     private static class StubShardShardHeapUsageCollector implements ShardHeapUsageCollector {
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
             listener.onResponse(Map.of());
         }
     }

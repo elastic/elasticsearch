@@ -54,7 +54,6 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
             final ShardHeapUsage shardHeapUsage = new ShardHeapUsage(
                 randomAlphaOfLength(4),
-                randomAlphaOfLength(4),
                 totalBytes,
                 randomIntBetween(0, totalBytes)
             );

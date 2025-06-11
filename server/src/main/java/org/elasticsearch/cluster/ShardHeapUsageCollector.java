@@ -13,17 +13,24 @@ import org.elasticsearch.action.ActionListener;
 
 import java.util.Map;
 
+/**
+ * Collect the shard heap usage for each node in the cluster.
+ * <p>
+ * Results are returned as a map of node ID to estimated heap usage in bytes
+ *
+ * @see ShardHeapUsage
+ */
 public interface ShardHeapUsageCollector {
 
     /**
-     * This will be used when there are no heap usage suppliers available
+     * This will be used when there is no ShardHeapUsageCollector available
      */
     ShardHeapUsageCollector EMPTY = listener -> listener.onResponse(Map.of());
 
     /**
-     * Collect the heap usage for every node in the cluster
+     * Collect the shard heap usage for every node in the cluster
      *
      * @param listener The listener which will receive the results
      */
-    void collectClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener);
+    void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener);
 }

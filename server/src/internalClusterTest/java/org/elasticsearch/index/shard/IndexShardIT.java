@@ -826,18 +826,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, ShardHeapUsage>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()
                     .state()
                     .nodes()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> {
-                        final long maxHeap = randomNonNegativeLong();
-                        final long usedHeap = (long) (randomFloat() * maxHeap);
-                        return new ShardHeapUsage(node.getId(), node.getName(), maxHeap, usedHeap);
-                    }))
+                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> randomNonNegativeLong()))
             );
         }
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -88,8 +89,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile Map<String, ByteSizeValue> maxHeapPerNode;
+    private volatile Map<String, Long> estimatedHeapUsagePerNode;
     private volatile IndicesStatsSummary indicesStatsSummary;
-    private volatile Map<String, ShardHeapUsage> shardHeapUsages;
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -184,16 +186,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             try (var ignoredRefs = fetchRefs) {
                 if (diskThresholdEnabled) {
                     try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                        fetchNodeStats();
-                    }
-                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                         fetchIndicesStats();
                     }
                 } else {
                     logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty cluster info");
-                    leastAvailableSpaceUsages = Map.of();
-                    mostAvailableSpaceUsages = Map.of();
                     indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                }
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodeStats();
                 }
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchNodesHeapUsage();
@@ -204,14 +204,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchNodesHeapUsage() {
             shardHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, ShardHeapUsage> currentShardHeapUsages) {
-                    shardHeapUsages = currentShardHeapUsages;
+                public void onResponse(Map<String, Long> currentShardHeapUsages) {
+                    estimatedHeapUsagePerNode = currentShardHeapUsages;
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for nodes", e);
-                    shardHeapUsages = Map.of();
+                    estimatedHeapUsagePerNode = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -311,6 +311,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             nodesStatsRequest.setIncludeShardsStats(false);
             nodesStatsRequest.clear();
             nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.FS);
+            nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.JVM);
             nodesStatsRequest.setTimeout(fetchTimeout);
             client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
@@ -323,13 +324,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
                     Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
                     Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
-                    fillDiskUsagePerNode(
+                    Map<String, ByteSizeValue> maxHeapPerNodeBuilder = new HashMap<>();
+                    processNodeStatsArray(
                         adjustNodesStats(nodesStatsResponse.getNodes()),
                         leastAvailableUsagesBuilder,
-                        mostAvailableUsagesBuilder
+                        mostAvailableUsagesBuilder,
+                        maxHeapPerNodeBuilder
                     );
                     leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
                     mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
+                    maxHeapPerNode = Map.copyOf(maxHeapPerNodeBuilder);
                 }
 
                 @Override
@@ -341,6 +345,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     }
                     leastAvailableSpaceUsages = Map.of();
                     mostAvailableSpaceUsages = Map.of();
+                    maxHeapPerNode = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -433,6 +438,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @Override
     public ClusterInfo getClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
+        final Map<String, ShardHeapUsage> shardHeapUsages = new HashMap<>();
+        maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
+            final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
+            if (estimatedHeapUsage != null) {
+                shardHeapUsages.put(nodeId, new ShardHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
+            }
+        });
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
@@ -503,10 +515,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
-    private static void fillDiskUsagePerNode(
+    private static void processNodeStatsArray(
         List<NodeStats> nodeStatsArray,
         Map<String, DiskUsage> newLeastAvailableUsages,
-        Map<String, DiskUsage> newMostAvailableUsages
+        Map<String, DiskUsage> newMostAvailableUsages,
+        Map<String, ByteSizeValue> maxHeapPerNodeBuilder
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
             DiskUsage leastAvailableUsage = DiskUsage.findLeastAvailablePath(nodeStats);
@@ -517,6 +530,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             if (mostAvailableUsage != null) {
                 newMostAvailableUsages.put(nodeStats.getNode().getId(), mostAvailableUsage);
             }
+            maxHeapPerNodeBuilder.put(nodeStats.getNode().getId(), nodeStats.getJvm().getMem().getHeapMax());
         }
     }
 

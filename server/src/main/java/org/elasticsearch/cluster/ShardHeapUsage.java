@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Record representing an estimate of the heap used by allocated shards and ongoing merges on a particular node
  */
-public record ShardHeapUsage(String nodeId, String nodeName, long totalBytes, long estimatedUsageBytes) implements Writeable {
+public record ShardHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) implements Writeable {
 
     public ShardHeapUsage {
         assert totalBytes >= 0;
@@ -26,13 +26,12 @@ public record ShardHeapUsage(String nodeId, String nodeName, long totalBytes, lo
     }
 
     public ShardHeapUsage(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readVLong(), in.readVLong());
+        this(in.readString(), in.readVLong(), in.readVLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.nodeId);
-        out.writeString(this.nodeName);
         out.writeVLong(this.totalBytes);
         out.writeVLong(this.estimatedUsageBytes);
     }

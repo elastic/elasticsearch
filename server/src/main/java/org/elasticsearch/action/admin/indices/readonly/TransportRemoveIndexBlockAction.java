@@ -9,14 +9,16 @@
 
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -24,7 +26,10 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -32,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Removes a single index level block from a given set of indices. This action removes the block setting
@@ -40,19 +46,17 @@ import java.util.Arrays;
 public class TransportRemoveIndexBlockAction extends TransportMasterNodeAction<RemoveIndexBlockRequest, RemoveIndexBlockResponse> {
 
     public static final ActionType<RemoveIndexBlockResponse> TYPE = new ActionType<>("indices:admin/block/remove");
-    private static final Logger logger = LogManager.getLogger(TransportRemoveIndexBlockAction.class);
 
-    private final MetadataIndexStateService indexStateService;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
+    private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> removeBlocksQueue;
 
     @Inject
     public TransportRemoveIndexBlockAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        MetadataIndexStateService indexStateService,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -68,10 +72,17 @@ public class TransportRemoveIndexBlockAction extends TransportMasterNodeAction<R
             RemoveIndexBlockResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.indexStateService = indexStateService;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
+
+        removeBlocksQueue = clusterService.createTaskQueue("remove-blocks", Priority.URGENT, new SimpleBatchedAckListenerTaskExecutor<>() {
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(AckedClusterStateUpdateTask task, ClusterState clusterState)
+                throws Exception {
+                return Tuple.tuple(task.execute(clusterState), task);
+            }
+        });
     }
 
     @Override
@@ -108,19 +119,31 @@ public class TransportRemoveIndexBlockAction extends TransportMasterNodeAction<R
             return;
         }
 
-        indexStateService.removeIndexBlock(
-            new RemoveIndexBlockClusterStateUpdateRequest(
-                request.masterNodeTimeout(),
-                request.ackTimeout(),
-                projectResolver.getProjectId(),
-                request.getBlock(),
-                task.getId(),
-                concreteIndices
-            ),
-            listener.delegateResponse((delegatedListener, t) -> {
-                logger.debug(() -> "failed to remove block from indices [" + Arrays.toString(concreteIndices) + "]", t);
-                delegatedListener.onFailure(t);
-            })
+        final var projectId = projectResolver.getProjectId();
+        removeBlocksQueue.submitTask(
+            "remove-index-block-[" + request.getBlock().name() + "]-" + Arrays.toString(concreteIndices),
+            new AckedClusterStateUpdateTask(request, listener) {
+                private List<RemoveIndexBlockResponse.RemoveBlockResult> results;
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final var tuple = MetadataIndexStateService.removeIndexBlock(
+                        projectId,
+                        concreteIndices,
+                        currentState,
+                        request.getBlock()
+                    );
+                    results = tuple.v2();
+                    return tuple.v1();
+                }
+
+                @Override
+                protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                    return new RemoveIndexBlockResponse(acknowledged, results);
+                }
+            },
+            request.masterNodeTimeout()
         );
     }
+
 }

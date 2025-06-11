@@ -25,8 +25,6 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockClusterState
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
-import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse.RemoveBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -143,7 +141,6 @@ public class MetadataIndexStateService {
     private final MasterServiceTaskQueue<CloseIndicesTask> closesQueue;
     private final MasterServiceTaskQueue<AddBlocksTask> addBlocksQueue;
     private final MasterServiceTaskQueue<FinalizeBlocksTask> finalizeBlocksQueue;
-    private final MasterServiceTaskQueue<RemoveBlocksTask> removeBlocksQueue;
 
     @Inject
     public MetadataIndexStateService(
@@ -168,7 +165,6 @@ public class MetadataIndexStateService {
         closesQueue = clusterService.createTaskQueue("close-index", Priority.URGENT, new CloseIndicesExecutor());
         addBlocksQueue = clusterService.createTaskQueue("add-blocks", Priority.URGENT, new AddBlocksExecutor());
         finalizeBlocksQueue = clusterService.createTaskQueue("finalize-blocks", Priority.URGENT, new FinalizeBlocksExecutor());
-        removeBlocksQueue = clusterService.createTaskQueue("remove-blocks", Priority.URGENT, new RemoveBlocksExecutor());
     }
 
     /**
@@ -518,24 +514,6 @@ public class MetadataIndexStateService {
         );
     }
 
-    /**
-     * Removes an index block and notifies the listener upon completion.
-     * Unlike adding blocks, removing blocks does not require shard verification.
-     * The operation is idempotent and will succeed even if the block doesn't exist.
-     */
-    public void removeIndexBlock(RemoveIndexBlockClusterStateUpdateRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
-        final Index[] concreteIndices = request.indices();
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            throw new IllegalArgumentException("Index name is required");
-        }
-
-        removeBlocksQueue.submitTask(
-            "remove-index-block-[" + request.block().name + "]-" + Arrays.toString(concreteIndices),
-            new RemoveBlocksTask(request, listener),
-            request.masterNodeTimeout()
-        );
-    }
-
     private class AddBlocksExecutor extends SimpleBatchedExecutor<AddBlocksTask, Map<Index, ClusterBlock>> {
 
         @Override
@@ -620,30 +598,6 @@ public class MetadataIndexStateService {
         boolean markVerified,
         ActionListener<AddIndexBlockResponse> listener
     ) implements ClusterStateTaskListener {
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private class RemoveBlocksExecutor extends SimpleBatchedExecutor<RemoveBlocksTask, List<RemoveBlockResult>> {
-
-        @Override
-        public Tuple<ClusterState, List<RemoveBlockResult>> executeTask(RemoveBlocksTask task, ClusterState clusterState) {
-            return removeIndexBlock(task.request.projectId(), task.request.indices(), clusterState, task.request.block());
-        }
-
-        @Override
-        public void taskSucceeded(RemoveBlocksTask task, List<RemoveBlockResult> results) {
-            final boolean acknowledged = results.stream().noneMatch(RemoveBlockResult::hasFailures);
-            task.listener().onResponse(new RemoveIndexBlockResponse(acknowledged, results));
-        }
-    }
-
-    private record RemoveBlocksTask(RemoveIndexBlockClusterStateUpdateRequest request, ActionListener<RemoveIndexBlockResponse> listener)
-        implements
-            ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
@@ -1205,7 +1159,7 @@ public class MetadataIndexStateService {
         );
     }
 
-    private static Tuple<ClusterState, List<RemoveBlockResult>> removeIndexBlock(
+    public static Tuple<ClusterState, List<RemoveBlockResult>> removeIndexBlock(
         final ProjectId projectId,
         final Index[] indices,
         final ClusterState currentState,

@@ -352,6 +352,27 @@ setup:
 
   - match: { error.root_cause.0.reason: "[linear] does not support the simplified query format when querying multiple indices" }
 
+  - do:
+      indices.put_alias:
+        index: test-index
+        name: test-alias
+  - do:
+      indices.put_alias:
+        index: test-index-2
+        name: test-alias
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-alias
+        body:
+          retriever:
+            linear:
+              query: "match"
+              normalizer: "minmax"
+
+  - match: { error.root_cause.0.reason: "[linear] does not support the simplified query format when querying multiple indices" }
+
 ---
 "Wildcard field patterns that do not resolve to any field are handled gracefully":
   - do:

@@ -36,9 +36,6 @@ public class PatternedTextDocValues extends SortedSetDocValues {
         }
 
         SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
-
-        assert templateDocValues.getValueCount() <= 1;
-        assert argsDocValues.getValueCount() <= 1;
         return new PatternedTextDocValues(templateDocValues, argsDocValues);
     }
 
@@ -61,7 +58,10 @@ public class PatternedTextDocValues extends SortedSetDocValues {
         String template = templateDocValues.lookupOrd(l).utf8ToString();
         int argsCount = PatternedTextValueProcessor.countArgs(template);
         List<String> args = new ArrayList<>(argsCount);
-        PatternedTextValueProcessor.addRemainingArgs(args, argsDocValues.lookupOrd(argsDocValues.nextOrd()).utf8ToString());
+        if (argsCount > 0) {
+            var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
+            PatternedTextValueProcessor.addRemainingArgs(args, mergedArgs.utf8ToString());
+        }
         return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args, null));
     }
 

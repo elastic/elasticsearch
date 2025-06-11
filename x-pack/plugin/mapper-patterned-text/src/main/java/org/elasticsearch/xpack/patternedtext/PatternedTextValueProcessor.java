@@ -17,16 +17,6 @@ public class PatternedTextValueProcessor {
     private static final String SPACE = " ";
 
     record Parts(String template, List<String> args, String indexed) {
-        String templateStripped() {
-            List<String> stripped = new ArrayList<>();
-            String[] parts = template.split(SPACE);
-            for (String part : parts) {
-                if (part.startsWith("%") == false) {
-                    stripped.add(part);
-                }
-            }
-            return String.join(SPACE, stripped);
-        }
     }
 
     static Parts split(String text) {

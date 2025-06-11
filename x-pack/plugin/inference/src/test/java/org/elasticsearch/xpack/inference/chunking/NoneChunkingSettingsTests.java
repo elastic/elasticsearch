@@ -15,7 +15,7 @@ import java.io.IOException;
 public class NoneChunkingSettingsTests extends AbstractWireSerializingTestCase<NoneChunkingSettings> {
     @Override
     protected Writeable.Reader<NoneChunkingSettings> instanceReader() {
-        return NoneChunkingSettings::new;
+        return in -> NoneChunkingSettings.INSTANCE;
     }
 
     @Override

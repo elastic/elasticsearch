@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.chunking.NoopChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 
@@ -127,7 +128,12 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
         if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
-            return List.of(new ChunkedInput(inputText, 0, inputText.length()));
+            var offsets = NoopChunker.INSTANCE.chunk(input.input(), chunkingSettings);
+            List<ChunkedInput> ret = new ArrayList<>();
+            for (var offset : offsets) {
+                ret.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+            }
+            return ret;
         } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;

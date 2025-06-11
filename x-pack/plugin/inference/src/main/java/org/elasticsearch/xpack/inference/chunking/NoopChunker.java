@@ -21,7 +21,7 @@ import java.util.List;
  * </p>
  */
 public class NoopChunker implements Chunker {
-    static final NoopChunker INSTANCE = new NoopChunker();
+    public static final NoopChunker INSTANCE = new NoopChunker();
 
     private NoopChunker() {}
 

@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
@@ -32,8 +31,6 @@ public class NoneChunkingSettings implements ChunkingSettings {
     private static final Set<String> VALID_KEYS = Set.of(ChunkingSettingsOptions.STRATEGY.toString());
 
     private NoneChunkingSettings() {}
-
-    public NoneChunkingSettings(StreamInput in) throws IOException {}
 
     @Override
     public ChunkingStrategy getChunkingStrategy() {
@@ -81,7 +78,7 @@ public class NoneChunkingSettings implements ChunkingSettings {
             throw validationException;
         }
 
-        return new NoneChunkingSettings();
+        return NoneChunkingSettings.INSTANCE;
     }
 
     @Override

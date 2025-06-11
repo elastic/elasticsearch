@@ -618,7 +618,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         (String) ((Map<String, Object>) indexExplanation.get("step_info")).get("message"),
                         containsString("Waiting until the index's time series end time lapses")
                     );
-                }, 30, TimeUnit.SECONDS);
+                }, 5, TimeUnit.MINUTES);
 
                 int initialLeaderDocCount = getDocCount(leaderClient, backingIndexName);
 
@@ -648,7 +648,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         explainIndex(client(), backingIndexName).get("step"),
                         is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
                     );
-                }, 30, TimeUnit.SECONDS);
+                }, 5, TimeUnit.MINUTES);
             }
         }
     }

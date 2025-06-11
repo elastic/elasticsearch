@@ -1,5 +1,6 @@
 pr: 129282
-summary: Fix Semantic Query Rewrite Interception Drops Boosts
-area: Relevance
+summary: Fix query rewrite logic to preserve `boosts` and `queryName` for `match`, `knn`, and `sparse_vector` queries on semantic_text fields
+area: Search
 type: bug
-issues: []
+issues:
+  - 128696

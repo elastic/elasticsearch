@@ -1,0 +1,5 @@
+pr: 129140
+summary: Increment inference stats counter for shard bulk inference calls
+area: Machine Learning
+type: enhancement
+issues: []

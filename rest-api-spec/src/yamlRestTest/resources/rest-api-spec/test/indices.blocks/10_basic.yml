@@ -24,16 +24,47 @@
         index: test_index
 
   - do:
-      indices.remove_block:
+      indices.put_settings:
         index: test_index
+        body:
+          index.blocks.write: false
+
+---
+"Test removing block via remove_block API":
+  - requires:
+      cluster_features: ["gte_v9.1.0"]
+      reason:  "index block APIs have only been made available in 9.1.0"
+  - do:
+      indices.create:
+        index: test_index_2
+
+  - do:
+      indices.add_block:
+        index: test_index_2
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      catch: /cluster_block_exception/
+      index:
+        index:  test_index_2
+        body:   { foo: bar }
+
+  - do:
+      search:
+        index: test_index_2
+
+  - do:
+      indices.remove_block:
+        index: test_index_2
         block: write
   - is_true: acknowledged
 
   - do:
       index:
-        index: test_index
+        index: test_index_2
         body: { foo: bar }
 
   - do:
       search:
-        index: test_index
+        index: test_index_2

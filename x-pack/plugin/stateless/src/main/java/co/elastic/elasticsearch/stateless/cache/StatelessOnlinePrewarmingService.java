@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
@@ -44,6 +45,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static co.elastic.elasticsearch.stateless.Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.Stateless.PREWARM_THREAD_POOL;
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.INFO;
@@ -76,8 +78,10 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
 
     private static final Logger logger = LogManager.getLogger(StatelessOnlinePrewarmingService.class);
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
-        assert Thread.currentThread().getName().contains(PREWARM_THREAD_POOL)
-            : "writeBuffer should only be used in the prewarm thread pool but used in " + Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(
+            Stateless.PREWARM_THREAD_POOL,
+            Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        ) : "writeBuffer should only be used in the prewarm or fill vbcc thread pool but used in " + Thread.currentThread().getName();
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
     public static final String SHARD_TOOK_DURATION_HISTOGRAM_NAME = "es.online_prewarming.shard_took_durations.histogram";
@@ -219,7 +223,11 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                                 cacheBlobReader,
                                 () -> writeBuffer.get().clear(),
                                 bytesCopiedForShard::addAndGet,
-                                PREWARM_THREAD_POOL
+                                // Can be executed on different thread pool depending whether we read from
+                                // the SharedBlobCacheWarmingService (PREWARM_THREAD_POOL pool) or the IndexingShardCacheBlobReader (VBCC
+                                // pool)
+                                PREWARM_THREAD_POOL,
+                                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                             )
                         ),
                         fetchRangeRunnable -> throttledTaskRunner.enqueueTask(new ActionListener<>() {

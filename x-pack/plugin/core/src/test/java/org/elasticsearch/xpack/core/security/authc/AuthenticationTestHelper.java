@@ -244,6 +244,30 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static Authentication randomCloudApiKeyAuthentication() {
+        return randomCloudApiKeyAuthentication(null, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(String apiKeyId) {
+        return randomCloudApiKeyAuthentication(null, apiKeyId);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId) {
+        if (apiKeyId == null) {
+            apiKeyId = ESTestCase.randomAlphanumericOfLength(64);
+        }
+        if (user == null) {
+            user = randomUser();
+        }
+        Map<String, Object> metadata = Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+
+        return Authentication.newCloudApiKeyAuthentication(
+            AuthenticationResult.success(user, metadata),
+            ESTestCase.randomAlphaOfLengthBetween(3, 8)
+        );
+
+    }
+
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {

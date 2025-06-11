@@ -113,10 +113,15 @@ public class AuthenticationTests extends ESTestCase {
             randomAuthentication(user1, realm1),
             randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20))
         );
+        assertCannotAccessResources(
+            randomAuthentication(user1, realm1),
+            randomCloudApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20))
+        );
 
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         assertCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+        assertCanAccessResources(randomCloudApiKeyAuthentication(user1, apiKeyId1), randomCloudApiKeyAuthentication(user1, apiKeyId1));
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
@@ -124,6 +129,11 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
         );
+        assertCannotAccessResources(
+            randomCloudApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
+            randomCloudApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
+        );
+
         final User user3 = randomValueOtherThanMany(
             u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
             AuthenticationTests::randomUser
@@ -134,6 +144,11 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user2, realm2),
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
         );
+        // Same cloud API key but run-as different user are not the same owner
+        assertCannotAccessResources(
+            randomCloudApiKeyAuthentication(user1, apiKeyId1).runAs(user2, realm2),
+            randomCloudApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
+        );
 
         // Same or different API key run-as the same user are the same owner
         assertCanAccessResources(
@@ -143,6 +158,15 @@ public class AuthenticationTests extends ESTestCase {
         assertCanAccessResources(
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
+        );
+        // Same or different cloud API key run-as the same user are the same owner
+        assertCanAccessResources(
+            randomCloudApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
+            randomCloudApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
+        );
+        assertCanAccessResources(
+            randomCloudApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
+            randomCloudApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
     }
 
@@ -1311,6 +1335,10 @@ public class AuthenticationTests extends ESTestCase {
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
         }
         return AuthenticationTestHelper.builder().user(user).realmRef(realmRef).transportVersion(version).metadata(metadata).build(isRunAs);
+    }
+
+    private static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId) {
+        return AuthenticationTestHelper.randomCloudApiKeyAuthentication(user, apiKeyId);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {

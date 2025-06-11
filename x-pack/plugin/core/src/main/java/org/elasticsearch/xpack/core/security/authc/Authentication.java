@@ -61,6 +61,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCloudApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
@@ -71,6 +72,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
@@ -264,6 +267,16 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
+        if (isCloudApiKey() && olderVersion.before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + "] can't handle cloud API key authentication and attempted to rewrite for ["
+                    + olderVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
+
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
 
         final Authentication newAuthentication;
@@ -528,6 +541,10 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
+    public boolean isCloudApiKey() {
+        return effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY;
+    }
+
     public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
@@ -621,6 +638,16 @@ public final class Authentication implements ToXContentObject {
                 "versions of Elasticsearch before ["
                     + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        if (effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY
+            && out.getTransportVersion().before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + "] can't handle cloud API key authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
@@ -721,14 +748,15 @@ public final class Authentication implements ToXContentObject {
      */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
         final User user = effectiveSubject.getUser();
+        final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final String tokenName = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+            final String tokenName = (String) metadata.get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            final String tokenSource = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            final String tokenSource = (String) metadata.get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
@@ -763,14 +791,25 @@ public final class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey() || isCrossClusterAccess()) {
-            final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
-            if (apiKeyName == null) {
-                builder.field("api_key", Map.of("id", apiKeyId));
-            } else {
-                builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
+
+        final String managedBy = (String) metadata.get(AuthenticationField.MANAGED_BY_KEY);
+        if (managedBy != null) {
+            builder.field("managed_by", managedBy);
+        }
+
+        if (isApiKey() || isCrossClusterAccess() || isCloudApiKey()) {
+            final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+            final Map<String, Object> apiKeyField = new HashMap<>();
+            apiKeyField.put("id", apiKeyId);
+            if (apiKeyName != null) {
+                apiKeyField.put("name", apiKeyName);
             }
+            if (isCloudApiKey()) {
+                final boolean internal = (boolean) metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY);
+                apiKeyField.put("internal", internal);
+            }
+            builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
     }
 
@@ -891,12 +930,15 @@ public final class Authentication implements ToXContentObject {
 
     private void checkConsistencyForApiKeyAuthenticationType() {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
-        if (false == authenticatingRealm.isApiKeyRealm() && false == authenticatingRealm.isCrossClusterAccessRealm()) {
+        if (false == authenticatingRealm.isApiKeyRealm()
+            && false == authenticatingRealm.isCrossClusterAccessRealm()
+            && false == authenticatingRealm.isCloudApiKeyRealm()) {
             throw new IllegalArgumentException(
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        checkConsistencyForApiKeyAuthenticatingSubject("API key");
+        final String prefixMessage = authenticatingRealm.isCloudApiKeyRealm() ? "Cloud API key" : "API key";
+        checkConsistencyForApiKeyAuthenticatingSubject(prefixMessage);
         if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
@@ -983,7 +1025,9 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
         checkNoDomain(authenticatingRealm, prefixMessage);
         checkNoInternalUser(authenticatingSubject, prefixMessage);
-        checkNoRole(authenticatingSubject, prefixMessage);
+        if (Subject.Type.CLOUD_API_KEY != authenticatingSubject.getType()) {
+            checkNoRole(authenticatingSubject, prefixMessage);
+        }
         if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
             throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
         }
@@ -1025,7 +1069,8 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_NAME,
             FALLBACK_REALM_NAME,
             ATTACH_REALM_NAME,
-            CROSS_CLUSTER_ACCESS_REALM_NAME
+            CROSS_CLUSTER_ACCESS_REALM_NAME,
+            CLOUD_API_KEY_REALM_NAME
         ).contains(realmRef.getName())) {
             return true;
         }
@@ -1035,7 +1080,8 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_TYPE,
             FALLBACK_REALM_TYPE,
             ATTACH_REALM_TYPE,
-            CROSS_CLUSTER_ACCESS_REALM_TYPE
+            CROSS_CLUSTER_ACCESS_REALM_TYPE,
+            CLOUD_API_KEY_REALM_TYPE
         ).contains(realmRef.getType())) {
             return true;
         }
@@ -1183,6 +1229,10 @@ public final class Authentication implements ToXContentObject {
             return ANONYMOUS_REALM_NAME.equals(name) && ANONYMOUS_REALM_TYPE.equals(type);
         }
 
+        private boolean isCloudApiKeyRealm() {
+            return CLOUD_API_KEY_REALM_NAME.equals(name) && CLOUD_API_KEY_REALM_TYPE.equals(type);
+        }
+
         private boolean isApiKeyRealm() {
             return API_KEY_REALM_NAME.equals(name) && API_KEY_REALM_TYPE.equals(type);
         }
@@ -1210,6 +1260,11 @@ public final class Authentication implements ToXContentObject {
         static RealmRef newServiceAccountRealmRef(String nodeName) {
             // no domain for service account tokens
             return new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName, null);
+        }
+
+        static RealmRef newCloudApiKeyRealmRef(String nodeName) {
+            // no domain for cloud API key tokens
+            return new RealmRef(CLOUD_API_KEY_REALM_NAME, CLOUD_API_KEY_REALM_TYPE, nodeName, null);
         }
 
         static RealmRef newApiKeyRealmRef(String nodeName) {
@@ -1291,6 +1346,16 @@ public final class Authentication implements ToXContentObject {
         assert false == authentication.isAuthenticatedInternally();
         assert false == authentication.isAuthenticatedAnonymously();
         return authentication;
+    }
+
+    public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        assert authResult.isAuthenticated() : "cloud API Key authn result must be successful";
+        final User apiKeyUser = authResult.getValue();
+        final Authentication.RealmRef authenticatedBy = newCloudApiKeyRealmRef(nodeName);
+        return new Authentication(
+            new Subject(apiKeyUser, authenticatedBy, TransportVersion.current(), authResult.getMetadata()),
+            AuthenticationType.API_KEY
+        );
     }
 
     public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
@@ -1592,6 +1657,14 @@ public final class Authentication implements ToXContentObject {
         TOKEN,
         ANONYMOUS,
         INTERNAL
+    }
+
+    /**
+     *  Indicates if the credentials are managed by Elasticsearch or by the cloud.
+     */
+    public enum ManagedBy {
+        CLOUD,
+        ELASTICSEARCH
     }
 
     public static class AuthenticationSerializationHelper {

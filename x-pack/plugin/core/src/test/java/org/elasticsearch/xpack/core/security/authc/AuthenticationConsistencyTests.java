@@ -149,9 +149,39 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
+                "Cloud API key authentication cannot have domain",
+                encodeAuthentication(
+                    new Subject(
+                        userFoo,
+                        new Authentication.RealmRef(
+                            AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+                            AuthenticationField.CLOUD_API_KEY_REALM_TYPE,
+                            "node",
+                            new RealmDomain(
+                                "domain1",
+                                Set.of(
+                                    new RealmConfig.RealmIdentifier(
+                                        AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+                                        AuthenticationField.CLOUD_API_KEY_REALM_TYPE
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
                 "API key authentication cannot have internal user [_xpack]",
                 encodeAuthentication(
                     new Subject(InternalUsers.XPACK_USER, Authentication.RealmRef.newApiKeyRealmRef("node")),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication cannot have internal user [_xpack]",
+                encodeAuthentication(
+                    new Subject(InternalUsers.XPACK_USER, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     Authentication.AuthenticationType.API_KEY
                 )
             ),
@@ -166,6 +196,13 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 "API key authentication requires metadata to contain a non-null API key ID",
                 encodeAuthentication(
                     new Subject(userFoo, Authentication.RealmRef.newApiKeyRealmRef("node")),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication requires metadata to contain a non-null API key ID",
+                encodeAuthentication(
+                    new Subject(new User("username", "role1"), Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     Authentication.AuthenticationType.API_KEY
                 )
             ),
@@ -327,6 +364,14 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 "Run-as subject type cannot be [API_KEY]",
                 encodeAuthentication(
                     new Subject(userBar, Authentication.RealmRef.newApiKeyRealmRef("node")),
+                    new Subject(userFoo, realm1),
+                    Authentication.AuthenticationType.REALM
+                )
+            ),
+            entry(
+                "Run-as subject type cannot be [CLOUD_API_KEY]",
+                encodeAuthentication(
+                    new Subject(userBar, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     new Subject(userFoo, realm1),
                     Authentication.AuthenticationType.REALM
                 )

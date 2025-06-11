@@ -1,15 +1,15 @@
 ## `CHANGE_POINT` [esql-change_point]
 
-:::{note}
-The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
-:::
-
 ::::{warning}
 This functionality is in technical preview and may be
 changed or removed in a future release. Elastic will work to fix any
 issues, but features in technical preview are not subject to the support
 SLA of official GA features.
 ::::
+
+:::{note}
+The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
+:::
 
 `CHANGE_POINT` detects spikes, dips, and change points in a metric.
 

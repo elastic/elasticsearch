@@ -1817,7 +1817,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testSkippedIndicesWithRefreshBlock() {
+    public void testSkippedIteratorsForIndicesWithRefreshBlock() {
         final ProjectId projectId = randomProjectIdOrDefault();
 
         String normalIndexName = "test-normal";

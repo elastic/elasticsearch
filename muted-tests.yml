@@ -517,6 +517,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.EnrichLookupStatsBug SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129229
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.MultipleBatches*
+  issue: https://github.com/elastic/elasticsearch/issues/129210
 
 # Examples:
 #

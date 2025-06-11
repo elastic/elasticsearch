@@ -27,8 +27,8 @@ Returns top documents from a <<search-api-knn,knn search>>, in the context of a 
 Combines the top results from multiple sub-retrievers using a weighted sum of their scores. Allows to specify different
 weights for each retriever, as well as independently normalize the scores from each result set.
 
-[discrete]
-[[linear-retriever-parameters]]
+  [discrete]
+  [[retrievers-overview-linear-retriever-parameters]]
 ==== Linear Retriever Parameters
 
 `retrievers`

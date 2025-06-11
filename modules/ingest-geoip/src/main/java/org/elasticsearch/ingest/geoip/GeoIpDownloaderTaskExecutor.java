@@ -53,7 +53,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -105,7 +104,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private volatile boolean eagerDownload;
 
     private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, Boolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
@@ -239,22 +238,23 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
             projectResolver.executeOnProject(projectId, () -> {
                 // bootstrap task once iff it is not already bootstrapped
-                AtomicBoolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> new AtomicBoolean(false));
-                if (taskIsBootstrapped.getAndSet(true) == false) {
+                boolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> false);
+                if (taskIsBootstrapped != true) {
+                    taskIsBootstrappedByProject.put(projectId, true);
                     this.taskIsBootstrappedByProject.computeIfAbsent(
                         projectId,
-                        k -> new AtomicBoolean(hasAtLeastOneGeoipProcessor(projectMetadata))
+                        k -> hasAtLeastOneGeoipProcessor(projectMetadata)
                     );
                     if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                         logger.debug("Bootstrapping geoip downloader task for project [{}]", projectId);
-                        startTask(() -> taskIsBootstrapped.set(false));
+                        startTask(() -> taskIsBootstrappedByProject.put(projectId, false));
                     } else {
                         logger.debug("Stopping geoip downloader task for project [{}]", projectId);
-                        stopTask(() -> taskIsBootstrapped.set(false));
+                        stopTask(() -> taskIsBootstrappedByProject.put(projectId, false));
                     }
                 }
 
-                boolean hasIngestPipelineChanges = event.changedCustomProjectMetadataSet(projectId).contains(IngestMetadata.TYPE);
+                boolean hasIngestPipelineChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
                 boolean hasIndicesChanges = false;
                 boolean projectExisted = event.previousState().metadata().hasProject(projectId);
                 if (projectExisted) {

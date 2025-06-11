@@ -502,9 +502,9 @@ public class ClusterChangedEventTests extends ESTestCase {
             ClusterState newState = ClusterState.builder(originalState).build();
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
             // existing project
-            assertTrue(event.changedCustomProjectMetadataSet(project1.id()).isEmpty());
+            assertFalse(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
             // non-existing project
-            assertTrue(event.changedCustomProjectMetadataSet(project2.id()).isEmpty());
+            assertFalse(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
         }
 
         // Add custom to existing project
@@ -513,7 +513,7 @@ public class ClusterChangedEventTests extends ESTestCase {
                 .putProjectMetadata(ProjectMetadata.builder(project1).putCustom(custom2.getWriteableName(), custom2).build())
                 .build();
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
-            assertEquals(Set.of(custom2.getWriteableName()), event.changedCustomProjectMetadataSet(project1.id()));
+            assertTrue(event.customMetadataChanged(project1.id(), custom2.getWriteableName()));
         }
 
         // Remove custom from existing project
@@ -522,7 +522,7 @@ public class ClusterChangedEventTests extends ESTestCase {
                 .putProjectMetadata(ProjectMetadata.builder(project1).removeCustom(custom1.getWriteableName()).build())
                 .build();
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
-            assertEquals(Set.of(custom1.getWriteableName()), event.changedCustomProjectMetadataSet(project1.id()));
+            assertTrue(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
         }
 
         // Add new project with custom
@@ -531,9 +531,10 @@ public class ClusterChangedEventTests extends ESTestCase {
                 .putProjectMetadata(ProjectMetadata.builder(project2).build())
                 .build();
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
-            assertEquals(Set.of(IndexGraveyard.TYPE, custom2.getWriteableName()), event.changedCustomProjectMetadataSet(project2.id()));
+            assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
+            assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
             // No change to other project
-            assertTrue(event.changedCustomProjectMetadataSet(project1.id()).isEmpty());
+            assertFalse(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
         }
 
         // remove project
@@ -544,9 +545,10 @@ public class ClusterChangedEventTests extends ESTestCase {
             // project2 is removed
             ClusterState newState = originalState;
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, oldState);
-            assertEquals(Set.of(IndexGraveyard.TYPE, custom2.getWriteableName()), event.changedCustomProjectMetadataSet(project2.id()));
+            assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
+            assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
             // No change to other project
-            assertTrue(event.changedCustomProjectMetadataSet(project1.id()).isEmpty());
+            assertFalse(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
         }
 
         // add custom to project1 + remove project2
@@ -558,8 +560,9 @@ public class ClusterChangedEventTests extends ESTestCase {
                 .putProjectMetadata(ProjectMetadata.builder(project1).putCustom(custom2.getWriteableName(), custom2).build())
                 .build();
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, oldState);
-            assertEquals(Set.of(IndexGraveyard.TYPE, custom2.getWriteableName()), event.changedCustomProjectMetadataSet(project2.id()));
-            assertEquals(Set.of(custom2.getWriteableName()), event.changedCustomProjectMetadataSet(project1.id()));
+            assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
+            assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
+            assertTrue(event.customMetadataChanged(project1.id(), custom2.getWriteableName()));
         }
     }
 

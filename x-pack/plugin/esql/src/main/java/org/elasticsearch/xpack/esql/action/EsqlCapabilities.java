@@ -1185,7 +1185,14 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot());
+        MATCH_PHRASE_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Allows LIKE to take a list of patterns to match against
+         */
+        LIKE_WITH_LIST_OF_PATTERNS;
+
+
 
         private final boolean enabled;
 

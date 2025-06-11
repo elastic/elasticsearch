@@ -739,10 +739,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List <WildcardPattern> wildcardPatterns = expressions.subList(1, expressions.size()).stream()
             .map(x->new WildcardPattern(x.fold(FoldContext.small()).toString()))
             .toList();
-        //Expression e = wildcardPatterns.size() == 1
-        //    ? new WildcardLike( source, expressions.getFirst(),wildcardPatterns.getFirst())
-        //    : new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
-        Expression e = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
+        //for now we will use the old WildcardLike function as much as possible to allow compatibility in  mixed version deployments
+        Expression e = wildcardPatterns.size() == 1
+            ? new WildcardLike( source, expressions.getFirst(),wildcardPatterns.getFirst())
+            : new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
         return ctx.NOT() == null ? e : new Not(source, e);
     }
 
@@ -757,12 +757,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx){
         Source source = source(ctx);
         List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        /*WildcardLike result =  new WildcardLike(
-            source,
-            expressions.get(0),
-            new WildcardPattern(expressions.get(1).fold(FoldContext.small() ).toString()));*/
         WildcardPattern pattern = new WildcardPattern(expressions.get(1).fold(FoldContext.small() ).toString());
-        WildcardLikeList result = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(List.of(pattern)));
+        //for now we will use the old WildcardLike function as much as possible to allow compatibility in  mixed version deployments
+        WildcardLike result =  new WildcardLike(source, expressions.get(0), pattern);
+        //WildcardLikeList result = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(List.of(pattern)));
         return ctx.NOT() == null ? result : new Not(source, result);
     }
 

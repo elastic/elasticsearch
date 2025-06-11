@@ -74,18 +74,88 @@ emp_no:integer | first_name:keyword
 10013          | Eberhardt      
 ;
 
-inLikeWithWildcard
+likeListEmptyArgWildcard
+from employees | where first_name like ("") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword    
+;
+
+likeListSingleArgWildcard
 from employees | where first_name like ("Eberhardt*") | keep emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt      
 ;
 
-inLikeTwoArgs
-from employees | where first_name like ("Eberhardt*", "testString") | keep emp_no, first_name;
+likeListTwoArgWildcard
+from employees | where first_name like ("Eberhardt*", "testString*") | keep emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt       
+;
+
+likeListThreeArgWildcard
+from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+10013          | Eberhardt
+10029          | Otmar     
+;
+
+
+likeListMultipleWhere
+from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | where first_name like ("Eberhard?", "Otm*")| keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+10029          | Otmar
+;
+
+likeListAllWildcard
+from employees | where first_name like ("*") | keep emp_no, first_name | sort emp_no | limit 2;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+;
+
+likeListOverlappingPatterns
+from employees | where first_name like ("Eber*", "Eberhardt") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+likeListCaseSensitive
+from employees | where first_name like ("eberhardt", "EBERHARDT") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;
+
+likeListSpecialCharacters
+from employees | where first_name like ("*ar*", "?eor*") | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10003          | Parto
+10011          | Mary
+10013          | Eberhardt
+10029          | Otmar
+10055          | Georgy
+10058          | Berhard
+10068          | Charlene
+10069          | Margareta
+10074          | Mokhtar
+10082          | Parviz
+10089          | Sudharsan
+10095          | Hilari
+;
+
+likeListEscapedWildcard
+from employees | where first_name like ("Eberhar\\*") | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
 ;
 
 likeEvalNoWildcard

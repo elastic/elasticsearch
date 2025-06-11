@@ -70,7 +70,8 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
     @Override
     public Automaton createAutomaton(boolean ignoreCase) {
         List<Automaton> automatonList = patternList.stream().map(x->x.createAutomaton(ignoreCase)).toList();
-        return Operations.union(automatonList);
+        Automaton result = Operations.union(automatonList);
+        return Operations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

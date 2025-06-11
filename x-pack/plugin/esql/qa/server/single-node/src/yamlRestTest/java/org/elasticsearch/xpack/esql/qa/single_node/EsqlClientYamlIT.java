@@ -22,6 +22,6 @@ public class EsqlClientYamlIT extends AbstractEsqlClientYamlIT {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return partialResultsCheckingParatmers();
+        return partialResultsCheckingParameters();
     }
 }

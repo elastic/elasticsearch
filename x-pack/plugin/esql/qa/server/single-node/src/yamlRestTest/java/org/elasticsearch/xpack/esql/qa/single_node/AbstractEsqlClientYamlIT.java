@@ -53,7 +53,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 
-    public static Iterable<Object[]> partialResultsCheckingParatmers() throws Exception {
+    public static Iterable<Object[]> partialResultsCheckingParameters() throws Exception {
         return updateExecutableSections(createParameters(), AbstractEsqlClientYamlIT::insertPartialResultsAssertion);
     }
 

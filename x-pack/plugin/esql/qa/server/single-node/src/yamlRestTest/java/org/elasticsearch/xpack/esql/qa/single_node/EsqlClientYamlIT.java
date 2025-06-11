@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.section.DoSection;
-import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
 /**
  * Run the ESQL yaml tests against the synchronous API.
@@ -24,17 +22,6 @@ public class EsqlClientYamlIT extends AbstractEsqlClientYamlIT {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return updateEsqlQueryDoSections(createParameters(), EsqlClientYamlIT::modifyEsqlQueryExecutableSection);
+        return partialResultsDisablingParameters();
     }
-
-    private static ExecutableSection modifyEsqlQueryExecutableSection(DoSection doSection) {
-        var apiCallSection = doSection.getApiCallSection();
-        if (apiCallSection.getApi().equals("esql.query")) {
-            if (apiCallSection.getParams().containsKey("allow_partial_results") == false) {
-                apiCallSection.addParam("allow_partial_results", "false"); // we want any error to fail the test
-            }
-        }
-        return doSection;
-    }
-
 }

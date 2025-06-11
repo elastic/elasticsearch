@@ -736,12 +736,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
         Source source = source(ctx);
-        List <WildcardPattern> wildcardPatterns = expressions.subList(1, expressions.size()).stream()
-            .map(x->new WildcardPattern(x.fold(FoldContext.small()).toString()))
+        List<WildcardPattern> wildcardPatterns = expressions.subList(1, expressions.size())
+            .stream()
+            .map(x -> new WildcardPattern(x.fold(FoldContext.small()).toString()))
             .toList();
-        //for now we will use the old WildcardLike function as much as possible to allow compatibility in  mixed version deployments
+        // for now we will use the old WildcardLike function as much as possible to allow compatibility in mixed version deployments
         Expression e = wildcardPatterns.size() == 1
-            ? new WildcardLike( source, expressions.getFirst(),wildcardPatterns.getFirst())
+            ? new WildcardLike(source, expressions.getFirst(), wildcardPatterns.getFirst())
             : new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
         return ctx.NOT() == null ? e : new Not(source, e);
     }
@@ -754,25 +755,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx){
+    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
         Source source = source(ctx);
         List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        WildcardPattern pattern = new WildcardPattern(expressions.get(1).fold(FoldContext.small() ).toString());
-        //for now we will use the old WildcardLike function as much as possible to allow compatibility in  mixed version deployments
-        WildcardLike result =  new WildcardLike(source, expressions.get(0), pattern);
-        //WildcardLikeList result = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(List.of(pattern)));
+        WildcardPattern pattern = new WildcardPattern(expressions.get(1).fold(FoldContext.small()).toString());
+        // for now we will use the old WildcardLike function as much as possible to allow compatibility in mixed version deployments
+        WildcardLike result = new WildcardLike(source, expressions.get(0), pattern);
+        // WildcardLikeList result = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(List.of(pattern)));
         return ctx.NOT() == null ? result : new Not(source, result);
     }
 
     @Override
-    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx){
+    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
         Source source = source(ctx);
         List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        RLike rLike =  new RLike(
-            source,
-            expressions.get(0),
-            new RLikePattern(expressions.get(1).fold(FoldContext.small() ).toString())
-        );
+        RLike rLike = new RLike(source, expressions.get(0), new RLikePattern(expressions.get(1).fold(FoldContext.small()).toString()));
         return ctx.NOT() == null ? rLike : new Not(source, rLike);
     }
 

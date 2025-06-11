@@ -75,7 +75,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         );
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
@@ -106,8 +105,8 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if(pattern().patternList().size() != 1){
-            //we only support a single pattern in the list for pushdown for now
+        if (pattern().patternList().size() != 1) {
+            // we only support a single pattern in the list for pushdown for now
             return Translatable.NO;
         }
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;

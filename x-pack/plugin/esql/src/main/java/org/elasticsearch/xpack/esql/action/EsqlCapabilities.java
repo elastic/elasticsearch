@@ -1192,8 +1192,6 @@ public class EsqlCapabilities {
          */
         LIKE_WITH_LIST_OF_PATTERNS;
 
-
-
         private final boolean enabled;
 
         Cap() {

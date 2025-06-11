@@ -27,11 +27,7 @@ import static org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
  *
  */
 public class WildcardPatternList extends AbstractStringPattern implements NamedWriteable {
-    public static final Entry ENTRY = new Entry(
-        WildcardPatternList.class,
-        "WildcardPatternList",
-        WildcardPatternList::new
-    );
+    public static final Entry ENTRY = new Entry(WildcardPatternList.class, "WildcardPatternList", WildcardPatternList::new);
     public static final String NAME = "WildcardPatternList";
     private final List<WildcardPattern> patternList;
 
@@ -56,20 +52,21 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
     public String getWriteableName() {
         return NAME;
     }
-    public static WildcardPatternList readFrom(StreamInput in) throws IOException{
+
+    public static WildcardPatternList readFrom(StreamInput in) throws IOException {
         return new WildcardPatternList(in.readCollectionAsList(WildcardPattern::readFrom));
     }
 
     public List<WildcardPattern> patternList() {
         return patternList;
     }
-    //public String pattern() {
-    //    return wildcard;
-    //}
+    // public String pattern() {
+    // return wildcard;
+    // }
 
     @Override
     public Automaton createAutomaton(boolean ignoreCase) {
-        List<Automaton> automatonList = patternList.stream().map(x->x.createAutomaton(ignoreCase)).toList();
+        List<Automaton> automatonList = patternList.stream().map(x -> x.createAutomaton(ignoreCase)).toList();
         Automaton result = Operations.union(automatonList);
         return Operations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
@@ -81,7 +78,7 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
 
     @Override
     public String pattern() {
-        return  "(\"" + patternList.stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \"")) + "\")";
+        return "(\"" + patternList.stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \"")) + "\")";
     }
 
     /**
@@ -91,13 +88,12 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
         throw new RuntimeException("LIKELIST does not have a Lucine Wildcard");
     }
 
-
     /**
      * Returns the pattern in (IndexNameExpressionResolver) wildcard format.
      */
-    //public String asIndexNameWildcard() {
-    //    return wildcard;
-    //}
+    // public String asIndexNameWildcard() {
+    // return wildcard;
+    // }
 
     @Override
     public int hashCode() {

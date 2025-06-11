@@ -37,7 +37,8 @@ public class WildcardPattern extends AbstractStringPattern {
         // early initialization to force string validation
         this.regex = StringUtils.wildcardToJavaPattern(pattern, '\\');
     }
-    public WildcardPattern(StreamInput in) throws IOException{
+
+    public WildcardPattern(StreamInput in) throws IOException {
         this(in.readString());
     }
 

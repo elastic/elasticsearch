@@ -5646,7 +5646,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION CONCAT(some text, x) WITH inferenceID AS y
+        // | COMPLETION y=CONCAT(some text, x) WITH inferenceID
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,
@@ -7862,9 +7862,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var query = """
             FROM TEST
-            | SAMPLE .3 5
+            | SAMPLE .3
             | EVAL irrelevant1 = 1
-            | SAMPLE .5 10
+            | SAMPLE .5
             | EVAL irrelevant2 = 2
             | SAMPLE .1
             """;
@@ -7876,7 +7876,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(sample.child(), EsRelation.class);
 
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.015));
-        assertThat(sample.seed().fold(FoldContext.small()), equalTo(5 ^ 10));
     }
 
     public void testSamplePushDown() {
@@ -7901,7 +7900,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var source = as(sample.child(), EsRelation.class);
 
             assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
-            assertNull(sample.seed());
         }
     }
 
@@ -7917,7 +7915,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(sample.child(), EsRelation.class);
 
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
-        assertNull(sample.seed());
     }
 
     public void testSamplePushDown_where() {
@@ -7931,7 +7928,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(sample.child(), EsRelation.class);
 
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
-        assertNull(sample.seed());
     }
 
     public void testSampleNoPushDown() {
@@ -7988,7 +7984,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var query = """
             FROM TEST
             | CHANGE_POINT emp_no ON hire_date
-            | SAMPLE .5 -55
+            | SAMPLE .5
             """;
         var optimized = optimizedPlan(query);
 

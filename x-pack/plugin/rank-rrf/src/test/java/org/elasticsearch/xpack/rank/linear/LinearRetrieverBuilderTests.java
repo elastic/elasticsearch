@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class LinearRetrieverBuilderTests extends ESTestCase {
-    public void testSimplifiedParamsRewrite() {
+    public void testMultiFieldsParamsRewrite() {
         final String indexName = "test-index";
         final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
@@ -60,7 +60,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             new float[0],
             new ScoreNormalizer[0]
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
@@ -79,7 +79,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             new float[0],
             new ScoreNormalizer[0]
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
@@ -98,7 +98,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             new float[0],
             new ScoreNormalizer[0]
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.5f),
@@ -117,7 +117,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             new float[0],
             new ScoreNormalizer[0]
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
             Map.of("field_*", 1.5f, "*_field_1", 2.5f),
@@ -136,7 +136,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             new float[0],
             new ScoreNormalizer[0]
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
             Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f),
@@ -155,7 +155,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             new float[0],
             new ScoreNormalizer[0]
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
             Map.of("*", 1.0f),
@@ -229,7 +229,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         );
     }
 
-    private static void assertSimplifiedParamsRewrite(
+    private static void assertMultiFieldsParamsRewrite(
         LinearRetrieverBuilder retriever,
         QueryRewriteContext ctx,
         Map<String, Float> expectedNonInferenceFields,

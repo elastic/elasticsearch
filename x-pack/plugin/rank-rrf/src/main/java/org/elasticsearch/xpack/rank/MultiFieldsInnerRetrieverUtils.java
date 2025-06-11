@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank.simplified;
+package org.elasticsearch.xpack.rank;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,12 +32,12 @@ import java.util.function.Function;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
-public class SimplifiedInnerRetrieverUtils {
-    private SimplifiedInnerRetrieverUtils() {}
+public class MultiFieldsInnerRetrieverUtils {
+    private MultiFieldsInnerRetrieverUtils() {}
 
     public record WeightedRetrieverSource(CompoundRetrieverBuilder.RetrieverSource retrieverSource, float weight) {}
 
-    public static ActionRequestValidationException validateSimplifiedFormatParams(
+    public static ActionRequestValidationException validateParams(
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers,
         List<String> fields,
         @Nullable String query,
@@ -48,7 +48,7 @@ public class SimplifiedInnerRetrieverUtils {
         ActionRequestValidationException validationException
     ) {
         if (fields.isEmpty() == false || query != null) {
-            // Using the simplified query format
+            // Using the multi-fields query format
             if (query == null) {
                 // Return early here because the following validation checks assume a query param value is provided
                 return addValidationError(

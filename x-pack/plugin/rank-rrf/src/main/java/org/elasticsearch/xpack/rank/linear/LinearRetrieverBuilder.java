@@ -28,8 +28,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
-import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -173,7 +173,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         boolean allowPartialSearchResults
     ) {
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
-        validationException = SimplifiedInnerRetrieverUtils.validateSimplifiedFormatParams(
+        validationException = MultiFieldsInnerRetrieverUtils.validateParams(
             innerRetrievers,
             fields,
             query,
@@ -284,7 +284,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && query != null) {
-            // Using the simplified query format
+            // Using the multi-fields query format
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
@@ -296,7 +296,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 );
             }
 
-            List<RetrieverSource> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
+            List<RetrieverSource> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
                 fields,
                 query,
                 localIndicesMetadata.values(),

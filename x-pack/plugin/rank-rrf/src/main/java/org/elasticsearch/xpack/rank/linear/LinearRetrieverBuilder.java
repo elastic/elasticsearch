@@ -292,11 +292,11 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
-                    "[" + NAME + "] does not support the simplified query format when querying multiple indices"
+                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying multiple indices"
                 );
             } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "[" + NAME + "] does not support the simplified query format when querying remote indices"
+                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying remote indices"
                 );
             }
 

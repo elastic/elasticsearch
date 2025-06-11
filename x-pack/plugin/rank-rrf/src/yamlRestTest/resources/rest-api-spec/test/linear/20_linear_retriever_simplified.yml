@@ -350,7 +350,7 @@ setup:
               query: "match"
               normalizer: "minmax"
 
-  - match: { error.root_cause.0.reason: "[linear] does not support the simplified query format when querying multiple indices" }
+  - match: { error.root_cause.0.reason: "[linear] cannot specify [query] when querying multiple indices" }
 
   - do:
       indices.put_alias:
@@ -371,7 +371,7 @@ setup:
               query: "match"
               normalizer: "minmax"
 
-  - match: { error.root_cause.0.reason: "[linear] does not support the simplified query format when querying multiple indices" }
+  - match: { error.root_cause.0.reason: "[linear] cannot specify [query] when querying multiple indices" }
 
 ---
 "Wildcard field patterns that do not resolve to any field are handled gracefully":

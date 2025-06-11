@@ -191,7 +191,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
         );
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> retriever.doRewrite(queryRewriteContext));
-        assertEquals("[linear] does not support the simplified query format when querying remote indices", iae.getMessage());
+        assertEquals("[linear] cannot specify [query] when querying remote indices", iae.getMessage());
     }
 
     private static ResolvedIndices createMockResolvedIndices(

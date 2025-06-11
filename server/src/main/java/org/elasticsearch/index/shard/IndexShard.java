@@ -1323,12 +1323,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.RefreshResult refresh(String source) {
         verifyNotClosed();
         logger.trace("refresh with source [{}]", source);
-        return getEngine().refresh(source);
+        return withEngine(engine -> engine.refresh(source));
     }
 
     public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
         verifyNotClosed();
-        getEngine().externalRefresh(source, listener);
+        withEngine(engine -> {
+            engine.externalRefresh(source, listener);
+            return null;
+        });
     }
 
     /**

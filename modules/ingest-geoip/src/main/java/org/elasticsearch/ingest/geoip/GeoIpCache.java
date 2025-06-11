@@ -45,7 +45,6 @@ public final class GeoIpCache {
         return new GeoIpCache(System::nanoTime, CacheBuilder.<CacheKey, CacheableValue>builder().setMaximumWeight(maxSize).build());
     }
 
-    // TODO PETE: Add tests for this
     // TODO PETE: Make plugin use this instead of the other factory method when the settings require it
     static GeoIpCache createGeoIpCacheWithMaxBytes(ByteSizeValue maxByteSize) {
         if (maxByteSize.getBytes() < 0) {
@@ -168,8 +167,13 @@ public final class GeoIpCache {
 
         private static final long BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(CacheKey.class);
 
-        public long sizeInBytes() {
-            return BASE_BYTES + RamUsageEstimator.sizeOf(ip) + RamUsageEstimator.sizeOf(databasePath);
+        private long sizeInBytes() {
+            return keySizeInBytes(ip, databasePath);
         }
+    }
+
+    // visible for testing
+    static long keySizeInBytes(String ip, String databasePath) {
+        return CacheKey.BASE_BYTES + RamUsageEstimator.sizeOf(ip) + RamUsageEstimator.sizeOf(databasePath);
     }
 }

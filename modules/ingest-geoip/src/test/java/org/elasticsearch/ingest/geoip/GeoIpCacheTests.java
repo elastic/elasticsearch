@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.test.ESTestCase;
@@ -18,17 +19,18 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class GeoIpCacheTests extends ESTestCase {
 
-    public void testCachesAndEvictsResults() {
+    private record FakeResponse(long sizeInBytes) implements GeoIpCache.CacheableValue {}
+
+    public void testCachesAndEvictsResults_maxCount() {
         GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1);
-        GeoIpCache.CacheableValue response1 = mock(GeoIpCache.CacheableValue.class);
-        GeoIpCache.CacheableValue response2 = mock(GeoIpCache.CacheableValue.class);
+        FakeResponse response1 = new FakeResponse(0);
+        FakeResponse response2 = new FakeResponse(0);
 
         // add a key
-        GeoIpCache.CacheableValue cachedResponse = cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> response1);
+        FakeResponse cachedResponse = cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> response1);
         assertSame(cachedResponse, response1);
         assertSame(cachedResponse, cache.putIfAbsent("127.0.0.1", "path/to/db", ip -> response1));
         assertSame(cachedResponse, cache.get("127.0.0.1", "path/to/db"));
@@ -41,15 +43,42 @@ public class GeoIpCacheTests extends ESTestCase {
         assertNotSame(response1, cache.get("127.0.0.1", "path/to/db"));
     }
 
+    public void testCachesAndEvictsResults_maxBytes() {
+        String ip1 = "127.0.0.1";
+        String databasePath1 = "path/to/db";
+        FakeResponse response1 = new FakeResponse(111);
+        String ip2 = "127.0.0.2";
+        String databasePath2 = "path/to/db";
+        FakeResponse response2 = new FakeResponse(222);
+        long totalSize = GeoIpCache.keySizeInBytes(ip1, databasePath1) + response1.sizeInBytes() + GeoIpCache.keySizeInBytes(
+            ip2,
+            databasePath2
+        ) + response2.sizeInBytes();
+
+        GeoIpCache justBigEnoughCache = GeoIpCache.createGeoIpCacheWithMaxBytes(ByteSizeValue.ofBytes(totalSize));
+        justBigEnoughCache.putIfAbsent(ip1, databasePath1, ip -> response1);
+        justBigEnoughCache.putIfAbsent(ip2, databasePath2, ip -> response2);
+        // Cache is just big enough for both values:
+        assertSame(response2, justBigEnoughCache.get(ip2, databasePath2));
+        assertSame(response1, justBigEnoughCache.get(ip1, databasePath1));
+
+        GeoIpCache justTooSmallCache = GeoIpCache.createGeoIpCacheWithMaxBytes(ByteSizeValue.ofBytes(totalSize - 1L));
+        justTooSmallCache.putIfAbsent(ip1, databasePath1, ip -> response1);
+        justTooSmallCache.putIfAbsent(ip2, databasePath2, ip -> response2);
+        // Cache is just too small for both values, so the older one should have been evicted:
+        assertSame(response2, justTooSmallCache.get(ip2, databasePath2));
+        assertNull(justTooSmallCache.get(ip1, databasePath1));
+    }
+
     public void testCachesNoResult() {
         GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1);
         final AtomicInteger count = new AtomicInteger(0);
-        Function<String, GeoIpCache.CacheableValue> countAndReturnNull = (ip) -> {
+        Function<String, FakeResponse> countAndReturnNull = (ip) -> {
             count.incrementAndGet();
             return null;
         };
 
-        GeoIpCache.CacheableValue response = cache.putIfAbsent("127.0.0.1", "path/to/db", countAndReturnNull);
+        FakeResponse response = cache.putIfAbsent("127.0.0.1", "path/to/db", countAndReturnNull);
         assertNull(response);
         assertNull(cache.putIfAbsent("127.0.0.1", "path/to/db", countAndReturnNull));
         assertEquals(1, count.get());
@@ -60,8 +89,8 @@ public class GeoIpCacheTests extends ESTestCase {
 
     public void testCacheKey() {
         GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(2);
-        GeoIpCache.CacheableValue response1 = mock(GeoIpCache.CacheableValue.class);
-        GeoIpCache.CacheableValue response2 = mock(GeoIpCache.CacheableValue.class);
+        FakeResponse response1 = new FakeResponse(0);
+        FakeResponse response2 = new FakeResponse(0);
 
         assertSame(response1, cache.putIfAbsent("127.0.0.1", "path/to/db1", ip -> response1));
         assertSame(response2, cache.putIfAbsent("127.0.0.1", "path/to/db2", ip -> response2));
@@ -93,7 +122,7 @@ public class GeoIpCacheTests extends ESTestCase {
             maxCacheSize,
             () -> testNanoTime.addAndGet(TimeValue.timeValueMillis(1).getNanos())
         );
-        GeoIpCache.CacheableValue response = mock(GeoIpCache.CacheableValue.class);
+        FakeResponse response = new FakeResponse(0);
         String databasePath = "path/to/db1";
         String key1 = "127.0.0.1";
         String key2 = "127.0.0.2";

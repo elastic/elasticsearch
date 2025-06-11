@@ -115,7 +115,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "StatsAndLookupIPAndMessageFromIndex",
         "JoinMaskingRegex",
         "StatsAndLookupIPFromIndex",
-        "StatsAndLookupMessageFromIndex"
+        "StatsAndLookupMessageFromIndex",
+        "MvJoinKeyOnTheLookupIndexAfterStats",
+        "MvJoinKeyOnFromAfterStats"
     );
 
     @Override

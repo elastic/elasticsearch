@@ -479,7 +479,7 @@ public class EsqlSession {
                 skipClusterOrError(
                     clusterAlias,
                     executionInfo,
-                    "Lookup index [" + index + "] is not available in cluster " + EsqlCCSUtils.inClusterName(clusterAlias)
+                    "lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias)
                 );
             }
         });

@@ -153,7 +153,8 @@ public class IngestGeoIpPlugin extends Plugin
                 // Both CACHE_SIZE_COUNT and CACHE_SIZE_BYTES are set, which is an error:
                 throw new IllegalArgumentException(
                     Strings.format(
-                        "Both %s and %s are set: please use either %s to set a size based on count or %s to set a size based on bytes of memory",
+                        "Both %s and %s are set: "
+                            + "please use either %s to set a size based on count or %s to set a size based on bytes of memory",
                         CACHE_SIZE_COUNT.getKey(),
                         CACHE_SIZE_BYTES.getKey(),
                         CACHE_SIZE_COUNT.getKey(),

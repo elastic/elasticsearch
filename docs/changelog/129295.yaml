@@ -1,0 +1,6 @@
+pr: 129295
+summary: Increase the number of retries for apt-get
+area: Security
+type: enhancement
+issues:
+ - 124490

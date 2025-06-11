@@ -244,16 +244,12 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         }
         for (EsqlExecutionInfo.Cluster cluster : executionInfo.getClusters().values()) {
             for (ShardSearchFailure failure : cluster.getFailures()) {
-                RestResponse.logSuppressedError(
-                    org.apache.logging.log4j.Level.WARN,
-                    rawPath,
-                    params,
-                    RestStatus.OK,
-                    cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
-                        ? null
-                        : "cluster: " + cluster.getClusterAlias(),
-                    failure
-                );
+                if (LOGGER.isWarnEnabled()) {
+                    String clusterMessage = cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
+                        ? ""
+                        : ", cluster: " + cluster.getClusterAlias();
+                    LOGGER.warn("partial failure at path: {}, params: {}{}", rawPath, params, clusterMessage, failure);
+                }
             }
         }
     }

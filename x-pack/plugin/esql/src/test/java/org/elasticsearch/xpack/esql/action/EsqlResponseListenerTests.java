@@ -36,14 +36,14 @@ public class EsqlResponseListenerTests extends ESTestCase {
     private final String LOCAL_CLUSTER_ALIAS = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static MockAppender appender;
-    static Logger restSuppressedLogger = LogManager.getLogger("rest.suppressed");
+    static Logger logger = LogManager.getLogger(EsqlResponseListener.class);
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("testAppender");
         appender.start();
-        Configurator.setLevel(restSuppressedLogger, Level.DEBUG);
-        Loggers.addAppender(restSuppressedLogger, appender);
+        Configurator.setLevel(logger, Level.DEBUG);
+        Loggers.addAppender(logger, appender);
     }
 
     @After
@@ -54,7 +54,7 @@ public class EsqlResponseListenerTests extends ESTestCase {
     @AfterClass
     public static void cleanup() {
         appender.stop();
-        Loggers.removeAppender(restSuppressedLogger, appender);
+        Loggers.removeAppender(logger, appender);
     }
 
     public void testLogPartialFailures() {
@@ -71,8 +71,8 @@ public class EsqlResponseListenerTests extends ESTestCase {
                 3,
                 0,
                 List.of(
-                    new ShardSearchFailure(new Exception("dummy"), target(0)),
-                    new ShardSearchFailure(new Exception("error"), target(1))
+                    new ShardSearchFailure(new Exception("dummy"), target(LOCAL_CLUSTER_ALIAS, 0)),
+                    new ShardSearchFailure(new Exception("error"), target(LOCAL_CLUSTER_ALIAS, 1))
                 ),
                 new TimeValue(4444L)
             )
@@ -82,11 +82,11 @@ public class EsqlResponseListenerTests extends ESTestCase {
         assertThat(appender.events, hasSize(2));
         LogEvent logEvent = appender.events.get(0);
         assertThat(logEvent.getLevel(), equalTo(Level.WARN));
-        assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("path: /_query, params: {}, status: 200"));
+        assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("partial failure at path: /_query, params: {}"));
         assertThat(logEvent.getThrown().getCause().getMessage(), equalTo("dummy"));
         logEvent = appender.events.get(1);
         assertThat(logEvent.getLevel(), equalTo(Level.WARN));
-        assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("path: /_query, params: {}, status: 200"));
+        assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("partial failure at path: /_query, params: {}"));
         assertThat(logEvent.getThrown().getCause().getMessage(), equalTo("error"));
     }
 
@@ -103,7 +103,7 @@ public class EsqlResponseListenerTests extends ESTestCase {
                 10,
                 3,
                 0,
-                List.of(new ShardSearchFailure(new Exception("dummy"), target(0))),
+                List.of(new ShardSearchFailure(new Exception("dummy"), target("remote_cluster", 0))),
                 new TimeValue(4444L)
             )
         );
@@ -112,12 +112,15 @@ public class EsqlResponseListenerTests extends ESTestCase {
         assertThat(appender.events, hasSize(1));
         LogEvent logEvent = appender.events.get(0);
         assertThat(logEvent.getLevel(), equalTo(Level.WARN));
-        assertThat(logEvent.getMessage().getFormattedMessage(), equalTo("path: /_query, params: {}, status: 200, cluster: remote_cluster"));
+        assertThat(
+            logEvent.getMessage().getFormattedMessage(),
+            equalTo("partial failure at path: /_query, params: {}, cluster: remote_cluster")
+        );
         assertThat(logEvent.getThrown().getCause().getMessage(), equalTo("dummy"));
     }
 
-    private SearchShardTarget target(int shardId) {
-        return new SearchShardTarget("node", new ShardId("idx", "uuid", 0), LOCAL_CLUSTER_ALIAS);
+    private SearchShardTarget target(String clusterAlias, int shardId) {
+        return new SearchShardTarget("node", new ShardId("idx", "uuid", shardId), clusterAlias);
     }
 
     private static class MockAppender extends AbstractAppender {

@@ -13,8 +13,11 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -85,7 +88,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
             MetaStateWriterUtils.writeIndex(env, "test_write", dangledIndex);
 
             final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
-            final Metadata metadata = Metadata.builder().indexGraveyard(graveyard).build();
+            @FixForMultiProject // Use random project ID
+            final Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).indexGraveyard(graveyard)).build();
 
             DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
 

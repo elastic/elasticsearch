@@ -22,23 +22,27 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class ShardSearchStatsTests extends ESTestCase {
+public class ShardSearchStatsTests extends IndexShardTestCase {
 
     private static final long TEN_MILLIS = 10;
 
@@ -57,6 +61,9 @@ public class ShardSearchStatsTests extends ESTestCase {
             shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(1, stats.getQueryCount());
+            assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -67,6 +74,12 @@ public class ShardSearchStatsTests extends ESTestCase {
             shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(1, stats.getSuggestCount());
+            assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -78,9 +91,15 @@ public class ShardSearchStatsTests extends ESTestCase {
 
             SearchStats searchStats = shardSearchStatsListener.stats("_all");
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(1, stats.getQueryCount());
+            assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
 
             stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(1, stats.getQueryCount());
+            assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -93,9 +112,21 @@ public class ShardSearchStatsTests extends ESTestCase {
 
             SearchStats searchStats = shardSearchStatsListener.stats("_all");
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(1, stats.getSuggestCount());
+            assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
 
             stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(1, stats.getSuggestCount());
+            assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -106,6 +137,11 @@ public class ShardSearchStatsTests extends ESTestCase {
             shardSearchStatsListener.onFailedQueryPhase(sc);
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(0, stats.getSuggestCount());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryFailure());
             assertEquals(0.0, stats.getSearchLoadRate(), 0);
         }
     }
@@ -116,6 +152,9 @@ public class ShardSearchStatsTests extends ESTestCase {
             shardSearchStatsListener.onFailedQueryPhase(sc);
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(1, stats.getQueryFailure());
             assertEquals(0.0, stats.getSearchLoadRate(), 0);
         }
     }
@@ -126,6 +165,9 @@ public class ShardSearchStatsTests extends ESTestCase {
             shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(1, stats.getFetchCount());
+            assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -137,9 +179,15 @@ public class ShardSearchStatsTests extends ESTestCase {
 
             SearchStats searchStats = shardSearchStatsListener.stats("_all");
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(1, stats.getFetchCount());
+            assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
 
             stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(1, stats.getFetchCount());
+            assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -150,8 +198,53 @@ public class ShardSearchStatsTests extends ESTestCase {
             shardSearchStatsListener.onFailedFetchPhase(sc);
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(0, stats.getFetchCount());
+            assertEquals(1, stats.getFetchFailure());
             assertEquals(0.0, stats.getSearchLoadRate(), 0);
         }
+    }
+
+    public void testReaderContext() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try (ReaderContext rc = createReaderContext(indexShard)) {
+            shardSearchStatsListener.onNewReaderContext(rc);
+            SearchStats stats = shardSearchStatsListener.stats();
+            assertEquals(1, stats.getOpenContexts());
+
+            shardSearchStatsListener.onFreeReaderContext(rc);
+            stats = shardSearchStatsListener.stats();
+            assertEquals(0, stats.getOpenContexts());
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testScrollContext() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try (ReaderContext rc = createReaderContext(indexShard)) {
+            shardSearchStatsListener.onNewScrollContext(rc);
+            SearchStats stats = shardSearchStatsListener.stats();
+            assertEquals(1, stats.getTotal().getScrollCurrent());
+
+            shardSearchStatsListener.onFreeScrollContext(rc);
+            stats = shardSearchStatsListener.stats();
+            assertEquals(0, stats.getTotal().getScrollCurrent());
+            assertEquals(1, stats.getTotal().getScrollCount());
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    private static ReaderContext createReaderContext(IndexShard indexShard) {
+        return new ReaderContext(
+            new ShardSearchContextId("test", 1L),
+            null,
+            indexShard,
+            null,
+            0L,
+            false
+        );
     }
 
     private static SearchContext createSearchContext(boolean suggested) {

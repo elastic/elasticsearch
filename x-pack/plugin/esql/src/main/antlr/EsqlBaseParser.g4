@@ -291,7 +291,16 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : processingCommand
+    : evalCommand
+    | whereCommand
+    | limitCommand
+    | statsCommand
+    | sortCommand
+    | dissectCommand
+    | changePointCommand
+    | completionCommand
+    | grokCommand
+    | {this.isDevVersion()}? inlinestatsCommand
     ;
 
 rrfCommand

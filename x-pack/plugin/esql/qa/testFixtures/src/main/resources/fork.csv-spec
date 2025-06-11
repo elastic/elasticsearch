@@ -446,7 +446,6 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 10087          | F              | F foobar  | F         | foobar    | fork2
 ;
 
-
 forkBranchWithDissect
 required_capability: fork_v8
 
@@ -465,7 +464,6 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 10081          | M              | null      | null      | null      | fork2
 10087          | F              | null      | null      | null      | fork2
 ;
-
 
 forkAfterDissect
 required_capability: fork_v8
@@ -756,4 +754,62 @@ emp_no:integer | first_name:keyword | last_name:keyword | x:keyword        | _fo
 10081          | Zhongwei           | Rosen             | ZHONGWEI ROSEN   | fork1
 10081          | Zhongwei           | Rosen             | ZHONGWEI ROSEN   | fork2
 10087          | Xinglin            | Eugenio           | XINGLIN EUGENIO  | fork2
+;
+
+forkAfterGrok
+required_capability: fork_v8
+
+FROM employees
+| EVAL x = concat(gender, " foobar")
+| GROK x "%{WORD:a} %{WORD:b}"
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| SORT _fork, emp_no
+| KEEP emp_no, gender, x, a, b, _fork
+;
+
+emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyword
+10048          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork2
+10087          | F              | F foobar  | F         | foobar    | fork2
+;
+
+forkBranchWithGrok
+required_capability: fork_v8
+
+FROM employees
+| WHERE emp_no == 10048 OR emp_no == 10081
+| FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+        | GROK a "%{WORD:x} %{WORD:y} %{WORD:z}" )
+       (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+        | GROK b "%{WORD:x} %{WORD:y} %{WORD:z}" )
+| KEEP _fork, emp_no, x, y, z
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:keyword | y:keyword | z:keyword
+fork1         | 10048          | Florian   | 10048     | Syrotiuk
+fork1         | 10081          | Zhongwei  | 10081     | Rosen
+fork2         | 10048          | Syrotiuk  | 10048     | Florian
+fork2         | 10081          | Rosen     | 10081     | Zhongwei
+;
+
+forkBeforeGrok
+required_capability: fork_v8
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = concat(gender, " foobar")
+| GROK x "%{WORD:a} %{WORD:b}"
+| SORT _fork, emp_no
+| KEEP emp_no, gender, x, a, b, _fork
+;
+
+emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyword
+10048          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork1
+10081          | M              | M foobar  | M         | foobar    | fork2
+10087          | F              | F foobar  | F         | foobar    | fork2
 ;

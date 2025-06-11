@@ -134,8 +134,8 @@ public class HuggingFaceRerankResponseEntityTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("Required [" + missingField + "]"));
     }
 
-    private void assertTopNLimit(Integer topN, String responseJson, List<RankedDocsResultsTests.RerankExpectation> expectation)
-        throws IOException {
+    private void assertTopNLimit(
+        Integer topN, String responseJson, List<RankedDocsResultsTests.RerankExpectation> expectation) throws IOException {
         when(REQUEST_MOCK.getTopN()).thenReturn(topN);
 
         RankedDocsResults parsedResults = HuggingFaceRerankResponseEntity.fromResponse(

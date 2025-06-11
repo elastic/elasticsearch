@@ -6,9 +6,57 @@ config:
 steps:
   - group: bwc-snapshots
     steps:
-      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 1"
         key: "bwc-snapshots"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart1
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 2"
+        key: "bwc-snapshots"
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart2
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 3"
+        key: "bwc-snapshots"
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart3
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 4"
+        key: "bwc-snapshots"
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots / Part 5"
+        key: "bwc-snapshots"
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:
           setup:

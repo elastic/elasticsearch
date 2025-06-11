@@ -144,6 +144,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -2688,6 +2689,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         final var request = new Request(method.name(), endpoint);
         addXContentBody(request, body);
         return request;
+    }
+
+    protected static MapMatcher getProfileMatcher() {
+        return matchesMap().entry("query", instanceOf(Map.class))
+            .entry("planning", instanceOf(Map.class))
+            .entry("drivers", instanceOf(List.class));
     }
 
     protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {

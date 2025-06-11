@@ -56,11 +56,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Great
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -149,7 +151,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     );
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
-        new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveLookupTables(), new ResolveFunctions()),
+        new Batch<>(
+            "Initialize",
+            Limiter.ONCE,
+            new ResolveTable(),
+            new ResolveEnrich(),
+            new ResolveLookupTables(),
+            new ResolveFunctions(),
+            new DateMillisToNanosInEsRelation()
+        ),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
@@ -1099,6 +1109,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
             }
+            if (f instanceof VectorFunction vectorFunction) {
+                return processVectorFunction(f);
+            }
             return f;
         }
 
@@ -1298,6 +1311,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unresolvedAttribute(from, target.toString(), e);
             }
         }
+
+        private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
+            List<Expression> args = vectorFunction.arguments();
+            List<Expression> newArgs = new ArrayList<>();
+            for (Expression arg : args) {
+                if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
+                    Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
+                    if (folded instanceof List) {
+                        Literal denseVector = new Literal(arg.source(), folded, DataType.DENSE_VECTOR);
+                        newArgs.add(denseVector);
+                        continue;
+                    }
+                }
+                newArgs.add(arg);
+            }
+
+            return vectorFunction.replaceChildren(newArgs);
+        }
+
     }
 
     /**
@@ -1321,7 +1353,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Collect field attributes from previous runs
             plan.forEachUp(EsRelation.class, rel -> {
                 for (Attribute attr : rel.output()) {
-                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
                         unionFieldAttributes.add(fa);
                     }
                 }
@@ -1384,9 +1416,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
-                        TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
-                        var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
-                        typeResolutions.put(key, concreteConvert);
+                        typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
@@ -1394,9 +1424,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
-            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
-            }
+            } else if (convert.field() instanceof FieldAttribute fa
+                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
+                && fa.field() instanceof MultiTypeEsField mtf) {
+                    // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
+                    // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
+                    // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
+                    // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
+                    // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
+                    // the multiTypeEsField is not casted to datetime directly.
+                    if (convert.dataType() == mtf.getDataType()) {
+                        return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
+                    }
+
+                    // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
+                    // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
+                    Set<DataType> supportedTypes = convert.supportedTypes();
+                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
+                        // Build the mapping between index name and conversion expressions
+                        Map<String, Expression> indexToConversionExpressions = new HashMap<>();
+                        for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
+                            String indexName = entry.getKey();
+                            AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
+                            Expression originalField = originalConversionFunction.field();
+                            Expression newConvertFunction = convert.replaceChildren(Collections.singletonList(originalField));
+                            indexToConversionExpressions.put(indexName, newConvertFunction);
+                        }
+                        MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
+                            fa.fieldName(),
+                            convert.dataType(),
+                            false,
+                            indexToConversionExpressions
+                        );
+                        return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
+                    }
+                } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                    return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
+                }
             return convert;
         }
 
@@ -1420,7 +1484,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private MultiTypeEsField resolvedMultiTypeEsField(FieldAttribute fa, HashMap<TypeResolutionKey, Expression> typeResolutions) {
+        private static MultiTypeEsField resolvedMultiTypeEsField(
+            FieldAttribute fa,
+            HashMap<TypeResolutionKey, Expression> typeResolutions
+        ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
             InvalidMappedField imf = (InvalidMappedField) fa.field();
             imf.getTypesToIndices().forEach((typeName, indexNames) -> {
@@ -1433,7 +1500,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
+            return multiTypeEsField.getIndexToConversionExpressions()
+                .values()
+                .stream()
+                .allMatch(
+                    e -> e instanceof AbstractConvertFunction convertFunction
+                        && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())
+                );
+        }
+
+        private static Expression typeSpecificConvert(
+            AbstractConvertFunction convert,
+            Source source,
+            DataType type,
+            InvalidMappedField mtf
+        ) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -1502,5 +1584,41 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
         }
+    }
+
+    /**
+     * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
+     */
+    private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(EsRelation.class, relation -> {
+                if (relation.indexMode() == IndexMode.LOOKUP) {
+                    return relation;
+                }
+                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        var convert = new ToDateNanos(f.source(), f);
+                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        return new FieldAttribute(f.source(), f.parentName(), f.name(), resolvedField, f.nullable(), f.id(), f.synthetic());
+                    }
+                    return f;
+                });
+            });
+        }
+    }
+
+    private static void typeResolutions(
+        FieldAttribute fieldAttribute,
+        AbstractConvertFunction convert,
+        DataType type,
+        InvalidMappedField imf,
+        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
+    ) {
+        ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
+        var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);
+        typeResolutions.put(key, concreteConvert);
     }
 }

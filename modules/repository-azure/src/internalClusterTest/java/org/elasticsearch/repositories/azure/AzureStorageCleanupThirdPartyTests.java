@@ -124,10 +124,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
-                SocketAccess.doPrivilegedException(() -> {
-                    final BlobContainerClient blobContainer = client.getBlobContainerClient(blobStore.toString());
-                    return blobContainer.exists();
-                });
+                final BlobContainerClient blobContainer = client.getBlobContainerClient(blobStore.toString());
+                blobContainer.exists();
                 future.onFailure(
                     new RuntimeException(
                         "The SAS token used in this test allowed for checking container existence. This test only supports tokens "

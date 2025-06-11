@@ -148,6 +148,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
+            When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
             All <<match-field-params,match query parameters>> are supported.

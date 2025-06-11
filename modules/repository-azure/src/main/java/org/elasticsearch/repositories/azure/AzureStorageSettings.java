@@ -155,8 +155,7 @@ final class AzureStorageSettings {
         this.maxRetries = maxRetries;
         this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
             : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
-            : SocketAccess.doPrivilegedException(() -> System.getenv("AZURE_FEDERATED_TOKEN_FILE")) == null
-                ? Set.of("uses_default_credentials", "uses_managed_identity")
+            : System.getenv("AZURE_FEDERATED_TOKEN_FILE") == null ? Set.of("uses_default_credentials", "uses_managed_identity")
             : Set.of("uses_default_credentials", "uses_workload_identity");
 
         // Register the proxy if we have any

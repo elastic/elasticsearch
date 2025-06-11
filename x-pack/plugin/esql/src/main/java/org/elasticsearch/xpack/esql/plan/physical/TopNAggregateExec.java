@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -72,7 +71,16 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
     @Override
     protected NodeInfo<TopNAggregateExec> info() {
         return NodeInfo.create(
-            this, TopNAggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, order, limit
+            this,
+            TopNAggregateExec::new,
+            child(),
+            groupings,
+            aggregates,
+            mode,
+            intermediateAttributes,
+            estimatedRowSize,
+            order,
+            limit
         );
     }
 
@@ -84,7 +92,10 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
             groupings,
             aggregates,
             mode,
-            intermediateAttributes, estimatedRowSize, order, limit
+            intermediateAttributes,
+            estimatedRowSize,
+            order,
+            limit
         );
     }
 
@@ -99,13 +110,31 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
     @Override
     protected TopNAggregateExec withEstimatedSize(int estimatedRowSize) {
         return new TopNAggregateExec(
-            source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, order, limit
+            source(),
+            child(),
+            groupings,
+            aggregates,
+            mode,
+            intermediateAttributes,
+            estimatedRowSize,
+            order,
+            limit
         );
     }
 
     @Override
     public TopNAggregateExec withMode(AggregatorMode newMode) {
-        return new TopNAggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize, order, limit);
+        return new TopNAggregateExec(
+            source(),
+            child(),
+            groupings,
+            aggregates,
+            newMode,
+            intermediateAttributes,
+            estimatedRowSize,
+            order,
+            limit
+        );
     }
 
     @Override

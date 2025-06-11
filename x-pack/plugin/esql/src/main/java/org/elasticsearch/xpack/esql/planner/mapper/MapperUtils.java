@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -186,7 +185,12 @@ public class MapperUtils {
         }
     }
 
-    static TopNAggregateExec topNAggExec(TopNAggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
+    static TopNAggregateExec topNAggExec(
+        TopNAggregate aggregate,
+        PhysicalPlan child,
+        AggregatorMode aggMode,
+        List<Attribute> intermediateAttributes
+    ) {
         return new TopNAggregateExec(
             aggregate.source(),
             child,

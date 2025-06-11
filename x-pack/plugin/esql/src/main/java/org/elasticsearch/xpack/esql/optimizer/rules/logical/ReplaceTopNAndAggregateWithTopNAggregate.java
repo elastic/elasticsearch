@@ -25,10 +25,7 @@ public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        return plan.transformUp(
-            TopN.class,
-            this::applyRule
-        );
+        return plan.transformUp(TopN.class, this::applyRule);
     }
 
     private LogicalPlan applyRule(TopN topN) {

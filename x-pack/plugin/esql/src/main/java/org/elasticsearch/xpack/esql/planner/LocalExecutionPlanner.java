@@ -352,13 +352,7 @@ public class LocalExecutionPlanner {
         var physicalOperation = physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
 
         if (aggregate instanceof TopNAggregateExec topNAggregate && topNAggregate.getMode().isOutputPartial() == false) {
-            return planTopN(
-                topNAggregate.order(),
-                topNAggregate.limit(),
-                topNAggregate.estimatedRowSize(),
-                physicalOperation,
-                context
-            );
+            return planTopN(topNAggregate.order(), topNAggregate.limit(), topNAggregate.estimatedRowSize(), physicalOperation, context);
         }
 
         return physicalOperation;
@@ -487,16 +481,16 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(topNExec.child(), context);
-        return planTopN(
-            topNExec.order(),
-            topNExec.limit(),
-            topNExec.estimatedRowSize(),
-            source,
-            context
-        );
+        return planTopN(topNExec.order(), topNExec.limit(), topNExec.estimatedRowSize(), source, context);
     }
 
-    private PhysicalOperation planTopN(List<Order> order, Expression limit, Integer estimatedRowSize, PhysicalOperation source, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planTopN(
+        List<Order> order,
+        Expression limit,
+        Integer estimatedRowSize,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
         assert estimatedRowSize != null && estimatedRowSize > 0 : "estimated row size [" + estimatedRowSize + "] wasn't set";
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
@@ -509,9 +503,9 @@ public class LocalExecutionPlanner {
                 case TEXT, KEYWORD -> TopNEncoder.UTF8;
                 case VERSION -> TopNEncoder.VERSION;
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
-                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                     AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
+                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };

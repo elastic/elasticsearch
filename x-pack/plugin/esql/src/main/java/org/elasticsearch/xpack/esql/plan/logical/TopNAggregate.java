@@ -10,11 +10,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,9 +22,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 // TODO: Should this be TelemetryAware?
 public class TopNAggregate extends UnaryPlan {
@@ -47,7 +42,8 @@ public class TopNAggregate extends UnaryPlan {
     public TopNAggregate(
         Source source,
         LogicalPlan child,
-        List<Expression> groupings, List<? extends NamedExpression> aggregates,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
         List<Order> order,
         Expression limit
     ) {

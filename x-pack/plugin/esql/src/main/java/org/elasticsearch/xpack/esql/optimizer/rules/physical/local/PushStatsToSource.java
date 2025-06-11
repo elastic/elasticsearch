@@ -41,7 +41,9 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 /**
  * Looks for the case where certain stats exist right before the query and thus can be pushed down.
  */
-public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<AbstractAggregateExec, LocalPhysicalOptimizerContext> {
+public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+    AbstractAggregateExec,
+    LocalPhysicalOptimizerContext> {
 
     @Override
     protected PhysicalPlan rule(AbstractAggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {

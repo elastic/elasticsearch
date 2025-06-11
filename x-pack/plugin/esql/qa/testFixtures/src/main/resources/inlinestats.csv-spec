@@ -52,7 +52,7 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10004 |                 5 | 5                | M
          10011 |                 5 | 5                | null
          10012 |                 5 | 5                | null
-         10012 |                 5 | 5                | null
+         10014 |                 5 | 5                | null
 ;
 
 maxOfLongByKeyword

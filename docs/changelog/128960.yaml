@@ -1,0 +1,5 @@
+pr: 128960
+summary: Throw ISE instead of IAE for illegal block in page
+area: ES|QL
+type: bug
+issues: []

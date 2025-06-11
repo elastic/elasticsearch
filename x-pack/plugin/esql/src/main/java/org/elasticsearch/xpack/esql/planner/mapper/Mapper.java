@@ -168,7 +168,7 @@ public class Mapper {
 
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);
-            return new LimitExec(limit.source(), mappedChild, limit.limit());
+            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
         }
 
         if (unary instanceof TopN topN) {
@@ -191,7 +191,7 @@ public class Mapper {
         // TODO: share code with local LocalMapper?
         if (unary instanceof Sample sample) {
             mappedChild = addExchangeForFragment(sample, mappedChild);
-            return new SampleExec(sample.source(), mappedChild, sample.probability(), sample.seed());
+            return new SampleExec(sample.source(), mappedChild, sample.probability());
         }
 
         //

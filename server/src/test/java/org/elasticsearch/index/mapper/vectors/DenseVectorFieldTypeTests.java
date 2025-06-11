@@ -727,7 +727,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         int k,
         int candidates,
         float oversample,
-        Integer expectedK,
+        int expectedK,
         int expectedCandidates,
         int expectedResults
     ) {

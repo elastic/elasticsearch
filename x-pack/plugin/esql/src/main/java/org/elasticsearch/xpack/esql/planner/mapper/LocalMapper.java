@@ -92,7 +92,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof Sample sample) {
-            return new SampleExec(sample.source(), mappedChild, sample.probability(), sample.seed());
+            return new SampleExec(sample.source(), mappedChild, sample.probability());
         }
 
         //

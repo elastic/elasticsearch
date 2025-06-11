@@ -97,6 +97,9 @@ ingest-pipelines:
   - metrics-apm@pipeline:
       dependencies:
         - apm@pipeline
+  - logs-apm@pipeline:
+      dependencies:
+        - apm@pipeline
 
 lifecycle-policies:
   - logs-apm.app_logs-default_policy

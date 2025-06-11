@@ -1,0 +1,14 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  managed: true
+description: Built-in ingest pipeline for logs-apm.*-* data streams
+processors:
+# Set event.dataset if unset to meet Anomaly Detection requirements
+- set:
+    if: "ctx.data_stream?.dataset != null"
+    field: event.dataset
+    value: "{{{data_stream.dataset}}}"
+    override: false
+- pipeline:
+    name: apm@pipeline

@@ -68,6 +68,12 @@ nmcpAggregation {
 }
 
 tasks.named('zipAggregation').configure {
+  // put this in a place that works well with our DRA infrastructure
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregation")
+  archiveVersion.set(VersionProperties.elasticsearch)
+  destinationDirectory.set(layout.buildDirectory.dir("distributions"));
+
   dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
   from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }

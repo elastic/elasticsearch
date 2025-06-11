@@ -1,0 +1,5 @@
+pr: 129282
+summary: Fix Semantic Query Rewrite Interception Drops Boosts
+area: Relevance
+type: bug
+issues: []

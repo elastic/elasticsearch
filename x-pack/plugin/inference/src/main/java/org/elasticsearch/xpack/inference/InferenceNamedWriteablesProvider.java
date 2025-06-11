@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddin
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
@@ -166,7 +167,7 @@ public class InferenceNamedWriteablesProvider {
         addAnthropicNamedWritables(namedWriteables);
         addAmazonBedrockNamedWriteables(namedWriteables);
         addAwsNamedWriteables(namedWriteables);
-        addEisNamedWriteables(namedWriteables);
+        addElasticNamedWriteables(namedWriteables);
         addAlibabaCloudSearchNamedWriteables(namedWriteables);
         addJinaAINamedWriteables(namedWriteables);
         addVoyageAINamedWriteables(namedWriteables);
@@ -742,7 +743,8 @@ public class InferenceNamedWriteablesProvider {
         );
     }
 
-    private static void addEisNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+    private static void addElasticNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        // Sparse Text Embeddings
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
@@ -750,11 +752,22 @@ public class InferenceNamedWriteablesProvider {
                 ElasticInferenceServiceSparseEmbeddingsServiceSettings::new
             )
         );
+
+        // Completion
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
                 ElasticInferenceServiceCompletionServiceSettings.NAME,
                 ElasticInferenceServiceCompletionServiceSettings::new
+            )
+        );
+
+        // Rerank
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticInferenceServiceRerankServiceSettings.NAME,
+                ElasticInferenceServiceRerankServiceSettings::new
             )
         );
     }

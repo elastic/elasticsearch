@@ -1,0 +1,5 @@
+pr: 128613
+summary: Improve support for bytecode patching signed jars
+area: Infra/Core
+type: enhancement
+issues: []

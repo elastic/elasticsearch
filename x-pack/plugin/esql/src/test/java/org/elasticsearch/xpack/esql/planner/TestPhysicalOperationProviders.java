@@ -286,7 +286,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         var field = (FieldAttribute) conversion.field();
         return indexPage.columnIndex(field.fieldName().string()).isEmpty()
             ? nulls.get()
-            : TypeConverter.fromConvertFunction(conversion).convert(extractBlockForSingleDoc(indexDoc, field.fieldName().string(), blockCopier));
+            : TypeConverter.fromConvertFunction(conversion)
+                .convert(extractBlockForSingleDoc(indexDoc, field.fieldName().string(), blockCopier));
     }
 
     private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {

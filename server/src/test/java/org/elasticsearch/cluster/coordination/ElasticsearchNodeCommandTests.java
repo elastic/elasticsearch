@@ -41,6 +41,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirs
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class ElasticsearchNodeCommandTests extends ESTestCase {
 
@@ -93,7 +94,11 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             );
 
             assertThat(loadedTermAndClusterState.v1(), equalTo(initialTerm));
+
             final var loadedMetadata = loadedTermAndClusterState.v2().metadata();
+            assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
+            assertThat(loadedMetadata.clusterUUID(), equalTo(initialMetadata.clusterUUID()));
+            assertThat(loadedMetadata.getProject().dataStreams(), equalTo(initialMetadata.getProject().dataStreams()));
             assertNotNull(loadedMetadata.getProject().custom(IndexGraveyard.TYPE));
             assertThat(
                 loadedMetadata.getProject().custom(IndexGraveyard.TYPE),
@@ -101,16 +106,16 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             );
             if (hasMissingCustoms) {
                 assertThat(
-                    loadedMetadata.getProject().custom(MissingProjectCustomMetadata.TYPE),
+                    loadedMetadata.getProject().custom(TestMissingProjectCustomMetadata.TYPE),
                     instanceOf(ElasticsearchNodeCommand.UnknownProjectCustom.class)
                 );
                 assertThat(
-                    loadedMetadata.custom(MissingClusterCustomMetadata.TYPE),
+                    loadedMetadata.custom(TestMissingClusterCustomMetadata.TYPE),
                     instanceOf(ElasticsearchNodeCommand.UnknownClusterCustom.class)
                 );
             } else {
-                assertNull(loadedMetadata.getProject().custom(MissingProjectCustomMetadata.TYPE));
-                assertNull(loadedMetadata.custom(MissingClusterCustomMetadata.TYPE));
+                assertNull(loadedMetadata.getProject().custom(TestMissingProjectCustomMetadata.TYPE));
+                assertNull(loadedMetadata.custom(TestMissingClusterCustomMetadata.TYPE));
             }
 
             final long newTerm = initialTerm + 1;
@@ -125,11 +130,11 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             assertThat(reloadedMetadata.getProject().indexGraveyard(), equalTo(initialMetadata.getProject().indexGraveyard()));
             if (hasMissingCustoms) {
                 assertThat(
-                    reloadedMetadata.getProject().custom(MissingProjectCustomMetadata.TYPE),
-                    equalTo(initialMetadata.getProject().custom(MissingProjectCustomMetadata.TYPE))
+                    reloadedMetadata.getProject().custom(TestMissingProjectCustomMetadata.TYPE),
+                    equalTo(initialMetadata.getProject().custom(TestMissingProjectCustomMetadata.TYPE))
                 );
             } else {
-                assertNull(reloadedMetadata.getProject().custom(MissingProjectCustomMetadata.TYPE));
+                assertNull(reloadedMetadata.getProject().custom(TestMissingProjectCustomMetadata.TYPE));
             }
         }
     }
@@ -153,12 +158,12 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         mdBuilder.indexGraveyard(graveyard.build());
         if (hasMissingCustoms) {
             mdBuilder.putCustom(
-                MissingProjectCustomMetadata.TYPE,
-                new MissingProjectCustomMetadata("test missing project custom metadata")
+                TestMissingProjectCustomMetadata.TYPE,
+                new TestMissingProjectCustomMetadata("test missing project custom metadata")
             );
             mdBuilder.putCustom(
-                MissingClusterCustomMetadata.TYPE,
-                new MissingClusterCustomMetadata("test missing cluster custom metadata")
+                TestMissingClusterCustomMetadata.TYPE,
+                new TestMissingClusterCustomMetadata("test missing cluster custom metadata")
             );
         }
         return mdBuilder.build();
@@ -173,24 +178,24 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
                 Stream.of(
                     new NamedXContentRegistry.Entry(
                         Metadata.ProjectCustom.class,
-                        new ParseField(MissingProjectCustomMetadata.TYPE),
-                        parser -> MissingProjectCustomMetadata.fromXContent(MissingProjectCustomMetadata::new, parser)
+                        new ParseField(TestMissingProjectCustomMetadata.TYPE),
+                        parser -> TestMissingProjectCustomMetadata.fromXContent(TestMissingProjectCustomMetadata::new, parser)
                     ),
                     new NamedXContentRegistry.Entry(
                         Metadata.ClusterCustom.class,
-                        new ParseField(MissingClusterCustomMetadata.TYPE),
-                        parser -> MissingClusterCustomMetadata.fromXContent(MissingClusterCustomMetadata::new, parser)
+                        new ParseField(TestMissingClusterCustomMetadata.TYPE),
+                        parser -> TestMissingClusterCustomMetadata.fromXContent(TestMissingClusterCustomMetadata::new, parser)
                     )
                 )
             ).flatMap(Function.identity()).toList()
         );
     }
 
-    private static class MissingProjectCustomMetadata extends TestProjectCustomMetadata {
+    private static class TestMissingProjectCustomMetadata extends TestProjectCustomMetadata {
 
         static final String TYPE = "missing_project_custom_metadata";
 
-        MissingProjectCustomMetadata(String data) {
+        TestMissingProjectCustomMetadata(String data) {
             super(data);
         }
 
@@ -210,11 +215,11 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
     }
 
-    private static class MissingClusterCustomMetadata extends TestClusterCustomMetadata {
+    private static class TestMissingClusterCustomMetadata extends TestClusterCustomMetadata {
 
         static final String TYPE = "missing_cluster_custom_metadata";
 
-        MissingClusterCustomMetadata(String data) {
+        TestMissingClusterCustomMetadata(String data) {
             super(data);
         }
 

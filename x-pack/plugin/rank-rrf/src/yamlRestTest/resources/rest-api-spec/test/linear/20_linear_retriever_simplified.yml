@@ -44,10 +44,10 @@ setup:
             properties:
               keyword:
                 type: keyword
-              inference_1:
+              dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
-              inference_2:
+              sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-id
               text_1:
@@ -72,8 +72,8 @@ setup:
           {"index": {"_id": "1"}}
           {
             "keyword": "keyword match 1",
-            "inference_1": "you know",
-            "inference_2": "for testing",
+            "dense_inference": "you know",
+            "sparse_inference": "for testing",
             "text_1": "foo match 1",
             "text_2": "x match 2",
             "timestamp": "2000-03-30",
@@ -82,8 +82,8 @@ setup:
           {"index": {"_id": "2"}}
           {
             "keyword": "keyword match 2",
-            "inference_1": "ElasticSearch is an open source",
-            "inference_2": "distributed, RESTful, search engine",
+            "dense_inference": "ElasticSearch is an open source",
+            "sparse_inference": "distributed, RESTful, search engine",
             "text_1": "bar match 3",
             "text_2": "y match 4",
             "timestamp": "2010-02-08",
@@ -92,8 +92,8 @@ setup:
           {"index": {"_id": "3"}}
           {
             "keyword": "keyword match 3",
-            "inference_1": "which is built on top of Lucene internally",
-            "inference_2": "and enjoys all the features it provides",
+            "dense_inference": "which is built on top of Lucene internally",
+            "sparse_inference": "and enjoys all the features it provides",
             "text_1": "baz match 5",
             "text_2": "z match 6",
             "timestamp": "2024-08-08",
@@ -178,7 +178,7 @@ setup:
         body:
           retriever:
             linear:
-              fields: [ "inference_1", "inference_2" ]
+              fields: [ "dense_inference", "sparse_inference" ]
               query: "distributed, RESTful, search engine"
               normalizer: "minmax"
 
@@ -200,7 +200,7 @@ setup:
         body:
           retriever:
             linear:
-              fields: [ "inference_1^3", "inference_2" ]
+              fields: [ "dense_inference^3", "sparse_inference" ]
               query: "distributed, RESTful, search engine"
               normalizer: "minmax"
 

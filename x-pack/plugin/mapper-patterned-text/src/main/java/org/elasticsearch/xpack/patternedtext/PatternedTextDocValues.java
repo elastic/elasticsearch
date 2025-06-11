@@ -62,7 +62,7 @@ public class PatternedTextDocValues extends SortedSetDocValues {
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             PatternedTextValueProcessor.addRemainingArgs(args, mergedArgs.utf8ToString());
         }
-        return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args, null));
+        return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args));
     }
 
     @Override

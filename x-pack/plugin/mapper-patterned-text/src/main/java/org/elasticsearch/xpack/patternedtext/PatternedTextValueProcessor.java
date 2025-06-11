@@ -16,17 +16,15 @@ public class PatternedTextValueProcessor {
     private static final String DELIMITER = "[\\s\\[\\]]";
     private static final String SPACE = " ";
 
-    record Parts(String template, List<String> args, String indexed) {
+    record Parts(String template, List<String> args) {
     }
 
     static Parts split(String text) {
         StringBuilder template = new StringBuilder();
-        StringBuilder indexed = new StringBuilder();
         List<String> args = new ArrayList<>();
         String[] tokens = text.split(DELIMITER);
         int textIndex = 0;
-        for (int i = 0; i < tokens.length; i++) {
-            String token = tokens[i];
+        for (String token : tokens) {
             if (token.isEmpty()) {
                 if (textIndex < text.length() - 1) {
                     template.append(text.charAt(textIndex++));
@@ -36,10 +34,8 @@ public class PatternedTextValueProcessor {
             if (isArg(token)) {
                 args.add(token);
                 template.append(TEXT_ARG_PLACEHOLDER);
-                indexed.append(token).append(SPACE);
             } else {
                 template.append(token);
-                indexed.append(token).append(SPACE);
             }
             textIndex += token.length();
             if (textIndex < text.length()) {
@@ -49,7 +45,7 @@ public class PatternedTextValueProcessor {
         while (textIndex < text.length()) {
             template.append(text.charAt(textIndex++));
         }
-        return new Parts(template.toString(), args, indexed.toString().trim());
+        return new Parts(template.toString(), args);
     }
 
     private static boolean isArg(String text) {

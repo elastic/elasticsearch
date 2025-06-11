@@ -132,8 +132,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         // Parse template and args.
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
 
-        // Add template and args index.
-        context.doc().add(new Field(fieldType().name(), parts.indexed(), fieldType));
+        // Add index on original value
+        context.doc().add(new Field(fieldType().name(), value, fieldType));
 
         // Add template doc_values
         context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));

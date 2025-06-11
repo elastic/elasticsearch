@@ -75,6 +75,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
             if (ignoredSource == null) {
+                builder.appendNull();
                 return;
             }
 

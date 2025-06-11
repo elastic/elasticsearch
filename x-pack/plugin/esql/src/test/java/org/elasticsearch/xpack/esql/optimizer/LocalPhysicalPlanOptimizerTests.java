@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -137,7 +138,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
     };
@@ -980,8 +981,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testLocalAggOptimizedToLocalRelation() {
         var stats = new TestSearchStats() {
             @Override
-            public boolean exists(String field) {
-                return "emp_no".equals(field) == false;
+            public boolean exists(FieldAttribute.FieldName field) {
+                return "emp_no".equals(field.string()) == false;
             }
         };
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.chunking;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RecursiveChunkerTests extends ESTestCase {
@@ -45,7 +46,7 @@ public class RecursiveChunkerTests extends ESTestCase {
         assertExpectedChunksGenerated(input, settings, List.of(new Chunker.ChunkOffset(0, input.length())));
     }
 
-    public void testChunkInputRequiresOneSplitWithNoMerges() {
+    public void testChunkInputRequiresOneSplit() {
         List<String> separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(10, separators);
         String input = generateTestText(2, List.of(separators.getFirst()));
@@ -57,23 +58,7 @@ public class RecursiveChunkerTests extends ESTestCase {
         );
     }
 
-    public void testChunkInputRequiresOneSplitWithMerges() {
-        List<String> separators = generateRandomSeparators();
-        RecursiveChunkingSettings settings = generateChunkingSettings(20, separators);
-        String input = generateTestText(3, List.of(separators.getFirst(), separators.getFirst()));
-
-        var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.getFirst().length();
-        assertExpectedChunksGenerated(
-            input,
-            settings,
-            List.of(
-                new Chunker.ChunkOffset(0, expectedFirstChunkOffsetEnd),
-                new Chunker.ChunkOffset(expectedFirstChunkOffsetEnd, input.length())
-            )
-        );
-    }
-
-    public void testChunkInputRequiresMultipleSplitsWithNoMerges() {
+    public void testChunkInputRequiresMultipleSplits() {
         var separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(15, separators);
         String input = generateTestText(4, List.of(separators.get(1), separators.getFirst(), separators.get(1)));
@@ -89,22 +74,6 @@ public class RecursiveChunkerTests extends ESTestCase {
                 new Chunker.ChunkOffset(expectedFirstChunkOffsetEnd, expectedSecondChunkOffsetEnd),
                 new Chunker.ChunkOffset(expectedSecondChunkOffsetEnd, expectedThirdChunkOffsetEnd),
                 new Chunker.ChunkOffset(expectedThirdChunkOffsetEnd, input.length())
-            )
-        );
-    }
-
-    public void testChunkInputRequiresMultipleSplitsWithMerges() {
-        var separators = generateRandomSeparators();
-        RecursiveChunkingSettings settings = generateChunkingSettings(25, separators);
-        String input = generateTestText(4, List.of(separators.get(1), separators.getFirst(), separators.get(1)));
-
-        var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(1).length();
-        assertExpectedChunksGenerated(
-            input,
-            settings,
-            List.of(
-                new Chunker.ChunkOffset(0, expectedFirstChunkOffsetEnd),
-                new Chunker.ChunkOffset(expectedFirstChunkOffsetEnd, input.length())
             )
         );
     }
@@ -147,6 +116,30 @@ public class RecursiveChunkerTests extends ESTestCase {
                 new Chunker.ChunkOffset(expectedThirdChunkOffsetEnd, input.length())
             )
         );
+    }
+
+    public void testChunkLongDocument() {
+        int numSentences = randomIntBetween(50, 100);
+        List<String> separators = generateRandomSeparators();
+        List<String> splittersAfterSentences = new ArrayList<>();
+        for (int i = 0; i < numSentences - 1; i++) {
+            splittersAfterSentences.add(randomFrom(separators));
+        }
+        RecursiveChunkingSettings settings = generateChunkingSettings(15, separators);
+        String input = generateTestText(numSentences, splittersAfterSentences);
+
+        List<Chunker.ChunkOffset> expectedChunks = new ArrayList<>();
+        int currentOffset = 0;
+        for (int i = 0; i < numSentences; i++) {
+            int chunkLength = TEST_SENTENCE.length();
+            if (i > 0) {
+                chunkLength += splittersAfterSentences.get(i - 1).length();
+            }
+            expectedChunks.add(new Chunker.ChunkOffset(currentOffset, currentOffset + chunkLength));
+            currentOffset += chunkLength;
+        }
+
+        assertExpectedChunksGenerated(input, settings, expectedChunks);
     }
 
     private void assertExpectedChunksGenerated(String input, RecursiveChunkingSettings settings, List<Chunker.ChunkOffset> expectedChunks) {

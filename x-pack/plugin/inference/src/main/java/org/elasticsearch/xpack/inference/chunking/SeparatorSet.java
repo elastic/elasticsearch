@@ -27,7 +27,17 @@ public enum SeparatorSet {
     public List<String> getSeparators() {
         return switch (this) {
             case PLAINTEXT -> List.of("\n\n", "\n");
-            case MARKDOWN -> List.of("\n#{1,6} ", "^(?!\\s*$).*\\n*{3,}\\n", "^(?!\\s*$).*\\n-{3,}\\n", "^(?!\\s*$).*\\n_{3,}\\n");
+            case MARKDOWN -> List.of(
+                "\n# ",
+                "\n## ",
+                "\n### ",
+                "\n#### ",
+                "\n##### ",
+                "\n###### ",
+                "^(?!\\s*$).*\\n*{3,}\\n",
+                "^(?!\\s*$).*\\n-{3,}\\n",
+                "^(?!\\s*$).*\\n_{3,}\\n"
+            );
         };
     }
 }

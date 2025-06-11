@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.multiproject;
 
-import co.elastic.elasticsearch.stateless.AbstractStatelessMultiProjectIntegTestCase;
+import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -30,7 +30,12 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ProjectLifeCycleIT extends AbstractStatelessMultiProjectIntegTestCase {
+public class ProjectLifeCycleIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected boolean multiProjectIntegrationTest() {
+        return true;
+    }
 
     public void testLease() throws Exception {
         startMasterAndIndexNode();
@@ -41,7 +46,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessMultiProjectIntegTestCa
         assertThat(getLeaseBlobs().size(), equalTo(0));
 
         // acquire a non-existing lease
-        createProject(projectId);
+        putProject(projectId);
         AtomicInteger nextLeaseVersion = new AtomicInteger(1);
         assertBusy(() -> {
             var leases = getLeaseBlobs();
@@ -56,7 +61,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessMultiProjectIntegTestCa
         nextLeaseVersion.incrementAndGet();
 
         // release
-        deleteProject(projectId);
+        removeProject(projectId);
         assertBusy(() -> {
             var leases = getLeaseBlobs();
             assertThat(leases.size(), equalTo(1));
@@ -70,7 +75,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessMultiProjectIntegTestCa
         nextLeaseVersion.incrementAndGet();
 
         // acquire an unassigned lease
-        createProject(projectId);
+        putProject(projectId);
         assertBusy(() -> {
             var leases = getLeaseBlobs();
             assertThat(leases.size(), equalTo(1));
@@ -84,7 +89,7 @@ public class ProjectLifeCycleIT extends AbstractStatelessMultiProjectIntegTestCa
         nextLeaseVersion.incrementAndGet();
 
         // Clean up
-        deleteProject(projectId);
+        removeProject(projectId);
 
     }
 

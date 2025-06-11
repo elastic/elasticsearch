@@ -144,7 +144,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             // Do not use the field attribute name, this can deviate from the field name for union types.
-            String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
+            String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
             boolean isUnsupported = dataType == DataType.UNSUPPORTED;
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
@@ -277,7 +277,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
         var unionTypes = findUnionTypes(attrSource);
         // Do not use the field attribute name, this can deviate from the field name for union types.
-        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName() : attrSource.name();
+        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName().string() : attrSource.name();
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
             shardIdx -> getBlockLoaderFor(shardIdx, fieldName, isUnsupported, NONE, unionTypes),
             vsShardContexts,

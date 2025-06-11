@@ -32,14 +32,6 @@ import java.util.stream.Stream;
  * <p>
  * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version for backwards
  * compatibility. In 8.9.0 this is changed to an incrementing number, disconnected from the release version.
- * <p>
- * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure each protocol
- * version is only added to the source file once. This string needs to be unique (normally a UUID, but can be any other unique nonempty
- * string). If two concurrent PRs add the same transport version, the different unique ids cause a git conflict, ensuring that the second PR
- * to be merged must be updated with the next free version first. Without the unique id string, git will happily merge the two versions
- * together, resulting in the same transport version being used across multiple commits, causing problems when you try to upgrade between
- * those two merged commits.
- *
  * <h2>Version compatibility</h2>
  * The earliest compatible version is hardcoded in the {@link TransportVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
  * calculated from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version
@@ -150,7 +142,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     /**
      * Returns {@code true} if this version is a patch version at or after {@code version}.
      * <p>
-     * This should not be used normally. It is used for matching patch versions of the same base version,
+     * This should not normally be used. It is used for matching patch versions of the same major and minor version,
      * using the standard version number format specified in {@link TransportVersions}.
      * When a patch version of an existing transport version is created, {@code transportVersion.isPatchFrom(patchVersion)}
      * will match any transport version at or above {@code patchVersion} that is also of the same base version.

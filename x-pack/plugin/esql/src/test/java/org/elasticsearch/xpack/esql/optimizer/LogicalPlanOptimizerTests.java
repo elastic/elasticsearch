@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -562,9 +563,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * TopN[[Order[x{r}#10,ASC,LAST]],1000[INTEGER]]
-     * \_Aggregate[[languages{f}#16],[MAX(emp_no{f}#13) AS x, languages{f}#16]]
-     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * TopNAggregate[[languages{f}#16],[MAX(emp_no{f}#13) AS x, languages{f}#16], [Order[x{r}#10,ASC,LAST]],1000[INTEGER]]
+     * \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testRemoveOverridesInAggregate() throws Exception {
         var plan = plan("""
@@ -573,9 +573,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x
             """);
 
-        var topN = as(plan, TopN.class);
-        var agg = as(topN.child(), Aggregate.class);
-        var aggregates = agg.aggregates();
+        var topNAgg = as(plan, TopNAggregate.class);
+        var aggregates = topNAgg.aggregates();
         assertThat(aggregates, hasSize(2));
         assertThat(Expressions.names(aggregates), contains("x", "languages"));
         var alias = as(aggregates.get(0), Alias.class);
@@ -592,9 +591,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * TopN[[Order[b{r}#10,ASC,LAST]],1000[INTEGER]]
-     * \_Aggregate[[b{r}#10],[languages{f}#16 AS b]]
-     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * TopNAggregate[[b{r}#10],[languages{f}#16 AS b],[Order[b{r}#10,ASC,LAST]],1000[INTEGER]]
+     * \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testAggsWithOverridingInputAndGrouping() throws Exception {
         var plan = plan("""
@@ -603,9 +601,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort b
             """);
 
-        var topN = as(plan, TopN.class);
-        var agg = as(topN.child(), Aggregate.class);
-        var aggregates = agg.aggregates();
+        var topNAgg = as(plan, TopNAggregate.class);
+        var aggregates = topNAgg.aggregates();
         assertThat(aggregates, hasSize(1));
         assertThat(Expressions.names(aggregates), contains("b"));
         assertWarnings(
@@ -6934,24 +6931,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(add.right().fold(FoldContext.small()), equalTo(0.2));
     }
 
+    /**
+     * TopNAggregate[[cluster{r}#7563],[SUM(sum(rate(network.total_bytes_in)){r}#7574,true[BOOLEAN]) AS sum(rate(network.total_bytes
+     * _in))#7560, cluster{r}#7563],[Order[cluster{f}#7563,ASC,LAST]],10[INTEGER]]
+     * \_TimeSeriesAggregate[[_tsid{m}#7575],[RATE(network.total_bytes_in{f}#7570,true[BOOLEAN],@timestamp{f}#7562) AS sum(rate(network.tota
+     * l_bytes_in))#7574, VALUES(cluster{f}#7563,true[BOOLEAN]) AS cluster#7563],null]
+     *   \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#7562, client.ip{f}#7566, cluster{f}#7..]
+     */
     public void testTranslateMetricsGroupedByOneDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
-        TopN topN = as(plan, TopN.class);
-        Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
-        assertThat(aggsByCluster, not(instanceOf(TimeSeriesAggregate.class)));
-        assertThat(aggsByCluster.aggregates(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(aggsByCluster.child(), TimeSeriesAggregate.class);
+        TopNAggregate topNAggsByCluster = as(plan, TopNAggregate.class);
+        assertThat(topNAggsByCluster, not(instanceOf(TimeSeriesAggregate.class)));
+        assertThat(topNAggsByCluster.aggregates(), hasSize(2));
+        TimeSeriesAggregate aggsByTsid = as(topNAggsByCluster.child(), TimeSeriesAggregate.class);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
         assertNull(aggsByTsid.timeBucket());
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
-        Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
+        Sum sum = as(Alias.unwrap(topNAggsByCluster.aggregates().get(0)), Sum.class);
         assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
-        assertThat(aggsByCluster.groupings(), hasSize(1));
-        assertThat(Expressions.attribute(aggsByCluster.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(topNAggsByCluster.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(topNAggsByCluster.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));

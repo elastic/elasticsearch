@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -29,8 +30,10 @@ public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, Logical
     }
 
     private LogicalPlan applyRule(TopN topN) {
-        // TODO: Handle TimeSeriesAggregate
         if (topN.child() instanceof Aggregate aggregate) {
+            // TimeSeriesAggregate shouldn't appear after a TopN when this rule is executed
+            assert aggregate instanceof TimeSeriesAggregate == false : "TimeSeriesAggregate should not be replaced with TopNAggregate";
+
             return new TopNAggregate(
                 aggregate.source(),
                 aggregate.child(),

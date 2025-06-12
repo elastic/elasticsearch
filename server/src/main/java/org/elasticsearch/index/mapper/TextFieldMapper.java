@@ -896,7 +896,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         private void checkForPositions(boolean multi) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "field:[" + name() + "] was indexed without position data; cannot run " + (multi ? "MultiPhraseQuery" : "PhraseQuery")
                 );
             }

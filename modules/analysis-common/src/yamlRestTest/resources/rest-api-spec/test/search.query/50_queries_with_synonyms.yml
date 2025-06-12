@@ -203,6 +203,9 @@
 ---
 # Tests that this returns 400, and not 500 (#123871)
 "Test multi_match phrase with no positions":
+  - requires:
+      cluster_features: [ "search.multi.match.checks.positions" ]
+      reason: "This previously resulted in a 5xx error code"
   - do:
       indices.create:
         index: test

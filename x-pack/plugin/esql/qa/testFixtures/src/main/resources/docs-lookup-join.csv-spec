@@ -11,7 +11,7 @@
 # IPs match known malicious addresses.
 
 lookupJoinSourceIp
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 // tag::lookupJoinSourceIp[]
 FROM firewall_logs
@@ -26,7 +26,7 @@ FROM firewall_logs
 # use `WHERE ... IS NOT NULL` with a field from the lookup index:
 
 lookupJoinSourceIpWhere
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 // tag::lookupJoinSourceIpWhere[]
 FROM firewall_logs
@@ -42,7 +42,7 @@ FROM firewall_logs
 # ownership details for each host to correlate with your metrics data.
 
 lookupJoinHostNameTwice
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 // tag::lookupJoinHostNameTwice[]
 FROM system_metrics
@@ -58,7 +58,7 @@ count:long | details:keyword | host.name:keyword | description:keyword | host.os
 # team or escalation information for faster triage and incident response.
 
 lookupJoinIpServiceId
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 // tag::lookupJoinServiceId[]
 FROM app_logs

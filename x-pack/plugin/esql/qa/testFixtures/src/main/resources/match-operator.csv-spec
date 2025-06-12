@@ -720,7 +720,7 @@ book_no:keyword
 testMatchWithSemanticTextAndLookupJoin
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 from semantic_text METADATA _id
 | where semantic_text_field:"something"
@@ -740,7 +740,7 @@ testMatchWithSemanticTextKqlAndLookupJoin
 required_capability: match_operator_colon
 required_capability: kql_function
 required_capability: semantic_text_field_caps
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 from semantic_text
 | where kql("host:host1") AND semantic_text_field:"something"

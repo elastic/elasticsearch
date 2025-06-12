@@ -301,7 +301,7 @@ text:integer | int:integer | description:keyword
 avoidAttributesRemoval
 // https://github.com/elastic/elasticsearch/issues/127468
 required_capability: union_types
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: keep_regex_extract_attributes
 from multivalue_points,h*,messa* 
 | eval  `card` = true, PbehoQUqKSF = "VLGjhcgNkQiEVyCLo", DsxMWtGL = true, qSxTIvUorMim = true, `location` = 8593178066470220111, type = -446161601, FSkGQkgmS = false 

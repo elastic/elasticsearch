@@ -768,7 +768,7 @@ g:integer   | max:integer
 evalAfterGroupingUsingSameName5
 required_capability: retain_aggregate_when_grouping
 required_capability: enrich_load
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 from firewall_logs,threat_list,airports 
 | keep `message`, `name`, source.IP, `type`, message 
 | enrich languages_policy on message 

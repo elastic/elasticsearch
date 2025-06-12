@@ -335,7 +335,7 @@ b c d x    | b         | d
 avoidAttributesRemoval
 // https://github.com/elastic/elasticsearch/issues/127468
 required_capability: keep_regex_extract_attributes
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 from message_types 
 | eval type = 1 
 | lookup join message_types_lookup on message 
@@ -352,7 +352,7 @@ Success
 avoidAttributesRemoval2
 // https://github.com/elastic/elasticsearch/issues/127468
 required_capability: keep_regex_extract_attributes
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 FROM sample_data, employees
 | EVAL client_ip = client_ip::keyword
 | RENAME languages AS language_code

@@ -8,7 +8,7 @@
 ###############################################
 
 basicOnTheDataNode
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | EVAL language_code = languages
@@ -25,7 +25,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 basicRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -36,7 +36,7 @@ language_code:integer  | language_name:keyword
 ;
 
 basicOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -53,7 +53,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 subsequentEvalOnTheDataNode
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | EVAL language_code = languages
@@ -71,7 +71,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 subsequentEvalOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -89,7 +89,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 sortEvalBeforeLookup
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -106,7 +106,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 repeatedIndexOnFrom
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM languages_lookup
 | LOOKUP JOIN languages_lookup ON language_code
@@ -121,7 +121,7 @@ language_code:integer | language_name:keyword
 ;
 
 nonUniqueLeftKeyOnTheDataNode
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | WHERE emp_no <= 10030
@@ -149,7 +149,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ###########################################################################
 
 nonUniqueRightKeyOnTheDataNode
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | EVAL language_code = emp_no % 10
@@ -173,7 +173,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 ;
 
 nonUniqueRightKeyOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -199,7 +199,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 
 nonUniqueRightKeyOnTheCoordinatorCorrectOrdering
 // Same as above, but don't ignore the order completely. At least the emp_no col must remain correctly ordered.
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -223,7 +223,7 @@ emp_no:integer | language_code:integer
 ;
 
 nonUniqueRightKeyFromRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -238,7 +238,7 @@ language_code:integer | country:text       | language_name:keyword
 ;
 
 keepFieldNotInLookupOnTheDataNode
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | EVAL language_code = emp_no % 10
@@ -256,7 +256,7 @@ emp_no:integer
 ;
 
 dropAllFieldsUsedInLookupOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | WHERE emp_no == 10001
@@ -276,7 +276,7 @@ emp_no:integer
 
 lookupIndexInFromRepeatedRowBug
 // Test for https://github.com/elastic/elasticsearch/issues/118852
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 FROM languages_lookup_non_unique_key
 | WHERE language_code == 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -292,7 +292,7 @@ language_code:integer | language_name:keyword       | country:text
 ;
 
 nonUniqueRightKeyOnTheCoordinatorLateLimit
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_fix_limit_pushdown
 
 FROM employees
@@ -312,7 +312,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 ;
 
 nonUniqueRightKeyLateLimitWithEmptyRelation
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_fix_limit_pushdown
 
 ROW language_code = 1
@@ -330,7 +330,7 @@ language_code:integer | language_name:keyword
 ###########################################################################
 
 nullJoinKeyOnTheDataNode
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | WHERE emp_no < 10004
@@ -352,7 +352,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnTheLookupIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_skip_mv_warnings
 
 FROM employees
@@ -374,7 +374,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnFrom
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_skip_mv_warnings
 
 FROM employees
@@ -397,7 +397,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnTheLookupIndexAfterStats
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_skip_mv_warnings
 
 FROM employees
@@ -420,7 +420,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnFromAfterStats
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_skip_mv_warnings
 
 FROM employees
@@ -444,7 +444,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyFromRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_skip_mv_warnings
 
 ROW language_code = [4, 5, 6, 7]
@@ -461,7 +461,7 @@ language_code:integer | language_name:keyword | country:text
 ;
 
 mvJoinKeyFromRowExpanded
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: join_lookup_skip_mv_warnings
 
 ROW language_code = [4, 5, 6, 7, 8]
@@ -487,7 +487,7 @@ language_code:integer | language_name:keyword | country:text
 ###############################################
 
 filterOnLeftSide
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 // tag::filterOnLeftSide[]
 FROM employees
@@ -508,7 +508,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnRightSide
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 // tag::filterOnRightSide[]
 FROM employees
@@ -529,7 +529,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnRightSideMessages
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -545,7 +545,7 @@ FROM sample_data
 ;
 
 filterOnRightSideAfterStats
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -558,7 +558,7 @@ count:long | type:keyword
 ;
 
 filterOnJoinKey
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | EVAL language_code = languages
@@ -573,7 +573,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnJoinKeyAndRightSide
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | WHERE emp_no < 10006
@@ -590,7 +590,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnRightSideOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -606,7 +606,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnJoinKeyOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -622,7 +622,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnJoinKeyAndRightSideOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | SORT emp_no
@@ -639,7 +639,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnTheDataNodeThenFilterOnTheCoordinator
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | EVAL language_code = languages
@@ -660,7 +660,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ###########################################################################
 
 joinOnNestedField
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | WHERE 10000 < emp_no AND emp_no < 10006
@@ -680,7 +680,7 @@ emp_no:integer | language.id:integer | language.name:text
 
 
 joinOnNestedFieldRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW language.code = "EN"
 | LOOKUP JOIN languages_nested_fields ON language.code
@@ -693,7 +693,7 @@ language.id:integer | language.code:keyword | language.name.keyword:keyword
 
 
 joinOnNestedNestedFieldRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW language.name.keyword = "English"
 | LOOKUP JOIN languages_nested_fields ON language.name.keyword
@@ -705,7 +705,7 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 ;
 
 joinOnNestedNestedFieldRowExplicitKeyword
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_text
 
 ROW language.name.keyword = "English"
@@ -718,7 +718,7 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 ;
 
 joinOnNestedNestedFieldRowExplicitKeywords
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_text
 
 ROW language.name.keyword = ["English", "French"]
@@ -737,7 +737,7 @@ language.id:integer | language.name:text | language.name.keyword:keyword | langu
 ###############################################
 
 lookupIPFromRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -748,7 +748,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromKeepRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
 | KEEP left, client_ip, right
@@ -760,7 +760,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowing
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -771,7 +771,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowingKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -784,7 +784,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowingKeepReordered
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -797,7 +797,7 @@ right         | Development | 172.21.0.5
 ;
 
 lookupIPFromIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -816,7 +816,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -836,7 +836,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeepKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | KEEP client_ip, event_duration, @timestamp, message
@@ -858,7 +858,7 @@ timestamp:date           | client_ip:keyword | event_duration:long | msg:keyword
 ;
 
 lookupIPFromIndexStats
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -874,7 +874,7 @@ count:long | env:keyword
 ;
 
 lookupIPFromIndexStatsKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -891,7 +891,7 @@ count:long | env:keyword
 ;
 
 statsAndLookupIPFromIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -912,7 +912,7 @@ count:long | client_ip:keyword | env:keyword
 ###############################################
 
 lookupMessageFromRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -923,7 +923,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromKeepRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
 | KEEP left, message, right
@@ -935,7 +935,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromRowWithShadowing
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -946,7 +946,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromRowWithShadowingKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -958,7 +958,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -976,7 +976,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -995,7 +995,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeepKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | KEEP client_ip, event_duration, @timestamp, message
@@ -1015,7 +1015,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeepReordered
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -1034,7 +1034,7 @@ Success      | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
 ;
 
 lookupMessageFromIndexStats
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -1049,7 +1049,7 @@ count:long | type:keyword
 ;
 
 lookupMessageFromIndexStatsKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -1065,7 +1065,7 @@ count:long | type:keyword
 ;
 
 statsAndLookupMessageFromIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | STATS count = count(message) BY message
@@ -1083,7 +1083,7 @@ count:long | type:keyword | message:keyword
 ;
 
 lookupMessageFromIndexTwice
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -1105,7 +1105,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexTwiceKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -1128,7 +1128,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexTwiceFullyShadowing
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -1152,7 +1152,7 @@ ignoreOrder:true
 ###############################################
 
 lookupIPAndMessageFromRow
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -1164,7 +1164,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepBefore
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | KEEP left, client_ip, message, right
@@ -1177,7 +1177,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepBetween
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -1190,7 +1190,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepAfter
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -1203,7 +1203,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowing
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", type = "type", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -1215,7 +1215,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1229,7 +1229,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1244,7 +1244,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepKeepKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1260,7 +1260,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepReordered
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1274,7 +1274,7 @@ right         | Development  | Success      | 172.21.0.5
 ;
 
 lookupIPAndMessageFromIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1294,7 +1294,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1315,7 +1315,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexStats
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1333,7 +1333,7 @@ count:long | env:keyword | type:keyword
 ;
 
 lookupIPAndMessageFromIndexStatsKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1352,7 +1352,7 @@ count:long | env:keyword | type:keyword
 ;
 
 statsAndLookupIPAndMessageFromIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1371,7 +1371,7 @@ count:long | client_ip:keyword | message:keyword       | env:keyword | type:keyw
 ;
 
 lookupIPAndMessageFromIndexChainedEvalKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1393,7 +1393,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexChainedRenameKeep
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1415,7 +1415,7 @@ ignoreOrder:true
 ;
 
 lookupIndexQuoting
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 FROM languages_lookup_non_unique_key
 | WHERE language_code == 1
 | LOOKUP JOIN "languages_lookup" ON language_code
@@ -1433,7 +1433,7 @@ language_code:integer | language_name:keyword       | country:text
 
 
 sortBeforeAndAfterJoin
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 
 FROM employees
@@ -1454,7 +1454,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 
 sortBeforeAndAfterMultipleJoinAndMvExpand
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 
 FROM employees
@@ -1483,7 +1483,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ###############################################
 
 multipleBatchesWithSort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
@@ -1500,7 +1500,7 @@ language_code:integer
 ;
 
 multipleBatchesWithMvExpand
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
@@ -1518,7 +1518,7 @@ birth_date:datetime      |language_code:integer
 ;
 
 multipleBatchesWithAggregate1
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
@@ -1534,7 +1534,7 @@ x:datetime               |y:integer
 ;
 
 multipleBatchesWithAggregate2
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
@@ -1552,7 +1552,7 @@ null       |1
 ;
 
 multipleBatchesWithAggregate3
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
@@ -1573,7 +1573,7 @@ null      |1952-02-27T00:00:00.000Z
 // We had wrong layouts from ReplaceMissingFieldsWithNull
 
 enrichLookupStatsBug
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 
 from *
@@ -1589,7 +1589,7 @@ salary_change.long:double|foo:long
 
 
 joinMaskingEval
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: fix_join_masking_eval
 from languag*, -languages_mixed_numerics
 | eval type = null
@@ -1631,7 +1631,7 @@ German
 
 
 pruningJoinResult
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: fix_join_masking_eval
 from sample_data
 | eval type = 1000
@@ -1652,7 +1652,7 @@ event_duration:long
 ;
 
 dropAgainWithWildcardAfterEval2
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: drop_again_with_wildcard_after_eval
 from addresses,cartesian_multipolygons,hosts
 | rename city.name as message
@@ -1678,7 +1678,7 @@ null            | null                                          | null
 joinMaskingRegex
 // https://github.com/elastic/elasticsearch/issues/127467
 required_capability: union_types
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: fix_join_masking_regex_extract
 from books,message_*,ul*
 | enrich languages_policy on status
@@ -1707,7 +1707,7 @@ ratings:long
 
 joinMaskingDissect
 // https://github.com/elastic/elasticsearch/issues/127467
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: fix_join_masking_regex_extract
 from sample_data
 | dissect message "%{type}"
@@ -1726,7 +1726,7 @@ count:long
 
 joinMaskingGrok
 // https://github.com/elastic/elasticsearch/issues/127467
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: fix_join_masking_regex_extract
 from sample_data
 | grok message "%{WORD:type}"
@@ -1748,7 +1748,7 @@ max:long
 ###############################################
 
 byteJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1769,7 +1769,7 @@ language_code_short:short | language_name:keyword
 ;
 
 byteJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1790,7 +1790,7 @@ language_code_integer:integer | language_name:keyword
 ;
 
 byteJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1811,7 +1811,7 @@ language_code_long:long | language_name:keyword
 ;
 
 byteJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1832,7 +1832,7 @@ language_code_half_float:integer | language_name:keyword
 ;
 
 byteJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1853,7 +1853,7 @@ language_code_scaled_float:integer | language_name:keyword
 ;
 
 byteJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1874,7 +1874,7 @@ language_code_float:integer | language_name:keyword
 ;
 
 byteJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1895,7 +1895,7 @@ language_code_double:integer | language_name:keyword
 ;
 
 shortJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1920,7 +1920,7 @@ language_code_byte:integer | language_name:keyword
 ;
 
 shortJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1945,7 +1945,7 @@ language_code_integer:integer | language_name:keyword
 ;
 
 shortJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1970,7 +1970,7 @@ language_code_long:long | language_name:keyword
 ;
 
 shortJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -1997,7 +1997,7 @@ language_code_half_float:integer | language_name:keyword
 ;
 
 shortJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2022,7 +2022,7 @@ language_code_scaled_float:integer | language_name:keyword
 ;
 
 shortJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2047,7 +2047,7 @@ language_code_float:integer | language_name:keyword
 ;
 
 shortJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2072,7 +2072,7 @@ language_code_double:integer | language_name:keyword
 ;
 
 intJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2106,7 +2106,7 @@ language_code_byte:integer | language_name:keyword
 ;
 
 intJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2140,7 +2140,7 @@ language_code_short:integer | language_name:keyword
 ;
 
 intJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2174,7 +2174,7 @@ language_code_long:integer | language_name:keyword
 ;
 
 intJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2216,7 +2216,7 @@ language_code_half_float:integer | language_name:keyword
 ;
 
 intJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2250,7 +2250,7 @@ language_code_scaled_float:integer | language_name:keyword
 ;
 
 intJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2289,7 +2289,7 @@ language_code_float:integer | language_name:keyword
 ;
 
 intJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2323,7 +2323,7 @@ language_code_double:integer | language_name:keyword
 ;
 
 longJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2362,7 +2362,7 @@ language_code_byte:long | language_name:keyword
 ;
 
 longJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2401,7 +2401,7 @@ language_code_short:long | language_name:keyword
 ;
 
 longJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2440,7 +2440,7 @@ language_code_integer:long | language_name:keyword
 ;
 
 longJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2487,7 +2487,7 @@ language_code_half_float:long | language_name:keyword
 ;
 
 longJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2531,7 +2531,7 @@ language_code_scaled_float:long | language_name:keyword
 ;
 
 longJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2583,7 +2583,7 @@ language_code_float:long | language_name:keyword
 ;
 
 longJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2627,7 +2627,7 @@ language_code_double:long | language_name:keyword
 ;
 
 halfFloatJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2658,7 +2658,7 @@ language_code_byte:double | language_name:keyword
 ;
 
 halfFloatJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2689,7 +2689,7 @@ language_code_short:double | language_name:keyword
 ;
 
 halfFloatJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2720,7 +2720,7 @@ language_code_integer:double | language_name:keyword
 ;
 
 halfFloatJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2751,7 +2751,7 @@ language_code_long:double | language_name:keyword
 ;
 
 halfFloatJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2782,7 +2782,7 @@ language_code_scaled_float:double | language_name:keyword
 ;
 
 halfFloatJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2813,7 +2813,7 @@ language_code_float:double | language_name:keyword
 ;
 
 halfFloatJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2844,7 +2844,7 @@ language_code_double:double | language_name:keyword
 ;
 
 scaledFloatJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2885,7 +2885,7 @@ language_code_byte:double | language_name:keyword
 ;
 
 scaledFloatJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2926,7 +2926,7 @@ language_code_short:double | language_name:keyword
 ;
 
 scaledFloatJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -2967,7 +2967,7 @@ language_code_integer:double | language_name:keyword
 ;
 
 scaledFloatJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3008,7 +3008,7 @@ language_code_long:double | language_name:keyword
 ;
 
 scaledFloatJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3057,7 +3057,7 @@ language_code_half_float:double | language_name:keyword
 ;
 
 scaledFloatJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3106,7 +3106,7 @@ language_code_float:double | language_name:keyword
 ;
 
 scaledFloatJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3147,7 +3147,7 @@ language_code_double:double | language_name:keyword
 ;
 
 floatJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3190,7 +3190,7 @@ language_code_byte:double | language_name:keyword
 ;
 
 floatJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3233,7 +3233,7 @@ language_code_short:double | language_name:keyword
 ;
 
 floatJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3276,7 +3276,7 @@ language_code_integer:double | language_name:keyword
 ;
 
 floatJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3319,7 +3319,7 @@ language_code_long:double | language_name:keyword
 ;
 
 floatJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3370,7 +3370,7 @@ language_code_half_float:double | language_name:keyword
 ;
 
 floatJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3424,7 +3424,7 @@ language_code_scaled_float:double | language_name:keyword
 ;
 
 floatJoinDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3475,7 +3475,7 @@ language_code_double:double | language_name:keyword
 ;
 
 doubleJoinByte
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3519,7 +3519,7 @@ language_code_byte:double | language_name:keyword
 ;
 
 doubleJoinShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3563,7 +3563,7 @@ language_code_short:double | language_name:keyword
 ;
 
 doubleJoinInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3607,7 +3607,7 @@ language_code_integer:double | language_name:keyword
 ;
 
 doubleJoinLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3651,7 +3651,7 @@ language_code_long:double | language_name:keyword
 ;
 
 doubleJoinHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3703,7 +3703,7 @@ language_code_half_float:double | language_name:keyword
 ;
 
 doubleJoinScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3760,7 +3760,7 @@ language_code_scaled_float:double | language_name:keyword
 ;
 
 doubleJoinFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3820,7 +3820,7 @@ language_code_float:double | language_name:keyword
 ;
 
 byteEqualsShort
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3839,7 +3839,7 @@ language_code_byte:byte | language_code_short:short | language_name:keyword
 ;
 
 byteEqualsInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3858,7 +3858,7 @@ language_code_byte:byte | language_code_integer:integer | language_name:keyword
 ;
 
 byteEqualsLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3877,7 +3877,7 @@ language_code_byte:byte | language_code_long:long | language_name:keyword
 ;
 
 byteEqualsHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3896,7 +3896,7 @@ language_code_byte:byte | language_code_half_float:double | language_name:keywor
 ;
 
 byteEqualsScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3915,7 +3915,7 @@ language_code_byte:byte | language_code_scaled_float:double | language_name:keyw
 ;
 
 byteEqualsFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3934,7 +3934,7 @@ language_code_byte:byte | language_code_float:double | language_name:keyword
 ;
 
 byteEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3953,7 +3953,7 @@ language_code_byte:byte | language_code_double:double | language_name:keyword
 ;
 
 shortEqualsInt
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3976,7 +3976,7 @@ language_code_short:short | language_code_integer:integer | language_name:keywor
 ;
 
 shortEqualsLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -3999,7 +3999,7 @@ language_code_short:short | language_code_long:long | language_name:keyword
 ;
 
 shortEqualsHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4021,7 +4021,7 @@ language_code_short:short | language_code_half_float:double | language_name:keyw
 ;
 
 shortEqualsScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4044,7 +4044,7 @@ language_code_short:short | language_code_scaled_float:double | language_name:ke
 ;
 
 shortEqualsFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4067,7 +4067,7 @@ language_code_short:short | language_code_float:double | language_name:keyword
 ;
 
 shortEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4090,7 +4090,7 @@ language_code_short:short | language_code_double:double | language_name:keyword
 ;
 
 intEqualsLong
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4122,7 +4122,7 @@ language_code_integer:integer | language_code_long:long | language_name:keyword
 ;
 
 intEqualsHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4147,7 +4147,7 @@ language_code_integer:integer | language_code_half_float:double | language_name:
 ;
 
 intEqualsScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4179,7 +4179,7 @@ language_code_integer:integer | language_code_scaled_float:double | language_nam
 ;
 
 intEqualsFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4209,7 +4209,7 @@ language_code_integer:integer | language_code_float:double | language_name:keywo
 ;
 
 intEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4241,7 +4241,7 @@ language_code_integer:integer | language_code_double:double | language_name:keyw
 ;
 
 longEqualsHalfFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4266,7 +4266,7 @@ language_code_long:long | language_code_half_float:double | language_name:keywor
 ;
 
 longEqualsScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4300,7 +4300,7 @@ language_code_long:long | language_code_scaled_float:double | language_name:keyw
 ;
 
 longEqualsFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4334,7 +4334,7 @@ language_code_long:long | language_code_float:double | language_name:keyword
 ;
 
 longEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4371,7 +4371,7 @@ language_code_long:long | language_code_double:double | language_name:keyword
 ;
 
 halfFloatEqualsScaledFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4396,7 +4396,7 @@ language_code_half_float:double | language_code_scaled_float:double | language_n
 ;
 
 halfFloatEqualsFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4422,7 +4422,7 @@ language_code_half_float:double | language_code_float:double | language_name:key
 
 
 halfFloatEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4447,7 +4447,7 @@ language_code_half_float:double | language_code_double:double | language_name:ke
 ;
 
 scaledFloatEqualsFloat
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4479,7 +4479,7 @@ language_code_scaled_float:double | language_code_float:double | language_name:k
 
 
 scaledFloatEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4513,7 +4513,7 @@ language_code_scaled_float:double | language_code_double:double | language_name:
 ;
 
 floatEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4551,7 +4551,7 @@ language_code_float:double | language_code_double:double | language_name:keyword
 ;
 
 floatNotEqualsDouble
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM languages_mixed_numerics
@@ -4567,7 +4567,7 @@ language_code_float:double | language_code_double:double | language_name:keyword
 ;
 
 nullifiedJoinKeyToPurgeTheJoin
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 
 FROM employees
 | RENAME languages AS language_code
@@ -4586,7 +4586,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 lookupJoinOnTimeSeriesIndex
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM k8s
@@ -4622,7 +4622,7 @@ FROM k8s
 ###############################################
 
 joinDateNanos
-required_capability: join_lookup_v12
+required_capability: join_lookup_v13
 required_capability: date_nanos_lookup_join
 
 FROM sample_data_ts_nanos

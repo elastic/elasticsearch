@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators-general.html
+products:
+  - id: painless
 ---
 
 # Operators: General [painless-operators-general]

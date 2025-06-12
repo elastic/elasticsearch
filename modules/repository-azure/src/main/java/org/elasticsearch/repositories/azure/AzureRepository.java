@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -110,6 +111,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final RepositoriesMetrics repositoriesMetrics;
 
     public AzureRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,
@@ -119,6 +121,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final RepositoriesMetrics repositoriesMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,

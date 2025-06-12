@@ -48,7 +48,10 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), traceEvent),
+            Map.of(
+                new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA", TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY),
+                traceEvent
+            ),
             9,
             1.0d,
             1
@@ -114,7 +117,10 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), traceEvent),
+            Map.of(
+                new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA", TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY),
+                traceEvent
+            ),
             9,
             1.0d,
             1

@@ -87,6 +87,17 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         Property.NodeScope
     );
 
+    /* Currently, indexing is throttled due to memory pressure in stateful/stateless or disk pressure in stateless.
+     * This limits the number of indexing threads to 1 per shard. However, this might not be enough when the number of
+     * shards that need indexing is larger than the number of threads. So we might opt to pause indexing completely.
+     * The default value for this setting is false, but it will be set to true in stateless.
+     */
+    public static final Setting<Boolean> PAUSE_INDEXING_ON_THROTTLE = Setting.boolSetting(
+        "indices.pause.on.throttle",
+        false,
+        Property.NodeScope
+    );
+
     private final ThreadPool threadPool;
 
     private final Iterable<IndexShard> indexShards;
@@ -236,7 +247,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         statusChecker.run();
     }
 
-    /** Asks this shard to throttle indexing to one thread */
+    /** Asks this shard to throttle indexing to one thread. If the PAUSE_INDEXING_ON_THROTTLE seeting is set to true,
+     * throttling will pause indexing completely for the throttled shard.
+     */
     protected void activateThrottling(IndexShard shard) {
         shard.activateThrottling();
     }

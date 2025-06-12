@@ -100,7 +100,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
+            containsString("Received a bad request status code for request from inference entity id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 is not flagged as a content too large when the error message is different
@@ -112,7 +112,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
+            containsString("Received a bad request status code for request from inference entity id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 401

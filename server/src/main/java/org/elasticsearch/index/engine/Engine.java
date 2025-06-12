@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
@@ -25,7 +26,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -64,7 +64,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapping;
@@ -87,6 +86,7 @@ import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,6 +145,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -174,6 +175,9 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
+        this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
     }
@@ -379,14 +383,15 @@ public abstract class Engine implements Closeable {
 
     private long getSparseVectorValueCount(final LeafReader atomicReader, List<BytesRef> fields) throws IOException {
         long count = 0;
-        Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
-        if (terms == null) {
-            return count;
-        }
-        TermsEnum termsEnum = terms.iterator();
-        for (var fieldName : fields) {
-            if (termsEnum.seekExact(fieldName)) {
-                count += termsEnum.docFreq();
+        for (var fieldNameBR : fields) {
+            var fieldName = fieldNameBR.utf8ToString();
+            var fi = atomicReader.getFieldInfos().fieldInfo(fieldName);
+            if (fi == null) {
+                continue;
+            }
+            Terms terms = atomicReader.terms(fieldName);
+            if (terms != null) {
+                count += terms.getDocCount();
             }
         }
         return count;
@@ -444,27 +449,70 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
+        private static final Logger logger = LogManager.getLogger(IndexThrottle.class);
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
+        // This lock throttles indexing to 1 thread (per shard)
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        // This lock pauses indexing completely (on a per shard basis)
+        private final Lock pauseIndexingLock = new ReentrantLock();
+        private final Condition pauseCondition = pauseIndexingLock.newCondition();
+        private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
+        private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
+        private final boolean pauseWhenThrottled; // Should throttling pause indexing ?
         private volatile ReleasableLock lock = NOOP_LOCK;
 
+        public IndexThrottle(boolean pause) {
+            pauseWhenThrottled = pause;
+        }
+
         public Releasable acquireThrottle() {
-            return lock.acquire();
+            var lockCopy = this.lock;
+            if (lockCopy == pauseLockReference) {
+                try (var ignored = pauseLockReference.acquire()) {
+                    // If pause throttling is activated and not temporarily suspended
+                    while ((lock == pauseLockReference) && (suspendThrottling.getAcquire() == false)) {
+                        logger.trace("Waiting on pause indexing lock");
+                        pauseCondition.await();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } finally {
+                    logger.trace("Acquired pause indexing lock");
+                }
+                return (() -> {});
+            } else {
+                return lockCopy.acquire();
+            }
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
+
             startOfThrottleNS = System.nanoTime();
-            lock = lockReference;
+            if (pauseWhenThrottled) {
+                lock = pauseLockReference;
+                logger.trace("Activated index throttling pause");
+            } else {
+                lock = lockReference;
+            }
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
+
             lock = NOOP_LOCK;
+            if (pauseWhenThrottled) {
+                // Signal the threads that are waiting on pauseCondition
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    pauseCondition.signalAll();
+                }
+                logger.trace("Deactivated index throttling pause");
+            }
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
             long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
@@ -489,6 +537,26 @@ public abstract class Engine implements Closeable {
 
         boolean isThrottled() {
             return lock != NOOP_LOCK;
+        }
+
+        /** Suspend throttling to allow another task such as relocation to acquire all indexing permits */
+        public void suspendThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    suspendThrottling.setRelease(true);
+                    pauseCondition.signalAll();
+                }
+            }
+        }
+
+        /** Reverse what was done in {@link #suspendThrottle()} */
+        public void resumeThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    suspendThrottling.setRelease(false);
+                    pauseCondition.signalAll();
+                }
+            }
         }
 
         boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only

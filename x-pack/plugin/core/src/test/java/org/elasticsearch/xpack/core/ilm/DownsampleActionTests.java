@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -156,9 +155,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey);
             IndexMetadata indexMetadata = newIndexMeta("test", Settings.EMPTY);
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             branchingStep.performAction(indexMetadata.getIndex(), state);
             assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
@@ -172,9 +169,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
                 .build();
             IndexMetadata indexMetadata = newIndexMeta("test", settings);
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             branchingStep.performAction(indexMetadata.getIndex(), state);
             assertThat(branchingStep.getNextStepKey().name(), is(CheckNotDataStreamWriteIndexStep.NAME));
@@ -191,9 +186,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             String indexName = DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-test";
             IndexMetadata indexMetadata = newIndexMeta(indexName, settings);
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             branchingStep.performAction(indexMetadata.getIndex(), state);
             assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
@@ -204,9 +197,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             String indexName = DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-test";
             IndexMetadata indexMetadata = newIndexMeta(indexName, Settings.EMPTY);
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             branchingStep.performAction(indexMetadata.getIndex(), state);
             assertThat(branchingStep.getNextStepKey(), is(nextStepKey));

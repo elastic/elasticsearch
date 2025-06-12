@@ -40,6 +40,8 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:h3")
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -67,6 +69,10 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
 def generatedPath = "src/main/generated"
@@ -448,5 +454,22 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+
+  File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }

@@ -21,7 +21,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.VectorEncoding;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsReader;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -47,15 +46,12 @@ public class OffHeapReflectionUtils {
     private static final VarHandle RAW_VECTORS_READER_HNDL_SQ;
     private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L99FLT;
     private static final MethodHandle VECTOR_DATA_LENGTH_HANDLE_L99FLT;
-    private static final MethodHandle GET_FIELD_ENTRY_HANDLE_DIOL99FLT;
-    private static final MethodHandle VECTOR_DATA_LENGTH_HANDLE_DIOL99FLT;
     private static final MethodHandle GET_FIELD_ENTRY_HANDLE_L99HNSW;
     private static final MethodHandle GET_VECTOR_INDEX_LENGTH_HANDLE_L99HNSW;
     private static final VarHandle FLAT_VECTORS_READER_HNDL_L99HNSW;
 
     static final Class<?> L99_SQ_VR_CLS = Lucene99ScalarQuantizedVectorsReader.class;
     static final Class<?> L99_FLT_VR_CLS = Lucene99FlatVectorsReader.class;
-    static final Class<?> DIOL99_FLT_VR_CLS = DirectIOLucene99FlatVectorsReader.class;
     static final Class<?> L99_HNSW_VR_CLS = Lucene99HnswVectorsReader.class;
 
     // old codecs
@@ -100,12 +96,6 @@ public class OffHeapReflectionUtils {
             mt = methodType(cls, String.class, VectorEncoding.class);
             GET_FIELD_ENTRY_HANDLE_L99FLT = lookup.findVirtual(L99_FLT_VR_CLS, "getFieldEntry", mt);
             VECTOR_DATA_LENGTH_HANDLE_L99FLT = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
-            // DirectIOLucene99FlatVectorsReader
-            cls = Class.forName("org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsReader$FieldEntry");
-            lookup = MethodHandles.privateLookupIn(DIOL99_FLT_VR_CLS, MethodHandles.lookup());
-            mt = methodType(cls, String.class, VectorEncoding.class);
-            GET_FIELD_ENTRY_HANDLE_DIOL99FLT = lookup.findVirtual(DIOL99_FLT_VR_CLS, "getFieldEntry", mt);
-            VECTOR_DATA_LENGTH_HANDLE_DIOL99FLT = lookup.findVirtual(cls, "vectorDataLength", methodType(long.class));
             // Lucene99HnswVectorsReader
             cls = Class.forName("org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader$FieldEntry");
             lookup = MethodHandles.privateLookupIn(L99_HNSW_VR_CLS, MethodHandles.lookup());
@@ -175,18 +165,6 @@ public class OffHeapReflectionUtils {
         try {
             var entry = GET_FIELD_ENTRY_HANDLE_L99FLT.invoke(reader, fieldInfo.name, fieldInfo.getVectorEncoding());
             long len = (long) VECTOR_DATA_LENGTH_HANDLE_L99FLT.invoke(entry);
-            return Map.of(FLAT_VECTOR_DATA_EXTENSION, len);
-        } catch (Throwable t) {
-            handleThrowable(t);
-        }
-        throw new AssertionError("should not reach here");
-    }
-
-    @SuppressForbidden(reason = "static type is not accessible")
-    static Map<String, Long> getOffHeapByteSizeF99FLT(DirectIOLucene99FlatVectorsReader reader, FieldInfo fieldInfo) {
-        try {
-            var entry = GET_FIELD_ENTRY_HANDLE_DIOL99FLT.invoke(reader, fieldInfo.name, fieldInfo.getVectorEncoding());
-            long len = (long) VECTOR_DATA_LENGTH_HANDLE_DIOL99FLT.invoke(entry);
             return Map.of(FLAT_VECTOR_DATA_EXTENSION, len);
         } catch (Throwable t) {
             handleThrowable(t);

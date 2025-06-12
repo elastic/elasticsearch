@@ -30,10 +30,11 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
+        // builder uses to lookup a particular distribution
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterTestVersion())
+            .version(OLD_CLUSTER_VERSION)
             .nodes(NODE_NUM)
             .setting("path.repo", new Supplier<>() {
                 @Override
@@ -45,7 +46,10 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
             .setting("xpack.security.enabled", "false")
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
+        // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and
+        // do not need this.
+        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

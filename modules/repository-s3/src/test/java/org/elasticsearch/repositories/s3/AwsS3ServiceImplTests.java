@@ -22,9 +22,12 @@ import software.amazon.awssdk.regions.Region;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.ArgumentCaptor;
@@ -61,9 +64,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             clientSettings,
             webIdentityTokenCredentialsProvider
         );
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
+        assertThat(credentialsProvider, instanceOf(DefaultCredentialsProvider.class));
     }
 
     public void testSupportsWebIdentityTokenCredentials() {
@@ -80,10 +81,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
             webIdentityTokenCredentialsProvider
         );
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AwsCredentialsProviderChain.class));
-        AwsCredentials resolvedCredentials = privilegedAWSCredentialsProvider.resolveCredentials();
+        assertThat(credentialsProvider, instanceOf(AwsCredentialsProviderChain.class));
+        AwsCredentials resolvedCredentials = credentialsProvider.resolveCredentials();
         assertEquals("sts_access_key_id", resolvedCredentials.accessKeyId());
         assertEquals("sts_secret_key", resolvedCredentials.secretAccessKey());
     }
@@ -122,9 +121,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             defaultClientSettings,
             webIdentityTokenCredentialsProvider
         );
-        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) defaultCredentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
+        assertThat(defaultCredentialsProvider, instanceOf(DefaultCredentialsProvider.class));
     }
 
     public void testBasicAccessKeyAndSecretKeyCredentials() {
@@ -240,7 +237,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         try (
             S3Service s3Service = new S3Service(
                 mock(Environment.class),
-                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> Region.of("es-test-region")
             )
@@ -254,7 +252,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
 
             reference.close();
-            s3Service.doClose();
         }
     }
 

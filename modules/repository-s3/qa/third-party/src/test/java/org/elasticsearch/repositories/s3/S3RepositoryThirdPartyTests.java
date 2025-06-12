@@ -147,6 +147,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // construct our own repo instance so we can inject a threadpool that allows to control the passage of time
         try (
             var repository = new S3Repository(
+                randomProjectIdOrDefault(),
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),

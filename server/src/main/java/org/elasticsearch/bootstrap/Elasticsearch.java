@@ -63,6 +63,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Security;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -247,8 +248,8 @@ class Elasticsearch {
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
         var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
-        Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
-            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
+        Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), bundle -> List.of(bundle.getDir())));
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,
             pluginPolicies,
@@ -260,11 +261,11 @@ class Elasticsearch {
             nodeEnv.libDir(),
             nodeEnv.modulesDir(),
             nodeEnv.pluginsDir(),
-            sourcePaths,
+            pluginSourcePaths,
             nodeEnv.logsDir(),
             nodeEnv.tmpDir(),
             args.pidFile(),
-            Set.of(EntitlementSelfTester.class)
+            Set.of(EntitlementSelfTester.class.getPackage())
         );
         EntitlementSelfTester.entitlementSelfTest();
 

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -20,11 +22,10 @@ import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
@@ -113,7 +114,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = parseEvent(item, OpenAiStreamingProcessor::parse, parserConfig, log);
+        var results = parseEvent(item, OpenAiStreamingProcessor::parse, parserConfig);
 
         if (results.isEmpty()) {
             upstream().request(1);
@@ -122,10 +123,9 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
         }
     }
 
-    private static Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
-        throws IOException {
+    public static Stream<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
         if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
-            return Collections.emptyIterator();
+            return Stream.empty();
         }
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
@@ -167,11 +167,14 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
 
                 consumeUntilObjectEnd(parser); // end choices
                 return ""; // stopped
-            }).stream()
-                .filter(Objects::nonNull)
-                .filter(Predicate.not(String::isEmpty))
-                .map(StreamingChatCompletionResults.Result::new)
-                .iterator();
+            }).stream().filter(Objects::nonNull).filter(Predicate.not(String::isEmpty)).map(StreamingChatCompletionResults.Result::new);
+        } catch (IOException e) {
+            throw new ElasticsearchStatusException(
+                "Failed to parse event from inference provider: {}",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e,
+                event
+            );
         }
     }
 }

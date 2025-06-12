@@ -103,7 +103,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 /**
- * Test case that lets you easilly build {@link MapperService} based on some
+ * Test case that lets you easily build {@link MapperService} based on some
  * mapping. Useful when you don't need to spin up an entire index but do
  * need most of the trapping of the mapping.
  */
@@ -210,7 +210,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
         throws IOException {
         MapperService mapperService = createMapperService(indexVersion, settings, () -> true, mappings);
-        merge(mapperService, mappings);
         return mapperService;
     }
 
@@ -859,7 +858,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), filter, SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), filter, SourceFieldMetrics.NOOP);
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();

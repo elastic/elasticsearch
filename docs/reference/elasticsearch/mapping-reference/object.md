@@ -11,7 +11,7 @@ JSON documents are hierarchical in nature: the document may contain inner object
 
 ```console
 PUT my-index-000001/_doc/1
-{ <1>
+{ // <1>
   "region": "US",
   "manager": { <2>
     "age":     30,

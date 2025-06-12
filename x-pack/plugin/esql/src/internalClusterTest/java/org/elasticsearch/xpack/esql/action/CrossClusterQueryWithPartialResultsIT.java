@@ -227,6 +227,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertNotNull(unwrapped);
                 assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
             }
+            // The failure leads to skipped regardless of allowPartialResults
             request.allowPartialResults(true);
             try (var resp = runQuery(request)) {
                 assertTrue(resp.isPartial());
@@ -289,7 +290,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertThat(returnedIds, equalTo(local.okIds));
                 assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
                 EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
                 assertClusterFailure(resp, REMOTE_CLUSTER_1, simulatedFailure.getMessage());
             }
         } finally {

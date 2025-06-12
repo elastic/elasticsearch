@@ -28,6 +28,14 @@ public interface InferenceService extends Closeable {
     String name();
 
     /**
+     * The aliases that map to {@link #name()}. {@link InferenceServiceRegistry} allows users to create and use inference services by one
+     * of their aliases.
+     */
+    default List<String> aliases() {
+        return List.of();
+    }
+
+    /**
      * Parse model configuration from the {@code config map} from a request and return
      * the parsed {@link Model}. This requires that both the secrets and service settings be contained in the
      * {@code service_settings} field.

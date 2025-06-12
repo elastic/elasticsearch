@@ -461,8 +461,8 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list());
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list()) ? Translatable.YES : Translatable.NO;
     }
 
     @Override

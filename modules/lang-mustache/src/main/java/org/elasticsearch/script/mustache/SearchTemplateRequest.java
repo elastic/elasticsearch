@@ -9,9 +9,9 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest, ToXContentObject {
+public class SearchTemplateRequest extends LegacyActionRequest implements CompositeIndicesRequest, ToXContentObject {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -171,6 +171,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
+
     static {
         PARSER = new ObjectParser<>("search_template");
         PARSER.declareField((parser, request, s) -> request.setScriptParams(parser.map()), PARAMS_FIELD, ObjectParser.ValueType.OBJECT);

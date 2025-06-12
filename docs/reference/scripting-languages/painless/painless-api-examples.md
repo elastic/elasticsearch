@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-execute-api.html
+products:
+  - id: painless
 ---
 
 # Painless API examples [painless-execute-api]

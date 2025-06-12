@@ -83,7 +83,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting index templates updates
@@ -884,7 +884,12 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final Set<String> dataStreams = project.dataStreams().keySet();
+        final Set<String> dataStreams = project.dataStreams()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isSystem() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
 
         Function<ProjectMetadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();
@@ -941,12 +946,15 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+        // Determinization is avoided because it can fail or become very costly due to state explosion.
+        Automaton v2automaton = Regex.simpleMatchToNonDeterminizedAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateMetadata> cursor : project.templates().entrySet()) {
             String name = cursor.getKey();
             IndexTemplateMetadata template = cursor.getValue();
-            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
+            // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+            Automaton v1automaton = Regex.simpleMatchToNonDeterminizedAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
                     "composable template {} and legacy template {} would overlap: {} <=> {}",

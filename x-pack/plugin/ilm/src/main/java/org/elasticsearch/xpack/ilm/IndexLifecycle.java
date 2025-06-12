@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -27,7 +26,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -127,6 +126,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING,
             LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING,
+            LifecycleSettings.LIFECYCLE_SKIP_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
@@ -292,7 +292,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         );
     }
 
-    List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
+    List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {
         return List.of(reservedLifecycleAction.get());
     }
 

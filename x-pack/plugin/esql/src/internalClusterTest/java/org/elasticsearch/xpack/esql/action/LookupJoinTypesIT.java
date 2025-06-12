@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -53,6 +54,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -138,16 +140,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Test integer types
-        var integerTypes = List.of(BYTE, SHORT, INTEGER);
+        var integerTypes = List.of(BYTE, SHORT, INTEGER, LONG);
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("integers", TestConfigs::new);
             for (DataType mainType : integerTypes) {
                 for (DataType lookupType : integerTypes) {
                     configs.addPasses(mainType, lookupType);
                 }
-                // Long is currently treated differently in the validation, but we could consider changing that
-                configs.addFails(mainType, LONG);
-                configs.addFails(LONG, mainType);
             }
         }
 
@@ -167,9 +166,21 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             TestConfigs configs = testConfigurations.computeIfAbsent("mixed-numerical", TestConfigs::new);
             for (DataType mainType : integerTypes) {
                 for (DataType lookupType : floatTypes) {
-                    // TODO: We should probably allow this, but we need to change the validation code in Join.java
-                    configs.addFails(mainType, lookupType);
-                    configs.addFails(lookupType, mainType);
+                    configs.addPasses(mainType, lookupType);
+                    configs.addPasses(lookupType, mainType);
+                }
+            }
+        }
+
+        // Tests for mixed-date/time types
+        var dateTypes = List.of(DATETIME, DATE_NANOS);
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("mixed-temporal", TestConfigs::new);
+            for (DataType mainType : dateTypes) {
+                for (DataType lookupType : dateTypes) {
+                    if (mainType != lookupType) {
+                        configs.addFails(mainType, lookupType);
+                    }
                 }
             }
         }
@@ -199,7 +210,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         // Tests for all types where left and right are the same type
-        DataType[] supported = { BOOLEAN, LONG, INTEGER, DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, DATETIME, IP, KEYWORD, SCALED_FLOAT };
+        DataType[] supported = {
+            BOOLEAN,
+            LONG,
+            INTEGER,
+            DOUBLE,
+            SHORT,
+            BYTE,
+            FLOAT,
+            HALF_FLOAT,
+            DATETIME,
+            DATE_NANOS,
+            IP,
+            KEYWORD,
+            SCALED_FLOAT };
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
@@ -275,6 +299,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         testLookupJoinTypes("mixed-numerical");
     }
 
+    public void testLookupJoinMixedTemporal() {
+        testLookupJoinTypes("mixed-temporal");
+    }
+
     public void testLookupJoinSame() {
         testLookupJoinTypes("same");
     }
@@ -291,6 +319,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         initIndexes(group);
         initData(group);
         for (TestConfig config : testConfigurations.get(group).configs.values()) {
+            if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
+                continue;
+            }
             String query = String.format(
                 Locale.ROOT,
                 "FROM index | LOOKUP JOIN %s ON %s | KEEP other",
@@ -358,9 +389,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static String sampleDataTextFor(DataType type) {
-        var value = sampleDataFor(type);
+        return sampleDataForValue(sampleDataFor(type));
+    }
+
+    private static String sampleDataForValue(Object value) {
         if (value instanceof String) {
             return "\"" + value + "\"";
+        } else if (value instanceof List<?> list) {
+            return "[" + list.stream().map(LookupJoinTypesIT::sampleDataForValue).collect(Collectors.joining(", ")) + "]";
         }
         return String.valueOf(value);
     }
@@ -379,6 +415,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             case VERSION -> "1.2.19";
             case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
             case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";
+            case DENSE_VECTOR -> List.of(0.2672612f, 0.5345224f, 0.8017837f);
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }
@@ -538,5 +575,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             );
             assertion().accept(e);
         }
+    }
+
+    private boolean isValidDataType(DataType dataType) {
+        return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
     }
 }

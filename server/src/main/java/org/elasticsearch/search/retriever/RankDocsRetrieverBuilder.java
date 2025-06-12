@@ -33,13 +33,14 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     final List<RetrieverBuilder> sources;
     final Supplier<RankDoc[]> rankDocs;
 
-    public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs) {
+    public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs, Float minScore) {
         this.rankWindowSize = rankWindowSize;
         this.rankDocs = rankDocs;
         if (sources == null || sources.isEmpty()) {
             throw new IllegalArgumentException("sources must not be null or empty");
         }
         this.sources = sources;
+        this.minScore = minScore;
     }
 
     @Override
@@ -48,7 +49,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     }
 
     private boolean sourceHasMinScore() {
-        return minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
+        return this.minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
     }
 
     private boolean sourceShouldRewrite(QueryRewriteContext ctx) throws IOException {
@@ -132,7 +133,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             searchSourceBuilder.size(rankWindowSize);
         }
         if (sourceHasMinScore()) {
-            searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());
+            searchSourceBuilder.minScore(this.minScore == null ? Float.MIN_VALUE : this.minScore);
         }
         if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
@@ -160,12 +161,13 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         RankDocsRetrieverBuilder other = (RankDocsRetrieverBuilder) o;
         return rankWindowSize == other.rankWindowSize
             && Arrays.equals(rankDocs.get(), other.rankDocs.get())
-            && sources.equals(other.sources);
+            && sources.equals(other.sources)
+            && Object.equals(minScore, other.minScore);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(super.hashCode(), rankWindowSize, Arrays.hashCode(rankDocs.get()), sources);
+        return Objects.hash(super.hashCode(), rankWindowSize, Arrays.hashCode(rankDocs.get()), sources, minScore);
     }
 
     @Override

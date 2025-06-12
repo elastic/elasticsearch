@@ -17,6 +17,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -243,6 +244,7 @@ public class RealmsAuthenticator implements Authenticator {
                     final AuthenticationResult<User> result = authenticationResultRef.get();
                     assert result != null : "authentication result must not be null when user is not null";
                     context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
+                    context.getThreadContext().putTransient(Task.USER_KEY, result.getValue().principal());
                     listener.onResponse(
                         AuthenticationResult.success(Authentication.newRealmAuthentication(user, authenticatedByRef.get().realmRef()))
                     );

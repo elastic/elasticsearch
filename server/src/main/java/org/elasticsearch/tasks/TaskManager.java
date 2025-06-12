@@ -141,6 +141,10 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
+        String user = threadContext.getTransient(Task.USER_KEY);
+        if (user != null) {
+            headers.put(Task.USER_KEY, user);
+        }
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";

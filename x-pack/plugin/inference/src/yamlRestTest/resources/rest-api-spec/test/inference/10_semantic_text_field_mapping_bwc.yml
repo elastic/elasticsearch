@@ -677,7 +677,7 @@ setup:
                     foo: bar
 
 ---
-"Model is required for index options":
+"Specifying index options requires model information":
   - requires:
       cluster_features: "semantic_text.index_options"
       reason: Index options introduced in 8.19.0
@@ -685,7 +685,7 @@ setup:
   - do:
       catch: /Model settings must be set to validate index options/
       indices.create:
-        index: test-no-model
+        index: my-custom-semantic-index
         body:
           settings:
             index:
@@ -701,10 +701,11 @@ setup:
                   dense_vector:
                     type: int8_hnsw
 
+  - match: { status: 400 }
 
   - do:
       indices.create:
-        index: test-no-model
+        index: my-custom-semantic-index
         body:
           settings:
             index:
@@ -715,3 +716,87 @@ setup:
             properties:
               semantic_field:
                 type: semantic_text
+                inference_id: nonexistent-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: my-custom-semantic-index
+
+  - match: { "my-custom-semantic-index.mappings.properties.semantic_field.type": semantic_text }
+  - match: { "my-custom-semantic-index.mappings.properties.semantic_field.inference_id": nonexistent-inference-id }
+  - not_exists: my-custom-semantic-index.mappings.properties.semantic_field.index_options
+
+---
+"Updating index options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
+                    m: 16
+                    ef_construction: 100
+                    confidence_interval: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
+
+  - do:
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              index_options:
+                dense_vector:
+                  type: int8_hnsw
+                  m: 20
+                  ef_construction: 90
+                  confidence_interval: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 90 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
+
+  - do:
+      catch: /Incompatible index options/
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              index_options:
+                dense_vector:
+                  type: int8_flat
+
+  - match: { status: 400 }

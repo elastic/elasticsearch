@@ -57,7 +57,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVe
 @SuppressForbidden(reason = "Copied from lucene")
 public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader implements OffHeapStats {
 
-    private static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
+    private static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "false"));
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DirectIOLucene99FlatVectorsReader.class);
 
@@ -65,6 +65,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
 
+    @SuppressWarnings("this-escape")
     public DirectIOLucene99FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);

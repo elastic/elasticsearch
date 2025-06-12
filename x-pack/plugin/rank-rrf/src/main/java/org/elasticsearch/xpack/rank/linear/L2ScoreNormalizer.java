@@ -9,12 +9,13 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.features.NodeFeature;
 
 /**
  * A score normalizer that applies L2 normalization to a set of scores.
  * <p>
- * This normalizer scales the scores so that the L2 norm of the score vector is 1,
- * if possible. If all scores are zero or NaN, normalization is skipped and the original scores are returned.
+ * Each score is divided by the L2 norm of the scores if the norm is greater than a small EPSILON.
+ * If all scores are zero or NaN, normalization is skipped and the original scores are returned.
  * </p>
  */
 public class L2ScoreNormalizer extends ScoreNormalizer {
@@ -24,6 +25,8 @@ public class L2ScoreNormalizer extends ScoreNormalizer {
     public static final String NAME = "l2_norm";
 
     private static final float EPSILON = 1e-6f;
+
+    public static final NodeFeature LINEAR_RETRIEVER_L2_NORM = new NodeFeature("linear_retriever.l2_norm");
 
     public L2ScoreNormalizer() {}
 

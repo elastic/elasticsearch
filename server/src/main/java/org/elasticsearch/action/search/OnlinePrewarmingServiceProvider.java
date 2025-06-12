@@ -11,10 +11,16 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public interface OnlinePrewarmingServiceProvider {
-    OnlinePrewarmingServiceProvider DEFAULT = (settings, threadPool, clusterService) -> OnlinePrewarmingService.NOOP;
+    OnlinePrewarmingServiceProvider DEFAULT = (settings, threadPool, clusterService, telemetryProvider) -> OnlinePrewarmingService.NOOP;
 
-    OnlinePrewarmingService create(Settings settings, ThreadPool threadPool, ClusterService clusterService);
+    OnlinePrewarmingService create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TelemetryProvider telemetryProvider
+    );
 }

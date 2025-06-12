@@ -171,6 +171,28 @@ public class ClusterBlockTests extends ESTestCase {
         );
     }
 
+    public void testProjectGlobal() {
+        final ProjectId project1 = randomUniqueProjectId();
+        final ProjectId project2 = randomValueOtherThan(project1, ESTestCase::randomUniqueProjectId);
+        final ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        final var project1Index = randomIdentifier();
+        final var indexBlock = randomClusterBlock(randomVersion());
+        final var globalBlock = randomClusterBlock(randomVersion());
+        final var projectGlobalBlock = randomClusterBlock(randomVersion());
+        if (randomBoolean()) {
+            builder.addIndexBlock(project1, project1Index, indexBlock);
+        }
+        builder.addGlobalBlock(globalBlock);
+        builder.addProjectGlobalBlock(project1, projectGlobalBlock);
+        var clusterBlocks = builder.build();
+        assertThat(clusterBlocks.global().size(), equalTo(1));
+        assertThat(clusterBlocks.projectGlobal(project1).size(), equalTo(1));
+        assertThat(clusterBlocks.projectGlobal(project2).size(), equalTo(0));
+        assertThat(clusterBlocks.global(project1).size(), equalTo(2));
+        assertThat(clusterBlocks.global(project2).size(), equalTo(1));
+        assertTrue(clusterBlocks.indexBlocked(project1, randomFrom(projectGlobalBlock.levels()), project1Index));
+    }
+
     private static ClusterBlock randomClusterBlock(TransportVersion version) {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
         final EnumSet<ClusterBlockLevel> levels = ClusterBlock.filterLevels(

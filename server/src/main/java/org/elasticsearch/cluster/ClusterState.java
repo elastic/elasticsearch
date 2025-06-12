@@ -873,13 +873,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
             }
-            if (blocks().noProjectBlockAllProjects() == false) {
+            if (blocks().noProjectHasAProjectBlock() == false) {
                 builder.startArray("projects");
             }
             return builder;
         };
         final ToXContent after = (builder, params) -> {
-            if (blocks().noProjectBlockAllProjects() == false) {
+            if (blocks().noProjectHasAProjectBlock() == false) {
                 builder.endArray();
             }
             return builder.endObject();

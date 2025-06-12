@@ -72,12 +72,11 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global;
     }
 
-    // Review note: project-aware flavor of global() used in TransportSearch and TransportFieldCaps which were already project-aware
     public Set<ClusterBlock> global(ProjectId projectId) {
         return Sets.union(global, projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals());
     }
 
-    public boolean noProjectBlockAllProjects() {
+    public boolean noProjectHasAProjectBlock() {
         return projectBlocksMap.values().stream().allMatch(ProjectBlocks::isEmpty);
     }
 
@@ -97,8 +96,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return levelHolders.get(level).global();
     }
 
-    // For a specific project, global could be either project global or cluster global
-    // Review note: changed TransportAddIndexBlock to use this since it is project-aware
     public Set<ClusterBlock> global(ProjectId projectId, ClusterBlockLevel level) {
         var levelHolder = levelHolders.get(level);
         return Sets.union(levelHolder.global, levelHolder.projects.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals());
@@ -162,9 +159,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return false;
     }
 
-    // Review note: seems to be used only with STATE_NOT_RECOVERED by different node-level services. May or may not need to
-    // consider project globals once/if we have a project block that is similar to STATE_NOT_RECOVERED for project creation/resurrection
-    // time (essentially something similar to PROJECT_UNDER_DELETION_BLOCK, but retryable).
     public boolean hasGlobalBlock(ClusterBlock block) {
         return global.contains(block);
     }
@@ -178,14 +172,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return false;
     }
 
-    // Review note: used by monitoring/localExporter and watcher, both currently not project aware.
     public boolean hasGlobalBlockWithLevel(ClusterBlockLevel level) {
         return global(level).size() > 0;
-    }
-
-    // Review note: Used by TransportAbstractBulk which is already project-aware
-    public boolean hasGlobalBlockWithLevel(ProjectId projectId, ClusterBlockLevel level) {
-        return global(projectId, level).size() > 0;
     }
 
     /**
@@ -206,7 +194,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return hasIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, block);
     }
 
-    // Review note: Not changing index-specific checks.
     public boolean hasIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
         final var projectBlocks = projectBlocksMap.get(projectId);
         if (projectBlocks == null) {
@@ -219,17 +206,14 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return clusterBlocks.contains(block);
     }
 
-    // Review note: Not changing index-specific checks.
     public boolean hasIndexBlockLevel(ProjectId projectId, String index, ClusterBlockLevel level) {
         return blocksForIndex(projectId, level, index).isEmpty() == false;
     }
 
-    // Review note: Not changing index-specific checks.
     public boolean hasIndexBlockWithId(ProjectId projectId, String index, int blockId) {
         return getIndexBlockWithId(projectId, index, blockId) != null;
     }
 
-    // Review note: Not changing index-specific checks.
     @Nullable
     public ClusterBlock getIndexBlockWithId(final ProjectId projectId, final String index, final int blockId) {
         final var projectBlocks = projectBlocksMap.get(projectId);
@@ -246,17 +230,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return null;
     }
 
-    // Review note: only a watcher action uses this since it is not project-aware
     public void globalBlockedRaiseException(ClusterBlockLevel level) throws ClusterBlockException {
         ClusterBlockException blockException = globalBlockedException(level);
-        if (blockException != null) {
-            throw blockException;
-        }
-    }
-
-    // Review note: All new callers seemed project-aware/scoped actions.
-    public void globalBlockedRaiseException(ProjectId projectId, ClusterBlockLevel level) throws ClusterBlockException {
-        ClusterBlockException blockException = globalBlockedException(projectId, level);
         if (blockException != null) {
             throw blockException;
         }
@@ -270,22 +245,11 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global(projectId, level).isEmpty() == false;
     }
 
-    // Review note: this has some 200 callers mostly Transport actions. Not sure but maybe I have to
-    // review callers and update those that are project-scoped. TransportGetDataStreamLifecycle is one example
-    // that i've updated here, although many don't seem to be user facing or available
-    // directly in serverless. Could also be a follow up to update the callers.
     public ClusterBlockException globalBlockedException(ClusterBlockLevel level) {
         if (globalBlocked(level) == false) {
             return null;
         }
         return new ClusterBlockException(global(level));
-    }
-
-    public ClusterBlockException globalBlockedException(ProjectId projectId, ClusterBlockLevel level) {
-        if (globalBlocked(projectId, level) == false) {
-            return null;
-        }
-        return new ClusterBlockException(global(projectId, level));
     }
 
     public void indexBlockedRaiseException(ProjectId projectId, ClusterBlockLevel level, String index) throws ClusterBlockException {
@@ -373,7 +337,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     @Override
     public String toString() {
-        if (global.isEmpty() && noProjectBlockAllProjects()) {
+        if (global.isEmpty() && noProjectHasAProjectBlock()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
@@ -557,10 +521,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             this.projectGlobal = projectGlobal;
         }
 
-        static ProjectBlocks emptyMutable() {
-            return new ProjectBlocks(new HashMap<>(), new HashSet<>());
-        }
-
         public Map<String, Set<ClusterBlock>> indices() {
             return indices;
         }
@@ -633,10 +593,14 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         public Builder() {}
 
+        private static ProjectBlocks emptyMutableProjectBlocks() {
+            return new ProjectBlocks(new HashMap<>(), new HashSet<>());
+        }
+
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
             for (var projectId : blocks.projectBlocksMap.keySet()) {
-                final var projectBlocks = projects.computeIfAbsent(projectId, k -> ProjectBlocks.emptyMutable());
+                final var projectBlocks = projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks());
                 projectBlocks.projectGlobal.addAll(blocks.projectGlobal(projectId));
                 for (Map.Entry<String, Set<ClusterBlock>> entry : blocks.indices(projectId).entrySet()) {
                     if (projectBlocks.indices.containsKey(entry.getKey()) == false) {
@@ -683,7 +647,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         public Builder updateBlocks(ProjectId projectId, IndexMetadata indexMetadata) {
             // let's remove all blocks for this index and add them back -- no need to remove all individual blocks....
-            projects.computeIfAbsent(projectId, k -> ProjectBlocks.emptyMutable()).indices.remove(indexMetadata.getIndex().getName());
+            projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks()).indices.remove(indexMetadata.getIndex().getName());
             return addBlocks(projectId, indexMetadata);
         }
 
@@ -709,7 +673,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         public Builder addProjectGlobalBlock(ProjectId projectId, ClusterBlock block) {
             assert projectId.equals(ProjectId.DEFAULT) == false;
-            projects.computeIfAbsent(projectId, k -> ProjectBlocks.emptyMutable()).projectGlobal.add(block);
+            projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks()).projectGlobal.add(block);
             return this;
         }
 
@@ -727,7 +691,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
 
         public Builder addIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
-            final var projectBlocks = projects.computeIfAbsent(projectId, k -> ProjectBlocks.emptyMutable());
+            final var projectBlocks = projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks());
             if (projectBlocks.indices().containsKey(index) == false) {
                 projectBlocks.indices.put(index, new HashSet<>());
             }

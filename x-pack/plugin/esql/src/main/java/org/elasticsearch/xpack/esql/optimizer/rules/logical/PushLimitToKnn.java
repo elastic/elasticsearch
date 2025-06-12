@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -25,7 +26,12 @@ public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Li
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         var currentLimit = (int) limit.limit().fold(ctx.foldCtx());
         Holder<Integer> currentLimitHolder = new Holder<>(currentLimit);
+        Holder<Boolean> breakerReached = new Holder<>(false);
         return limit.transformDown(plan -> {
+            if (breakerReached.get()) {
+                // We reached a breaker and don't want to continue processing
+                return plan;
+            }
             if (plan instanceof Filter filter) {
                 Expression limitAppliedExpression = limitFilterExpressions(filter.condition(), limit, ctx);
                 if (limitAppliedExpression.equals(filter.condition()) == false) {
@@ -37,6 +43,8 @@ public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Li
                     currentLimitHolder.set(newLimit);
                 }
                 return descendantLimit;
+            } else if (plan instanceof Aggregate) {
+                breakerReached.set(true);
             }
 
             return plan;

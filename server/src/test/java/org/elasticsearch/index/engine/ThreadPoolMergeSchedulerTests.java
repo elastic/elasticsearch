@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -74,13 +75,14 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         nodeEnvironment = newNodeEnvironment(settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
             .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settings, nodeEnvironment);
+        var mergeMetrics = mock(MergeMetrics.class);
         try (
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
                 threadPoolMergeExecutorService,
                 merge -> 0,
-                MergeMetrics.NOOP
+                mergeMetrics
             )
         ) {
             List<OneMerge> executedMergesList = new ArrayList<>();
@@ -98,9 +100,19 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     return null;
                 }).when(mergeSource).merge(any(OneMerge.class));
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+
+                // verify queued byte metric is recorded for each merge
+                verify(mergeMetrics, times(i + 1)).incrementQueuedMergeBytes(any(), anyLong());
             }
+
             threadPoolTaskQueue.runAllTasks();
             assertThat(executedMergesList.size(), is(mergeCount));
+
+            // verify metrics are reported for each merge
+            verify(mergeMetrics, times(mergeCount)).moveQueuedMergeBytesToRunning(any(), anyLong());
+            verify(mergeMetrics, times(mergeCount)).decrementRunningMergeBytes(any());
+            verify(mergeMetrics, times(mergeCount)).markMergeMetrics(any(), anyLong(), anyLong());
+
             // assert merges are executed in ascending size order
             for (int i = 1; i < mergeCount; i++) {
                 assertThat(
@@ -114,6 +126,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     public void testSimpleMergeTaskBacklogging() {
         int mergeExecutorThreadCount = randomIntBetween(1, 5);
+        var mergeMetrics = mock(MergeMetrics.class);
         Settings mergeSchedulerSettings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
@@ -124,7 +137,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
             threadPoolMergeExecutorService,
             merge -> 0,
-            MergeMetrics.NOOP
+            mergeMetrics
         );
         // more merge tasks than merge threads
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
@@ -145,6 +158,9 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
         assertThat(threadPoolMergeScheduler.getRunningMergeTasks().size(), is(mergeExecutorThreadCount));
         assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(mergeCount - mergeExecutorThreadCount));
+
+        // verify no metrics are recorded as no merges have been queued or executed through the merge scheduler
+        verifyNoInteractions(mergeMetrics);
     }
 
     public void testSimpleMergeTaskReEnqueueingBySize() {
@@ -444,6 +460,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             // disable fs available disk space feature for this test
             .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        var mergeMetrics = mock(MergeMetrics.class);
         nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
@@ -456,13 +473,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     IndexSettingsModule.newIndexSettings("index", settings),
                     threadPoolMergeExecutorService,
                     merge -> 0,
-                    MergeMetrics.NOOP
+                    mergeMetrics
                 )
             ) {
                 // at least 1 extra merge than there are concurrently allowed
                 int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 10);
                 Semaphore runMergeSemaphore = new Semaphore(0);
-                for (int i = 0; i < mergeCount; i++) {
+                for (int i = 1; i <= mergeCount; i++) {
                     MergeSource mergeSource = mock(MergeSource.class);
                     OneMerge oneMerge = mock(OneMerge.class);
                     when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
@@ -476,7 +493,11 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         return null;
                     }).when(mergeSource).merge(any(OneMerge.class));
                     threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+
+                    // verify queued byte metric is recorded for each merge
+                    verify(mergeMetrics, times(i)).incrementQueuedMergeBytes(any(), anyLong());
                 }
+
                 for (int completedMergesCount = 0; completedMergesCount < mergeCount
                     - mergeSchedulerMaxThreadCount; completedMergesCount++) {
                     int finalCompletedMergesCount = completedMergesCount;
@@ -521,6 +542,11 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     runMergeSemaphore.release();
                 }
                 assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
+
+                // verify metrics are recorded for each merge
+                verify(mergeMetrics, times(mergeCount)).moveQueuedMergeBytesToRunning(any(), anyLong());
+                verify(mergeMetrics, times(mergeCount)).decrementRunningMergeBytes(any());
+                verify(mergeMetrics, times(mergeCount)).markMergeMetrics(any(), anyLong(), anyLong());
             }
         }
     }
@@ -701,30 +727,63 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    public void testMergeSchedulerAbortsMergeWhenShouldSkipMergeIsTrue() {
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
-        // build a scheduler that always returns true for shouldSkipMerge
-        ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
-            new ShardId("index", "_na_", 1),
-            IndexSettingsModule.newIndexSettings("index", Settings.builder().build()),
-            threadPoolMergeExecutorService,
-            merge -> 0,
-            MergeMetrics.NOOP
-        ) {
-            @Override
-            protected boolean shouldSkipMerge() {
-                return true;
+    public void testMergeSchedulerAbortsMergeWhenShouldSkipMergeIsTrue() throws IOException {
+        DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
+        Settings settings = Settings.builder()
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+        nodeEnvironment = newNodeEnvironment(settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
+            .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settings, nodeEnvironment);
+        var mergeMetrics = mock(MergeMetrics.class);
+        try (
+            // build a scheduler that always returns true for shouldSkipMerge
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
+                threadPoolMergeExecutorService,
+                merge -> 0,
+                mergeMetrics
+            ) {
+                @Override
+                protected boolean shouldSkipMerge() {
+                    return true;
+                }
             }
-        };
-        MergeSource mergeSource = mock(MergeSource.class);
-        OneMerge oneMerge = mock(OneMerge.class);
-        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
-        when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
-        when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
-        MergeTask mergeTask = threadPoolMergeScheduler.newMergeTask(mergeSource, oneMerge, randomFrom(MergeTrigger.values()));
-        // verify that calling schedule on the merge task indicates the merge should be aborted
-        Schedule schedule = threadPoolMergeScheduler.schedule(mergeTask);
-        assertThat(schedule, is(Schedule.ABORT));
+        ) {
+            int mergeCount = randomIntBetween(2, 10);
+            for (int i = 0; i < mergeCount; i++) {
+                MergeSource mergeSource = mock(MergeSource.class);
+                OneMerge oneMerge = mock(OneMerge.class);
+                when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+
+                // create the merge task
+                MergeTask mergeTask = threadPoolMergeScheduler.newMergeTask(mergeSource, oneMerge, randomFrom(MergeTrigger.values()));
+
+                // verify that calling schedule on the merge task indicates the merge should be aborted
+                Schedule schedule = threadPoolMergeScheduler.schedule(mergeTask);
+                assertThat(schedule, is(Schedule.ABORT));
+
+                // run the merge through the scheduler
+                threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+
+                // verify queued merge byte metrics are still recorded for each merge
+                verify(mergeMetrics, times(i + 1)).incrementQueuedMergeBytes(any(), anyLong());
+            }
+
+            // run all merges; they should all be aborted
+            threadPoolTaskQueue.runAllTasks();
+
+            // verify queued bytes metrics are moved to running and decremented
+            verify(mergeMetrics, times(mergeCount)).moveQueuedMergeBytesToRunning(any(), anyLong());
+            verify(mergeMetrics, times(mergeCount)).decrementRunningMergeBytes(any());
+
+            // verify we did not mark the merges as merged
+            verify(mergeMetrics, times(0)).markMergeMetrics(any(), anyLong(), anyLong());
+        }
     }
 
     private static MergeInfo getNewMergeInfo(long estimatedMergeBytes) {

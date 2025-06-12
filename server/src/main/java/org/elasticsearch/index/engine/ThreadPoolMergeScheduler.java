@@ -509,6 +509,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // {@code IndexWriter} checks the abort flag internally, while running the merge.
             // The segments of an aborted merge become available to subsequent merges.
             onGoingMerge.getMerge().setAborted();
+
+            mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge, mergeMemoryEstimateBytes);
             try {
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s start abort", this));

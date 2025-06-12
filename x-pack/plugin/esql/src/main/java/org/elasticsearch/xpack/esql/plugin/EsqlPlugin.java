@@ -300,6 +300,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
+        entries.add(EsqlQueryStatus.ENTRY);
         entries.add(ExchangeSinkOperator.Status.ENTRY);
         entries.add(ExchangeSourceOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);

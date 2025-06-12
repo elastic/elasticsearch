@@ -34,12 +34,17 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.mockito.Mockito;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
@@ -71,7 +76,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
-        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final ShardHeapUsageCollector mockShardHeapUsageCollector = spy(new StubShardShardHeapUsageCollector());
+        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            mockShardHeapUsageCollector
+        );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
 
@@ -107,11 +119,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
+            Mockito.clearInvocations(mockShardHeapUsageCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
+            verify(mockShardHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -126,6 +140,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
+    }
+
+    private static class StubShardShardHeapUsageCollector implements ShardHeapUsageCollector {
+
+        @Override
+        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            listener.onResponse(Map.of());
+        }
     }
 
     private static void runFor(DeterministicTaskQueue deterministicTaskQueue, long duration) {

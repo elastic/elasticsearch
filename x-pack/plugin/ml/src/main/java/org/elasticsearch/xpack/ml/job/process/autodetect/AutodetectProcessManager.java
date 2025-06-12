@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -1021,19 +1023,28 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
-        jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(persistentTask -> {
-            try {
-                handler.accept(null);
-            } catch (IOException e1) {
-                logger.warn("Error while delegating response", e1);
-            }
-        }, e -> {
-            try {
-                handler.accept(e);
-            } catch (IOException e1) {
-                logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
-            }
-        }));
+        // retry with a small initial backoff of 10ms
+        new UpdateStateRetryableAction(
+            logger,
+            threadPool,
+            TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
+            TimeValue.MAX_VALUE,
+            jobTask,
+            jobTaskState,
+            ActionListener.wrap(persistentTask -> {
+                try {
+                    handler.accept(null);
+                } catch (IOException e1) {
+                    logger.warn("Error while delegating response", e1);
+                }
+            }, e -> {
+                try {
+                    handler.accept(e);
+                } catch (IOException e1) {
+                    logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
+                }
+            })
+        ).run();
     }
 
     public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {
@@ -1081,5 +1092,55 @@ public class AutodetectProcessManager implements ClusterStateListener {
             }
         }
         return ByteSizeValue.ofBytes(memoryUsedBytes);
+    }
+
+    private static class UpdateStateRetryableAction extends RetryableAction<PersistentTasksCustomMetadata.PersistentTask<?>> {
+
+        private static final int MIN_RETRY_SLEEP_MILLIS = 50;
+        private final JobTask jobTask;
+        private final JobTaskState jobTaskState;
+
+        /**
+         * @param logger        The logger (use AutodetectProcessManager.logger)
+         * @param threadPool    The ThreadPool to schedule retries on
+         * @param initialDelay  How long to wait before the *first* retry
+         * @param timeout       Overall timeout for all retries
+         * @param jobTask       The JobTask whose state we’re updating
+         * @param jobTaskState  The new state to persist
+         */
+        UpdateStateRetryableAction(
+            Logger logger,
+            ThreadPool threadPool,
+            TimeValue initialDelay,
+            TimeValue timeout,
+            JobTask jobTask,
+            JobTaskState jobTaskState,
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> delegateListener
+        ) {
+            super(
+                logger,
+                threadPool,
+                initialDelay,
+                timeout,
+                delegateListener,
+                // executor for retries
+                threadPool.generic()
+            );
+            this.jobTask = Objects.requireNonNull(jobTask);
+            this.jobTaskState = Objects.requireNonNull(jobTaskState);
+        }
+
+        @Override
+        public void tryAction(ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
+            // this will call back either onResponse(...) or onFailure(...)
+            jobTask.updatePersistentTaskState(jobTaskState, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            // retry everything *except* when the task truly no longer exists
+            // TODO valeriy: is this the only exception we should not retry on?
+            return (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) == false;
+        }
     }
 }

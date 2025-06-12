@@ -355,9 +355,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     }).when(mergeTask).abort();
                     boolean mergeTaskSubmitted = threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                     assertTrue(mergeTaskSubmitted);
-                    assertBusy(() -> {
-                        assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask));
-                    });
+                    assertBusy(() -> { assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask)); });
                     long latestIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                     // all currently running merge tasks must be IO throttled to the latest IO Rate
                     assertBusy(() -> {

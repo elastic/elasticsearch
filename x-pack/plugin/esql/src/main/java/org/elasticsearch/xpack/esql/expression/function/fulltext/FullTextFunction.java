@@ -148,7 +148,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryBuilder);
+        return Objects.hash(super.hashCode(), query, queryBuilder);
     }
 
     @Override
@@ -157,7 +157,7 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
     }
 
     @Override

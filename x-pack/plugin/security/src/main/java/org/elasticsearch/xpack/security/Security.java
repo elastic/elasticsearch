@@ -1254,33 +1254,45 @@ public class Security extends Plugin
     }
 
     private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
-        final SetOnce<CustomApiKeyAuthenticator> customApiKeyAuthenticatorSetOnce = new SetOnce<>();
-        for (var extension : securityExtensions) {
+        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
             final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
             if (customApiKeyAuthenticator != null) {
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
                         "The ["
-                            + extension.getClass().getName()
+                            + extension.extensionName()
                             + "] extension tried to install a custom CustomApiKeyAuthenticator. "
                             + "This functionality is not available to external extensions."
                     );
                 }
-                boolean success = customApiKeyAuthenticatorSetOnce.trySet(customApiKeyAuthenticator);
-                if (false == success) {
-                    throw new IllegalStateException(
-                        "The ["
-                            + extension.getClass().getName()
-                            + "] extension tried to install a custom CustomApiKeyAuthenticator, but one has already been installed."
-                    );
-                }
-                logger.debug("CustomApiKeyAuthenticator provided by extension [{}]", extension.extensionName());
+                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
             }
         }
-        if (customApiKeyAuthenticatorSetOnce.get() == null) {
-            customApiKeyAuthenticatorSetOnce.set(new CustomApiKeyAuthenticator.Noop());
+
+        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to noop implementation.",
+                CustomApiKeyAuthenticator.class.getCanonicalName()
+            );
+            return new CustomApiKeyAuthenticator.Noop();
+
+        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
+            );
+
+        } else {
+            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final String extensionName = authenticatorByExtensionEntry.getKey();
+            logger.debug(
+                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
+                customApiKeyAuthenticator.getClass().getCanonicalName(),
+                extensionName
+            );
+            return customApiKeyAuthenticator;
         }
-        return customApiKeyAuthenticatorSetOnce.get();
     }
 
     private ServiceAccountService createServiceAccountService(

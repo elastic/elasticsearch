@@ -919,9 +919,7 @@ public final class Authentication implements ToXContentObject {
 
     private void checkConsistencyForApiKeyAuthenticationType() {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
-        if (false == authenticatingRealm.isApiKeyRealm()
-            && false == authenticatingRealm.isCrossClusterAccessRealm()
-            && false == authenticatingRealm.isCloudApiKeyRealm()) {
+        if (false == authenticatingRealm.usesApiKeys()) {
             throw new IllegalArgumentException(
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
@@ -1215,6 +1213,10 @@ public final class Authentication implements ToXContentObject {
 
         private boolean isAnonymousRealm() {
             return ANONYMOUS_REALM_NAME.equals(name) && ANONYMOUS_REALM_TYPE.equals(type);
+        }
+
+        private boolean usesApiKeys() {
+            return isCloudApiKeyRealm() || isApiKeyRealm() || isCrossClusterAccessRealm();
         }
 
         private boolean isCloudApiKeyRealm() {

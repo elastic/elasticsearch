@@ -591,7 +591,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-// This is a bug we need to solve
+// INLINESTATS is under development, we enable this once it will be available
 forkBeforeInlineStats-Ignore
 required_capability: fork_v8
 
@@ -608,7 +608,8 @@ emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:k
 1 | 2 | 3 | 4 | 5
 ;
 
-forkBranchWithInlineStats
+// INLINESTATS is under development, we enable this once it will be available
+forkBranchWithInlineStats-Ignore
 required_capability: fork_v8
 
 FROM employees
@@ -629,7 +630,8 @@ emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
 10087          | 5                 | 2         | F              | fork2
 ;
 
-forkAfterInlineStats
+// INLINESTATS is under development, we enable this once it will be available
+forkAfterInlineStats-Ignore
 required_capability: fork_v8
 
 FROM employees

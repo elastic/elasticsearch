@@ -301,7 +301,6 @@ forkSubQueryProcessingCommand
     | changePointCommand
     | completionCommand
     | grokCommand
-    | {this.isDevVersion()}? inlinestatsCommand
     ;
 
 rrfCommand

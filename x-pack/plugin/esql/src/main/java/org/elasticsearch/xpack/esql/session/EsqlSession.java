@@ -187,9 +187,7 @@ public class EsqlSession {
                     LogicalPlan optimizedPlan = optimizedPlan(analyzedPlan);
                     preMapper.preMapper(
                         optimizedPlan,
-                        listener.delegateFailureAndWrap(
-                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l)
-                        )
+                        listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
                     );
                 }
             }

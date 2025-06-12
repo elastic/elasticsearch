@@ -116,9 +116,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     private Query sourceConfirmedQuery(Query query, SearchExecutionContext context) {
         // Disable scoring
-        return new ConstantScoreQuery(
-            new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer)
-        );
+        return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer));
     }
 
     private IntervalsSource toIntervalsSource(IntervalsSource source, Query approximation, SearchExecutionContext searchExecutionContext) {

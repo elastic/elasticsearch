@@ -732,22 +732,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) {
-
-        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        Source source = source(ctx);
-        List<WildcardPattern> wildcardPatterns = expressions.subList(1, expressions.size())
-            .stream()
-            .map(x -> new WildcardPattern(x.fold(FoldContext.small()).toString()))
-            .toList();
-        // for now we will use the old WildcardLike function as much as possible to allow compatibility in mixed version deployments
-        Expression e = wildcardPatterns.size() == 1
-            ? new WildcardLike(source, expressions.getFirst(), wildcardPatterns.getFirst())
-            : new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(wildcardPatterns));
-        return ctx.NOT() == null ? e : new Not(source, e);
-    }
-
-    @Override
     public Object visitIsNull(EsqlBaseParser.IsNullContext ctx) {
         Expression exp = expression(ctx.valueExpression());
         Source source = source(ctx.valueExpression(), ctx);
@@ -755,52 +739,46 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
+    public Expression visitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) {
         Source source = source(ctx);
-        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        WildcardPattern pattern = new WildcardPattern(expressions.get(1).fold(FoldContext.small()).toString());
-        // for now we will use the old WildcardLike function as much as possible to allow compatibility in mixed version deployments
-        WildcardLike result = new WildcardLike(source, expressions.get(0), pattern);
-        // WildcardLikeList result = new WildcardLikeList(source, expressions.getFirst(), new WildcardPatternList(List.of(pattern)));
-        return ctx.NOT() == null ? result : new Not(source, result);
+        Expression left = expression(ctx.valueExpression());
+        List<WildcardPattern> wildcardPatterns = ctx.string()
+            .stream()
+            .map(x -> new WildcardPattern(visitString(x).fold(FoldContext.small()).toString()))
+            .toList();
+        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
+        Expression e = wildcardPatterns.size() == 1
+            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
+            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override
     public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
         Source source = source(ctx);
-        List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
-        RLike rLike = new RLike(source, expressions.get(0), new RLikePattern(expressions.get(1).fold(FoldContext.small()).toString()));
-        return ctx.NOT() == null ? rLike : new Not(source, rLike);
+        Expression left = expression(ctx.valueExpression());
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            RLike rLike = new RLike(source, left, new RLikePattern(patternLiteral.fold(FoldContext.small()).toString()));
+            return ctx.NOT() == null ? rLike : new Not(source, rLike);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
     }
 
-    /*
     @Override
-    public Expression visitRegexBooleanExpression (EsqlBaseParser.RegexBooleanExpressionContext ctx) {
-        int type = ctx.kind.getType();
+    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
         Source source = source(ctx);
         Expression left = expression(ctx.valueExpression());
-        Literal pattern = visitString(ctx.pattern);
-        RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> {
-                try {
-                    yield new WildcardLike(
-                        source,
-                        left,
-                        new WildcardPattern(pattern.fold(FoldContext.small() ).toString())
-                    );
-                } catch (InvalidArgumentException e) {
-                    throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
-                }
-            }
-            case EsqlBaseParser.RLIKE -> new RLike(
-                source,
-                left,
-                new RLikePattern(pattern.fold(FoldContext.small() ).toString())
-            );
-            default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
-        };
-        return ctx.NOT() == null ? result : new Not(source, result);
-    }*/
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            WildcardPattern pattern = new WildcardPattern(patternLiteral.fold(FoldContext.small()).toString());
+            WildcardLike result = new WildcardLike(source, left, pattern);
+            return ctx.NOT() == null ? result : new Not(source, result);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
+    }
 
     @Override
     public Order visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx) {

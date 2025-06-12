@@ -18,9 +18,9 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? LIKE valueExpression                                 #likeExpression
-    | valueExpression (NOT)? RLIKE valueExpression                                #rlikeExpression
-    | valueExpression (NOT)? LIKE LP valueExpression (COMMA valueExpression)* RP  #logicalLikeList
+    : valueExpression (NOT)? LIKE string                               #likeExpression
+    | valueExpression (NOT)? RLIKE string                                 #rlikeExpression
+    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP  #logicalLikeList
     ;
 
 matchBooleanExpression

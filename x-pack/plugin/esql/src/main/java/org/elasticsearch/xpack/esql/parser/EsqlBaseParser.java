@@ -4922,13 +4922,13 @@ public class EsqlBaseParser extends ParserConfig {
   }
   @SuppressWarnings("CheckReturnValue")
   public static class LikeExpressionContext extends RegexBooleanExpressionContext {
-    public List<ValueExpressionContext> valueExpression() {
-      return getRuleContexts(ValueExpressionContext.class);
-    }
-    public ValueExpressionContext valueExpression(int i) {
-      return getRuleContext(ValueExpressionContext.class,i);
+    public ValueExpressionContext valueExpression() {
+      return getRuleContext(ValueExpressionContext.class,0);
     }
     public TerminalNode LIKE() { return getToken(EsqlBaseParser.LIKE, 0); }
+    public StringContext string() {
+      return getRuleContext(StringContext.class,0);
+    }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
     @SuppressWarnings("this-escape")
     public LikeExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
@@ -4948,14 +4948,17 @@ public class EsqlBaseParser extends ParserConfig {
   }
   @SuppressWarnings("CheckReturnValue")
   public static class LogicalLikeListContext extends RegexBooleanExpressionContext {
-    public List<ValueExpressionContext> valueExpression() {
-      return getRuleContexts(ValueExpressionContext.class);
-    }
-    public ValueExpressionContext valueExpression(int i) {
-      return getRuleContext(ValueExpressionContext.class,i);
+    public ValueExpressionContext valueExpression() {
+      return getRuleContext(ValueExpressionContext.class,0);
     }
     public TerminalNode LIKE() { return getToken(EsqlBaseParser.LIKE, 0); }
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
+    public List<StringContext> string() {
+      return getRuleContexts(StringContext.class);
+    }
+    public StringContext string(int i) {
+      return getRuleContext(StringContext.class,i);
+    }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
     public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
@@ -4980,13 +4983,13 @@ public class EsqlBaseParser extends ParserConfig {
   }
   @SuppressWarnings("CheckReturnValue")
   public static class RlikeExpressionContext extends RegexBooleanExpressionContext {
-    public List<ValueExpressionContext> valueExpression() {
-      return getRuleContexts(ValueExpressionContext.class);
-    }
-    public ValueExpressionContext valueExpression(int i) {
-      return getRuleContext(ValueExpressionContext.class,i);
+    public ValueExpressionContext valueExpression() {
+      return getRuleContext(ValueExpressionContext.class,0);
     }
     public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
+    public StringContext string() {
+      return getRuleContext(StringContext.class,0);
+    }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
     @SuppressWarnings("this-escape")
     public RlikeExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
@@ -5032,7 +5035,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(597);
         match(LIKE);
         setState(598);
-        valueExpression();
+        string();
         }
         break;
       case 2:
@@ -5054,7 +5057,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(604);
         match(RLIKE);
         setState(605);
-        valueExpression();
+        string();
         }
         break;
       case 3:
@@ -5078,7 +5081,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(612);
         match(LP);
         setState(613);
-        valueExpression();
+        string();
         setState(618);
         _errHandler.sync(this);
         _la = _input.LA(1);
@@ -5088,7 +5091,7 @@ public class EsqlBaseParser extends ParserConfig {
           setState(614);
           match(COMMA);
           setState(615);
-          valueExpression();
+          string();
           }
           }
           setState(620);
@@ -7509,15 +7512,15 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u0000\u0251\u0253\u0003\u0080@\u0000\u0252\u0254\u0005G\u0000"+
     "\u0000\u0253\u0252\u0001\u0000\u0000\u0000\u0253\u0254\u0001\u0000\u0000"+
     "\u0000\u0254\u0255\u0001\u0000\u0000\u0000\u0255\u0256\u0005F\u0000\u0000"+
-    "\u0256\u0257\u0003\u0080@\u0000\u0257\u0270\u0001\u0000\u0000\u0000\u0258"+
+    "\u0256\u0257\u0003\u0098L\u0000\u0257\u0270\u0001\u0000\u0000\u0000\u0258"+
     "\u025a\u0003\u0080@\u0000\u0259\u025b\u0005G\u0000\u0000\u025a\u0259\u0001"+
     "\u0000\u0000\u0000\u025a\u025b\u0001\u0000\u0000\u0000\u025b\u025c\u0001"+
-    "\u0000\u0000\u0000\u025c\u025d\u0005M\u0000\u0000\u025d\u025e\u0003\u0080"+
-    "@\u0000\u025e\u0270\u0001\u0000\u0000\u0000\u025f\u0261\u0003\u0080@\u0000"+
+    "\u0000\u0000\u0000\u025c\u025d\u0005M\u0000\u0000\u025d\u025e\u0003\u0098"+
+    "L\u0000\u025e\u0270\u0001\u0000\u0000\u0000\u025f\u0261\u0003\u0080@\u0000"+
     "\u0260\u0262\u0005G\u0000\u0000\u0261\u0260\u0001\u0000\u0000\u0000\u0261"+
     "\u0262\u0001\u0000\u0000\u0000\u0262\u0263\u0001\u0000\u0000\u0000\u0263"+
     "\u0264\u0005F\u0000\u0000\u0264\u0265\u0005c\u0000\u0000\u0265\u026a\u0003"+
-    "\u0080@\u0000\u0266\u0267\u0005>\u0000\u0000\u0267\u0269\u0003\u0080@"+
+    "\u0098L\u0000\u0266\u0267\u0005>\u0000\u0000\u0267\u0269\u0003\u0098L"+
     "\u0000\u0268\u0266\u0001\u0000\u0000\u0000\u0269\u026c\u0001\u0000\u0000"+
     "\u0000\u026a\u0268\u0001\u0000\u0000\u0000\u026a\u026b\u0001\u0000\u0000"+
     "\u0000\u026b\u026d\u0001\u0000\u0000\u0000\u026c\u026a\u0001\u0000\u0000"+

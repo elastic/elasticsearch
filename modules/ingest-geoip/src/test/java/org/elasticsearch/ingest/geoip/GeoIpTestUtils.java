@@ -17,8 +17,6 @@ import com.maxmind.geoip2.model.CountryResponse;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.CacheableCityResponse;
-import org.elasticsearch.ingest.geoip.MaxmindIpDataLookups.CacheableCountryResponse;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -69,17 +67,21 @@ public final class GeoIpTestUtils {
         }
     }
 
+    public record SimpleCity(String cityName) implements GeoIpCache.CacheableValue {}
+
     /**
      * A static city-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
      * Like this: {@code CacheableCityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
-    public static CacheableCityResponse getCity(Reader reader, String ip) throws IOException {
+    public static SimpleCity getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
         CityResponse data = record.getData();
-        return data == null ? null : CacheableCityResponse.from(new CityResponse(data, ip, record.getNetwork(), List.of("en")));
+        return data == null ? null : new SimpleCity(new CityResponse(data, ip, record.getNetwork(), List.of("en")).getCity().getName());
     }
+
+    public record SimpleCountry(String countryName) implements GeoIpCache.CacheableValue {}
 
     /**
      * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
@@ -87,9 +89,11 @@ public final class GeoIpTestUtils {
      * <p>
      * Like this: {@code CacheableCountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
-    public static CacheableCountryResponse getCountry(Reader reader, String ip) throws IOException {
+    public static SimpleCountry getCountry(Reader reader, String ip) throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);
         CountryResponse data = record.getData();
-        return data == null ? null : CacheableCountryResponse.from(new CountryResponse(data, ip, record.getNetwork(), List.of("en")));
+        return data == null
+            ? null
+            : new SimpleCountry(new CountryResponse(data, ip, record.getNetwork(), List.of("en")).getCountry().getName());
     }
 }

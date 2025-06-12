@@ -28,6 +28,8 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.Random;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
 import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.discretize;
@@ -254,6 +256,54 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             globalCentroid[j] /= centroids.length;
         }
 
+        // FIXME: can we sort while constructing the hkmeans structure?
+        // FIXME: clean up and can we not have a centroidOrds?
+        int[] centroidOrds = new int[centroids.length];
+        for(int i = 0; i < centroidOrds.length; i++) {
+            centroidOrds[i] = i;
+        }
+
+//        int[] distanceApprox = new int[centroidOrds.length];
+//        for(int i = 0; i < centroidOrds.length; i++) {
+//            distanceApprox[i] = (int) VectorUtil.squareDistance(globalCentroid, centroids[i]);
+//        }
+
+//        int[] randomOrdering = new int[centroids.length];
+//        Random random = new Random();
+//        for(int i = 0; i < centroidOrds.length; i++) {
+//            randomOrdering[i] = random.nextInt();
+//            randomOrdering[i] = centroidOrds.length - i;
+//        }
+
+//        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, randomOrdering);
+        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, kMeansResult.layer1);
+//        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, distanceApprox);
+        sorter.sort(0, centroids.length);
+
+        // FIXME: compute and write out the top level centroids as well before each of the groups of centroids
+
+        // FIXME: since the layer1 has been sorted should be able to act on groups of these when computing the parent centroids
+        // the -1 centroids (that have no further partitioning) are their own centroids and we'll essentially compare them the same on search
+        // the non -1 centroids have structure and we'll respect that by computing a parent partition centroid and writing it out for comparison prior to comparing any other centroids
+        for(int i = 0; i < kMeansResult.layer1.length; i++) {
+            // go past all the -1 non-subpartition centroids
+            if(kMeansResult.layer1[i] != -1) {
+                continue;
+            }
+            int label = kMeansResult.layer1[i];
+            int totalCentroids = 0;
+            float[] parentPartitionCentroid = new float[fieldInfo.getVectorDimension()];
+            for(int j = i+1; kMeansResult.layer1[j] == label; j++) {
+//                parentPartitionCentroid[] += centroids[?]
+                totalCentroids++;
+            }
+            for(int j = 0; j < parentPartitionCentroid.length; j++) {
+                parentPartitionCentroid[j] /= totalCentroids;
+            }
+        }
+
+        // FIXME: write out parent partition centroids as well
+
         // write centroids
         writeCentroids(centroids, fieldInfo, globalCentroid, centroidOutput);
 
@@ -263,16 +313,23 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         IntArrayList[] assignmentsByCluster = new IntArrayList[centroids.length];
-        for (int c = 0; c < centroids.length; c++) {
+        for (int c = 0; c < assignmentsByCluster.length; c++) {
             IntArrayList cluster = new IntArrayList(vectorPerCluster);
             for (int j = 0; j < assignments.length; j++) {
-                if (assignments[j] == c) {
+                if(assignments[j] == -1) {
+                    continue;
+                }
+                // FIXME: could abstract this to an assignment supplier so it's not so error prone
+                if (assignments[j] == centroidOrds[c]) {
                     cluster.add(j);
                 }
             }
 
             for (int j = 0; j < soarAssignments.length; j++) {
-                if (soarAssignments[j] == c) {
+                if(soarAssignments[j] == -1) {
+                    continue;
+                }
+                if (soarAssignments[j] == centroidOrds[c]) {
                     cluster.add(j);
                 }
             }

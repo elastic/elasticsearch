@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.internal.hppc.IntIntHashMap;
+
+import java.util.Arrays;
+
 /**
  * Output object for clustering (partitioning) a set of vectors
  */
@@ -17,6 +21,9 @@ public class KMeansResult {
     private final int[] assignments;
     private int[] soarAssignments;
 
+    // FIXME: clean this up
+    public int[] layer1;
+
     KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {
         assert centroids != null;
         assert assignments != null;
@@ -24,6 +31,10 @@ public class KMeansResult {
         this.centroids = centroids;
         this.assignments = assignments;
         this.soarAssignments = soarAssignments;
+
+        // FIXME: clean this up
+        this.layer1 = new int[centroids.length];
+        Arrays.fill(this.layer1, -1);
     }
 
     public float[][] centroids() {

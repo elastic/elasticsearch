@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ public class HierarchicalKMeans {
         }
 
         // partition the space
-        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, 0);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
             int localSampleSize = (int) (f * vectors.size());
@@ -76,7 +77,9 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
+    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors,
+                                       final int targetSize,
+                                       final int depth) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -140,13 +143,15 @@ public class HierarchicalKMeans {
         for (int c = 0; c < centroidVectorCount.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
+            // FIXME: pull this magic constant out
             if (100 * centroidVectorCount[c] > 134 * targetSize) {
                 FloatVectorValues sample = createClusterSlice(centroidVectorCount[c], c, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, c, clusterAndSplit(sample, targetSize));
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate,
+                        c, clusterAndSplit(sample, targetSize, depth+1), depth);
             }
         }
 
@@ -166,7 +171,7 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
-    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
+    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions, int depth) {
         int orgCentroidsSize = current.centroids().length;
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
@@ -182,6 +187,20 @@ public class HierarchicalKMeans {
             // append the remainder
             System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
 
+            // FIXME: clean this up
+            // FIXME: do more than just layer 1
+            // FIXME: copy the prior labels here just like everything else
+            if(depth == 0) {
+                int[] newLayer1 = new int[newCentroids.length];
+                System.arraycopy(current.layer1, 0, newLayer1, 0, current.layer1.length);
+                current.layer1 = newLayer1;
+                current.layer1[cluster] = cluster;
+                for(int i = current.centroids().length; i < newCentroids.length; i++) {
+                    current.layer1[i] = cluster;
+                }
+            }
+            ////////////////
+
             current.setCentroids(newCentroids);
 
             for (int i = 0; i < subPartitions.assignments().length; i++) {
@@ -192,6 +211,7 @@ public class HierarchicalKMeans {
                     current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
                 }
             }
+
         }
     }
 }

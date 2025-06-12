@@ -58,6 +58,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         "linear_retriever.multi_fields_query_format_support"
     );
 
+    public static final NodeFeature LINEAR_RETRIEVER_MINSCORE_FIX = new NodeFeature("linear_retriever_minscore_fix");
     public static final String NAME = "linear";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
@@ -169,6 +170,27 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.normalizers = normalizers;
     }
 
+    public LinearRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        List<String> fields,
+        String query,
+        ScoreNormalizer normalizer,
+        int rankWindowSize,
+        float[] weights,
+        ScoreNormalizer[] normalizers,
+        Float minScore,
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders
+    ) {
+        this(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
+        this.minScore = minScore;
+        if (minScore != null && minScore < 0) {
+            throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: [" + minScore + "]");
+        }
+        this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
+    }
+
     @Override
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
@@ -217,18 +239,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     @Override
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(
+        return new LinearRetrieverBuilder(
             newChildRetrievers,
             fields,
             query,
             normalizer,
             rankWindowSize,
             weights,
-            normalizers
+            normalizers,
+            minScore,
+            retrieverName,
+            newPreFilterQueryBuilders
         );
-        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
-        clone.retrieverName = retrieverName;
-        return clone;
     }
 
     @Override
@@ -278,6 +300,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
+        }
+        // Filter by minScore if set(inclusive)
+        if (minScore != null) {
+            topResults = Arrays.stream(topResults).filter(doc -> doc.score >= minScore).toArray(LinearRankDoc[]::new);
         }
         return topResults;
     }

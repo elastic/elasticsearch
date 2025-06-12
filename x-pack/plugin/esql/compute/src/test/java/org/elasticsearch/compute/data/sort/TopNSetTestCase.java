@@ -189,7 +189,7 @@ public abstract class TopNSetTestCase<T extends Releasable, V extends Comparable
                 collect(sort, value);
             }
 
-            assertResults(sort, sortOrder, limit - 1, values);
+            assertResults(sort, sortOrder, limit, values);
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }

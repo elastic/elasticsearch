@@ -10,7 +10,6 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -116,12 +115,6 @@ public class LookAHeadTimeTests extends ESSingleNodeTestCase {
         updateClusterSettings(clusterSettings);
         var indexSettings = Settings.builder().put(DataStreamsPlugin.LOOK_AHEAD_TIME.getKey(), "100m").build();
         updateIndexSettings(indexSettings);
-    }
-
-    private void updateClusterSettings(Settings settings) {
-        clusterAdmin().updateSettings(
-            new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(settings)
-        ).actionGet();
     }
 
     private void updateIndexSettings(Settings settings) {

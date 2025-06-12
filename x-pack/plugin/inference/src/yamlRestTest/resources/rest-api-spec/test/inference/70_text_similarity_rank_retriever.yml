@@ -384,8 +384,8 @@ setup:
 "Text similarity reranker respects min_score":
 
   - requires:
-      cluster_features: "test_reranking_service.parse_text_as_score"
-      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+      cluster_features: "text_similarity_reranker_minscore_fix"
+      reason: test min score functionality
 
   - do:
       index:
@@ -434,8 +434,8 @@ setup:
 "Text similarity reranker with min_score zero includes all docs":
 
   - requires:
-      cluster_features: "test_reranking_service.parse_text_as_score"
-      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+      cluster_features: "text_similarity_reranker_minscore_fix"
+      reason: test min score functionality
 
   - do:
       search:
@@ -463,8 +463,8 @@ setup:
 "Text similarity reranker with high min_score excludes all docs":
 
   - requires:
-      cluster_features: "test_reranking_service.parse_text_as_score"
-      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+      cluster_features: "text_similarity_reranker_minscore_fix"
+      reason: test min score functionality
 
   - do:
       search:

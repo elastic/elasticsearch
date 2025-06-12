@@ -120,6 +120,7 @@ public class PolicyManager {
      */
     record ModuleEntitlements(
         String componentName,
+        String moduleName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
         FileAccessTree fileAccess,
         Logger logger
@@ -148,7 +149,13 @@ public class PolicyManager {
 
     // pkg private for testing
     ModuleEntitlements defaultEntitlements(String componentName, Collection<Path> componentPaths, String moduleName) {
-        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentPaths), getLogger(componentName, moduleName));
+        return new ModuleEntitlements(
+            componentName,
+            moduleName,
+            Map.of(),
+            getDefaultFileAccess(componentPaths),
+            getLogger(componentName, moduleName)
+        );
     }
 
     // pkg private for testing
@@ -166,6 +173,7 @@ public class PolicyManager {
         }
         return new ModuleEntitlements(
             componentName,
+            moduleName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
             FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths),
             getLogger(componentName, moduleName)

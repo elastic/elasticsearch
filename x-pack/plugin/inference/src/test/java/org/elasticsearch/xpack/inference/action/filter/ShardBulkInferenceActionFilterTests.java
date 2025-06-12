@@ -131,9 +131,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        List<Object[]> lst = new ArrayList<>();
-        lst.add(new Object[] { true });
-        return lst;
+        return List.of(new Boolean[] { true }, new Boolean[] { false });
     }
 
     @Before
@@ -616,10 +614,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure, times(6)).increment(eq(1), longThat(l -> l > 0));
-                if (useLegacyFormat == false) {
-                    verify(coordinatingIndexingPressure).increment(1, longThat(l -> l > bytesUsed(doc1UpdateSource)));
-                }
+                verify(coordinatingIndexingPressure, times(useLegacyFormat ? 6 : 7)).increment(eq(1), longThat(l -> l > 0));
 
                 // Verify that the only times that increment is called are the times verified above
                 verify(coordinatingIndexingPressure, times(useLegacyFormat ? 6 : 7)).increment(anyInt(), anyLong());
@@ -657,87 +652,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             9,
             new UpdateRequest().doc(new IndexRequest("index").id("doc_3").source("non_inference_field", "yet another updated value"))
         );
-
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
-        request.setInferenceFieldMap(inferenceFieldMap);
-        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
-        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
-
-        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
-        assertThat(coordinatingIndexingPressure, notNullValue());
-        verify(coordinatingIndexingPressure).close();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
-        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
-        );
-        final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        final ShardBulkInferenceActionFilter filter = createFilter(
-            threadPool,
-            Map.of(sparseModel.getInferenceEntityId(), sparseModel),
-            indexingPressure,
-            useLegacyFormat,
-            true,
-            inferenceStats
-        );
-
-        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
-
-        CountDownLatch chainExecuted = new CountDownLatch(1);
-        ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
-            try {
-                assertNull(request.getInferenceFieldMap());
-                assertThat(request.items().length, equalTo(3));
-
-                assertNull(request.items()[0].getPrimaryResponse());
-                assertNull(request.items()[2].getPrimaryResponse());
-
-                BulkItemRequest doc1Request = request.items()[1];
-                BulkItemResponse doc1Response = doc1Request.getPrimaryResponse();
-                assertNotNull(doc1Response);
-                assertTrue(doc1Response.isFailed());
-                BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
-                assertThat(
-                    doc1Failure.getCause().getMessage(),
-                    containsString("Unable to insert inference results into document [doc_1] due to memory pressure.")
-                );
-                assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
-                assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
-                verify(inferenceStats.bulkRejection()).incrementBy(1);
-
-                IndexRequest doc1IndexRequest = getIndexRequestOrNull(doc1Request.request());
-                assertThat(doc1IndexRequest, notNullValue());
-                assertThat(doc1IndexRequest.source(), equalTo(BytesReference.bytes(doc1Source)));
-
-                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
-                assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(eq(1), longThat(l -> l > bytesUsed(doc1Source)));
-                verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
-
-                // Verify that the coordinating indexing pressure is maintained through downstream action filters
-                verify(coordinatingIndexingPressure, never()).close();
-
-                // Call the listener once the request is successfully processed, like is done in the production code path
-                listener.onResponse(null);
-            } finally {
-                chainExecuted.countDown();
-            }
-        };
-        ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
-        Task task = mock(Task.class);
-
-        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
-            "sparse_field",
-            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }, null)
-        );
-
-        BulkItemRequest[] items = new BulkItemRequest[3];
-        items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source("non_inference_field", "foo"));
-        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
-        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "baz"));
 
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);

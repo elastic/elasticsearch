@@ -15,7 +15,7 @@ import java.util.List;
 
 public class RecursiveChunkerTests extends ESTestCase {
 
-    private final List<String> TEST_SEPARATORS = List.of("\n\n", "\n", "\f", "\t", "#");
+    private final List<String> TEST_SEPARATORS = List.of("\n", "\f", "\t", "#");
     private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
     public void testChunkWithInvalidChunkingSettings() {
@@ -133,6 +133,45 @@ public class RecursiveChunkerTests extends ESTestCase {
         for (int i = 0; i < numSentences; i++) {
             int chunkLength = TEST_SENTENCE.length();
             if (i > 0) {
+                chunkLength += splittersAfterSentences.get(i - 1).length();
+            }
+            expectedChunks.add(new Chunker.ChunkOffset(currentOffset, currentOffset + chunkLength));
+            currentOffset += chunkLength;
+        }
+
+        assertExpectedChunksGenerated(input, settings, expectedChunks);
+    }
+
+    public void testMarkdownChunking() {
+        int numSentences = randomIntBetween(10, 50);
+        List<String> separators = SeparatorSet.MARKDOWN.getSeparators();
+        List<String> validHeaders = List.of(
+            "# Header\n",
+            "## Header\n",
+            "### Header\n",
+            "#### Header\n",
+            "##### Header\n",
+            "###### Header\n",
+            "Header\n-\n",
+            "Header\n=\n"
+        );
+        List<String> validSplittersAfterSentences = validHeaders.stream().map(header -> "\n" + header).toList();
+        List<String> splittersAfterSentences = new ArrayList<>();
+        for (int i = 0; i < numSentences - 1; i++) {
+            splittersAfterSentences.add(randomFrom(validSplittersAfterSentences));
+        }
+        RecursiveChunkingSettings settings = generateChunkingSettings(15, separators);
+        String input = generateTestText(numSentences, splittersAfterSentences);
+        String leadingHeader = randomFrom(validHeaders);
+        input = leadingHeader + input;
+
+        List<Chunker.ChunkOffset> expectedChunks = new ArrayList<>();
+        int currentOffset = 0;
+        for (int i = 0; i < numSentences; i++) {
+            int chunkLength = TEST_SENTENCE.length();
+            if (i == 0) {
+                chunkLength += leadingHeader.length();
+            } else {
                 chunkLength += splittersAfterSentences.get(i - 1).length();
             }
             expectedChunks.add(new Chunker.ChunkOffset(currentOffset, currentOffset + chunkLength));

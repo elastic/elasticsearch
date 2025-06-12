@@ -21,8 +21,7 @@ import java.util.regex.Pattern;
  * The maximum chunk size is measured in words and controlled
  * by {@code maxNumberWordsPerChunk}. For each separator the chunker will go through the following process:
  * 1. Split the text on each regex match of the separator.
- * 2. Merge consecutive chunks when it is possible to do so without exceeding the max chunk size.
- * 3. For each chunk after the merge:
+ * 2. For each chunk after the merge:
  *     1. Return it if it is within the maximum chunk size.
  *     2. Repeat the process using the next separator in the list if the chunk exceeds the maximum chunk size.
  *     If there are no more separators left to try, run the {@code SentenceBoundaryChunker} with the provided
@@ -38,7 +37,13 @@ public class RecursiveChunker implements Chunker {
     @Override
     public List<ChunkOffset> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof RecursiveChunkingSettings recursiveChunkingSettings) {
-            return chunk(input, recursiveChunkingSettings.getSeparators(), recursiveChunkingSettings.getMaxChunkSize(), 0, 0);
+            return chunk(
+                input,
+                new ChunkOffset(0, input.length()),
+                recursiveChunkingSettings.getSeparators(),
+                recursiveChunkingSettings.getMaxChunkSize(),
+                0
+            );
         } else {
             throw new IllegalArgumentException(
                 Strings.format("RecursiveChunker can't use ChunkingSettings with strategy [%s]", chunkingSettings.getChunkingStrategy())
@@ -46,32 +51,22 @@ public class RecursiveChunker implements Chunker {
         }
     }
 
-    private List<ChunkOffset> chunk(String input, List<String> separators, int maxChunkSize, int separatorIndex, int chunkOffset) {
-        if (input.length() < 2 || isChunkWithinMaxSize(buildChunkOffsetAndCount(input, 0, input.length()), maxChunkSize)) {
-            return List.of(new ChunkOffset(chunkOffset, chunkOffset + input.length()));
+    private List<ChunkOffset> chunk(String input, ChunkOffset offset, List<String> separators, int maxChunkSize, int separatorIndex) {
+        if (offset.start() == offset.end() || isChunkWithinMaxSize(buildChunkOffsetAndCount(input, offset), maxChunkSize)) {
+            return List.of(offset);
         }
 
         if (separatorIndex > separators.size() - 1) {
-            return chunkWithBackupChunker(input, maxChunkSize, chunkOffset);
+            return chunkWithBackupChunker(input, offset, maxChunkSize);
         }
 
-        var potentialChunks = splitTextBySeparatorRegex(input, separators.get(separatorIndex));
+        var potentialChunks = splitTextBySeparatorRegex(input, offset, separators.get(separatorIndex));
         var actualChunks = new ArrayList<ChunkOffset>();
         for (var potentialChunk : potentialChunks) {
             if (isChunkWithinMaxSize(potentialChunk, maxChunkSize)) {
-                actualChunks.add(
-                    new ChunkOffset(chunkOffset + potentialChunk.chunkOffset.start(), chunkOffset + potentialChunk.chunkOffset.end())
-                );
+                actualChunks.add(potentialChunk.chunkOffset());
             } else {
-                actualChunks.addAll(
-                    chunk(
-                        input.substring(potentialChunk.chunkOffset.start(), potentialChunk.chunkOffset.end()),
-                        separators,
-                        maxChunkSize,
-                        separatorIndex + 1,
-                        chunkOffset + potentialChunk.chunkOffset.start()
-                    )
-                );
+                actualChunks.addAll(chunk(input, potentialChunk.chunkOffset(), separators, maxChunkSize, separatorIndex + 1));
             }
         }
 
@@ -82,39 +77,46 @@ public class RecursiveChunker implements Chunker {
         return chunkOffsetAndCount.wordCount <= maxChunkSize;
     }
 
-    private ChunkOffsetAndCount buildChunkOffsetAndCount(String fullText, int chunkStart, int chunkEnd) {
-        var chunkOffset = new ChunkOffset(chunkStart, chunkEnd);
-
+    private ChunkOffsetAndCount buildChunkOffsetAndCount(String fullText, ChunkOffset offset) {
         wordIterator.setText(fullText);
-        return new ChunkOffsetAndCount(chunkOffset, ChunkerUtils.countWords(chunkStart, chunkEnd, wordIterator));
+        return new ChunkOffsetAndCount(offset, ChunkerUtils.countWords(offset.start(), offset.end(), wordIterator));
     }
 
-    private List<ChunkOffsetAndCount> splitTextBySeparatorRegex(String input, String separatorRegex) {
-        var pattern = Pattern.compile(separatorRegex);
+    private List<ChunkOffsetAndCount> splitTextBySeparatorRegex(String input, ChunkOffset offset, String separatorRegex) {
+        var pattern = Pattern.compile(separatorRegex, Pattern.MULTILINE);
         var matcher = pattern.matcher(input);
 
         var chunkOffsets = new ArrayList<ChunkOffsetAndCount>();
-        int chunkStart = 0;
-        while (matcher.find()) {
+        int chunkStart = offset.start();
+        int searchStart = offset.start();
+        while (matcher.find(searchStart)) {
             var chunkEnd = matcher.start();
-            if (chunkStart < chunkEnd) {
-                chunkOffsets.add(buildChunkOffsetAndCount(input, chunkStart, chunkEnd));
+            if (chunkEnd >= offset.end()) {
+                break; // No more matches within the chunk offset
             }
-            chunkStart = matcher.start();
+
+            if (chunkStart < chunkEnd) {
+                chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, chunkEnd)));
+            }
+            chunkStart = chunkEnd;
+            searchStart = matcher.end();
         }
 
-        if (chunkStart < input.length()) {
-            chunkOffsets.add(buildChunkOffsetAndCount(input, chunkStart, input.length()));
+        if (chunkStart < offset.end()) {
+            chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, offset.end())));
         }
 
         return chunkOffsets;
     }
 
-    private List<ChunkOffset> chunkWithBackupChunker(String input, int maxChunkSize, int chunkOffset) {
-        var chunks = new SentenceBoundaryChunker().chunk(input, new SentenceBoundaryChunkingSettings(maxChunkSize, 0));
+    private List<ChunkOffset> chunkWithBackupChunker(String input, ChunkOffset offset, int maxChunkSize) {
+        var chunks = new SentenceBoundaryChunker().chunk(
+            input.substring(offset.start(), offset.end()),
+            new SentenceBoundaryChunkingSettings(maxChunkSize, 0)
+        );
         var chunksWithOffsets = new ArrayList<ChunkOffset>();
         for (var chunk : chunks) {
-            chunksWithOffsets.add(new ChunkOffset(chunk.start() + chunkOffset, chunk.end() + chunkOffset));
+            chunksWithOffsets.add(new ChunkOffset(chunk.start() + offset.start(), chunk.end() + offset.start()));
         }
         return chunksWithOffsets;
     }

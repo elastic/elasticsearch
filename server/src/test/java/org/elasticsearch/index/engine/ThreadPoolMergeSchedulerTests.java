@@ -215,7 +215,15 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    public void testIndexingThrottlingWhenSubmittingMerges() {
+    public void testIndexingThrottlingWhenSubmittingMergesWithDiskIOThrottlingEnabled() {
+        testIndexingThrottlingWhenSubmittingMerges(true);
+    }
+
+    public void testIndexingThrottlingWhenSubmittingMergesWithDiskIOThrottlingDisabled() {
+        testIndexingThrottlingWhenSubmittingMerges(false);
+    }
+
+    private void testIndexingThrottlingWhenSubmittingMerges(boolean withDiskIOThrottlingEnabled) {
         final int maxThreadCount = randomIntBetween(1, 5);
         // settings validation requires maxMergeCount >= maxThreadCount
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
@@ -228,6 +236,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         Settings mergeSchedulerSettings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
             .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
+            .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), withDiskIOThrottlingEnabled)
             .build();
         TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
@@ -243,12 +252,12 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         while (submittedMerges < mergesToSubmit - 1) {
             isUsingMaxTargetIORate.set(randomBoolean());
             if (submittedMergeTasks.isEmpty() == false && randomBoolean()) {
-                // maybe schedule one submitted merge
+                // maybe schedule one of the submitted merges (but still it's not run)
                 MergeTask mergeTask = randomFrom(submittedMergeTasks);
                 submittedMergeTasks.remove(mergeTask);
                 mergeTask.schedule();
             } else {
-                // submit one merge
+                // submit one new merge
                 MergeSource mergeSource = mock(MergeSource.class);
                 OneMerge oneMerge = mock(OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
@@ -256,7 +265,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 submittedMerges++;
-                if (isUsingMaxTargetIORate.get() && submittedMerges > maxMergeCount) {
+                if ((isUsingMaxTargetIORate.get() || withDiskIOThrottlingEnabled == false) && submittedMerges > maxMergeCount) {
                     expectIndexThrottling = true;
                 } else if (submittedMerges <= maxMergeCount) {
                     expectIndexThrottling = false;
@@ -265,15 +274,20 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             // assert IO throttle state
             assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(expectIndexThrottling));
         }
-        // submit one last merge when IO throttling is at max value
-        isUsingMaxTargetIORate.set(true);
+        if (withDiskIOThrottlingEnabled) {
+            // submit one last merge when IO throttling is at max value
+            isUsingMaxTargetIORate.set(true);
+        } else {
+            // but if disk IO throttling is not enabled, indexing throttling should still be triggered
+            isUsingMaxTargetIORate.set(randomBoolean());
+        }
         MergeSource mergeSource = mock(MergeSource.class);
         OneMerge oneMerge = mock(OneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
         when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
         when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
         threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
-        // assert index throttling because IO throttling is at max value
+        // assert indexing throttling state because IO throttling is at max value OR disk IO throttling is disabled
         assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(true));
     }
 

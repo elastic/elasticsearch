@@ -162,7 +162,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         return rankWindowSize == other.rankWindowSize
             && Arrays.equals(rankDocs.get(), other.rankDocs.get())
             && sources.equals(other.sources)
-            && Object.equals(minScore, other.minScore);
+            && Objects.equals(minScore, other.minScore);
     }
 
     @Override

@@ -1004,13 +1004,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
-        jobTask.updatePersistentTaskState(
+        // retry state update to ensure that cluster state stays consistent
+        new UpdateStateRetryableAction(
+            logger,
+            threadPool,
+            TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
+            TimeValue.MAX_VALUE,
+            jobTask,
             jobTaskState,
             ActionListener.wrap(
                 persistentTask -> logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId()),
                 e -> logSetJobStateFailure(state, jobTask.getJobId(), e)
             )
-        );
+        ).run();
     }
 
     private static void logSetJobStateFailure(JobState state, String jobId, Exception e) {
@@ -1023,7 +1029,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
-        // retry with a small initial backoff of 10ms
+        // retry state update to ensure that cluster state stays consistent
         new UpdateStateRetryableAction(
             logger,
             threadPool,

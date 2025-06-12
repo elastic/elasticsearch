@@ -421,7 +421,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 // (LOOKUP JOIN uses FieldAttributes)
                 : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
                 : extractField.name();
-            BlockLoader loader = shardContext.blockLoader(fieldName,
+            BlockLoader loader = shardContext.blockLoader(
+                fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE
             );

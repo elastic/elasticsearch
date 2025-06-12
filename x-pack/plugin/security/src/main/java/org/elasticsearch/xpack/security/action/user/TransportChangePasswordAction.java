@@ -82,14 +82,18 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             return;
         }
 
-        if (ClientReservedRealm.isReservedCandidate(username) && XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false) {
+        if (ClientReservedRealm.isReservedUsername(username) && XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false) {
             // when on cloud and resetting the elastic operator user by mistake
             ValidationException validationException = new ValidationException();
             validationException.addValidationError(
-                ELASTIC_NAME.equalsIgnoreCase(username)
-                    ? " To update the user [" + ELASTIC_NAME + "] in a cloud deployment, use the console."
-                    : "user [" + username + "] belongs to the " + ReservedRealm.NAME + " realm which is disabled." // shouldn't be
-                                                                                                                   // happening
+                "user ["
+                    + username
+                    + "] belongs to the "
+                    + ReservedRealm.NAME
+                    + " realm which is disabled."
+                    + (ELASTIC_NAME.equalsIgnoreCase(username)
+                        ? " In a cloud deployment, the password can be changed through the cloud console."
+                        : "")
             );
             listener.onFailure(validationException);
             return;

@@ -27,13 +27,16 @@ public class ClientReservedRealm {
 
     public static boolean isReserved(String username, Settings settings) {
         assert username != null;
-        if (isReservedCandidate(username)) {
+        if (isReservedUsername(username)) {
             return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         }
         return AnonymousUser.isAnonymousUsername(username, settings);
     }
 
-    public static boolean isReservedCandidate(String username) {
+    /**
+     * checks membership in a set, doesn't care if the reserved realm is enabled
+     */
+    public static boolean isReservedUsername(String username) {
         return RESERVED_USERNAMES.contains(username);
     }
 }

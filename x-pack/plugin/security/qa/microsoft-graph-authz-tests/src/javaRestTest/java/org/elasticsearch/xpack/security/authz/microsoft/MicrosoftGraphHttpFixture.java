@@ -70,7 +70,7 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
     protected void before() throws Throwable {
         final var certificate = PemUtils.readCertificates(
             List.of(Path.of(getClass().getClassLoader().getResource("server/cert.pem").toURI()))
-        ).getFirst();
+        ).get(0);
         final var key = PemUtils.readPrivateKey(Path.of(getClass().getClassLoader().getResource("server/cert.key").toURI()), () -> null);
         final var sslContext = SSLContext.getInstance("TLS");
         sslContext.init(

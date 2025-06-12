@@ -194,11 +194,6 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         });
     }
 
-    @Override
-    protected boolean shouldConfigureProjects() {
-        return false;
-    }
-
     public void testAuthenticationSuccessful() throws Exception {
         final var listener = new PlainActionFuture<Map<String, Object>>();
         samlAuthWithMicrosoftGraphAuthz(getSamlAssertionJsonBodyString(USERNAME), listener);

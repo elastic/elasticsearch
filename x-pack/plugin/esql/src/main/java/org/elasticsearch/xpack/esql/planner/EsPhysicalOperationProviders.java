@@ -118,7 +118,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             // Do not use the field attribute name, this can deviate from the field name for union types.
-            String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
+            String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
             boolean isUnsupported = dataType == DataType.UNSUPPORTED;
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
@@ -136,7 +136,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
         if (unionTypes != null) {
-            String indexName = shardContext.ctx.index().getName();
+            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS
@@ -242,7 +243,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
         var unionTypes = findUnionTypes(attrSource);
         // Do not use the field attribute name, this can deviate from the field name for union types.
-        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName() : attrSource.name();
+        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName().string() : attrSource.name();
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
             shardIdx -> getBlockLoaderFor(shardIdx, fieldName, isUnsupported, NONE, unionTypes),
             vsShardContexts,

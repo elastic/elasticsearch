@@ -1058,4 +1058,29 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .setPersistentSettings(settingsBuilder.build())
             .get();
     }
+
+    public void testMultiTypes() throws Exception {
+        Client remoteClient = client(REMOTE_CLUSTER_1);
+        int totalDocs = 0;
+        for (String type : List.of("integer", "long")) {
+            String index = "conflict-index-" + type;
+            assertAcked(remoteClient.admin().indices().prepareCreate(index).setMapping("port", "type=" + type));
+            int numDocs = between(1, 10);
+            for (int i = 0; i < numDocs; i++) {
+                remoteClient.prepareIndex(index).setId(Integer.toString(i)).setSource("port", i).get();
+            }
+            remoteClient.admin().indices().prepareRefresh(index).get();
+            totalDocs += numDocs;
+        }
+        for (String castFunction : List.of("TO_LONG", "TO_INT")) {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM *:conflict-index-* | EVAL port=" + castFunction + "(port) | WHERE port is NOT NULL | STATS COUNT(port)");
+            try (EsqlQueryResponse resp = runQuery(request)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(1));
+                assertThat(values.get(0), hasSize(1));
+                assertThat(values.get(0).get(0), equalTo((long) totalDocs));
+            }
+        }
+    }
 }

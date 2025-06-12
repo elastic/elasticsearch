@@ -38,6 +38,14 @@ class SyntheticSourceProvider implements SourceProvider {
             provider = new SyntheticSourceLeafLoader(ctx);
             var existing = leaves.put(id, provider);
             assert existing == null : "unexpected source provider [" + existing + "]";
+        } else if (doc < provider.lastSeenDocId) {
+            // When queries reference the same runtime field in multiple clauses, each clause re-reads the values from the source in
+            // increasing docId order. So the last docId accessed by the first clause is higher than the first docId read by the second
+            // clause. This is okay for stored source, as stored fields do not restrict the order that docIds that can be accessed.
+            // But with synthetic source, field values may come from doc values, which require than docIds only be read in increasing order.
+            // To handle this, we detect lower docIds and create a new doc value reader for each clause.
+            provider = new SyntheticSourceLeafLoader(ctx);
+            leaves.put(id, provider);
         }
         return provider.getSource(doc);
     }
@@ -45,6 +53,7 @@ class SyntheticSourceProvider implements SourceProvider {
     private class SyntheticSourceLeafLoader {
         private final LeafStoredFieldLoader leafLoader;
         private final SourceLoader.Leaf leaf;
+        int lastSeenDocId = -1;
 
         SyntheticSourceLeafLoader(LeafReaderContext ctx) throws IOException {
             this.leafLoader = (sourceLoader.requiredStoredFields().isEmpty())
@@ -54,6 +63,7 @@ class SyntheticSourceProvider implements SourceProvider {
         }
 
         Source getSource(int doc) throws IOException {
+            this.lastSeenDocId = doc;
             leafLoader.advanceTo(doc);
             return leaf.source(leafLoader, doc);
         }

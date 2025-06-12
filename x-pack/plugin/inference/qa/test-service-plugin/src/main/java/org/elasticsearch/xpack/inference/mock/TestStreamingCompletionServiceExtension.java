@@ -33,6 +33,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
@@ -205,21 +206,23 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
           "object": "chat.completion.chunk"
         }
          */
-        private ChunkedToXContent unifiedCompletionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("id", "id"),
-                ChunkedToXContentHelper.startArray("choices"),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startObject("delta"),
-                ChunkedToXContentHelper.field("content", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.field("index", 0),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
-                ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
-                ChunkedToXContentHelper.endObject()
+        private StreamingUnifiedChatCompletionResults.Results unifiedCompletionChunk(String delta) {
+            return new StreamingUnifiedChatCompletionResults.Results(
+                DequeUtils.of(
+                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+                        "id",
+                        List.of(
+                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(delta, null, null, null),
+                                null,
+                                0
+                            )
+                        ),
+                        "gpt-4o-2024-08-06",
+                        "chat.completion.chunk",
+                        null
+                    )
+                )
             );
         }
 

@@ -143,6 +143,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_6 = def(8_797_0_06);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_7 = def(8_797_0_07);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_8 = def(8_797_0_08);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -190,6 +191,7 @@ public class TransportVersions {
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
 
     /*
      * STOP! READ THIS FIRST! No, really,

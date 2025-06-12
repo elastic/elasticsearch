@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.inference.DequeUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -22,13 +23,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Flow;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
  */
-public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends ChunkedToXContent> publisher)
-    implements
-        InferenceServiceResults {
+public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_chunk";
     public static final String MODEL_FIELD = "model";
@@ -50,6 +51,63 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
     public static final String TYPE_FIELD = "type";
+
+    /**
+     * OpenAI Spec only returns one result at a time, and Chat Completion adheres to that spec as much as possible.
+     * So we will insert a buffer in between the upstream data and the downstream client so that we only send one request at a time.
+     */
+    public StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publisher) {
+        Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
+        AtomicBoolean onComplete = new AtomicBoolean();
+        this.publisher = downstream -> {
+            publisher.subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    downstream.onSubscribe(new Flow.Subscription() {
+                        @Override
+                        public void request(long n) {
+                            var nextItem = buffer.poll();
+                            if (nextItem != null) {
+                                downstream.onNext(new Results(DequeUtils.of(nextItem)));
+                            } else if (onComplete.get()) {
+                                downstream.onComplete();
+                            } else {
+                                subscription.request(n);
+                            }
+                        }
+
+                        @Override
+                        public void cancel() {
+                            subscription.cancel();
+                        }
+                    });
+                }
+
+                @Override
+                public void onNext(Results item) {
+                    var chunks = item.chunks();
+                    var firstItem = chunks.poll();
+                    chunks.forEach(buffer::offer);
+                    downstream.onNext(new Results(DequeUtils.of(firstItem)));
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    downstream.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    // only complete if the buffer is empty, so that the client has a chance to drain the buffer
+                    if (onComplete.compareAndSet(false, true)) {
+                        if (buffer.isEmpty()) {
+                            downstream.onComplete();
+                        }
+                    }
+                }
+            });
+        };
+    }
 
     @Override
     public boolean isStreaming() {

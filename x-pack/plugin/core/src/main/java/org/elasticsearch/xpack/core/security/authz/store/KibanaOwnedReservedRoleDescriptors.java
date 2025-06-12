@@ -449,11 +449,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-aws.securityhub_findings-*",
                         "logs-aws.securityhub_findings_full_posture-*",
                         "logs-aws.inspector-*",
+                        "logs-aws.config-*",
                         "logs-amazon_security_lake.findings-*",
                         "logs-qualys_vmdr.asset_host_detection-*",
                         "logs-tenable_sc.vulnerability-*",
                         "logs-tenable_io.vulnerability-*",
                         "logs-rapid7_insightvm.vulnerability-*",
+                        "logs-rapid7_insightvm.asset_vulnerability-*",
                         "logs-carbon_black_cloud.asset_vulnerability_summary-*"
                     )
                     .privileges("read", "view_index_metadata")

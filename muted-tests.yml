@@ -52,12 +52,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testMultiIndexDelete
   issue: https://github.com/elastic/elasticsearch/issues/112381
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/112461
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: testAggregateIntermediate {TestCase=<geo_point>}
-  issue: https://github.com/elastic/elasticsearch/issues/112463
 - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
   method: testLoopOneAtATime
   issue: https://github.com/elastic/elasticsearch/issues/112471
@@ -468,3 +462,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/128123
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/128125

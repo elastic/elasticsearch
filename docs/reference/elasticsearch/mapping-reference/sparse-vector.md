@@ -81,6 +81,15 @@ Parameters for `index_options` are:
     The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.
     ::::
 
+When token pruning is applied, non-significant tokens will be pruned from the query.
+Non-significant tokens can be defined as tokens that meet both of the following criteria:
+* The token appears much more frequently than most tokens, indicating that it is a very common word and may not benefit the overall search results much.
+* The weight/score is so low that the token is likely not very relevant to the original term
+
+Both the token frequency threshold and weight threshold must show the token is non-significant in order for the token to be pruned.
+This ensures the tokens that are kept are frequent enough and have very high scoring or very infrequent tokens that may not have as high of a score.
+
+
 ## Multi-value sparse vectors [index-multi-value-sparse-vectors]
 
 When passing in arrays of values for sparse vectors the max value for similarly named features is selected.

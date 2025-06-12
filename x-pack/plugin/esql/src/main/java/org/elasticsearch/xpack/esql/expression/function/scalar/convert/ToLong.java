@@ -33,7 +33,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToLong;
 
@@ -135,7 +134,7 @@ public class ToLong extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
         throw new UnsupportedOperationException("SAFDSAF");
-//        return safeDoubleToLong(dbl);
+        // return safeDoubleToLong(dbl);
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })

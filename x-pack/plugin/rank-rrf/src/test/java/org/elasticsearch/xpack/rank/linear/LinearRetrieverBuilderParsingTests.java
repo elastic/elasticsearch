@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.linear;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -40,6 +41,10 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
         xContentRegistryEntries = null;
     }
 
+    /**
+     * Creates a random {@link LinearRetrieverBuilder}. The created instance is not guaranteed to pass {@link SearchRequest} validation.
+     * This is purely for x-content testing.
+     */
     @Override
     protected LinearRetrieverBuilder createTestInstance() {
         int rankWindowSize = randomInt(100);

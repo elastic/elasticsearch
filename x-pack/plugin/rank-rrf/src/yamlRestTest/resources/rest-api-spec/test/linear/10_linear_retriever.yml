@@ -1198,6 +1198,111 @@ setup:
   - match: { status: 400 }
 
 ---
+"linear retriever respects min_score after normalization":
+
+  - requires:
+      cluster_features: [ "linear_retriever_minscore_fix" ]
+      reason: test min_score functionality for linear retriever
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        function_score:
+                          query:
+                            match_all: {}
+                          functions:
+                            - filter: { term: { _id: "1" } }
+                              weight: 1
+                            - filter: { term: { _id: "2" } }
+                              weight: 2
+                            - filter: { term: { _id: "3" } }
+                              weight: 3
+                            - filter: { term: { _id: "4" } }
+                              weight: 4
+                  weight: 1.0
+                  normalizer: "minmax"
+              rank_window_size: 10
+              min_score: 0.8
+          size: 10
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "4" }
+
+---
+"linear retriever with min_score zero includes all docs":
+
+  - requires:
+      cluster_features: [ "linear_retriever_minscore_fix" ]
+      reason: test min score functionality for linear retriever
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: 0
+          size: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+
+---
+"linear retriever with high min_score excludes all docs":
+
+  - requires:
+      cluster_features: [ "linear_retriever_minscore_fix" ]
+      reason: test min score functionality for linear retriever
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: {}
+                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
+                }
+              ]
+              rank_window_size: 10
+              min_score: 2.0
+          size: 10
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
 "minmax normalization properly handles a single doc result set":
   - requires:
       cluster_features: [ "linear_retriever.minmax_single_doc_fix" ]

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -46,6 +47,7 @@ import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAU
  */
 public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<LinearRetrieverBuilder> {
 
+    public static final NodeFeature LINEAR_RETRIEVER_MINSCORE_FIX = new NodeFeature("linear_retriever_minscore_fix");
     public static final String NAME = "linear";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");

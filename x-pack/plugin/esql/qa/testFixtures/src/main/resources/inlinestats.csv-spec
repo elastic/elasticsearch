@@ -322,7 +322,7 @@ FROM airports
 | MV_EXPAND type
 | EVAL mvMin_scalerank = MV_MIN(scalerank)
 | WHERE scalerank == MV_MIN(scalerank)
-| SORT abbrev DESC NULLS LAST
+| SORT abbrev DESC NULLS LAST, type
 | LIMIT 7
 ;
 

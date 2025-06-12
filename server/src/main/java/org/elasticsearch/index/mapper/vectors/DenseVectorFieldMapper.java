@@ -1342,15 +1342,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return validElementType;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeEnum(type);
-            doWriteTo(out);
-        }
-
-        protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
         public abstract boolean updatableTo(DenseVectorIndexOptions update);
 
         public boolean validateDimension(int dim) {
@@ -1402,13 +1393,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         QuantizedIndexOptions(StreamInput in) throws IOException {
             super(in);
             this.rescoreVector = in.readOptionalWriteable(RescoreVector::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalWriteable(rescoreVector);
-            doWriteTo(out);
         }
     }
 
@@ -1743,12 +1727,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalFloat(confidenceInterval);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("type", type);
@@ -1802,11 +1780,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public IndexOptions readFrom(StreamInput in) throws IOException {
             return new FlatIndexOptions(in);
-        }
-
-        @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            // no additional fields to write
         }
 
         @Override
@@ -1865,14 +1838,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public IndexOptions readFrom(StreamInput in) throws IOException {
             return new Int4HnswIndexOptions(in);
-        }
-
-        @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeInt(m);
-            out.writeInt(efConstruction);
-            out.writeFloat(confidenceInterval);
         }
 
         @Override
@@ -1958,11 +1923,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeFloat(confidenceInterval);
-        }
-
-        @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
             return new ES813Int8FlatVectorFormat(confidenceInterval, 4, true);
@@ -2031,13 +1991,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public IndexOptions readFrom(StreamInput in) throws IOException {
             return new Int8HnswIndexOptions(in);
-        }
-
-        @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeInt(m);
-            out.writeInt(efConstruction);
-            out.writeFloat(confidenceInterval);
         }
 
         @Override
@@ -2133,12 +2086,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeInt(m);
-            out.writeInt(efConstruction);
-        }
-
-        @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             if (elementType == ElementType.BIT) {
                 return new ES815HnswBitVectorsFormat(m, efConstruction);
@@ -2210,12 +2157,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeInt(m);
-            out.writeInt(efConstruction);
-        }
-
-        @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
             return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
@@ -2276,11 +2217,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public IndexOptions readFrom(StreamInput in) throws IOException {
             return new BBQFlatIndexOptions(in);
-        }
-
-        @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            // no additional fields to write
         }
 
         @Override
@@ -2347,13 +2283,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public IndexOptions readFrom(StreamInput in) throws IOException {
             return new BBQIVFIndexOptions(in);
-        }
-
-        @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(clusterSize);
-            out.writeVInt(defaultNProbe);
         }
 
         @Override
@@ -2977,19 +2906,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName(), indexCreatedVersion).init(this);
-    }
-
-    @Override
-    public void doValidate(MappingLookup mappers) {
-        if (indexOptions instanceof BBQIVFIndexOptions && mappers.nestedLookup().getNestedParent(fullPath()) != null) {
-            throw new IllegalArgumentException(
-                "["
-                    + CONTENT_TYPE
-                    + "] fields with index type ["
-                    + indexOptions.type
-                    + "] cannot be indexed if they're within [nested] mappings"
-            );
-        }
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {

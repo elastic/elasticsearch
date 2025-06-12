@@ -19,19 +19,11 @@ import java.io.IOException;
 /**
  * Represents general index options that can be attached to a semantic or vector field.
  */
-public abstract class IndexOptions implements ToXContent, Writeable {
+public abstract class IndexOptions implements ToXContent {
 
     public IndexOptions() {}
 
     public abstract IndexOptions readFrom(StreamInput in) throws IOException;
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getClass().getName());
-        doWriteTo(out);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     public static IndexOptions readIndexOptions(StreamInput in) throws IOException {
         String className = in.readString(); // Read the class name from the input

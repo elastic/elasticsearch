@@ -12,8 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -35,7 +33,7 @@ import java.util.Map;
  *    }
  *  }
  */
-public class SemanticTextIndexOptions implements ToXContent, Writeable {
+public class SemanticTextIndexOptions implements ToXContent {
 
     private static final String TYPE_FIELD = "type";
 
@@ -50,12 +48,6 @@ public class SemanticTextIndexOptions implements ToXContent, Writeable {
     public SemanticTextIndexOptions(StreamInput in) throws IOException {
         this.type = SupportedIndexOptions.fromValue(in.readString());
         this.indexOptions = IndexOptions.readIndexOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type.value);
-        indexOptions.writeTo(out);
     }
 
     public SupportedIndexOptions type() {

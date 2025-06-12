@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -91,6 +93,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -262,6 +265,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             handler.accept(buildAutodetectParams());
             return null;
         }).when(jobResultsProvider).getAutodetectParams(any(), any(), any());
+
+        // when running retry logic use the real executor service
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testOpenJob() {
@@ -852,6 +858,125 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             case PEAK_MODEL_BYTES -> peakModelBytes;
         };
         assertThat(manager.getOpenProcessMemoryUsage(), equalTo(ByteSizeValue.ofBytes(expectedSizeBytes)));
+    }
+
+    public void testSetJobState_withoutHandler_invokesPersistentTaskUpdate() {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getAllocationId()).thenReturn(123L);
+        when(jobTask.getJobId()).thenReturn("job-123");
+
+        // call the no-handler overload
+        manager.setJobState(jobTask, JobState.CLOSING, "closing-reason");
+
+        // verify we created the correct JobTaskState and passed some listener
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<JobTaskState> stateCaptor =
+            ArgumentCaptor.forClass(JobTaskState.class);
+        verify(jobTask).updatePersistentTaskState(stateCaptor.capture(), any());
+        JobTaskState captured = stateCaptor.getValue();
+        assertEquals(JobState.CLOSING, captured.getState());
+        assertEquals(123L, captured.getAllocationId());
+        assertEquals("closing-reason", captured.getReason());
+//        assertNotNull(captured.getTimestamp());
+    }
+
+    public void testSetJobState_withHandler_onResponse_triggersHandlerNull() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+
+        // stub updatePersistentTaskState to call onResponse
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener =
+                (ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
+            listener.onResponse(null);
+            return null;
+        }).when(jobTask).updatePersistentTaskState(any(), any());
+
+        AtomicReference<Exception> holder = new AtomicReference<>();
+        CheckedConsumer<Exception, IOException> handler = holder::set;
+
+        manager.setJobState(jobTask, JobState.FAILED, "fail-reason", handler);
+
+        // onResponse should have driven handler.accept(null)
+        assertNull(holder.get());
+        verify(jobTask).updatePersistentTaskState(any(JobTaskState.class), any());
+    }
+
+    public void testSetJobState_withHandler_onFailure_triggersHandlerException() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        Exception boom = new RuntimeException("boom");
+
+        // stub updatePersistentTaskState to call onFailure
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener =
+                (ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
+            listener.onFailure(boom);
+            return null;
+        }).when(jobTask).updatePersistentTaskState(any(), any());
+
+        AtomicReference<Exception> holder = new AtomicReference<>();
+        CheckedConsumer<Exception, IOException> handler = holder::set;
+
+        manager.setJobState(jobTask, JobState.FAILED, "fail-reason", handler);
+
+        // onFailure should have driven handler.accept(boom)
+        assertSame(boom, holder.get());
+        verify(jobTask).updatePersistentTaskState(any(JobTaskState.class), any());
+    }
+
+    public void testSetJobState_withHandler_retriesUntilSuccess() throws IOException {
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class))).thenAnswer(invocation -> {
+            Runnable r = invocation.getArgument(0);
+            r.run();
+            return mock(ThreadPool.Cancellable.class);
+        });
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        AtomicInteger attempts = new AtomicInteger();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = (ActionListener<
+                PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
+            if (attempts.incrementAndGet() < 3) {
+                listener.onFailure(new RuntimeException("transient failure"));
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(jobTask).updatePersistentTaskState(any(), any());
+
+        AtomicReference<Exception> holder = new AtomicReference<>();
+        CheckedConsumer<Exception, IOException> handler = holder::set;
+
+        manager.setJobState(jobTask, JobState.OPENED, "retry-test", handler);
+
+        verify(jobTask, times(3)).updatePersistentTaskState(any(JobTaskState.class), any());
+        assertNull(holder.get());
+    }
+
+    public void testSetJobState_withHandler_noRetryOnResourceNotFound() throws IOException {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        ResourceNotFoundException rnfe = new ResourceNotFoundException("not found");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener =
+                (ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
+            listener.onFailure(rnfe);
+            return null;
+        }).when(jobTask).updatePersistentTaskState(any(), any());
+
+        AtomicReference<Exception> holder = new AtomicReference<>();
+        CheckedConsumer<Exception, IOException> handler = holder::set;
+
+        manager.setJobState(jobTask, JobState.OPENED, "rnfe-test", handler);
+
+        verify(jobTask, times(1)).updatePersistentTaskState(any(JobTaskState.class), any());
+        assertSame(rnfe, holder.get());
     }
 
     private AutodetectProcessManager createNonSpyManager(String jobId) {

@@ -27,8 +27,9 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
             new ImageFromDockerfile("es-smb-fixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
                     .env("TZ", "Etc/UTC")
-                    .run("echo 'Acquire::Retries \"10\";' | tee /etc/apt/apt.conf.d/80-retries")
-                    .run("DEBIAN_FRONTEND=noninteractive apt-get update -qqy && apt-get install -qqy tzdata winbind samba ldap-utils")
+                    .run(
+                        "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=10 update -qqy && apt-get install -qqy tzdata winbind samba ldap-utils "
+                    )
                     .copy("fixture/provision/installsmb.sh", "/fixture/provision/installsmb.sh")
                     .copy("fixture/certs/ca.key", "/fixture/certs/ca.key")
                     .copy("fixture/certs/ca.pem", "/fixture/certs/ca.pem")

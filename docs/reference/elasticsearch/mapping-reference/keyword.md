@@ -72,11 +72,14 @@ The following parameters are accepted by `keyword` fields:
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
 :   Do not index any string with more characters than this value. This is important because `keyword`
     fields will reject documents with `keyword` fields that encode to utf-8 longer than `32766` bytes.
+
     If you need to never reject documents, this should have some value `<=8191`. All documents with
     more characters will just skip building the index for this field.
+
     The defaults are complicated. It's `2147483647` (effectively unbounded) in standard indices and
     `8191` in logsdb indices. So, if unspecified, standard indices *can* reject documents. And logsdb indices
     will index the document, but skip this field.
+
     The [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields
     defaults to a `text` field with a sub-`keyword` field with an `ignore_above` of `256`.
 

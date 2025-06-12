@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcas
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -88,12 +89,13 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
                 + transportService.getLocalNodeConnection().getTransportVersion()
                 + " (before FAST_REFRESH_RCO_2)";
 
+        var primaryTerm = request.getPrimaryTerm();
+        assert Engine.UNKNOWN_PRIMARY_TERM < primaryTerm : primaryTerm;
+        var segmentGeneration = request.getSegmentGeneration();
+        assert Engine.RefreshResult.UNKNOWN_GENERATION < segmentGeneration : segmentGeneration;
+
         ActionListener.run(responseListener, listener -> {
-            shard.waitForPrimaryTermAndGeneration(
-                request.getPrimaryTerm(),
-                request.getSegmentGeneration(),
-                listener.map(l -> ActionResponse.Empty.INSTANCE)
-            );
+            shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> ActionResponse.Empty.INSTANCE));
         });
     }
 

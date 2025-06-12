@@ -9,11 +9,16 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.IgnoreIf
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 import org.xmlunit.builder.DiffBuilder
 import org.xmlunit.builder.Input
 
+// Ignoring this test on windows due to what appears to be a bug in the gradle testkit runner.
+// https://github.com/elastic/elasticsearch/issues/129100
+@IgnoreIf({ os.isWindows() })
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {

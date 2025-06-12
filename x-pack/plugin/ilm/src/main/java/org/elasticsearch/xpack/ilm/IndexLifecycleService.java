@@ -501,7 +501,7 @@ public class IndexLifecycleService
                             if (fromClusterStateChange) {
                                 lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                             } else {
-                                lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
+                                lifecycleRunner.runPeriodicStep(policyName, clusterState.projectState(), idxMeta);
                             }
                             // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                             safeToStop = false;
@@ -517,7 +517,7 @@ public class IndexLifecycleService
                         if (fromClusterStateChange) {
                             lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                         } else {
-                            lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
+                            lifecycleRunner.runPeriodicStep(policyName, clusterState.projectState(), idxMeta);
                         }
                     }
                 } catch (Exception e) {

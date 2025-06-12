@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -155,7 +157,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        runner.runPeriodicStep(policyName, state, indexMetadata);
 
         Mockito.verify(clusterService, times(1)).createTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
@@ -181,7 +184,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         IndexMetadata indexMetadata = createIndex("my_index");
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        runner.runPeriodicStep(policyName, state, indexMetadata);
 
         Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
@@ -296,7 +300,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .putCustom(ILM_CUSTOM_METADATA_KEY, newState.build().asMap())
             .build();
 
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        runner.runPeriodicStep(policyName, state, indexMetadata);
 
         Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
@@ -465,7 +470,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (asyncAction) {
             runner.maybeRunAsyncAction(before, indexMetadata, policyName, stepKey);
         } else if (periodicAction) {
-            runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+            runner.runPeriodicStep(policyName, state.projectState(), indexMetadata);
         } else {
             runner.runPolicyAfterStateChange(policyName, indexMetadata);
         }
@@ -627,13 +632,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, les.asMap())
             .build();
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        DiscoveryNode node = clusterService.localNode();
+        DiscoveryNode node = DiscoveryNodeUtils.create("node", "node");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, node);
         IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING);
-        ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm))
-            .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
-            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilm);
+        ClusterState state = ClusterState.builder(clusterService.state()).putProjectMetadata(project).build();
         logger.info("--> state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
@@ -641,7 +646,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
         step.setLatch(latch);
-        runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        runner.runPeriodicStep(policyName, state.projectState(project.getId()), indexMetadata);
         awaitLatch(latch, 5, TimeUnit.SECONDS);
 
         ClusterState after = clusterService.state();
@@ -1007,7 +1012,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
             executeCount++;
             if (latch != null) {
                 latch.countDown();

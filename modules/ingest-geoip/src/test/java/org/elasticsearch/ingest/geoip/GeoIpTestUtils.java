@@ -73,7 +73,7 @@ public final class GeoIpTestUtils {
      * A static city-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
-     * Like this: {@code CacheableCityResponse city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
+     * Like this: {@code SimpleCity city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
      */
     public static SimpleCity getCity(Reader reader, String ip) throws IOException {
         DatabaseRecord<CityResponse> record = reader.getRecord(InetAddresses.forString(ip), CityResponse.class);
@@ -87,7 +87,7 @@ public final class GeoIpTestUtils {
      * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
-     * Like this: {@code CacheableCountryResponse country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
+     * Like this: {@code SimpleCountry country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}
      */
     public static SimpleCountry getCountry(Reader reader, String ip) throws IOException {
         DatabaseRecord<CountryResponse> record = reader.getRecord(InetAddresses.forString(ip), CountryResponse.class);

@@ -15,6 +15,8 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
+import co.elastic.elasticsearch.stateless.allocation.StatelessHeapUsageCollector;
+
 module org.elasticsearch.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
@@ -41,6 +43,7 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.cache.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.metering.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.reshard to org.elasticsearch.server;
+    exports co.elastic.elasticsearch.stateless.allocation to org.elasticsearch.server; // For StatelessHeapUsageCollector
 
     exports co.elastic.elasticsearch.stateless.autoscaling;
     exports co.elastic.elasticsearch.stateless.autoscaling.indexing;
@@ -55,4 +58,5 @@ module org.elasticsearch.stateless {
     provides org.elasticsearch.action.search.OnlinePrewarmingServiceProvider
         with
             co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
+    provides org.elasticsearch.cluster.ShardHeapUsageCollector with StatelessHeapUsageCollector;
 }

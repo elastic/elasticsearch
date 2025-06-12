@@ -349,6 +349,8 @@ public class Stateless extends Plugin
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
     private final SetOnce<MetadataReshardIndexService> metadataReshardIndexService = new SetOnce<>();
+    private final SetOnce<MemoryMetricsService> memoryMetricsService = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -502,6 +504,7 @@ public class Stateless extends Plugin
         this.projectResolver.set(services.projectResolver());
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
+        this.clusterService.set(clusterService);
         ShardRoutingRoleStrategy shardRoutingRoleStrategy = services.allocationService().getShardRoutingRoleStrategy();
         RerouteService rerouteService = services.rerouteService();
         ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
@@ -621,14 +624,17 @@ public class Stateless extends Plugin
         components.add(vbccChunksPressure);
 
         ProjectType projectType = ServerlessSharedSettings.PROJECT_TYPE.get(settings);
-        var memoryMetricsService = new MemoryMetricsService(
-            threadPool::relativeTimeInNanos,
-            clusterService.getClusterSettings(),
-            projectType,
-            services.telemetryProvider().getMeterRegistry()
+        this.memoryMetricsService.set(
+            new MemoryMetricsService(
+                threadPool::relativeTimeInNanos,
+                clusterService.getClusterSettings(),
+                projectType,
+                services.telemetryProvider().getMeterRegistry()
+            )
         );
-        clusterService.addListener(memoryMetricsService);
-        components.add(memoryMetricsService);
+
+        clusterService.addListener(memoryMetricsService.get());
+        components.add(memoryMetricsService.get());
 
         if (hasIndexRole) {
             var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
@@ -680,7 +686,7 @@ public class Stateless extends Plugin
         var ingestMetricService = new IngestMetricsService(
             clusterService.getClusterSettings(),
             threadPool::relativeTimeInNanos,
-            memoryMetricsService,
+            memoryMetricsService.get(),
             services.telemetryProvider().getMeterRegistry()
         );
         clusterService.addListener(ingestMetricService);
@@ -716,7 +722,7 @@ public class Stateless extends Plugin
             clusterService.getClusterSettings(),
             threadPool,
             clusterService,
-            memoryMetricsService,
+            memoryMetricsService.get(),
             services.telemetryProvider().getMeterRegistry()
         );
         components.add(searchMetricsService);
@@ -964,6 +970,14 @@ public class Stateless extends Plugin
                 true,
                 MERGE_THREAD_POOL_SETTING
             ), };
+    }
+
+    public MemoryMetricsService getMemoryMetricsService() {
+        return memoryMetricsService.get();
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService.get();
     }
 
     /**

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -607,27 +608,35 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testMetadataGlobalStateChangesOnIndexDeletions() {
+        final var projectId = randomProjectIdOrDefault();
         IndexGraveyard.Builder builder = IndexGraveyard.builder();
         builder.addTombstone(new Index("idx1", UUIDs.randomBase64UUID()));
-        final Metadata metadata1 = Metadata.builder().indexGraveyard(builder.build()).build();
-        builder = IndexGraveyard.builder(metadata1.getProject().indexGraveyard());
+        final Metadata metadata1 = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(builder.build())).build();
+        builder = IndexGraveyard.builder(metadata1.getProject(projectId).indexGraveyard());
         builder.addTombstone(new Index("idx2", UUIDs.randomBase64UUID()));
-        final Metadata metadata2 = Metadata.builder(metadata1).indexGraveyard(builder.build()).build();
+        final Metadata metadata2 = Metadata.builder(metadata1)
+            .put(ProjectMetadata.builder(metadata1.getProject(projectId)).indexGraveyard(builder.build()))
+            .build();
         assertFalse("metadata not equal after adding index deletions", Metadata.isGlobalStateEquals(metadata1, metadata2));
         final Metadata metadata3 = Metadata.builder(metadata2).build();
         assertTrue("metadata equal when not adding index deletions", Metadata.isGlobalStateEquals(metadata2, metadata3));
     }
 
     public void testXContentWithIndexGraveyard() throws IOException {
+        @FixForMultiProject // XContent serialization and parsing with a random project ID currently only works when serializing in MP mode
+        final var projectId = ProjectId.DEFAULT;
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();
+        final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         Metadata.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
-            assertThat(fromXContentMeta.getProject().indexGraveyard(), equalTo(originalMeta.getProject().indexGraveyard()));
+            assertThat(
+                fromXContentMeta.getProject(projectId).indexGraveyard(),
+                equalTo(originalMeta.getProject(projectId).indexGraveyard())
+            );
         }
     }
 
@@ -975,15 +984,16 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {
+        final var projectId = randomProjectIdOrDefault();
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();
+        final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final BytesStreamOutput out = new BytesStreamOutput();
         originalMeta.writeTo(out);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Metadata fromStreamMeta = Metadata.readFrom(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
         );
-        assertThat(fromStreamMeta.getProject().indexGraveyard(), equalTo(fromStreamMeta.getProject().indexGraveyard()));
+        assertThat(fromStreamMeta.getProject(projectId).indexGraveyard(), equalTo(originalMeta.getProject(projectId).indexGraveyard()));
     }
 
     public void testFindMappings() throws IOException {
@@ -1389,20 +1399,6 @@ public class MetadataTests extends ESTestCase {
         var metadata = builder.build();
         assertThat(metadata.custom("custom1"), nullValue());
         assertThat(metadata.custom("custom2"), sameInstance(custom2));
-    }
-
-    public void testBuilderRemoveProjectCustomIf() {
-        var custom1 = new TestProjectCustomMetadata();
-        var custom2 = new TestProjectCustomMetadata();
-        var builder = Metadata.builder();
-        builder.putCustom("custom1", custom1);
-        builder.putCustom("custom2", custom2);
-
-        builder.removeProjectCustomIf((key, value) -> Objects.equals(key, "custom1"));
-
-        var metadata = builder.build();
-        assertThat(metadata.getProject().custom("custom1"), nullValue());
-        assertThat(metadata.getProject().custom("custom2"), sameInstance(custom2));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {

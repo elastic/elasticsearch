@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -404,7 +403,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
         Map<String, Object> options = new HashMap<>();
-        options.put(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), true);
         if (options() == null) {
             return options;
         }

@@ -119,7 +119,7 @@ required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where match(author, title, "Mark", {"fuzziness": 1})
+| where match(author, title, "Mark", {"minimum_should_match": 1})
 | keep book_no, title, author, _score;
 ignoreOrder:true
 
@@ -132,7 +132,7 @@ required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where match(description, title, "Hobbit", {"type": "best_fields"})
+| where match(description, title, "Hobbit", {"operator": "AND"})
 | sort book_no
 | eval _score = round(_score)
 | keep book_no, _score;
@@ -159,7 +159,7 @@ required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where match(description, title, "Hobbit", {"type": "most_fields"})
+| where match(description, title, "Hobbit", {"operator": "AND"})
 | sort book_no
 | eval _score = round(_score)
 | keep book_no, _score;
@@ -172,7 +172,7 @@ book_no:keyword | _score:double
 2714            | 2.0          
 2936            | 1.0          
 4023            | 2.0          
-4289            | 6.0          
+4289            | 3.0          
 5335            | 2.0          
 5996            | 2.0          
 6405            | 2.0          

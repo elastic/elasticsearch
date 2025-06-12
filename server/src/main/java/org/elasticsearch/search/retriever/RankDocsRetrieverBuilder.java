@@ -32,7 +32,6 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     final int rankWindowSize;
     final List<RetrieverBuilder> sources;
     final Supplier<RankDoc[]> rankDocs;
-    final Float minScore;
 
     public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs, Float minScore) {
         this.rankWindowSize = rankWindowSize;
@@ -174,9 +173,5 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         throw new UnsupportedOperationException("toXContent() is not supported for " + this.getClass());
-    }
-
-    public Float minScore() {
-        return minScore;
     }
 }

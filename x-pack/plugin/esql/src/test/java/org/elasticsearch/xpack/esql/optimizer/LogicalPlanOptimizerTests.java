@@ -7995,4 +7995,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(changePoint.child(), TopN.class);
         var source = as(topN.child(), EsRelation.class);
     }
+
+    public void testKnnFunctionHasLimitOrKSpecified() {
+        assumeTrue("KNN must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
+        var query = """
+            FROM test
+            | WHERE KNN(dense_vector, [1.0, 2.0, 3.0])
+            | STATS c = COUNT(*)
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes(query));
+        assertThat(e.getMessage(), containsString("k must be set either through a LIMIT or using the KNN k option"));
+    }
 }

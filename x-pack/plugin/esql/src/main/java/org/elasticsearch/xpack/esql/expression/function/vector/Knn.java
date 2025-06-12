@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -60,7 +61,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
-public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction {
+public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -286,6 +287,14 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     @Override
     protected String notSupportedErroMessage() {
         return "[{}] {} is only supported in WHERE commands";
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        // Checks that k is set, either because of limit or options
+        if (limit == null && knnQueryOptions().get(K_FIELD.getPreferredName()) == null) {
+            failures.add(fail(this, "k must be set either through a LIMIT or using the KNN k option", functionName(), functionType()));
+        }
     }
 
     @Override

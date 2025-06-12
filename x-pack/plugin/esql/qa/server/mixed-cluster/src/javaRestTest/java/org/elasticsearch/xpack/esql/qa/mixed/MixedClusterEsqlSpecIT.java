@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V13;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
@@ -87,7 +87,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsIndexModeLookup() throws IOException {
-        return hasCapabilities(List.of(JOIN_LOOKUP_V12.capabilityName()));
+        return hasCapabilities(List.of(JOIN_LOOKUP_V13.capabilityName()));
     }
 
     @Override

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_join_text, join_lookup_v12]
+          capabilities: [lookup_join_text, join_lookup_v13]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:

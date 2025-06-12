@@ -797,22 +797,22 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V12,
+        JOIN_LOOKUP_V13,
 
         /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
          */
-        LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),
+        LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V13.isEnabled()),
 
         /**
          * LOOKUP JOIN skipping MVs and sending warnings (https://github.com/elastic/elasticsearch/issues/118780)
          */
-        JOIN_LOOKUP_SKIP_MV_WARNINGS(JOIN_LOOKUP_V12.isEnabled()),
+        JOIN_LOOKUP_SKIP_MV_WARNINGS(JOIN_LOOKUP_V13.isEnabled()),
 
         /**
          * Fix pushing down LIMIT past LOOKUP JOIN in case of multiple matching join keys.
          */
-        JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V12.isEnabled()),
+        JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V13.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -862,7 +862,7 @@ public class EsqlCapabilities {
         /**
          * Disabled support for index aliases in lookup joins
          */
-        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V13.isEnabled()),
 
         /**
          * Full text functions can be used in disjunctions as they are implemented in compute engine
@@ -1180,7 +1180,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for index aliases in lookup joins
          */
-        ENABLE_LOOKUP_JOIN_ON_ALIASES,
+        ENABLE_LOOKUP_JOIN_ON_ALIASES_V2,
 
         /**
          * Allows RLIKE to correctly handle the "empty language" flag, `#`.

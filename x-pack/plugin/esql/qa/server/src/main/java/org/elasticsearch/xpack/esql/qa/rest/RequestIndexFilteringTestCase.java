@@ -213,7 +213,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
 
-        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V13.isEnabled()) {
             var pattern = from("test1");
             e = expectThrows(
                 ResponseException.class,

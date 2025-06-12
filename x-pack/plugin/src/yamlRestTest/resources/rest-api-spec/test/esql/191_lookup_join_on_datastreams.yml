@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [enable_lookup_join_on_aliases]
+          capabilities: [enable_lookup_join_on_aliases_v2]
       reason: "uses LOOKUP JOIN"
 
   - do:

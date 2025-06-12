@@ -562,7 +562,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
-        if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
+        if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V13.isEnabled()) {
             throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
         }
 

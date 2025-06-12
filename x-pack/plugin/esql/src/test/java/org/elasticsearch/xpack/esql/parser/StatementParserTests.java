@@ -3089,7 +3089,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPattern() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V13.isEnabled());
 
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
         var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
@@ -3108,7 +3108,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidJoinPatterns() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V13.isEnabled());
 
         {
             // wildcard

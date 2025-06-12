@@ -67,8 +67,6 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
         return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
     }
 
-
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(logsEnabled);

@@ -34,6 +34,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Locale;
 
+/**
+ * Transport action to toggle the activation state of logs streams in a project / cluster.
+ */
 public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportMasterNodeAction<LogsStreamsActivationToggleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportLogsStreamsToggleActivation.class);

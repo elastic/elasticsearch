@@ -37,7 +37,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Document here the Streams plugin.
+ * This plugin provides the Streams feature which builds upon data streams to
+ * provide the user with a more "batteries included" experience for ingesting large
+ * streams of data, such as logs.
  */
 public class StreamsPlugin extends Plugin implements ActionPlugin {
 

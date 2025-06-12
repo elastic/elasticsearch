@@ -24,6 +24,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+/**
+ * Transport action to retrieve the status of logs streams in a project / cluster.
+ * Results are broken down by stream type. Currently only logs streams are implemented.
+ */
 public class TransportStreamsStatusAction extends TransportMasterNodeReadAction<StreamsStatusAction.Request, StreamsStatusAction.Response> {
 
     private final ProjectResolver projectResolver;

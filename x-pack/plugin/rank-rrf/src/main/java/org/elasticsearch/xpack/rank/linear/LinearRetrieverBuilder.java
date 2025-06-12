@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;

@@ -28,6 +28,11 @@ public class RankRRFFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT, LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX, LINEAR_RETRIEVER_L2_NORM, LINEAR_RETRIEVER_MINSCORE_FIX);
+        return Set.of(
+            INNER_RETRIEVERS_FILTER_SUPPORT,
+            LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX,
+            LINEAR_RETRIEVER_L2_NORM,
+            LINEAR_RETRIEVER_MINSCORE_FIX
+        );
     }
 }

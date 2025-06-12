@@ -815,6 +815,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
+         * Enable Projects (KEEP/DROP and aliasing EVALs) to be pulled up past a LOOKUP JOIN.
+         */
+        JOIN_LOOKUP_ENABLE_PUSHDOWN_PAST_PROJECT(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,

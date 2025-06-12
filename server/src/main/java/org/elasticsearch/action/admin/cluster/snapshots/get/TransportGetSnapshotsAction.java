@@ -580,10 +580,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
             final var details = repositoryData.getSnapshotDetails(snapshotId);
 
-            if (states.isEmpty() == false
-                && details != null
-                && details.getSnapshotState() != null
-                && states.contains(details.getSnapshotState()) == false) {
+            if (details != null && details.getSnapshotState() != null && states.contains(details.getSnapshotState()) == false) {
                 return false;
             }
 
@@ -599,7 +596,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return false;
             }
 
-            if (states.isEmpty() == false && snapshotInfo.state() != null && states.contains(snapshotInfo.state()) == false) {
+            if (snapshotInfo.state() != null && states.contains(snapshotInfo.state()) == false) {
                 return false;
             }
 

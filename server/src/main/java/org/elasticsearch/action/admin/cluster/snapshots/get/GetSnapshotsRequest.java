@@ -195,6 +195,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         } else if (after != null && fromSortValue != null) {
             validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
         }
+        if (states.isEmpty()) {
+            validationException = addValidationError("states is empty", validationException);
+        }
         return validationException;
     }
 

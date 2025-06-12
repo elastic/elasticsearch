@@ -110,7 +110,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         final RemoteClusterNodesAction.TransportAction action = new RemoteClusterNodesAction.TransportAction(
             mock(TransportService.class),
             new ActionFilters(Set.of()),
-            new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+            new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @SuppressWarnings("unchecked")
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -188,7 +188,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         final RemoteClusterNodesAction.TransportAction action = new RemoteClusterNodesAction.TransportAction(
             mock(TransportService.class),
             new ActionFilters(Set.of()),
-            new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+            new AbstractClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @SuppressWarnings("unchecked")
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

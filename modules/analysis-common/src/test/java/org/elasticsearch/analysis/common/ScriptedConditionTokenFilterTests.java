@@ -97,7 +97,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
     private class MockClient extends AbstractClient {
         MockClient(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
+            super(settings, threadPool, TestProjectResolvers.alwaysThrow());
         }
 
         @Override

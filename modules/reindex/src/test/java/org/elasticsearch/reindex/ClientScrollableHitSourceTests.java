@@ -215,7 +215,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         private ExecuteRequest<?, ?> executeRequest;
 
         MockClient(ThreadPool threadPool) {
-            super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+            super(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         }
 
         @Override

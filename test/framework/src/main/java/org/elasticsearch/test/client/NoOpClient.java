@@ -27,7 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 public class NoOpClient extends AbstractClient {
 
     public NoOpClient(ThreadPool threadPool) {
-        super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+        super(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
     }
 
     @Override

@@ -97,7 +97,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
     private static class MockClient extends AbstractClient {
         MockClient(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
+            super(settings, threadPool, TestProjectResolvers.alwaysThrow());
         }
 
         @Override

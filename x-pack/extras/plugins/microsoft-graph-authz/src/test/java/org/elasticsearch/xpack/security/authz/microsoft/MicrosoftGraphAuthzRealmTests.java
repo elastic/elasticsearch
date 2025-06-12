@@ -116,6 +116,24 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
 
     public void testLookupUser() {
         try (var mockLog = MockLog.capture(MicrosoftGraphAuthzRealm.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Fetch user properties",
+                    MicrosoftGraphAuthzRealm.class.getName(),
+                    Level.TRACE,
+                    Strings.format("Fetched user with name [%s] and email [%s] from Microsoft Graph", name, email)
+                )
+            );
+
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Fetch group membership",
+                    MicrosoftGraphAuthzRealm.class.getName(),
+                    Level.TRACE,
+                    Strings.format("Fetched [1] groups from Microsoft Graph: [%s]", groupId)
+                )
+            );
+
             final var roleMapper = mockRoleMapper(Set.of(groupId), Set.of(roleName));
 
             final var realmSettings = realmSettings().build();
@@ -135,24 +153,6 @@ public class MicrosoftGraphAuthzRealmTests extends ESTestCase {
             final var realm = new MicrosoftGraphAuthzRealm(roleMapper, config, client, licenseState, threadPool);
             final var future = new PlainActionFuture<User>();
             realm.lookupUser(username, future);
-
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "Fetch user properties",
-                    MicrosoftGraphAuthzRealm.class.getName(),
-                    Level.TRACE,
-                    Strings.format("Fetched user with name [%s] and email [%s] from Microsoft Graph", name, email)
-                )
-            );
-
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "Fetch group membership",
-                    MicrosoftGraphAuthzRealm.class.getName(),
-                    Level.TRACE,
-                    Strings.format("Fetched [1] groups from Microsoft Graph: [%s]", groupId)
-                )
-            );
 
             final var user = future.actionGet();
             assertThat(user.principal(), equalTo(username));

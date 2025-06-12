@@ -1,0 +1,27 @@
+{
+  "streams.logs.disable": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-logs-disable.html",
+      "description": "Disable the Logs Streams feature for this cluster"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json",
+        "text/plain"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_streams/logs/_disable",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {}
+  }
+}

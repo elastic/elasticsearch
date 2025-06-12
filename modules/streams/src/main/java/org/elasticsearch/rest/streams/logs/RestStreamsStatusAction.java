@@ -33,7 +33,7 @@ public class RestStreamsStatusAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(new RestHandler.Route(GET, "/_streams/_status"));
+        return List.of(new RestHandler.Route(GET, "/_streams/status"));
     }
 
     @Override

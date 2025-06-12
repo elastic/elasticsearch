@@ -1,0 +1,27 @@
+{
+  "streams.logs.enable": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-logs-enable.html",
+      "description": "Enable the Logs Streams feature for this cluster"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json",
+        "text/plain"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_streams/logs/_enable",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {}
+  }
+}

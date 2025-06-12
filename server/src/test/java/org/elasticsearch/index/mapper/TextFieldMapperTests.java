@@ -366,7 +366,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE;
+        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19;
         DocumentMapper mapper = createMapperService(beforeVersion, indexSettings, mapping).documentMapper();
 
         var source = source(b -> b.field("name", "quick brown fox"));
@@ -415,7 +415,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE;
+        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19;
         DocumentMapper mapper = createMapperService(beforeVersion, indexSettings, mapping).documentMapper();
 
         var source = source(b -> b.field("name", "quick brown fox"));

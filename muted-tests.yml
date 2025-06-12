@@ -526,6 +526,9 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
+- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
+  method: testWindowsAbsolutPathAccess
+  issue: https://github.com/elastic/elasticsearch/issues/129168
 
 # Examples:
 #

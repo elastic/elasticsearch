@@ -28,13 +28,13 @@ List with no running queries:
 ---
 Get with invalid task ID:
   - do:
-      catch: /malformed task id foobar/
+      catch: /invalid id[:] \[foobar\]|malformed task id foobar/
       esql.get_query:
         id: "foobar"
 
 ---
 Get with non-existent task ID:
   - do:
-      catch: /task \[foobar:1234\] belongs to the node \[foobar\] which isn't part of the cluster and there is no record of the task/
+      catch: /task \[X1naBAymScGJ3z-YK6l2nw:52\] belongs to the node \[X1naBAymScGJ3z-YK6l2nw\] which isn't part of the cluster and there is no record of the task/
       esql.get_query:
-        id: "foobar:1234"
+        id: "FmJKWHpFRi1OU0l5SU1YcnpuWWhoUWcZWDFuYUJBeW1TY0dKM3otWUs2bDJudzo1Mg=="

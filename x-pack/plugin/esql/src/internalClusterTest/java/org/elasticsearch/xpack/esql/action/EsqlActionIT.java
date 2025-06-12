@@ -1680,6 +1680,36 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGroupingStatsOnMissingFields() {
+        assertAcked(client().admin().indices().prepareCreate("test_missing_fields").setMapping("data", "type=long"));
+        long oneValue = between(1, 1000);
+        indexDoc("missing_field_index", "1", "data", oneValue);
+        refresh("missing_field_index");
+        QueryPragmas pragmas = randomPragmas();
+        pragmas = new QueryPragmas(
+            Settings.builder().put(pragmas.getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        try (var r = run("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color", pragmas)) {
+            var rows = getValuesList(r);
+            assertThat(rows, hasSize(4));
+            for (List<Object> row : rows) {
+                assertThat(row, hasSize(3));
+            }
+            assertThat(rows.get(0).get(0), equalTo(20L));
+            assertThat(rows.get(0).get(1), equalTo("blue"));
+            assertNull(rows.get(0).get(2));
+            assertThat(rows.get(1).get(0), equalTo(10L));
+            assertThat(rows.get(1).get(1), equalTo("green"));
+            assertNull(rows.get(1).get(2));
+            assertThat(rows.get(2).get(0), equalTo(30L));
+            assertThat(rows.get(2).get(1), equalTo("red"));
+            assertNull(rows.get(2).get(2));
+            assertThat(rows.get(3).get(0), equalTo(oneValue));
+            assertNull(rows.get(3).get(1));
+            assertNull(rows.get(3).get(2));
+        }
+    }
+
     private void assertEmptyIndexQueries(String from) {
         try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
             assertFalse(resp.values().hasNext());
@@ -1817,6 +1847,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     "time",
                     "type=long",
                     "color",
+                    "type=keyword",
+                    "tag",
                     "type=keyword"
                 )
         );

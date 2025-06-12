@@ -744,6 +744,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("integer_long_field", unionTypeField.fieldName().string());
     }
 
+    public void testGroupingByMissingFields() {
+        var plan = plan("FROM test | STATS AVG(salary) BY first_name, last_name ");
+        var testStats = statsForMissingField("first_name", "last_name");
+        var localPlan = localPlan(plan, testStats);
+        Aggregate aggregate = (Aggregate) localPlan.collectFirstChildren(p -> p instanceof Aggregate).getFirst();
+        assertThat(aggregate.groupings(), hasSize(2));
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }

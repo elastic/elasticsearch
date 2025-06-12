@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
@@ -68,6 +69,10 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
                 // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
                 case ReplaceStatsFilteredAggWithEval ignoredReplace -> {
+                }
+                // cannot drop groupings or aggregations from a local plan, as the layout has already been agreed upon
+                case CombineProjections unused -> {
+
                 }
                 default -> newRules.add(r);
             }

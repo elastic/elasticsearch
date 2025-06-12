@@ -379,3 +379,111 @@ setup:
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Text similarity reranker respects min_score":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
+          topic: [ "science" ]
+          subtopic: [ "astronomy" ]
+          inference_text_field: "10"
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    bool:
+                      should:
+                        - constant_score:
+                            filter:
+                              term: { subtopic: "technology" }
+                            boost: 10
+                        - constant_score:
+                            filter:
+                              term: { subtopic: "astronomy" }
+                            boost: 1
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+              min_score: 10
+          size: 10
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "doc_2" }
+
+---
+"Text similarity reranker with min_score zero includes all docs":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    match_all: {}
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+              min_score: 0
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+---
+"Text similarity reranker with high min_score excludes all docs":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    match_all: {}
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+              min_score: 1000
+          size: 10
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }

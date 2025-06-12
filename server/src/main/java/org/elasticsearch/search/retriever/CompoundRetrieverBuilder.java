@@ -196,7 +196,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             rankWindowSize,
             newRetrievers.stream().map(s -> s.retriever).toList(),
             results::get,
-            minScore
+            this.minScore
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
         return rankDocsRetrieverBuilder;

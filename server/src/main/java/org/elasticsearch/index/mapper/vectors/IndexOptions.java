@@ -22,15 +22,4 @@ public abstract class IndexOptions implements ToXContent {
     public IndexOptions() {}
 
     public abstract IndexOptions readFrom(StreamInput in) throws IOException;
-
-    public static IndexOptions readIndexOptions(StreamInput in) throws IOException {
-        String className = in.readString(); // Read the class name from the input
-        try {
-            Class<?> clazz = Class.forName(className);
-            IndexOptions instance = (IndexOptions) clazz.getConstructor().newInstance();
-            return instance.readFrom(in);
-        } catch (ReflectiveOperationException e) {
-            throw new IOException("Failed to create instance of " + className, e);
-        }
-    }
 }

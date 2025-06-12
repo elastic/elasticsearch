@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -41,11 +40,6 @@ public class SemanticTextIndexOptions implements ToXContent {
     public SemanticTextIndexOptions(SupportedIndexOptions type, IndexOptions indexOptions) {
         this.type = type;
         this.indexOptions = indexOptions;
-    }
-
-    public SemanticTextIndexOptions(StreamInput in) throws IOException {
-        this.type = SupportedIndexOptions.fromValue(in.readString());
-        this.indexOptions = IndexOptions.readIndexOptions(in);
     }
 
     public SupportedIndexOptions type() {

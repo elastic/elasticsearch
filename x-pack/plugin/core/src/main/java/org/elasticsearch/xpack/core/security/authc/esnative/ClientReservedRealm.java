@@ -33,7 +33,7 @@ public class ClientReservedRealm {
         return AnonymousUser.isAnonymousUsername(username, settings);
     }
 
-    public static boolean isReservedCandidate(String username) {
+    public static boolean isReservedUsername(String username) {
         return RESERVED_USERNAMES.contains(username);
     }
 }

@@ -84,15 +84,23 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     public static MetadataAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(streamInput -> {
-            Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
-            String name = in.readString();
-            DataType dataType = DataType.readFrom(in);
-            String qualifier = in.readOptionalString(); // qualifier, no longer used
-            Nullability nullability = in.readEnum(Nullability.class);
-            NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
-            boolean synthetic = in.readBoolean();
-            boolean searchable = in.readBoolean();
+        /*
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
+         * because we're in esql-core here and the real PlanStreamInput is in
+         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
+         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
+         * and NameId. This should become a hard cast when we move everything out
+         * of esql-core.
+         */
+        return ((PlanStreamInput) in).readAttributeWithCache(stream -> {
+            Source source = Source.readFrom((StreamInput & PlanStreamInput) stream);
+            String name = stream.readString();
+            DataType dataType = DataType.readFrom(stream);
+            String qualifier = stream.readOptionalString(); // qualifier, no longer used
+            Nullability nullability = stream.readEnum(Nullability.class);
+            NameId id = NameId.readFrom((StreamInput & PlanStreamInput) stream);
+            boolean synthetic = stream.readBoolean();
+            boolean searchable = stream.readBoolean();
             return new MetadataAttribute(source, name, dataType, nullability, id, synthetic, searchable);
         });
     }

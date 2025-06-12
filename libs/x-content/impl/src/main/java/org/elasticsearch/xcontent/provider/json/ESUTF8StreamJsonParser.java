@@ -74,7 +74,10 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         stringLength = 0;
         backslashes.clear();
 
-        loop: while (ptr < max) {
+        loop: while (true) {
+            if (ptr >= max) {
+                return null;
+            }
             int c = inputBuffer[ptr] & 0xFF;
             switch (codes[c]) {
                 case 0 -> {

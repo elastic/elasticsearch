@@ -264,7 +264,6 @@ public class MlIndexRolloverTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     static Client mockClientWithRolloverAndAlias() {
         var client = mock(Client.class);
-        when(client.projectClient(any())).thenReturn(client);
 
         doAnswer(invocationOnMock -> {
             ActionListener<RolloverResponse> actionListener = (ActionListener<RolloverResponse>) invocationOnMock.getArguments()[2];

@@ -289,7 +289,6 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     static Client mockClientWithRolloverAndAlias(String indexName) {
         var client = mock(Client.class);
-        when(client.projectClient(any())).thenReturn(client);
 
         var aliasRequestCount = new AtomicInteger(0);
 

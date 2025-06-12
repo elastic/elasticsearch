@@ -96,14 +96,12 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.delete:
         index: ["sparse_vector_pruning_test", "test-sparse-vector-without-pruning", "test-sparse-vector-with-pruning"]
         ignore: 404
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.refresh: { }
 
@@ -540,7 +538,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: sparse_vector_pruning_test
@@ -561,7 +558,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.get_mapping:
         index: sparse_vector_pruning_test
@@ -581,7 +577,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: sparse_vector_pruning_test
@@ -597,12 +592,15 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.get_mapping:
         index: sparse_vector_pruning_test
 
-  - not_exists: sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options
+  # the index_options with pruning defaults will be serialized here explicitly
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: true }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 5.0 }
+  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
+
 
 ---
 "Check sparse_vector token pruning index_options prune missing do not allow config":
@@ -646,7 +644,6 @@ teardown:
   - do:
       catch: /\[index_options\] field \[pruning_config\] should only be set if \[prune\] is set to true/
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: sparse_vector_pruning_test
@@ -677,7 +674,6 @@ teardown:
   - do:
       catch: /\[tokens_freq_ratio_threshold\] must be between \[1\] and \[100\]/
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: sparse_vector_pruning_test
@@ -708,7 +704,6 @@ teardown:
   - do:
       catch: /\[tokens_weight_threshold\] must be between 0 and 1/
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: sparse_vector_pruning_test
@@ -738,7 +733,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: test-sparse-vector-with-pruning
@@ -759,7 +753,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: test-sparse-vector-without-pruning
@@ -777,7 +770,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       bulk:
         index: test-sparse-vector-with-pruning
@@ -791,7 +783,6 @@ teardown:
           {"content_embedding":{"is": 0.6891394,"globe": 0.484035,"ocean": 0.080102935,"underground": 0.053516876}}
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       bulk:
         index: test-sparse-vector-without-pruning
@@ -897,7 +888,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       indices.create:
         index: test-sparse-vector-pruning-default
@@ -911,7 +901,6 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       bulk:
         index: test-sparse-vector-pruning-default

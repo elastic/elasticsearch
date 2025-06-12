@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -170,6 +171,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final MapperMetrics mapperMetrics;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
     private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -207,7 +209,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Engine.IndexCommitListener indexCommitListener,
         MapperMetrics mapperMetrics,
         QueryRewriteInterceptor queryRewriteInterceptor,
-        IndexingStatsSettings indexingStatsSettings
+        IndexingStatsSettings indexingStatsSettings,
+        SearchStatsSettings searchStatsSettings
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -293,6 +296,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
         updateFsyncTaskIfNecessary();
     }
 
@@ -583,7 +587,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 System::nanoTime,
                 indexCommitListener,
                 mapperMetrics,
-                indexingStatsSettings
+                indexingStatsSettings,
+                searchStatsSettings
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

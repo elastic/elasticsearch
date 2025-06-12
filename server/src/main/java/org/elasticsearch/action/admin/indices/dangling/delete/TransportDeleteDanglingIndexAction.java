@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -126,9 +126,9 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
-        final Metadata metaData = currentState.getMetadata();
+        final var project = currentState.metadata().getProject();
 
-        for (Map.Entry<String, IndexMetadata> each : metaData.getProject().indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> each : project.indices().entrySet()) {
             if (indexToDelete.getUUID().equals(each.getValue().getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
@@ -143,18 +143,13 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         // By definition, a dangling index is an index not present in the cluster state and with no tombstone,
         // so we shouldn't reach this point if these conditions aren't met. For super-safety, however, check
         // that a tombstone doesn't already exist for this index.
-        if (metaData.getProject().indexGraveyard().containsIndex(indexToDelete)) {
+        if (project.indexGraveyard().containsIndex(indexToDelete)) {
             return currentState;
         }
 
-        Metadata.Builder metaDataBuilder = Metadata.builder(metaData);
-
-        final IndexGraveyard newGraveyard = IndexGraveyard.builder(metaDataBuilder.indexGraveyard())
-            .addTombstone(indexToDelete)
-            .build(settings);
-        metaDataBuilder.indexGraveyard(newGraveyard);
-
-        return ClusterState.builder(currentState).metadata(metaDataBuilder.build()).build();
+        final IndexGraveyard newGraveyard = IndexGraveyard.builder(project.indexGraveyard()).addTombstone(indexToDelete).build(settings);
+        final ProjectMetadata updatedProject = ProjectMetadata.builder(project).indexGraveyard(newGraveyard).build();
+        return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
     }
 
     @Override

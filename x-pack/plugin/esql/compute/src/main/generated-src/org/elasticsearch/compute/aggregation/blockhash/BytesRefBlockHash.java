@@ -74,6 +74,9 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     */
     IntVector add(BytesRefVector vector) {
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
@@ -90,6 +93,12 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
+     * </p>
+     */
     IntBlock add(BytesRefBlock block) {
         var ordinals = block.asOrdinals();
         if (ordinals != null) {

@@ -582,7 +582,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             templateRequest.setJsonEntity(Strings.format(TSDB_INDEX_TEMPLATE, indexPattern, policyName));
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
-            putILMPolicy(policyName, null, 1, null);
+            putUnfollowOnlyPolicy(client(), policyName);
 
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/tsdb_index_auto_follow_pattern");
             createAutoFollowRequest.setJsonEntity("""
@@ -601,10 +601,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);
                 assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + backingIndexName))));
 
-                // rollover
-                Request rolloverRequest = new Request("POST", "/" + dataStream + "/_rollover");
-                leaderClient.performRequest(rolloverRequest);
-
                 assertBusy(() -> {
                     Map<String, Object> indexExplanation = explainIndex(client(), backingIndexName);
                     assertThat(
@@ -618,7 +614,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         (String) ((Map<String, Object>) indexExplanation.get("step_info")).get("message"),
                         containsString("Waiting until the index's time series end time lapses")
                     );
-                }, 5, TimeUnit.MINUTES);
+                }, 30, TimeUnit.SECONDS);
 
                 int initialLeaderDocCount = getDocCount(leaderClient, backingIndexName);
 
@@ -648,7 +644,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         explainIndex(client(), backingIndexName).get("step"),
                         is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
                     );
-                }, 5, TimeUnit.MINUTES);
+                }, 30, TimeUnit.SECONDS);
             }
         }
     }

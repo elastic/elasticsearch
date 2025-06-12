@@ -81,7 +81,8 @@ The following parameters are accepted by `keyword` fields:
     will index the document, but skip this field.
 
     The [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields
-    defaults to a `text` field with a sub-`keyword` field with an `ignore_above` of `256`.
+    defaults to a `text` field with a sub-`keyword` field with an `ignore_above` of `256`. This indexes
+    all values for full text search, and indexes short values get indexed for exact matching and aggregation.
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.

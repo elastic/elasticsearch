@@ -60,9 +60,6 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
     public List<WildcardPattern> patternList() {
         return patternList;
     }
-    // public String pattern() {
-    // return wildcard;
-    // }
 
     @Override
     public Automaton createAutomaton(boolean ignoreCase) {
@@ -78,6 +75,12 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
 
     @Override
     public String pattern() {
+        if (patternList.isEmpty()) {
+            return "";
+        }
+        if (patternList.size() == 1) {
+            return patternList.getFirst().pattern();
+        }
         return "(\"" + patternList.stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \"")) + "\")";
     }
 

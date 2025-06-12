@@ -83,7 +83,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED = Setting.boolSetting(
+        "cluster.routing.allocation.shard_heap.threshold_enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile boolean diskThresholdEnabled;
+    private volatile boolean shardHeapThresholdEnabled;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
@@ -130,10 +138,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
+        clusterSettings.initializeAndWatch(
+            CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED,
+            this::setShardHeapThresholdEnabled
+        );
     }
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
         this.diskThresholdEnabled = diskThresholdEnabled;
+    }
+
+    private void setShardHeapThresholdEnabled(boolean shardHeapThresholdEnabled) {
+        this.shardHeapThresholdEnabled = shardHeapThresholdEnabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -193,11 +209,25 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty cluster info");
                     indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 }
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodeStats();
+
+                if (diskThresholdEnabled || shardHeapThresholdEnabled) {
+                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                        fetchNodeStats();
+                    }
+                } else {
+                    logger.trace("skipping collecting node stats from cluster, notifying listeners with empty node stats");
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
+                    maxHeapPerNode = Map.of();
                 }
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesHeapUsage();
+
+                if (shardHeapThresholdEnabled) {
+                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                        fetchNodesHeapUsage();
+                    }
+                } else {
+                    logger.trace("skipping collecting shard heap usage from cluster, notifying listeners with empty shard heap usage");
+                    shardHeapUsagePerNode = Map.of();
                 }
             }
         }

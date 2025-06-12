@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.querydsl.query;
 
-import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.MultiFieldMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -20,43 +20,26 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.BOOST_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.LENIENT_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.MAX_EXPANSIONS_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.OPERATOR_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.PREFIX_LENGTH_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.SLOP_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TIE_BREAKER_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TYPE_FIELD;
+import static org.elasticsearch.index.query.MultiFieldMatchQueryBuilder.BOOST_FIELD;
+import static org.elasticsearch.index.query.MultiFieldMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
+import static org.elasticsearch.index.query.MultiFieldMatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
+import static org.elasticsearch.index.query.MultiFieldMatchQueryBuilder.OPERATOR_FIELD;
+import static org.elasticsearch.index.query.MultiFieldMatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
 
 public class MultiMatchQuery extends Query {
 
-    private static final Map<String, BiConsumer<MultiMatchQueryBuilder, Object>> BUILDER_APPLIERS;
+    private static final Map<String, BiConsumer<MultiFieldMatchQueryBuilder, Object>> BUILDER_APPLIERS;
 
     static {
         BUILDER_APPLIERS = Map.ofEntries(
             entry(BOOST_FIELD.getPreferredName(), (qb, obj) -> qb.boost((Float) obj)),
-            entry(SLOP_FIELD.getPreferredName(), (qb, obj) -> qb.slop((Integer) obj)),
-            // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
-            // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
-            entry(ANALYZER_FIELD.getPreferredName(), (qb, obj) -> qb.analyzer((String) obj)),
+            entry(
+                ZERO_TERMS_QUERY_FIELD.getPreferredName(),
+                (qb, obj) -> qb.zeroTermsQuery(ZeroTermsQueryOption.readFromString((String) obj))
+            ),
             entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, obj) -> qb.autoGenerateSynonymsPhraseQuery((Boolean) obj)),
-            entry(FUZZINESS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzziness(Fuzziness.fromString((String) obj))),
-            entry(FUZZY_REWRITE_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyRewrite((String) obj)),
-            entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyTranspositions((Boolean) obj)),
-            entry(LENIENT_FIELD.getPreferredName(), (qb, obj) -> qb.lenient((Boolean) obj)),
-            entry(MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, obj) -> qb.maxExpansions((Integer) obj)),
             entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), (qb, obj) -> qb.minimumShouldMatch((String) obj)),
-            entry(OPERATOR_FIELD.getPreferredName(), (qb, obj) -> qb.operator(Operator.fromString((String) obj))),
-            entry(PREFIX_LENGTH_FIELD.getPreferredName(), (qb, obj) -> qb.prefixLength((Integer) obj)),
-            entry(TIE_BREAKER_FIELD.getPreferredName(), (qb, obj) -> qb.tieBreaker((Float) obj)),
-            entry(TYPE_FIELD.getPreferredName(), (qb, obj) -> qb.type((String) obj))
+            entry(OPERATOR_FIELD.getPreferredName(), (qb, obj) -> qb.operator(Operator.fromString((String) obj)))
         );
     }
 
@@ -76,7 +59,7 @@ public class MultiMatchQuery extends Query {
         // TODO: create a new builder, group fields by analyzer (combined_fields query), separate groups are combined with dis_max query.
         // TODO: needs to happen on shard level.
 
-        final MultiMatchQueryBuilder queryBuilder = QueryBuilders.multiMatchQuery(query);
+        final MultiFieldMatchQueryBuilder queryBuilder = QueryBuilders.multiFieldMatchQuery(query);
         queryBuilder.fields(fields);
         options.forEach((k, v) -> {
             if (BUILDER_APPLIERS.containsKey(k)) {

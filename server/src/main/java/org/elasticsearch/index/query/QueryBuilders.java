@@ -61,6 +61,14 @@ public final class QueryBuilders {
     }
 
     /**
+     * Creates a query builder for match with multiple fields (distinct from multi-match).
+     * TODO: better comment.
+     */
+    public static MultiFieldMatchQueryBuilder multiFieldMatchQuery(Object text, String... fieldNames) {
+        return new MultiFieldMatchQueryBuilder(text, fieldNames);
+    }
+
+    /**
      * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
      *
      * @param name The field name.

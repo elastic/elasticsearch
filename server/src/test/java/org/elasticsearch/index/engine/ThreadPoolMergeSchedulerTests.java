@@ -493,7 +493,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 // at least 1 extra merge than there are concurrently allowed
                 int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 10);
                 Semaphore runMergeSemaphore = new Semaphore(0);
-                for (int i = 1; i <= mergeCount; i++) {
+                for (int i = 0; i < mergeCount; i++) {
                     MergeSource mergeSource = mock(MergeSource.class);
                     OneMerge oneMerge = mock(OneMerge.class);
                     when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
@@ -509,7 +509,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
 
                     // verify queued byte metric is recorded for each merge
-                    verify(mergeMetrics, times(i)).incrementQueuedMergeBytes(any(), anyLong());
+                    verify(mergeMetrics, times(i + 1)).incrementQueuedMergeBytes(any(), anyLong());
                 }
 
                 for (int completedMergesCount = 0; completedMergesCount < mergeCount

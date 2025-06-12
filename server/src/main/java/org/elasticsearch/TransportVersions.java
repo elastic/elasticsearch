@@ -294,6 +294,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = def(9_094_0_00);
     public static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = def(9_095_0_00);
     public static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = def(9_096_0_00);
+    public static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = def(9_097_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -161,13 +161,12 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         RankDocsRetrieverBuilder other = (RankDocsRetrieverBuilder) o;
         return rankWindowSize == other.rankWindowSize
             && Arrays.equals(rankDocs.get(), other.rankDocs.get())
-            && sources.equals(other.sources)
-            && Objects.equals(minScore, other.minScore);
+            && sources.equals(other.sources);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(super.hashCode(), rankWindowSize, Arrays.hashCode(rankDocs.get()), sources, minScore);
+        return Objects.hash(super.hashCode(), rankWindowSize, Arrays.hashCode(rankDocs.get()), sources);
     }
 
     @Override

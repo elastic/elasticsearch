@@ -29,12 +29,11 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 
@@ -226,67 +225,65 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
 
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            conditionalChunkedXContent(isAsync, () -> ChunkedToXContentHelper.chunk((builder, p) -> {
+        var content = new ArrayList<Iterator<? extends ToXContent>>(25);
+        content.add(ChunkedToXContentHelper.startObject());
+        if (isAsync) {
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
                 if (asyncExecutionId != null) {
                     builder.field("id", asyncExecutionId);
                 }
                 builder.field("is_running", isRunning);
                 return builder;
-            })),
-            conditionalChunkedXContent(
-                executionInfo != null && executionInfo.overallTook() != null,
-                () -> ChunkedToXContentHelper.chunk(
+            }));
+        }
+        if (executionInfo != null && executionInfo.overallTook() != null) {
+            content.add(
+                ChunkedToXContentHelper.chunk(
                     (builder, p) -> builder //
                         .field("took", executionInfo.overallTook().millis())
                         .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
                 )
-            ),
+            );
+        }
+        content.add(
             ChunkedToXContentHelper.chunk(
                 (builder, p) -> builder //
                     .field("documents_found", documentsFound)
                     .field("values_loaded", valuesLoaded)
-            ),
-            dropNullColumns
-                ? Iterators.concat(
-                    ResponseXContentUtils.allColumns(columns, "all_columns"),
-                    ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
-                )
-                : ResponseXContentUtils.allColumns(columns, "columns"),
-            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns)),
-            conditionalChunkedXContent(
-                executionInfo != null && executionInfo.hasMetadataToReport(),
-                () -> ChunkedToXContentHelper.field("_clusters", executionInfo, params)
-            ),
-            conditionalChunkedXContent(
-                profile != null,
-                () -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject("profile"), //
-                    ChunkedToXContentHelper.chunk((b, p) -> {
-                        if (executionInfo != null) {
-                            b.field("query", executionInfo.overallTimeSpan());
-                            b.field("planning", executionInfo.planningTimeSpan());
-                        }
-                        return b;
-                    }),
-                    ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
-                    ChunkedToXContentHelper.endObject()
-                )
-            ),
-            ChunkedToXContentHelper.endObject()
+            )
         );
-    }
+        if (dropNullColumns) {
+            content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
+            content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
+        } else {
+            content.add(ResponseXContentUtils.allColumns(columns, "columns"));
+        }
+        content.add(
+            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns))
+        );
+        if (executionInfo != null && executionInfo.hasMetadataToReport()) {
+            content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
+        }
+        if (profile != null) {
+            content.add(ChunkedToXContentHelper.startObject("profile"));
+            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
+                if (executionInfo != null) {
+                    b.field("query", executionInfo.overallTimeSpan());
+                    b.field("planning", executionInfo.planningTimeSpan());
+                }
+                return b;
+            }));
+            content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
+            content.add(ChunkedToXContentHelper.endObject());
+        }
+        content.add(ChunkedToXContentHelper.endObject());
 
-    private Iterator<? extends ToXContent> conditionalChunkedXContent(
-        boolean condition,
-        Supplier<Iterator<? extends ToXContent>> chunkedXContent
-    ) {
-        return condition ? chunkedXContent.get() : Collections.emptyIterator();
+        return Iterators.concat(content.toArray(Iterator[]::new));
     }
 
     public boolean[] nullColumns() {

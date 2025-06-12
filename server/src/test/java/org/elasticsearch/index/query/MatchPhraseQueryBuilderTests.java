@@ -20,7 +20,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -107,7 +106,6 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                 .or(instanceOf(PointRangeQuery.class))
                 .or(instanceOf(IndexOrDocValuesQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class))
-                .or(instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class))
         );
     }
 

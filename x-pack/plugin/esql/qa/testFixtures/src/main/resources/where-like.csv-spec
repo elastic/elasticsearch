@@ -74,6 +74,13 @@ emp_no:integer | first_name:keyword
 10013          | Eberhardt      
 ;
 
+likeEvalNoWildcard
+from employees | eval x = concat(first_name, "X") | where x like "EberhardtX" | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
 likeListEmptyArgWildcard
 required_capability: like_with_list_of_patterns
 from employees | where first_name like ("") | keep emp_no, first_name;
@@ -166,14 +173,6 @@ required_capability: like_with_list_of_patterns
 from employees | where first_name like ("Eberhar\\*") | keep emp_no, first_name;
 
 emp_no:integer | first_name:keyword
-;
-
-likeEvalNoWildcard
-required_capability: like_with_list_of_patterns
-from employees | eval x = concat(first_name, "X") | where x like "EberhardtX" | keep emp_no, first_name;
-
-emp_no:integer | first_name:keyword
-10013          | Eberhardt      
 ;
 
 likeListNineOrMoreLetters

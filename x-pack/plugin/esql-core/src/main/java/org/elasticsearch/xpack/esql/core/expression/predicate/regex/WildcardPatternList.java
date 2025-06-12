@@ -20,7 +20,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 
 /**
- * Similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
+ * A list of wildcard patterns. Each pattern is a {@link WildcardPattern} that can be used to match strings and is
+ * similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
  * and '*' wildcard for multiple characters (same as regex ".*")
  * <p>
  * Allows escaping based on a regular char
@@ -30,10 +31,6 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
     public static final Entry ENTRY = new Entry(WildcardPatternList.class, "WildcardPatternList", WildcardPatternList::new);
     public static final String NAME = "WildcardPatternList";
     private final List<WildcardPattern> patternList;
-
-    /*public WildcardPatternList(List<String> patterns) {
-        this.patternList = patterns.stream().map(WildcardPattern::new).toList();
-    }*/
 
     public WildcardPatternList(List<WildcardPattern> patterns) {
         this.patternList = patterns;
@@ -83,20 +80,6 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
         }
         return "(\"" + patternList.stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \"")) + "\")";
     }
-
-    /**
-     * Returns the pattern in (Lucene) wildcard format.
-     */
-    public String asLuceneWildcard() {
-        throw new RuntimeException("LIKELIST does not have a Lucine Wildcard");
-    }
-
-    /**
-     * Returns the pattern in (IndexNameExpressionResolver) wildcard format.
-     */
-    // public String asIndexNameWildcard() {
-    // return wildcard;
-    // }
 
     @Override
     public int hashCode() {

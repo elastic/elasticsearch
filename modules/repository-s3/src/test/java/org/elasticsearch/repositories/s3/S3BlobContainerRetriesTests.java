@@ -9,6 +9,9 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
+
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -239,7 +242,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE, repositorySettings.build());
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
-            randomProjectIdOrDefault(),
+            ProjectId.DEFAULT,
             service,
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),

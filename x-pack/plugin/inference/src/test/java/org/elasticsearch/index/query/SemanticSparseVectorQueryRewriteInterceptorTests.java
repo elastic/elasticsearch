@@ -110,6 +110,37 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         assertEquals(original, rewritten);
     }
 
+    public void testBoostAndQueryNameOnSparseVectorQueryRewrite() throws IOException {
+        float BOOST = 2.0f;
+        String QUERY_NAME = "sparse_vector_query";
+
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            FIELD_NAME,
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
+        );
+        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
+        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
+        original.boost(BOOST);
+        original.queryName(QUERY_NAME);
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof InterceptedQueryBuilderWrapper
+        );
+        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
+        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
+        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
+        QueryBuilder innerQuery = nestedQueryBuilder.query();
+        assertTrue(innerQuery instanceof SparseVectorQueryBuilder);
+        SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) innerQuery;
+        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
+        assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
+        assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
+        assertEquals(BOOST, sparseVectorQueryBuilder.boost(), 0.0f);
+        assertEquals(QUERY_NAME, sparseVectorQueryBuilder.queryName());
+    }
+
     private QueryRewriteContext createQueryRewriteContext(Map<String, InferenceFieldMetadata> inferenceFields) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(

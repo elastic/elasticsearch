@@ -178,8 +178,7 @@ PUT test-index
 ------------------------------------------------------------
 PUT test-index/_doc/1
 {
-    "my_semantic_field": ["my first chunk", "my second chunk", ...]    <1>
-    ...
+    "my_semantic_field": ["my first chunk", "my second chunk"]    <1>
 }
 ------------------------------------------------------------
 // TEST[skip:Requires inference endpoint]

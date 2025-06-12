@@ -90,7 +90,6 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -213,7 +212,7 @@ public class LocalExecutionPlanner {
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
-            AggregateExec.class,
+            AbstractAggregateExec.class,
             a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);

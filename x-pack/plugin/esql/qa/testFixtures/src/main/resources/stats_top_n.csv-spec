@@ -35,3 +35,12 @@ c:long | m:double | languages.long:long
 21     | 2.1      | 5
 10     | 2.1      | null
 ; 
+
+keepGroupAfterStats
+from employees | stats MAX(height) BY height, languages.long | sort height desc | limit 3 | KEEP height;
+
+height:double
+2.1
+2.1
+2.1
+;

@@ -37,7 +37,7 @@ public class InferenceStatsTests extends ESTestCase {
 
     public void testRecordWithModel() {
         var longCounter = mock(LongCounter.class);
-        var stats = new InferenceStats(longCounter, mock());
+        var stats = new InferenceStats(longCounter, mock(), mock());
 
         stats.requestCount().incrementBy(1, modelAttributes(model("service", TaskType.ANY, "modelId")));
 
@@ -49,7 +49,7 @@ public class InferenceStatsTests extends ESTestCase {
 
     public void testRecordWithoutModel() {
         var longCounter = mock(LongCounter.class);
-        var stats = new InferenceStats(longCounter, mock());
+        var stats = new InferenceStats(longCounter, mock(), mock());
 
         stats.requestCount().incrementBy(1, modelAttributes(model("service", TaskType.ANY, null)));
 
@@ -63,7 +63,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithoutError() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
 
         Map<String, Object> metricAttributes = new HashMap<>();
         metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
@@ -88,7 +88,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithElasticsearchStatusException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
         var statusCode = RestStatus.BAD_REQUEST;
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
@@ -116,7 +116,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithOtherException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
@@ -138,7 +138,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithUnparsedModelAndElasticsearchStatusException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
         var statusCode = RestStatus.BAD_REQUEST;
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
@@ -163,7 +163,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithUnparsedModelAndOtherException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
@@ -187,7 +187,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithUnknownModelAndElasticsearchStatusException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
         var statusCode = RestStatus.BAD_REQUEST;
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
@@ -206,7 +206,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testRecordDurationWithUnknownModelAndOtherException() {
         var expectedLong = randomLong();
         var histogramCounter = mock(LongHistogram.class);
-        var stats = new InferenceStats(mock(), histogramCounter);
+        var stats = new InferenceStats(mock(), histogramCounter, mock());
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 

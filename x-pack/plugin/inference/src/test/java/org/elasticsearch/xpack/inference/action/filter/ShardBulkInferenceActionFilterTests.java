@@ -148,7 +148,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(),
@@ -181,7 +181,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLicenseInvalidForInference() throws InterruptedException {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -227,7 +227,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testInferenceNotFound() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -275,7 +275,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testItemFailures() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -364,7 +364,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExplicitNull() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
         model.putResult("I am a success", randomChunkedInferenceEmbedding(model, List.of("I am a success")));
@@ -440,7 +440,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testHandleEmptyInput() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -495,7 +495,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testManyRandomDocs() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         Map<String, StaticModel> inferenceModelMap = new HashMap<>();
         int numModels = randomIntBetween(1, 3);
         for (int i = 0; i < numModels; i++) {
@@ -559,7 +559,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexingPressure() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(Settings.EMPTY);
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
@@ -616,20 +616,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc0Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc2Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc3Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc4Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc0UpdateSource));
+                verify(coordinatingIndexingPressure, times(6)).increment(eq(1), longThat(l -> l > 0));
                 if (useLegacyFormat == false) {
-                    verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1UpdateSource));
+                    verify(coordinatingIndexingPressure).increment(1, longThat(l -> l > bytesUsed(doc1UpdateSource)));
                 }
 
-                verify(coordinatingIndexingPressure, times(useLegacyFormat ? 6 : 7)).increment(eq(0), longThat(l -> l > 0));
-
                 // Verify that the only times that increment is called are the times verified above
-                verify(coordinatingIndexingPressure, times(useLegacyFormat ? 12 : 14)).increment(anyInt(), anyLong());
+                verify(coordinatingIndexingPressure, times(useLegacyFormat ? 6 : 7)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();
@@ -677,7 +670,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
         );
@@ -709,10 +702,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
                 assertThat(
                     doc1Failure.getCause().getMessage(),
-                    containsString("Insufficient memory available to update source on document [doc_1]")
+                    containsString("Insufficient memory available to insert inference results into document [doc_1]")
                 );
                 assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
+                verify(inferenceStats).bulkRejection().incrementBy(eq(1));
 
                 IndexRequest doc1IndexRequest = getIndexRequestOrNull(doc1Request.request());
                 assertThat(doc1IndexRequest, notNullValue());
@@ -720,7 +714,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
+                verify(coordinatingIndexingPressure).increment(eq(1), longThat(l -> l > bytesUsed(doc1Source)));
                 verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
@@ -762,7 +756,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), (bytesUsed(doc1Source) + 1) + "b").build()
         );
 
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         sparseModel.putResult("bar", randomChunkedInferenceEmbedding(sparseModel, List.of("bar")));
 
@@ -802,9 +796,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
-                verify(coordinatingIndexingPressure).increment(eq(0), longThat(l -> l > 0));
-                verify(coordinatingIndexingPressure, times(2)).increment(anyInt(), anyLong());
+                verify(coordinatingIndexingPressure).increment(eq(1), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(1)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();
@@ -875,7 +868,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 .build()
         );
 
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = new InferenceStats(mock(), mock(), mock());
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
@@ -900,10 +893,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(doc2Response);
                 assertTrue(doc2Response.isFailed());
                 BulkItemResponse.Failure doc2Failure = doc2Response.getFailure();
-                assertThat(
-                    doc2Failure.getCause().getMessage(),
-                    containsString("Insufficient memory available to insert inference results into document [doc_2]")
-                );
+                assertThat(doc2Failure.getCause().getMessage(), containsString("Unable to insert inference results into document [doc_2]"));
                 assertThat(doc2Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc2Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
 
@@ -913,10 +903,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
                 assertThat(coordinatingIndexingPressure, notNullValue());
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc1Source));
-                verify(coordinatingIndexingPressure).increment(1, bytesUsed(doc2Source));
-                verify(coordinatingIndexingPressure, times(2)).increment(eq(0), longThat(l -> l > 0));
-                verify(coordinatingIndexingPressure, times(4)).increment(anyInt(), anyLong());
+                verify(coordinatingIndexingPressure, times(2)).increment(eq(1), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(2)).increment(anyInt(), anyLong());
 
                 // Verify that the coordinating indexing pressure is maintained through downstream action filters
                 verify(coordinatingIndexingPressure, never()).close();

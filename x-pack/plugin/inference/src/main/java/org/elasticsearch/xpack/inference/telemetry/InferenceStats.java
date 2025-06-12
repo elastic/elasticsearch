@@ -20,11 +20,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration) {
+public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration, LongCounter bulkRejection) {
 
     public InferenceStats {
         Objects.requireNonNull(requestCount);
         Objects.requireNonNull(inferenceDuration);
+        Objects.requireNonNull(bulkRejection);
     }
 
     public static InferenceStats create(MeterRegistry meterRegistry) {
@@ -38,6 +39,11 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
                 "es.inference.requests.time",
                 "Inference API request counts for a particular service, task type, model ID",
                 "ms"
+            ),
+            meterRegistry.registerLongCounter(
+                "es.inference.bulk.rejection.total",
+                "Count of bulk request rejections for semantic text processing due to insufficient available memory",
+                "operations"
             )
         );
     }

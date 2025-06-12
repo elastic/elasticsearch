@@ -145,6 +145,21 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.weightedTokensSupplier = weightedTokensSupplier;
     }
 
+    public static SparseVectorQueryBuilder from(
+        QueryBuilder queryBuilder,
+        String fieldName,
+        @Nullable List<WeightedToken> queryVectors,
+        @Nullable String inferenceId,
+        @Nullable String query,
+        @Nullable Boolean shouldPruneTokens,
+        @Nullable TokenPruningConfig tokenPruningConfig
+    ) {
+        SparseVectorQueryBuilder sparseVectorQueryBuilder = new SparseVectorQueryBuilder(fieldName, queryVectors, inferenceId, query, shouldPruneTokens, tokenPruningConfig);
+        sparseVectorQueryBuilder.boost(queryBuilder.boost());
+        sparseVectorQueryBuilder.queryName(queryBuilder.queryName());
+        return sparseVectorQueryBuilder;
+    }
+
     public String getFieldName() {
         return fieldName;
     }

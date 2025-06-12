@@ -101,21 +101,19 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     private QueryBuilder buildNestedQueryFromSparseVectorQuery(QueryBuilder queryBuilder, String searchInferenceId) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
-        SparseVectorQueryBuilder newSparseVectorQueryBuilder = new SparseVectorQueryBuilder(
-            SemanticTextField.getEmbeddingsFieldName(sparseVectorQueryBuilder.getFieldName()),
-            sparseVectorQueryBuilder.getQueryVectors(),
-            (sparseVectorQueryBuilder.getInferenceId() == null && sparseVectorQueryBuilder.getQuery() != null)
-                ? searchInferenceId
-                : sparseVectorQueryBuilder.getInferenceId(),
-            sparseVectorQueryBuilder.getQuery(),
-            sparseVectorQueryBuilder.shouldPruneTokens(),
-            sparseVectorQueryBuilder.getTokenPruningConfig()
-        );
-        newSparseVectorQueryBuilder.boost(sparseVectorQueryBuilder.boost());
-        newSparseVectorQueryBuilder.queryName(sparseVectorQueryBuilder.queryName());
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(sparseVectorQueryBuilder.getFieldName()),
-            newSparseVectorQueryBuilder,
+            SparseVectorQueryBuilder.from(
+                queryBuilder,
+                SemanticTextField.getEmbeddingsFieldName(sparseVectorQueryBuilder.getFieldName()),
+                sparseVectorQueryBuilder.getQueryVectors(),
+                (sparseVectorQueryBuilder.getInferenceId() == null && sparseVectorQueryBuilder.getQuery() != null)
+                    ? searchInferenceId
+                    : sparseVectorQueryBuilder.getInferenceId(),
+                sparseVectorQueryBuilder.getQuery(),
+                sparseVectorQueryBuilder.shouldPruneTokens(),
+                sparseVectorQueryBuilder.getTokenPruningConfig()
+            ),
             ScoreMode.Max
         );
     }

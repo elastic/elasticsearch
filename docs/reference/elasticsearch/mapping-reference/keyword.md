@@ -70,11 +70,10 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string with more characters than this value. This is important because `keyword`
-    fields will reject documents with `keyword` fields that encode to utf-8 longer than `32766` bytes.
+:   Do not index any field containing a string with more characters than this value. This is important because {{es}} 
+will reject entire documents if they contain keyword fields that exceed `32766` bytes when UTF-8 encoded.
 
-    If you need to never reject documents, this should have some value `<=8191`. All documents with
-    more characters will just skip building the index for this field.
+    To avoid any risk of document rejection, set this value to `8191` or less. Fields with strings exceeding this length will be excluded from indexing.
 
     The defaults are complicated. It's `2147483647` (effectively unbounded) in standard indices and
     `8191` in logsdb indices. So, if unspecified, standard indices *can* reject documents. And logsdb indices

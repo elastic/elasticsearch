@@ -10,11 +10,18 @@ setup:
         index: logs-apm.error-eventdataset
         refresh: true
         body:
+          # data_stream.dataset present, event.dataset not present
           - create: {}
           - '{"@timestamp": "2017-06-22", "data_stream": {"type": "logs", "dataset": "apm.error", "namespace": "eventdataset"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
-
+          # data_stream.dataset present, event.dataset present
           - create: {}
           - '{"@timestamp": "2017-06-22", "data_stream": {"type": "logs", "dataset": "apm.error", "namespace": "eventdataset"}, "event": {"dataset": "foo"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+          # unlikely: data_stream.dataset not present, event.dataset not present
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+          # unlikely: data_stream.dataset not present, event.dataset present
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"dataset": "foo"}, "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
 
   - is_false: errors
 
@@ -23,9 +30,11 @@ setup:
         index: logs-apm.error-eventdataset
         body:
           fields: ["event.dataset"]
-  - length: { hits.hits: 2 }
+  - length: { hits.hits: 4 }
   - match: { hits.hits.0.fields: { "event.dataset": ["apm.error"] } }
   - match: { hits.hits.1.fields: { "event.dataset": ["foo"] } }
+  - match: { hits.hits.2.fields: null }
+  - match: { hits.hits.3.fields: { "event.dataset": ["foo"] } }
 ---
 "Test logs-apm.app.*-* event.dataset field":
   - do:
@@ -33,11 +42,18 @@ setup:
         index: logs-apm.app.foo-eventdataset
         refresh: true
         body:
+          # data_stream.dataset present, event.dataset not present
           - create: {}
           - '{"@timestamp": "2017-06-22", "data_stream": {"type": "logs", "dataset": "apm.app.foo", "namespace": "eventdataset"}, "message": "foo"}'
-
+          # data_stream.dataset present, event.dataset present
           - create: {}
           - '{"@timestamp": "2017-06-22", "data_stream": {"type": "logs", "dataset": "apm.app.foo", "namespace": "eventdataset"}, "event": {"dataset": "foo"}, "message": "foo"}'
+          # unlikely: data_stream.dataset not present, event.dataset not present
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "message": "foo"}'
+          # unlikely: data_stream.dataset not present, event.dataset present
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"dataset": "foo"}, "message": "foo"}'
 
   - is_false: errors
 
@@ -46,7 +62,9 @@ setup:
         index: logs-apm.app.foo-eventdataset
         body:
           fields: ["event.dataset"]
-  - length: { hits.hits: 2 }
+  - length: { hits.hits: 4 }
   - match: { hits.hits.0.fields: { "event.dataset": ["apm.app.foo"] } }
   - match: { hits.hits.1.fields: { "event.dataset": ["foo"] } }
+  - match: { hits.hits.2.fields: null }
+  - match: { hits.hits.3.fields: { "event.dataset": ["foo"] } }
 

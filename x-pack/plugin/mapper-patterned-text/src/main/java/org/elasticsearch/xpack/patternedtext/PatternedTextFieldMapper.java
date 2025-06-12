@@ -114,7 +114,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), indexAnalyzer, fieldType().templateFieldName(), indexAnalyzer);
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -140,7 +140,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         // Add args doc_values
         if (parts.args().isEmpty() == false) {
-            String remainingArgs = PatternedTextValueProcessor.mergeRemainingArgs(parts, 0);
+            String remainingArgs = PatternedTextValueProcessor.encodeRemainingArgs(parts);
             context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
         }
     }

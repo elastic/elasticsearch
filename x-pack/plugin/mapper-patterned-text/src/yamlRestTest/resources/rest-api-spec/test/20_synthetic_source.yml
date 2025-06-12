@@ -36,3 +36,41 @@ simple:
   - match: { hits.hits.1._source.message: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9" }
   - match: { hits.hits.2._source.message: "some log message with no arg" }
   - match: { hits.hits.3._source.message: "another log message with arg 1234 and arg 8765 and a mixed one ABCD1" }
+
+---
+synthetic_source with copy_to:
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: patterned_text
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          fields: ["copy"]
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9"
+  - match:
+      hits.hits.0.fields.copy.0: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9"

@@ -81,15 +81,11 @@ public class PatternedTextValueProcessor {
         return builder.toString();
     }
 
-    static String mergeRemainingArgs(Parts parts, int startOffset) {
-        StringBuilder builder = new StringBuilder();
-        for (int i = startOffset; i < parts.args.size(); i++) {
-            builder.append((i > startOffset) ? SPACE : "").append(parts.args.get(i));
-        }
-        return builder.toString();
+    static String encodeRemainingArgs(Parts parts) {
+        return String.join(SPACE, parts.args);
     }
 
-    static void addRemainingArgs(List<String> args, String mergedArgs) {
+    static void decodeRemainingArgs(List<String> args, String mergedArgs) {
         Collections.addAll(args, mergedArgs.split(SPACE));
     }
 

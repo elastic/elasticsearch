@@ -45,7 +45,7 @@ Field caps:
         fields: [ foo ]
 
   - match: { fields.foo.text.searchable: true }
-  - match: { fields.foo.text.aggregatable: true }
+  - match: { fields.foo.text.aggregatable: false }
 
 ---
 Exist query:
@@ -268,58 +268,6 @@ Wildcard highlighting:
   - match: { hits.hits.0.highlight.foo.0: "Found <em>5</em> errors for service [cheddar1]" }
 
 ---
-Terms aggregation:
-
-  - do:
-      search:
-        index: test
-        body:
-          aggs:
-            term_agg:
-              terms:
-                field: foo.text
-
-  - match: { hits.total.value: 4 }
-  - length: { aggregations.term_agg.buckets: 10 }
-  - match: { aggregations.term_agg.buckets.0.key: apache }
-  - match: { aggregations.term_agg.buckets.0.doc_count: 3 }
-  - match: { aggregations.term_agg.buckets.1.key: lucene }
-  - match: { aggregations.term_agg.buckets.1.doc_count: 3 }
-  - match: { aggregations.term_agg.buckets.2.key: elasticsearch }
-  - match: { aggregations.term_agg.buckets.2.doc_count: 2 }
-
----
-synthetic_source:
-
-  - do:
-      indices.create:
-        index: synthetic_source_test
-        body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
-          mappings:
-            properties:
-              foo:
-                type: patterned_text
-
-  - do:
-      index:
-        index: synthetic_source_test
-        id:    "1"
-        refresh: true
-        body:
-          foo: "Apache Lucene powers Elasticsearch"
-
-  - do:
-      search:
-        index: synthetic_source_test
-  - match: { "hits.total.value": 1 }
-  - match:
-      hits.hits.0._source:
-        foo: "Apache Lucene powers Elasticsearch"
-
----
 tsdb:
 
   - do:
@@ -360,42 +308,5 @@ tsdb:
         "dimension" : "a"
         foo: "Apache Lucene powers Elasticsearch"
 
----
-synthetic_source with copy_to:
-
-  - do:
-      indices.create:
-        index: synthetic_source_test
-        body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
-          mappings:
-            properties:
-              foo:
-                type: patterned_text
-                copy_to: copy
-              copy:
-                type: keyword
-
-  - do:
-      index:
-        index: synthetic_source_test
-        id:    "1"
-        refresh: true
-        body:
-          foo: "Apache Lucene powers Elasticsearch"
-
-  - do:
-      search:
-        index: synthetic_source_test
-        body:
-          fields: ["copy"]
-
-  - match: { "hits.total.value": 1 }
-  - match:
-      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
-  - match:
-      hits.hits.0.fields.copy.0: "Apache Lucene powers Elasticsearch"
 
 

@@ -13,8 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -35,8 +33,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.index.mapper.DynamicFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -56,7 +52,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.KEYWORD;
 
-public class PatternedTextFieldType extends StringFieldType implements DynamicFieldType {
+public class PatternedTextFieldType extends StringFieldType {
 
     private static final String TEMPLATE_SUFFIX = ".template";
     private static final String ARGS_SUFFIX = ".args";
@@ -65,14 +61,11 @@ public class PatternedTextFieldType extends StringFieldType implements DynamicFi
 
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;
-    private final TextFieldMapper.TextFieldType templateFieldType;
 
     PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
         super(name, true, false, true, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
-        this.templateFieldType = new TextFieldMapper.TextFieldType(name + TEMPLATE_SUFFIX, isSyntheticSource);
-        this.templateFieldType.setFielddata(true);  // for aggregations
     }
 
     PatternedTextFieldType(String name) {
@@ -86,11 +79,6 @@ public class PatternedTextFieldType extends StringFieldType implements DynamicFi
     }
 
     @Override
-    public MappedFieldType getChildFieldType(String path) {
-        return templateFieldType;
-    }
-
-    @Override
     public String typeName() {
         return CONTENT_TYPE;
     }
@@ -98,6 +86,11 @@ public class PatternedTextFieldType extends StringFieldType implements DynamicFi
     @Override
     public String familyTypeName() {
         return TextFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean isAggregatable() {
+        return false;
     }
 
     @Override
@@ -121,14 +114,10 @@ public class PatternedTextFieldType extends StringFieldType implements DynamicFi
         };
     }
 
-    private Query combinedQuery(Query query, Query templateQuery, SearchExecutionContext context) {
+    private Query sourceConfirmedQuery(Query query, SearchExecutionContext context) {
         // Disable scoring
         return new ConstantScoreQuery(
-            // TODO: skip SourceConfirmedTextQuery when the templateQuery has matches.
-            new BooleanQuery.Builder().add(
-                new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer),
-                BooleanClause.Occur.SHOULD
-            ).add(templateQuery, BooleanClause.Occur.SHOULD).build()
+            new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer)
         );
     }
 
@@ -234,24 +223,21 @@ public class PatternedTextFieldType extends StringFieldType implements DynamicFi
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
         throws IOException {
         final Query textQuery = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
-        final Query templateQuery = templateFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
-        return combinedQuery(textQuery, templateQuery, queryShardContext);
+        return sourceConfirmedQuery(textQuery, queryShardContext);
     }
 
     @Override
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext queryShardContext)
         throws IOException {
         final Query textQuery = textFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
-        final Query templateQuery = templateFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
-        return combinedQuery(textQuery, templateQuery, queryShardContext);
+        return sourceConfirmedQuery(textQuery, queryShardContext);
     }
 
     @Override
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
         throws IOException {
         final Query textQuery = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
-        final Query templateQuery = templateFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
-        return combinedQuery(textQuery, templateQuery, queryShardContext);
+        return sourceConfirmedQuery(textQuery, queryShardContext);
     }
 
     @Override

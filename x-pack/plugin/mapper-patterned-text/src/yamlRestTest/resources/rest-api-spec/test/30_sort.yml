@@ -9,6 +9,8 @@ simple:
                 type: integer
               message:
                 type: patterned_text
+              some_field:
+                type: integer
 
   - do:
       bulk:
@@ -16,13 +18,13 @@ simple:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{ "id": 1, "message": "some log message with no arg"  }'
+          - '{ "id": 1, "message": "some log message with no arg", "some_field": 4 }'
           - '{ "create": { } }'
-          - '{ "id": 2, "message": "another log message with arg 1234 and arg 5678 and a mixed one ABCD9"  }'
+          - '{ "id": 2, "message": "another log message with arg 1234 and arg 5678 and a mixed one ABCD9", "some_field": 1  }'
           - '{ "create": { } }'
-          - '{ "id": 3, "message": "some log message with no arg"  }'
+          - '{ "id": 3, "message": "some log message with no arg", "some_field": 2  }'
           - '{ "create": { } }'
-          - '{ "id": 4, "message": "another log message with arg 1234 and arg 8765 and a mixed one ABCD1"  }'
+          - '{ "id": 4, "message": "another log message with arg 1234 and arg 8765 and a mixed one ABCD1", "some_field": 3 }'
 
   - do:
       search:
@@ -32,4 +34,14 @@ simple:
   - match: { hits.hits.0._source.message: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9" }
   - match: { hits.hits.1._source.message: "another log message with arg 1234 and arg 8765 and a mixed one ABCD1" }
   - match: { hits.hits.2._source.message: "some log message with no arg" }
+  - match: { hits.hits.3._source.message: "some log message with no arg" }
+
+  - do:
+      search:
+        index: test
+        sort: some_field
+
+  - match: { hits.hits.0._source.message: "another log message with arg 1234 and arg 5678 and a mixed one ABCD9" }
+  - match: { hits.hits.1._source.message: "some log message with no arg" }
+  - match: { hits.hits.2._source.message: "another log message with arg 1234 and arg 8765 and a mixed one ABCD1" }
   - match: { hits.hits.3._source.message: "some log message with no arg" }

@@ -56,7 +56,7 @@ public class PatternedTextDocValues extends SortedSetDocValues {
         List<String> args = new ArrayList<>(argsCount);
         if (argsCount > 0) {
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
-            PatternedTextValueProcessor.addRemainingArgs(args, mergedArgs.utf8ToString());
+            PatternedTextValueProcessor.decodeRemainingArgs(args, mergedArgs.utf8ToString());
         }
         return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args));
     }

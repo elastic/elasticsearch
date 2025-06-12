@@ -1,0 +1,35 @@
+{
+  "streams.status": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-status.html",
+      "description": "Return the current status of the streams feature for each streams type"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_streams/status",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "local": {
+        "type": "boolean",
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

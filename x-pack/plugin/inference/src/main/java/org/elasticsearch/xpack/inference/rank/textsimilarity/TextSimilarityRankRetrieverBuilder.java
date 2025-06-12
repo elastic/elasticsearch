@@ -40,6 +40,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX = new NodeFeature(
         "text_similarity_reranker_alias_handling_fix"
     );
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_MINSCORE_FIX = new NodeFeature(
+        "text_similarity_reranker_minscore_fix"
+    );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");

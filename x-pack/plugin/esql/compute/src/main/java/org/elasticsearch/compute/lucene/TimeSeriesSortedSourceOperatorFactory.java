@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -51,7 +50,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
 
     private TimeSeriesSortedSourceOperatorFactory(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         int taskConcurrency,
         int maxPageSize,
         int limit
@@ -84,7 +83,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         int maxPageSize,
         int taskConcurrency,
         List<? extends ShardContext> searchContexts,
-        Function<ShardContext, Query> queryFunction
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction
     ) {
         return new TimeSeriesSortedSourceOperatorFactory(searchContexts, queryFunction, taskConcurrency, maxPageSize, limit);
     }

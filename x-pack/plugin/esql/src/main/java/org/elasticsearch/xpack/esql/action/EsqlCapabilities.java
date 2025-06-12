@@ -308,6 +308,11 @@ public class EsqlCapabilities {
         RENAME_SEQUENTIAL_PROCESSING,
 
         /**
+         * Support for assignment in RENAME, besides the use of `AS` keyword.
+         */
+        RENAME_ALLOW_ASSIGNMENT,
+
+        /**
          * Support for removing empty attribute in merging output.
          * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> EVAL after STATS produces an empty column #126392 </a>
          */
@@ -926,6 +931,11 @@ public class EsqlCapabilities {
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
          */
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
+
+        /**
+         * Support knn function
+         */
+        KNN_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * MATCH PHRASE function

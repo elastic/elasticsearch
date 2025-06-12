@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -77,7 +78,11 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
-    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
+    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.CHAT_COMPLETION,
+        TaskType.RERANK
+    );
     private static final String SERVICE_NAME = "Elastic";
 
     // rainbow-sprinkles
@@ -91,7 +96,7 @@ public class ElasticInferenceService extends SenderService {
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
-    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.RERANK);
 
     public static String defaultEndpointId(String modelId) {
         return Strings.format(".%s-elastic", modelId);
@@ -159,6 +164,18 @@ public class ElasticInferenceService extends SenderService {
     @Override
     public void onNodeStarted() {
         authorizationHandler.init();
+    }
+
+    @Override
+    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
+        if (returnDocuments != null) {
+            validationException.addValidationError(
+                org.elasticsearch.core.Strings.format(
+                    "Invalid return_documents [%s]. The return_documents option is not supported by this service",
+                    returnDocuments
+                )
+            );
+        }
     }
 
     /**
@@ -333,7 +350,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
-        ElasticInferenceServiceComponents eisServiceComponents,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         String failureMessage,
         ConfigurationParseContext context
     ) {
@@ -345,7 +362,7 @@ public class ElasticInferenceService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                eisServiceComponents,
+                elasticInferenceServiceComponents,
                 context
             );
             case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
@@ -355,7 +372,17 @@ public class ElasticInferenceService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                eisServiceComponents,
+                elasticInferenceServiceComponents,
+                context
+            );
+            case RERANK -> new ElasticInferenceServiceRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                elasticInferenceServiceComponents,
                 context
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
@@ -451,9 +478,8 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)).setDescription(
-                        "The name of the model to use for the inference task."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK))
+                        .setDescription("The name of the model to use for the inference task.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -476,7 +502,9 @@ public class ElasticInferenceService extends SenderService {
                 );
 
                 configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION))
+                    RateLimitSettings.toSettingsConfiguration(
+                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK)
+                    )
                 );
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)

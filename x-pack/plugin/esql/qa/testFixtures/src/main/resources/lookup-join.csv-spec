@@ -4481,6 +4481,7 @@ language_code_float:double | language_code_double:double | language_name:keyword
 
 lookupJoinOnTimeSeriesIndex
 required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
 
 FROM k8s
 | RENAME network.bytes_in AS language_code

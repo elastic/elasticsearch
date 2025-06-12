@@ -57,7 +57,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
         public Factory(
             List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -170,6 +170,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return emit(true);
         }
         try {
+            if (scorer.tags().isEmpty() == false) {
+                throw new UnsupportedOperationException("tags not supported by " + getClass());
+            }
             if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
                 // TODO: share the bottom between shardCollectors
                 perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, needsScore, limit);

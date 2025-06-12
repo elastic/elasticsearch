@@ -153,7 +153,7 @@ non-lookup index:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:45: invalid [test] resolution in lookup mode to an index in [standard] mode" }
+  - contains: { error.reason: "Found 1 problem\nline 1:45: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode" }
 
 ---
 pattern-multiple:

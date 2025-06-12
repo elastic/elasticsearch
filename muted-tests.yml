@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/125680
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
+  issue: https://github.com/elastic/elasticsearch/issues/129149
 
 # Examples:
 #

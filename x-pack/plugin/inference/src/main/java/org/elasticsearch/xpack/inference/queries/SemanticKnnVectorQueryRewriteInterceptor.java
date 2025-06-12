@@ -128,28 +128,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     }
 
     private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, KnnVectorQueryBuilder original) {
-        KnnVectorQueryBuilder copy;
-        if (original.queryVectorBuilder() != null) {
-            copy = new KnnVectorQueryBuilder(
-                original.getFieldName(),
-                original.queryVectorBuilder(),
-                original.k(),
-                original.numCands(),
-                original.getVectorSimilarity()
-            );
-        } else {
-            copy = new KnnVectorQueryBuilder(
-                original.getFieldName(),
-                original.queryVector(),
-                original.k(),
-                original.numCands(),
-                original.rescoreVectorBuilder(),
-                original.getVectorSimilarity()
-            );
-        }
-
-        copy.boost(original.boost());
-        copy.queryName(original.queryName());
+        KnnVectorQueryBuilder copy = KnnVectorQueryBuilder.from(original);
         copy.addFilterQueries(original.filterQueries());
         copy.addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return copy;
@@ -169,28 +148,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         KnnVectorQueryBuilder original,
         QueryVectorBuilder queryVectorBuilder
     ) {
-        KnnVectorQueryBuilder newQueryBuilder;
-        if (original.queryVectorBuilder() != null) {
-            newQueryBuilder = new KnnVectorQueryBuilder(
-                fieldName,
-                queryVectorBuilder,
-                original.k(),
-                original.numCands(),
-                original.getVectorSimilarity()
-            );
-        } else {
-            newQueryBuilder = new KnnVectorQueryBuilder(
-                fieldName,
-                original.queryVector(),
-                original.k(),
-                original.numCands(),
-                original.rescoreVectorBuilder(),
-                original.getVectorSimilarity()
-            );
-        }
-
-        newQueryBuilder.boost(original.boost());
-        newQueryBuilder.queryName(original.queryName());
+        KnnVectorQueryBuilder newQueryBuilder = KnnVectorQueryBuilder.from(original, fieldName, queryVectorBuilder);
         newQueryBuilder.addFilterQueries(original.filterQueries());
         return newQueryBuilder;
     }

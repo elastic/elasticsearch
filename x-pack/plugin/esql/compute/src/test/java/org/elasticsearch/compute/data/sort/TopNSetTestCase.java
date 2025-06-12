@@ -160,10 +160,9 @@ public abstract class TopNSetTestCase<T extends Releasable, V extends Comparable
             assertResults(sort, sortOrder, limit, values);
 
             reduceLimitByOne(sort);
-            limit--;
             collect(sort, values.get(2));
 
-            assertResults(sort, sortOrder, limit, values);
+            assertResults(sort, sortOrder, limit - 1, values);
         }
     }
 

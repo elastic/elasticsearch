@@ -113,7 +113,7 @@ public abstract class AbstractAggregateExec extends UnaryExec implements Estimat
         return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedSize(size);
     }
 
-    public abstract AbstractAggregateExec withAggregates(List<? extends NamedExpression> aggregates);
+    public abstract AbstractAggregateExec withAggregates(List<? extends NamedExpression> newAggregates);
 
     public abstract AbstractAggregateExec withMode(AggregatorMode newMode);
 

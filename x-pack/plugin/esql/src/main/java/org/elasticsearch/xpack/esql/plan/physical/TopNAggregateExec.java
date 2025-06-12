@@ -108,12 +108,12 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
     }
 
     @Override
-    public TopNAggregateExec withAggregates(List<? extends NamedExpression> aggregates) {
+    public TopNAggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
         return new TopNAggregateExec(
             source(),
             child(),
             groupings,
-            aggregates,
+            newAggregates,
             mode,
             intermediateAttributes,
             estimatedRowSize,

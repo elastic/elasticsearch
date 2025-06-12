@@ -520,6 +520,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.MultipleBatches*
   issue: https://github.com/elastic/elasticsearch/issues/129210
+- class: org.elasticsearch.compute.data.sort.LongTopNSetTests
+  method: testCrankyBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/129257
 
 # Examples:
 #

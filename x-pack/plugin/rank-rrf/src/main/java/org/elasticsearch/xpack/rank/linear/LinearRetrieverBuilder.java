@@ -134,7 +134,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         String retrieverName,
         List<QueryBuilder> preFilterQueryBuilders
     ) {
-        this (innerRetrievers, rankWindowSize, weights, normalizers);
+        this(innerRetrievers, rankWindowSize, weights, normalizers);
         this.minScore = minScore;
         if (minScore != null && minScore < 0) {
             throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: [" + minScore + "]");
@@ -147,12 +147,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         return new LinearRetrieverBuilder(
             newChildRetrievers,
-            rankWindowSize, 
-            weights, 
-            normalizers, 
+            rankWindowSize,
+            weights,
+            normalizers,
             minScore,
             retrieverName,
-            newPreFilterQueryBuilders);
+            newPreFilterQueryBuilders
+        );
     }
 
     @Override
@@ -204,10 +205,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             topResults[rank].rank = rank + 1;
         }
         // Filter by minScore if set(inclusive)
-        if(minScore != null) {
-            topResults = Arrays.stream(topResults)
-                .filter(doc -> doc.score >= minScore)
-                .toArray(LinearRankDoc[]::new);
+        if (minScore != null) {
+            topResults = Arrays.stream(topResults).filter(doc -> doc.score >= minScore).toArray(LinearRankDoc[]::new);
         }
         return topResults;
     }
@@ -232,20 +231,5 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
-    }
-
-    @Override
-    public boolean doEquals(Object Other) {
-        LinearRetrieverBuilder that = (LinearRetrieverBuilder) other;
-        return super.doEquals(other)
-        && rankWindowSize == that.rankWindowSize
-        && weights == that.weights
-        && Objects.equals(normalizers, that.normalizers)
-        && Object.equals(minScore, that.minScore);
-    }
-
-    @Override
-    public int doHashCode() {
-        return Objects.hash(rankWindowSize, weights, normalizers, minScore);
     }
 }

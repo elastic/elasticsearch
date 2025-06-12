@@ -57,7 +57,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String URL = "url";
     public static final String HEADERS = "headers";
     public static final String REQUEST = "request";
-    public static final String REQUEST_CONTENT = "content";
     public static final String RESPONSE = "response";
     public static final String JSON_PARSER = "json_parser";
     public static final String ERROR_PARSER = "error_parser";
@@ -83,14 +82,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         removeNullValues(headers);
         var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false);
 
-        Map<String, Object> requestBodyMap = extractRequiredMap(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        String requestContentString = extractRequiredString(
-            Objects.requireNonNullElse(requestBodyMap, new HashMap<>()),
-            REQUEST_CONTENT,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        String requestContentString = extractRequiredString(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         Map<String, Object> responseParserMap = extractRequiredMap(
             map,
@@ -125,11 +117,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        if (requestBodyMap == null || responseParserMap == null || jsonParserMap == null || errorParserMap == null) {
+        if (responseParserMap == null || jsonParserMap == null || errorParserMap == null) {
             throw validationException;
         }
 
-        throwIfNotEmptyMap(requestBodyMap, REQUEST, NAME);
         throwIfNotEmptyMap(jsonParserMap, JSON_PARSER, NAME);
         throwIfNotEmptyMap(responseParserMap, RESPONSE, NAME);
         throwIfNotEmptyMap(errorParserMap, ERROR_PARSER, NAME);
@@ -335,11 +326,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         queryParameters.toXContent(builder, params);
 
-        builder.startObject(REQUEST);
-        {
-            builder.field(REQUEST_CONTENT, requestContentString);
-        }
-        builder.endObject();
+        builder.field(REQUEST, requestContentString);
 
         builder.startObject(RESPONSE);
         {

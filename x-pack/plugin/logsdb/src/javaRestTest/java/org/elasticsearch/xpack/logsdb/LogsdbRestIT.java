@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -30,16 +32,25 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LogsdbRestIT extends ESRestTestCase {
 
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.security.enabled", "false")
+        .user(USER, PASS, "superuser", false)
+        .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testFeatureUsageWithLogsdbIndex() throws IOException {

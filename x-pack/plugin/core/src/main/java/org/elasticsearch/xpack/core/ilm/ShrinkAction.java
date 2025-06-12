@@ -187,7 +187,7 @@ public class ShrinkAction implements LifecycleAction {
             preShrinkBranchingKey,
             checkNotWriteIndex,
             lastOrNextStep,
-            (indexMetadata, clusterState, listener) -> {
+            (indexMetadata, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
                         "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "

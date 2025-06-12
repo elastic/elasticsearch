@@ -44,6 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestRequestTests extends ESTestCase {
+    private static final String PARAMETER_KEY = "PARAMETER_KEY";
 
     public void testContentConsumesContent() {
         runConsumesContentTest(RestRequest::content, true);
@@ -118,6 +119,37 @@ public class RestRequestTests extends ESTestCase {
         AtomicReference<Object> source = new AtomicReference<>();
         contentRestRequest("{}", emptyMap()).applyContentParser(p -> source.set(p.map()));
         assertEquals(emptyMap(), source.get());
+    }
+
+    public void testParseAsIntWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = -1;
+
+        int value = restRequest.paramAsInt(PARAMETER_KEY, defaultValue);
+        assertEquals(defaultValue, value);
+
+        Integer value2 = restRequest.paramAsInt(PARAMETER_KEY, Integer.valueOf(defaultValue));
+        assertEquals(defaultValue, value2.intValue());
+    }
+
+    public void testParseAsIntWithIntegerParameter() {
+        RestRequest restRequest = contentRestRequest("", singletonMap(PARAMETER_KEY, "123"));
+        int defaultValue = -1;
+
+        int value = restRequest.paramAsInt(PARAMETER_KEY, defaultValue);
+        assertEquals(123, value);
+
+        Integer value2 = restRequest.paramAsInt(PARAMETER_KEY, Integer.valueOf(defaultValue));
+        assertEquals(123, value2.intValue());
+    }
+
+    public void testParseAsIntWithoutIntegerParameter() {
+        RestRequest restRequest = contentRestRequest("", singletonMap(PARAMETER_KEY, "123T"));
+        int defaultValue = -1;
+
+        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(PARAMETER_KEY, defaultValue); });
+
+        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(PARAMETER_KEY, Integer.valueOf(defaultValue)); });
     }
 
     public void testContentOrSourceParam() throws IOException {

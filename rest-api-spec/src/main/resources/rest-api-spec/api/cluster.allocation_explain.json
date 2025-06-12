@@ -22,6 +22,22 @@
       ]
     },
     "params":{
+      "index": {
+        "type": "string",
+        "description": "Specifies the index within which we would like to describe the shard"
+      },
+      "shard": {
+        "type": "number",
+        "description": "Specifies the ID of the shard that you would like an explanation for"
+      },
+      "primary": {
+        "type":"boolean",
+        "description":"If true, returns explanation for the primary shard for the given shard ID"
+      },
+      "current_node": {
+        "type": "string",
+        "description": "Specifies the node ID or the name of the node to only explain a shard that is currently located on the specified node"
+      },
       "master_timeout":{
         "type":"time",
         "description":"Timeout for connection to master node"

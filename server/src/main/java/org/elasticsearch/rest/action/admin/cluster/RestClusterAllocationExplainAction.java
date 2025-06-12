@@ -47,21 +47,70 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         return true;
     }
 
+    /*
+        The Cluster Allocation Explain API supports both path parameters and parameters passed through the request body, but not both.
+        The API also supports empty requests, which translates to "explain the first unassigned shard you find"
+     */
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final var req = new ClusterAllocationExplainRequest(RestUtils.getMasterNodeTimeout(request));
+        final var clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(RestUtils.getMasterNodeTimeout(request));
+
+        // A request body was passed
         if (request.hasContentOrSourceParam()) {
-            try (XContentParser parser = request.contentOrSourceParamParser()) {
-                ClusterAllocationExplainRequest.parse(req, parser);
+            // Supplying parameters alongside a request body is unsupported
+            if (hasAnyParameterBeenPassed(request)) {
+                throw new IllegalArgumentException("Parameters cannot be passed in both the URL and the request body");
             }
-        } // else ok, an empty body means "explain the first unassigned shard you find"
-        req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
-        req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
+
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
+                ClusterAllocationExplainRequest.parse(clusterAllocationExplainRequest, parser);
+            }
+        }
+        // There is no request body. Check for optionally supplied path parameters
+        else {
+            clusterAllocationExplainRequest.setIndex(
+                request.param(
+                    ClusterAllocationExplainRequest.INDEX_PARAMETER_NAME,
+                    // Defaults to the existing value, which was instantiated as null
+                    clusterAllocationExplainRequest.getIndex()
+                )
+            );
+
+            clusterAllocationExplainRequest.setShard(
+                request.paramAsInt(ClusterAllocationExplainRequest.SHARD_PARAMETER_NAME, clusterAllocationExplainRequest.getShard())
+            );
+
+            clusterAllocationExplainRequest.setPrimary(
+                request.paramAsBoolean(ClusterAllocationExplainRequest.PRIMARY_PARAMETER_NAME, clusterAllocationExplainRequest.isPrimary())
+            );
+
+            clusterAllocationExplainRequest.setCurrentNode(
+                request.param(ClusterAllocationExplainRequest.CURRENT_NODE_PARAMETER_NAME, clusterAllocationExplainRequest.getCurrentNode())
+            );
+        }
+
+        // This checks for optionally provided query parameters
+        clusterAllocationExplainRequest.includeYesDecisions(
+            request.paramAsBoolean(ClusterAllocationExplainRequest.INCLUDE_YES_DECISIONS_PARAMETER_NAME, false)
+        );
+        clusterAllocationExplainRequest.includeDiskInfo(
+            request.paramAsBoolean(ClusterAllocationExplainRequest.INCLUDE_DISK_INFO_PARAMETER_NAME, false)
+        );
+
         return channel -> client.execute(
             TransportClusterAllocationExplainAction.TYPE,
-            req,
+            clusterAllocationExplainRequest,
             new RestRefCountedChunkedToXContentListener<>(channel)
         );
+    }
+
+    private boolean hasAnyParameterBeenPassed(RestRequest request) {
+        for (String parameter : ClusterAllocationExplainRequest.PATH_PARAMETERS) {
+            if (request.hasParam(parameter)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -5,7 +5,105 @@
       cluster.allocation_explain: {}
 
 ---
-"cluster shard allocation explanation test":
+"cluster shard allocation explanation test with empty request":
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 1, "index.number_of_replicas": 9 } }
+
+  - do:
+      cluster.allocation_explain:
+        include_disk_info: true
+
+  - match: { current_state: "unassigned" }
+  - match: { unassigned_info.reason: "INDEX_CREATED" }
+  - is_true: unassigned_info.at
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: false }
+  - is_true: cluster_info
+  - is_true: can_allocate
+
+---
+"cluster shard allocation explanation test with only index provided in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        body: { "index": "test"}
+
+---
+"cluster shard allocation explanation test with only shard provided in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        body: { "shard": 0}
+
+---
+"cluster shard allocation explanation test with only primary provided in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        body: { "primary": true}
+
+---
+"cluster shard allocation explanation test with only index and shard provided in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0}
+
+---
+"cluster shard allocation explanation test with only shard and primary provided in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        body: { "shard": 0, "primary": true }
+
+---
+"cluster shard allocation explanation test with only index and primary provided in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "primary": true }
+
+---
+"cluster shard allocation explanation test with 3 valid body parameters":
   - do:
       indices.create:
         index: test
@@ -27,25 +125,312 @@
   - is_true: rebalance_explanation
 
 ---
-"cluster shard allocation explanation test with empty request":
+"cluster shard allocation explanation test with 3 body parameters and all query parameters":
   - do:
       indices.create:
         index: test
-        body: { "settings": { "index.number_of_shards": 1, "index.number_of_replicas": 9 } }
+
+  - match: { acknowledged: true }
 
   - do:
       cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
         include_disk_info: true
+        include_yes_decisions: true
+        master_timeout: 0
 
-  - match: { current_state: "unassigned" }
-  - match: { unassigned_info.reason: "INDEX_CREATED" }
-  - is_true: unassigned_info.at
+  - match: { current_state: "started" }
+  - is_true: current_node.id
   - match: { index: "test" }
   - match: { shard: 0 }
-  - match: { primary: false }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+  # Modified by the existing of the query parameters
   - is_true: cluster_info
-  - is_true: can_allocate
+  - is_false: note
 
+---
+"cluster shard allocation explanation test with numerical index parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": 0, "shard": 0, "primary": true }
+
+---
+"cluster shard allocation explanation test with incorrect index parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /index_not_found_exception/
+      cluster.allocation_explain:
+        body: { "index": "test2", "shard": 0, "primary": true }
+
+
+---
+"cluster shard allocation explanation test with an invalid, string shard parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": "wrong", "primary": true }
+
+---
+"cluster shard allocation explanation test with a valid, string shard parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": "0", "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+# Is this incorrect behaviour? Should an InvalidArgumentException be returned here?
+"cluster shard allocation explanation test with float shard parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /shard_not_found_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 1.0, "primary": true }
+
+---
+"cluster shard allocation explanation test with numerical primary parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": 0 }
+
+---
+"cluster shard allocation explanation test with invalid primary parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": truee }
+
+---
+"cluster shard allocation explanation test with a valid, string primary parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": "true" }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with an invalid, string primary parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": "truee" }
+
+---
+"cluster shard allocation explanation test with numerical current node parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true, "current_node": 1 }
+
+---
+"cluster shard allocation explanation test with invalid include_disk_info parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_disk_info: truee
+
+---
+"cluster shard allocation explanation test with numerical include_disk_info parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_disk_info: 0
+
+---
+"cluster shard allocation explanation test with a valid, string include_disk_info parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_disk_info: "true"
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with an invalid, string include_disk_info parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_disk_info: "truee"
+
+---
+"cluster shard allocation explanation test with invalid include_yes_decisions parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_yes_decisions: truee
+
+---
+"cluster shard allocation explanation test with numerical include_yes_decisions parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_yes_decisions: 0
+
+---
+"cluster shard allocation explanation test with a valid, string include_yes_decisions parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_yes_decisions: "true"
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with an invalid, string include_yes_decisions parameter":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_yes_decisions: "truee"
 
 ---
 "Cluster shard allocation explanation test with a closed index":
@@ -108,3 +493,349 @@
         body: { "index": "test", "shard": 0, "primary": true }
 
   - is_true: current_node.roles
+
+# These tests were added as part of https://github.com/elastic/elasticsearch/issues/127028 which added support
+# for path parameters alongside body parameters
+
+---
+"cluster shard allocation explanation test with empty body and no URL parameters":
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 1, "index.number_of_replicas": 9 } }
+
+  - do:
+      cluster.allocation_explain: {}
+
+  - match: { current_state: "unassigned" }
+  - match: { unassigned_info.reason: "INDEX_CREATED" }
+  - is_true: unassigned_info.at
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: false }
+
+---
+"cluster shard allocation explanation test with only index provided in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        index: "test"
+
+---
+"cluster shard allocation explanation test with only shard provided in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        shard: 0
+
+---
+"cluster shard allocation explanation test with only primary provided in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        primary: true
+
+---
+"cluster shard allocation explanation test with only index and shard provided in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+
+---
+"cluster shard allocation explanation test with only shard and primary provided in the URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        shard: 0
+        primary: true
+
+---
+"cluster shard allocation explanation test with only index and primary provided in the URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /action_request_validation_exception/
+      cluster.allocation_explain:
+        index: "test"
+        primary: true
+
+---
+"cluster shard allocation explanation test with 3 parameters in the URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: true
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with all parameters in the URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: true
+        include_disk_info: true
+        include_yes_decisions: true
+        master_timeout: 0
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+  # Modified by the existing of the query parameters
+  - is_true: cluster_info
+  - is_false: note
+
+---
+"cluster shard allocation explanation test with parameters passed in both the body and URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        body: { "shard": 0, "primary": true }
+
+---
+"cluster shard allocation explanation test with numerical index parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      # Numerical values passed here are implicitly supported by RestRequest parsing all parameters as strings
+      catch: /index_not_found_exception/
+      cluster.allocation_explain:
+        index: 0
+        shard: 0
+        primary: true
+        include_disk_info: true
+        include_yes_decisions: true
+        master_timeout: 0
+
+---
+"cluster shard allocation explanation test with incorrect index parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /index_not_found_exception/
+      cluster.allocation_explain:
+        index: "test2"
+        shard: 0
+        primary: true
+        include_disk_info: true
+        include_yes_decisions: true
+        master_timeout: 0
+
+---
+"cluster shard allocation explanation test with an invalid, string shard parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: "wrong"
+        primary: true
+
+---
+"cluster shard allocation explanation test with a valid, string shard parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        index: "test"
+        shard: "0"
+        primary: true
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+# When a float is passed in the body, a ShardNotFoundException is thrown. This behaviour is corrected when passed via a path parameter
+"cluster shard allocation explanation test with float shard parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: 1.0
+        primary: true
+
+---
+"cluster shard allocation explanation test with numerical primary parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: 0
+
+---
+"cluster shard allocation explanation test with invalid primary parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: truee
+
+---
+"cluster shard allocation explanation test with a valid, string primary parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: "true"
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with an invalid, string primary parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: "truee"
+
+---
+"cluster shard allocation explanation test with numerical current node parameter passed in URL":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        index: "test"
+        shard: 0
+        primary: 0
+        current_node: 1

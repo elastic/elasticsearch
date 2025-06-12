@@ -42,13 +42,16 @@ import static org.hamcrest.Matchers.is;
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
 public class DirectIOIT extends ESIntegTestCase {
 
+    private static boolean SUPPORTED;
+
     @BeforeClass
     public static void checkSupported() throws IOException {
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");
+            SUPPORTED = true;
         } catch (IOException e) {
-            assumeNoException("test requires filesystem that supports Direct IO", e);
+            SUPPORTED = false;
         }
     }
 
@@ -106,15 +109,21 @@ public class DirectIOIT extends ESIntegTestCase {
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
     public void testDirectIOUsed() {
         try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
-            // we're just looking for some evidence direct IO is used
-            mockLog.addExpectation(
-                new MockLog.PatternSeenEventExpectation(
+            // we're just looking for some evidence direct IO is used (or not)
+            MockLog.LoggingExpectation expectation = SUPPORTED
+                ? new MockLog.PatternSeenEventExpectation(
                     "Direct IO used",
                     FsDirectoryFactory.class.getCanonicalName(),
                     Level.DEBUG,
                     "Opening .*\\.vec with direct IO"
                 )
-            );
+                : new MockLog.PatternSeenEventExpectation(
+                    "Direct IO not used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Could not open .*\\.vec with direct IO"
+                );
+            mockLog.addExpectation(expectation);
 
             indexVectors();
 

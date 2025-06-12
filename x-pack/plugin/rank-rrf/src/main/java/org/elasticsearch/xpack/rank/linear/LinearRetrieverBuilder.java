@@ -125,12 +125,34 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.normalizers = normalizers;
     }
 
+    public LinearRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        int rankWindowSize,
+        float[] weights,
+        ScoreNormalizer[] normalizers,
+        Float minScore,
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders
+    ) {
+        this (innerRetrievers, rankWindowSize, weights, normalizers);
+        this.minScore = minScore;
+        if (minScore != null && minScore < 0) {
+            throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: [" + minScore + "]");
+        }
+        this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
+    }
+
     @Override
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers);
-        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
-        clone.retrieverName = retrieverName;
-        return clone;
+        return new LinearRetrieverBuilder(
+            newChildRetrievers,
+            rankWindowSize, 
+            weights, 
+            normalizers, 
+            minScore,
+            retrieverName,
+            newPreFilterQueryBuilders);
     }
 
     @Override
@@ -181,6 +203,12 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
         }
+        // Filter by minScore if set(inclusive)
+        if(minScore != null) {
+            topResults = Arrays.stream(topResults)
+                .filter(doc -> doc.score >= minScore)
+                .toArray(LinearRankDoc[]::new);
+        }
         return topResults;
     }
 
@@ -204,5 +232,20 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+    }
+
+    @Override
+    public boolean doEquals(Object Other) {
+        LinearRetrieverBuilder that = (LinearRetrieverBuilder) other;
+        return super.doEquals(other)
+        && rankWindowSize == that.rankWindowSize
+        && weights == that.weights
+        && Objects.equals(normalizers, that.normalizers)
+        && Object.equals(minScore, that.minScore);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(rankWindowSize, weights, normalizers, minScore);
     }
 }

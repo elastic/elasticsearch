@@ -69,53 +69,13 @@ public class MetadataAttribute extends TypedAttribute {
         this(source, name, dataType, Nullability.TRUE, null, false, searchable);
     }
 
-    @Deprecated
-    /**
-     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
-     */
-    private MetadataAttribute(
-        Source source,
-        String name,
-        DataType dataType,
-        @Nullable String qualifier,
-        Nullability nullability,
-        @Nullable NameId id,
-        boolean synthetic,
-        boolean searchable
-    ) {
-        this(source, name, dataType, nullability, id, synthetic, searchable);
-    }
-
-    @SuppressWarnings("unchecked")
-    private MetadataAttribute(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             out.writeString(name());
             dataType().writeTo(out);
-            // We used to write the qualifier here. We can still do if needed in the future.
-            out.writeOptionalString(null);
+            out.writeOptionalString(null); // qualifier, no longer used
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
@@ -124,7 +84,17 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     public static MetadataAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(MetadataAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(streamInput -> {
+            Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+            String name = in.readString();
+            DataType dataType = DataType.readFrom(in);
+            String qualifier = in.readOptionalString(); // qualifier, no longer used
+            Nullability nullability = in.readEnum(Nullability.class);
+            NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+            boolean synthetic = in.readBoolean();
+            boolean searchable = in.readBoolean();
+            return new MetadataAttribute(source, name, dataType, nullability, id, synthetic, searchable);
+        });
     }
 
     @Override
@@ -134,7 +104,7 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     protected MetadataAttribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
-        return new MetadataAttribute(source, name, type, null, nullability, id, synthetic, searchable);
+        return new MetadataAttribute(source, name, type, nullability, id, synthetic, searchable);
     }
 
     @Override

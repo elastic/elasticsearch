@@ -110,18 +110,23 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
     /**
      * Constructs a new text query.
      */
-    public MultiFieldMatchQueryBuilder(Object value, String... fields) {
+    private MultiFieldMatchQueryBuilder(Object value) {
         if (value == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires query value");
         }
+        this.value = value;
+        this.fieldsAndBoosts = new TreeMap<>();
+    }
+
+    public static MultiFieldMatchQueryBuilder create(Object value, String... fields) {
         if (fields == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires field list");
         }
-        this.value = value;
-        this.fieldsAndBoosts = new TreeMap<>();
+        var result = new MultiFieldMatchQueryBuilder(value);
         for (String field : fields) {
-            field(field);
+            result = result.field(field);
         }
+        return result;
     }
 
     /**

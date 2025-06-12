@@ -65,7 +65,7 @@ public final class QueryBuilders {
      * TODO: better comment.
      */
     public static MultiFieldMatchQueryBuilder multiFieldMatchQuery(Object text, String... fieldNames) {
-        return new MultiFieldMatchQueryBuilder(text, fieldNames);
+        return MultiFieldMatchQueryBuilder.create(text, fieldNames);
     }
 
     /**

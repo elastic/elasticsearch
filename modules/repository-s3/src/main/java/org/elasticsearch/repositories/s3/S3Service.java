@@ -49,7 +49,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -185,11 +184,6 @@ class S3Service extends AbstractLifecycleComponent {
         } finally {
             Releasables.close(toRelease);
         }
-    }
-
-    @FixForMultiProject(description = "can be removed once blobstore is project aware")
-    S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
-        return settings(ProjectId.DEFAULT, repositoryMetadata);
     }
 
     S3ClientSettings settings(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
@@ -409,11 +403,6 @@ class S3Service extends AbstractLifecycleComponent {
             logger.debug("Using basic key/secret credentials");
             return StaticCredentialsProvider.create(credentials);
         }
-    }
-
-    @FixForMultiProject(description = "can be removed once blobstore is project aware")
-    public void onBlobStoreClose() {
-        onBlobStoreClose(ProjectId.DEFAULT);
     }
 
     /**

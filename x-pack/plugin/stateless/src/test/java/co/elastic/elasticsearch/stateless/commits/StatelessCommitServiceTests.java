@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -2530,7 +2531,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             @Override
             protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
-                return new NodeClient(nodeSettings, threadPool) {
+                return new NodeClient(nodeSettings, threadPool, TestProjectResolvers.alwaysThrow()) {
                     @Override
                     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                         ActionType<Response> action,

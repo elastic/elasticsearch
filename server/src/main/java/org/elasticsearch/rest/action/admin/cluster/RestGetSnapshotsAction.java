@@ -137,7 +137,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         } else if (clusterSupportsFeature.test(GetSnapshotsFeatures.GET_SNAPSHOTS_STATE_PARAMETER)) {
             getSnapshotsRequest.states(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::valueOf).toList()));
         } else {
-            throw new IllegalStateException("[state] parameter is not supported on all nodes in the cluster");
+            throw new IllegalArgumentException("[state] parameter is not supported on all nodes in the cluster");
         }
 
         // Consume these response parameters used in SnapshotInfo now, to avoid assertion errors in BaseRestHandler for requests where they

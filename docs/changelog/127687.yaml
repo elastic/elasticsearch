@@ -1,6 +1,0 @@
-pr: 127687
-summary: "ESQL: Fix alias removal in regex extraction with JOIN"
-area: ES|QL
-type: bug
-issues:
-  - 127467

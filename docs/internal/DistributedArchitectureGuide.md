@@ -46,7 +46,7 @@ to communicate with Elasticsearch.
 
 (Sketch of important classes? Might inform more sections to add for details.)
 
-(A NodeB can coordinate a search across several other nodes, when NodeB itself does not have the data, and then return a result to the caller. Explain this coordinating role)
+(A node can coordinate a search across several other nodes, when the node itself does not have the data, and then return a result to the caller. Explain this coordinating role)
 
 ### Node Roles
 

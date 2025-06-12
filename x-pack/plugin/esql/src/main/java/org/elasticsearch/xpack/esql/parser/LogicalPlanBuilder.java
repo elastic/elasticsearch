@@ -739,7 +739,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitRerankFields(ctx.rerankFields()));
+        Literal inferenceId = ctx.inferenceId != null
+            ? inferenceId(ctx.inferenceId)
+            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+
+        return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }
 
     @Override
@@ -780,20 +784,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
         var probability = visitDecimalValue(ctx.probability);
-        Literal seed;
-        if (ctx.seed != null) {
-            seed = visitIntegerValue(ctx.seed);
-            if (seed.dataType() != DataType.INTEGER) {
-                throw new ParsingException(
-                    seed.source(),
-                    "seed must be an integer, provided [{}] of type [{}]",
-                    ctx.seed.getText(),
-                    seed.dataType()
-                );
-            }
-        } else {
-            seed = null;
-        }
-        return plan -> new Sample(source(ctx), probability, seed, plan);
+        return plan -> new Sample(source(ctx), probability, plan);
     }
 }

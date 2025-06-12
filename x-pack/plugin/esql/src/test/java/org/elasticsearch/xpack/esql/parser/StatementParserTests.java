@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -3342,6 +3342,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("explain [row x = 1", "line 1:19: missing ']' at '<EOF>'");
     }
 
+    public void testRerankDefaultInferenceId() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
     public void testRerankSingleField() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
@@ -3417,16 +3428,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidRerank() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
-
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
-
-        expectError("FROM foo* | RERANK \"query text\" ON title", "line 1:41: mismatched input '<EOF>' expecting {'=', ',', '.', 'with'}");
     }
 
     public void testCompletionUsingFieldAsPrompt() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
-        var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID AS targetField"), Completion.class);
+        var plan = as(processingCommand("COMPLETION targetField=prompt_field WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3434,9 +3440,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
-        var plan = as(processingCommand("COMPLETION CONCAT(fieldA, fieldB) WITH inferenceID AS targetField"), Completion.class);
+        var plan = as(processingCommand("COMPLETION targetField=CONCAT(fieldA, fieldB) WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3444,8 +3448,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionDefaultFieldName() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
@@ -3454,8 +3456,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionWithPositionalParameters() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
 
@@ -3465,8 +3465,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionWithNamedParameters() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
 
@@ -3476,22 +3474,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCompletion() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
-        expectError("FROM foo* | COMPLETION prompt WITH", "line 1:35: mismatched input '<EOF>' expecting {");
+        expectError("FROM foo* | COMPLETION completion=prompt WITH", "line 1:46: mismatched input '<EOF>' expecting {");
 
-        expectError("FROM foo* | COMPLETION prompt AS targetField", "line 1:31: mismatched input 'AS' expecting {");
+        expectError("FROM foo* | COMPLETION completion=prompt", "line 1:41: mismatched input '<EOF>' expecting {");
     }
 
     public void testSample() {
-        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
-        expectError("FROM test | SAMPLE .1 2 3", "line 1:25: extraneous input '3' expecting <EOF>");
+        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
+        expectError("FROM test | SAMPLE .1 2", "line 1:23: extraneous input '2' expecting <EOF>");
         expectError("FROM test | SAMPLE .1 \"2\"", "line 1:23: extraneous input '\"2\"' expecting <EOF>");
         expectError("FROM test | SAMPLE 1", "line 1:20: mismatched input '1' expecting {DECIMAL_LITERAL, '+', '-'}");
         expectError("FROM test | SAMPLE", "line 1:19: mismatched input '<EOF>' expecting {DECIMAL_LITERAL, '+', '-'}");
-        expectError("FROM test | SAMPLE +.1 2147483648", "line 1:24: seed must be an integer, provided [2147483648] of type [LONG]");
     }
 
     static Alias alias(String name, Expression value) {

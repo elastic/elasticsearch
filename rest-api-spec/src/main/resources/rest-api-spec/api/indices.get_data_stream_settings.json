@@ -5,8 +5,7 @@
       "description":"Gets a data stream's settings"
     },
     "stability":"stable",
-    "visibility": "feature_flag",
-    "feature_flag": "logs_stream",
+    "visibility": "public",
     "headers":{
       "accept": [ "application/json"]
     },

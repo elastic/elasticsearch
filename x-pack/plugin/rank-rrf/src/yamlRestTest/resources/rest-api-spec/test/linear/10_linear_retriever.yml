@@ -319,7 +319,6 @@ setup:
   - close_to: { hits.hits.2._score: { value: 1.6, error: 0.001 } }
   - match: { hits.hits.3._id: "3" }
   - close_to: { hits.hits.3._score: { value: 1.2, error: 0.001} }
-  - close_to: { hits.hits.3._score: { value: 1.2, error: 0.001 } }
 
 ---
 "should handle all zero scores in normalization":

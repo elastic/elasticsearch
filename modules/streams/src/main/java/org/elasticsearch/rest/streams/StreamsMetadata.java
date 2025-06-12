@@ -12,6 +12,7 @@ package org.elasticsearch.rest.streams;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.Objects;
 
 /**
  * Metadata for the Streams feature, which allows enabling or disabling logs for data streams.
@@ -46,10 +48,6 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
         return logsEnabled;
     }
 
-    public void setLogsEnabled(boolean logsEnabled) {
-        this.logsEnabled = logsEnabled;
-    }
-
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return Metadata.ALL_CONTEXTS;
@@ -65,6 +63,12 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
         return TransportVersions.STREAMS_LOGS_SUPPORT;
     }
 
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
+    }
+
+
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(logsEnabled);
@@ -75,4 +79,17 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
         return Iterators.concat(ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field("logs_enabled", logsEnabled)));
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if ((o instanceof StreamsMetadata that)) {
+            return logsEnabled == that.logsEnabled;
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(logsEnabled);
+    }
 }

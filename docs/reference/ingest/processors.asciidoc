@@ -85,6 +85,9 @@ Adds information about the geographical location of an IPv4 or IPv6 address from
 <<network-direction-processor, `network_direction` processor>>::
 Calculates the network direction given a source IP address, destination IP address, and a list of internal networks.
 
+<<normalize-for-stream-processor, `normalize_for_stream` processor>>::
+Normalizes non-OpenTelemetry documents to be OpenTelemetry-compliant.
+
 <<registered-domain-processor, `registered_domain` processor>>::
 Extracts the registered domain (also known as the effective top-level domain or eTLD), sub-domain, and top-level domain from a fully qualified domain name (FQDN).
 
@@ -254,6 +257,7 @@ include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]
 include::processors/lowercase.asciidoc[]
 include::processors/network-direction.asciidoc[]
+include::processors/normalize-for-stream.asciidoc[]
 include::processors/pipeline.asciidoc[]
 include::processors/redact.asciidoc[]
 include::processors/registered-domain.asciidoc[]

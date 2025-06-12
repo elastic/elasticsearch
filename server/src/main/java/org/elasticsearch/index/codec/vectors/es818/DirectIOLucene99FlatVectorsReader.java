@@ -65,6 +65,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
 
+    @SuppressWarnings("this-escape")
     public DirectIOLucene99FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);

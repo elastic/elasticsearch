@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -32,7 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST_CONTENT;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
 
 public class CustomRequest implements Request {
@@ -70,8 +69,6 @@ public class CustomRequest implements Request {
         for (var entry : paramsToAdd.entrySet()) {
             if (entry.getValue() instanceof String str) {
                 stringParams.put(entry.getKey(), str);
-            } else if (entry.getValue() instanceof SerializableSecureString serializableSecureString) {
-                stringParams.put(entry.getKey(), serializableSecureString.getSecureString().toString());
             } else if (entry.getValue() instanceof SecureString secureString) {
                 stringParams.put(entry.getKey(), secureString.toString());
             }
@@ -133,7 +130,7 @@ public class CustomRequest implements Request {
     private void setRequestContent(HttpPost httpRequest) {
         String replacedRequestContentString = jsonPlaceholderReplacer.replace(
             model.getServiceSettings().getRequestContentString(),
-            REQUEST_CONTENT
+            REQUEST
         );
         StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
         httpRequest.setEntity(stringEntity);

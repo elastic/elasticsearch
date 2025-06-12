@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [join_lookup_v12, enable_lookup_join_on_aliases]
+          capabilities: [join_lookup_v12]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -81,19 +81,6 @@ setup:
               color:
                 type: keyword
   - do:
-      indices.update_aliases:
-        body:
-          actions:
-            - add:
-                index: test-lookup-1
-                alias: test-lookup-alias
-            - add:
-                index: test-lookup-*
-                alias: test-lookup-alias-pattern-multiple
-            - add:
-                index: test-lookup-1*
-                alias: test-lookup-alias-pattern-single
-  - do:
       bulk:
         index: "test"
         refresh: true
@@ -167,76 +154,6 @@ non-lookup index:
 
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Found 1 problem\nline 1:45: invalid [test] resolution in lookup mode to an index in [standard] mode" }
-
----
-
-"Alias as lookup index":
-  - skip:
-      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
-
----
-alias-repeated-alias:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test-lookup-alias | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
-
----
-alias-repeated-index:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test-lookup-1 | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
-
----
-alias-pattern-multiple:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test-lookup-1 | LOOKUP JOIN test-lookup-alias-pattern-multiple ON key'
-      catch: "bad_request"
-
-  - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:34: invalid [test-lookup-alias-pattern-multiple] resolution in lookup mode to [4] indices" }
-
----
-alias-pattern-single:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-alias-pattern-single ON key | LIMIT 3'
-
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
 
 ---
 pattern-multiple:

@@ -39,10 +39,8 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, HasSampleCorrection {
+public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
-
-    private final boolean isSampleCorrected;
 
     @FunctionInfo(
         returnType = "long",
@@ -98,20 +96,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     public Count(Source source, Expression field, Expression filter) {
-        this(source, field, filter, false);
-    }
-
-    private Count(Source source, Expression field, Expression filter, boolean isSampleCorrected) {
         super(source, field, filter, emptyList());
-        this.isSampleCorrected = isSampleCorrected;
     }
 
     private Count(StreamInput in) throws IOException {
         super(in);
-        // isSampleCorrected is only used during query optimization to mark
-        // whether this function has been processed. Hence there's no need to
-        // serialize it.
-        this.isSampleCorrected = false;
     }
 
     @Override
@@ -181,15 +170,5 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         }
 
         return null;
-    }
-
-    @Override
-    public boolean isSampleCorrected() {
-        return isSampleCorrected;
-    }
-
-    @Override
-    public Expression sampleCorrection(Expression sampleProbability) {
-        return new ToLong(source(), new Div(source(), new Count(source(), field(), filter(), true), sampleProbability));
     }
 }

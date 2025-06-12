@@ -166,7 +166,7 @@ public class PushQueriesIT extends ESRestTestCase {
             | WHERE test == "%value" AND foo == 1
             """;
         List<String> luceneQueryOptions = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
+            case AUTO, TEXT_WITH_KEYWORD -> List.of("#(#test.keyword:%value -_ignored:test.keyword) #foo:[1 TO 1]");
             case KEYWORD -> List.of("#test:%value #foo:[1 TO 1]");
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("foo:[1 TO 1]");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
@@ -210,7 +210,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """;
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "-test:%value #single_value_match(test)";
+            case KEYWORD -> "#(-test:%value #*:*) #single_value_match(test)";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
         ComputeSignature dataNodeSignature = switch (type) {

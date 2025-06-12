@@ -316,7 +316,7 @@ public final class TextFieldMapper extends FieldMapper {
                         && this.withinMultiField == false
                         && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
                 } else {
-                    return isSyntheticSourceEnabled;
+                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
                 }
             });
             this.indexCreatedVersion = indexCreatedVersion;

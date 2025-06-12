@@ -159,7 +159,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), instanceOf(ValidationException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("To update the user [elastic] in a cloud deployment, use the console."));
+        assertThat(
+            throwableRef.get().getMessage(),
+            containsString("In a cloud deployment, the password can be changed through the " + "cloud console.")
+        );
         verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), anyActionListener());
     }
 

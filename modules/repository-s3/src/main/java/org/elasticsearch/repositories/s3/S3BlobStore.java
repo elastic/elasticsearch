@@ -263,8 +263,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        // TODO: use service.client(ProjectId, RepositoryMetadata), see https://github.com/elastic/elasticsearch/pull/127631
-        return service.client(repositoryMetadata);
+        return service.client(projectId, repositoryMetadata);
     }
 
     final int getMaxRetries() {

@@ -158,15 +158,6 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     /**
-     * Attempts to retrieve a client by its repository metadata and settings from the cache.
-     * If the client does not exist it will be created.
-     */
-    @FixForMultiProject(description = "can be removed once blobstore is project aware")
-    public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-        return client(ProjectId.DEFAULT, repositoryMetadata);
-    }
-
-    /**
      * Attempts to retrieve either a cluster or project client from the client manager. Throws if project-id or
      * the client name does not exist. The client maybe initialized lazily.
      * @param projectId The project associated with the client, or null if the client is cluster level

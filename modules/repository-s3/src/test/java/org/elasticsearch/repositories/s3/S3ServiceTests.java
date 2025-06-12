@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointPr
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
@@ -56,10 +57,10 @@ public class S3ServiceTests extends ESTestCase {
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonS3Reference reference = s3Service.client(metadata1);
+        final AmazonS3Reference reference = s3Service.client(randomFrom(ProjectId.DEFAULT, null), metadata1);
         reference.close();
         s3Service.onBlobStoreClose();
-        final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
+        final AmazonS3Reference referenceReloaded = s3Service.client(randomFrom(ProjectId.DEFAULT, null), metadata1);
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
         s3Service.onBlobStoreClose();

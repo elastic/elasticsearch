@@ -1283,6 +1283,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     public void testRefreshFullyMountedIndex() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
         final var index = "index";
         createIndex(index, 1, 0);
         populateIndex(index, 1_000);
@@ -1292,6 +1294,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final var snapshot = "repository";
         createFullSnapshot(repository, snapshot);
+
         assertAcked(indicesAdmin().prepareDelete(index));
 
         final var fullIndex = "full-" + index;

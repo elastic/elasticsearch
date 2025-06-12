@@ -194,6 +194,7 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19 = def(8_841_0_46);
     public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED_8_19 = def(8_841_0_47);
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19 = def(8_841_0_48);
+    public static final TransportVersion NONE_CHUNKING_STRATEGY_8_19 = def(8_841_0_49);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -294,7 +295,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = def(9_094_0_00);
     public static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = def(9_095_0_00);
     public static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = def(9_096_0_00);
-    public static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = def(9_097_0_00);
+    public static final TransportVersion NONE_CHUNKING_STRATEGY = def(9_097_0_00);
+    public static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = def(9_098_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

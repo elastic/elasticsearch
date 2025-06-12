@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -69,10 +70,14 @@ public class Verifier {
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
 
-    public Verifier(List<ExtraCheckers> extraCheckers, Metrics metrics, XPackLicenseState licenseState) {
-        this.extraCheckers = extraCheckers;
+    public Verifier(Metrics metrics, XPackLicenseState licenseState) {
+        this(metrics, licenseState, Collections.emptyList());
+    }
+
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<ExtraCheckers> extraCheckers) {
         this.metrics = metrics;
         this.licenseState = licenseState;
+        this.extraCheckers = extraCheckers;
     }
 
     /**

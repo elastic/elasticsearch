@@ -59,7 +59,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(List.of(), new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
 

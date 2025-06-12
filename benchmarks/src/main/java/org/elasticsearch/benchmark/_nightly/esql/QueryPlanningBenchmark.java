@@ -47,7 +47,6 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -111,7 +110,7 @@ public class QueryPlanningBenchmark {
                 new EnrichResolution(),
                 InferenceResolution.EMPTY
             ),
-            new Verifier(List.of(), new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
     }

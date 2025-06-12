@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,9 +80,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
     }
 
     public void setTemplatesEnabled(boolean templatesEnabled) {

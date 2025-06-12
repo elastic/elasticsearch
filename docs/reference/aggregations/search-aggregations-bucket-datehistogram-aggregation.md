@@ -679,7 +679,7 @@ Response:
 }
 ```
 
-The response will contain all the buckets having the relative day of the week as key : 1 for Monday, 2 for Tuesday…​ 7 for Sunday.
+The response will contain all the buckets having the relative day of the week as key : 1 for Monday, 2 for Tuesday…  7 for Sunday.
 
 
 

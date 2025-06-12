@@ -727,7 +727,8 @@ public class IndexMetadataTests extends ESTestCase {
             name,
             randomIdentifier(),
             randomIdentifier(),
-            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new)
+            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
+            InferenceFieldMetadataTests.generateRandomChunkingSettings()
         );
     }
 

@@ -90,7 +90,7 @@ Currently, flattened object fields can be used with the following query types:
 
 When querying, it is not possible to refer to field keys using wildcards, as in `{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including `range`, treat the values as string keywords. Highlighting is not supported on `flattened` fields.
 
-It is possible to sort on a flattened object field, as well as perform simple keyword-style aggregations such as `terms`. As with queries, there is no special support for numerics — all values in the JSON object are treated as keywords. When sorting, this implies that values are compared lexicographically.
+It is possible to sort on a flattened object field, as well as perform simple keyword-style aggregations such as `terms`. As with queries, there is no special support for numerics — all values in the JSON object are treated as keywords. When sorting, this implies that values are compared lexicographically.
 
 Flattened object fields currently cannot be stored. It is not possible to specify the [`store`](/reference/elasticsearch/mapping-reference/mapping-store.md) parameter in the mapping.
 
@@ -235,11 +235,6 @@ The following mapping parameters are accepted:
 
 
 ## Synthetic `_source` [flattened-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 Flattened fields support [synthetic`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 

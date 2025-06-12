@@ -527,7 +527,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         CommonStats stats = new CommonStats();
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
-        stats.indexing = new IndexingStats(new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, targetWriteLoad, 1, 0.123, 0.234));
+        stats.indexing = new IndexingStats(
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, targetWriteLoad)
+        );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }
 

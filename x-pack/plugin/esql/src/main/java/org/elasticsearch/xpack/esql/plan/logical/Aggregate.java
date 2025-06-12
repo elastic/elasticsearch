@@ -22,12 +22,16 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -48,62 +52,35 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         Aggregate::new
     );
 
-    public enum AggregateType {
-        STANDARD,
-        // include metrics aggregates such as rates
-        METRICS;
+    protected final List<Expression> groupings;
+    protected final List<? extends NamedExpression> aggregates;
 
-        static void writeType(StreamOutput out, AggregateType type) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeString(type.name());
-            } else if (type != STANDARD) {
-                throw new IllegalStateException("cluster is not ready to support aggregate type [" + type + "]");
-            }
-        }
+    protected List<Attribute> lazyOutput;
 
-        static AggregateType readType(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return AggregateType.valueOf(in.readString());
-            } else {
-                return STANDARD;
-            }
-        }
-    }
-
-    private final AggregateType aggregateType;
-    private final List<Expression> groupings;
-    private final List<? extends NamedExpression> aggregates;
-
-    private List<Attribute> lazyOutput;
-
-    public Aggregate(
-        Source source,
-        LogicalPlan child,
-        AggregateType aggregateType,
-        List<Expression> groupings,
-        List<? extends NamedExpression> aggregates
-    ) {
+    public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
-        this.aggregateType = aggregateType;
         this.groupings = groupings;
         this.aggregates = aggregates;
     }
 
     public Aggregate(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            AggregateType.readType(in),
-            in.readNamedWriteableCollectionAsList(Expression.class),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
-        );
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
+            && in.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+            in.readString();
+        }
+        this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        this.aggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        AggregateType.writeType(out, aggregateType());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
+            && out.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+            out.writeString("STANDARD");
+        }
         out.writeNamedWriteableCollection(groupings);
         out.writeNamedWriteableCollection(aggregates());
     }
@@ -114,13 +91,13 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     @Override
-    protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, Aggregate::new, child(), aggregateType, groupings, aggregates);
+    protected NodeInfo<? extends Aggregate> info() {
+        return NodeInfo.create(this, Aggregate::new, child(), groupings, aggregates);
     }
 
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
-        return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
+        return new Aggregate(source(), newChild, groupings, aggregates);
     }
 
     public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
@@ -128,11 +105,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
-    }
-
-    public AggregateType aggregateType() {
-        return aggregateType;
+        return new Aggregate(source(), child, newGroupings, newAggregates);
     }
 
     public List<Expression> groupings() {
@@ -145,10 +118,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
 
     @Override
     public String telemetryLabel() {
-        return switch (aggregateType) {
-            case STANDARD -> "STATS";
-            case METRICS -> "METRICS";
-        };
+        return "STATS";
     }
 
     @Override
@@ -174,18 +144,18 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
+        var result = Expressions.references(groupings).combine(Expressions.references(aggregates)).asBuilder();
         for (Expression grouping : groupings) {
             if (grouping instanceof Alias) {
                 result.remove(((Alias) grouping).toAttribute());
             }
         }
-        return result;
+        return result.build();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregateType, groupings, aggregates, child());
+        return Objects.hash(groupings, aggregates, child());
     }
 
     @Override
@@ -199,15 +169,14 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         }
 
         Aggregate other = (Aggregate) obj;
-        return aggregateType == other.aggregateType
-            && Objects.equals(groupings, other.groupings)
+        return Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child());
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        AttributeSet groupRefs = new AttributeSet();
+        var groupRefsBuilder = AttributeSet.builder();
         // check grouping
         // The grouping can not be an aggregate function
         groupings.forEach(e -> {
@@ -234,12 +203,13 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             // keep the grouping attributes (common case)
             Attribute attr = Expressions.attribute(e);
             if (attr != null) {
-                groupRefs.add(attr);
+                groupRefsBuilder.add(attr);
             }
             if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
                 failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
             }
         });
+        var groupRefs = groupRefsBuilder.build();
 
         // check aggregates - accept only aggregate functions or expressions over grouping
         // don't allow the group by itself to avoid duplicates in the output
@@ -257,12 +227,27 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             aggregates.forEach(a -> checkRateAggregates(a, 0, failures));
         } else {
             forEachExpression(
-                Rate.class,
-                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used with the metrics command", r.sourceText()))
+                TimeSeriesAggregateFunction.class,
+                r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
             );
         }
         checkCategorizeGrouping(failures);
+        checkMultipleScoreAggregations(failures);
+    }
 
+    private void checkMultipleScoreAggregations(Failures failures) {
+        Holder<Boolean> hasScoringAggs = new Holder<>();
+        forEachExpression(FilteredExpression.class, fe -> {
+            if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
+                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
+                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                        if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
+                            failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -317,14 +302,15 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         );
 
         // Forbid CATEGORIZE being referenced as a child of an aggregation function
-        AttributeMap<Categorize> categorizeByAttribute = new AttributeMap<>();
+        AttributeMap.Builder<Categorize> categorizeByAttributeBuilder = AttributeMap.builder();
         groupings.forEach(g -> {
             g.forEachDown(Alias.class, alias -> {
                 if (alias.child() instanceof Categorize categorize) {
-                    categorizeByAttribute.put(alias.toAttribute(), categorize);
+                    categorizeByAttributeBuilder.put(alias.toAttribute(), categorize);
                 }
             });
         });
+        AttributeMap<Categorize> categorizeByAttribute = categorizeByAttributeBuilder.build();
         aggregates.forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
             var categorize = categorizeByAttribute.get(attribute);
             if (categorize != null) {
@@ -354,11 +340,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         if (expr instanceof Rate r) {
             if (nestedLevel != 2) {
                 failures.add(
-                    fail(
-                        expr,
-                        "the rate aggregate [{}] can only be used with the metrics command and inside another aggregate",
-                        r.sourceText()
-                    )
+                    fail(expr, "the rate aggregate [{}] can only be used with the TS command and inside another aggregate", r.sourceText())
                 );
             }
         }
@@ -407,7 +389,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 // rate aggregate is allowed to be inside another aggregate
-                if (f instanceof Rate == false) {
+                if (f instanceof TimeSeriesAggregateFunction == false) {
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });

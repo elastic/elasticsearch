@@ -12,13 +12,13 @@ Range field types represent a continuous range of values between an upper and lo
 The following range types are supported:
 
 `integer_range`
-:   A range of signed 32-bit integers with a minimum value of `-231` and maximum of `231-1`.
+:   A range of signed 32-bit integers with a minimum value of `-2^31` and maximum of `2^31 - 1`.
 
 `float_range`
 :   A range of single-precision 32-bit IEEE 754 floating point values.
 
 `long_range`
-:   A range of signed 64-bit integers with a minimum value of `-263` and maximum of `263-1`.
+:   A range of signed 64-bit integers with a minimum value of `-2^63` and maximum of `2^63 - 1`.
 
 `double_range`
 :   A range of double-precision 64-bit IEEE 754 floating point values.
@@ -217,11 +217,6 @@ The following parameters are accepted by range types:
 
 
 ## Synthetic `_source` [range-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `range` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 

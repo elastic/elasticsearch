@@ -207,12 +207,13 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                                 Template.builder()
                                     .settings(Settings.EMPTY)
                                     .mappings(mappings)
-                                    .lifecycle(DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()))
+                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()))
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );

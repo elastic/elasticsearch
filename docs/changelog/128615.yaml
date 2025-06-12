@@ -1,0 +1,5 @@
+pr: 128615
+summary: Fix and test off-heap stats when using direct IO for accessing the raw vectors
+area: Vector Search
+type: bug
+issues: []

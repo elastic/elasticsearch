@@ -25,12 +25,12 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 import org.junit.After;
 import org.junit.Before;
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,8 +71,14 @@ public record SemanticTextField(
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
+    static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
 
-    public record InferenceResult(String inferenceId, MinimalServiceSettings modelSettings, Map<String, List<Chunk>> chunks) {}
+    public record InferenceResult(
+        String inferenceId,
+        MinimalServiceSettings modelSettings,
+        ChunkingSettings chunkingSettings,
+        Map<String, List<Chunk>> chunks
+    ) {}
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
 
@@ -120,6 +128,18 @@ public record SemanticTextField(
         }
     }
 
+    static ChunkingSettings parseChunkingSettingsFromMap(Object node) {
+        if (node == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = XContentMapValues.nodeMapValue(node, CHUNKING_SETTINGS_FIELD);
+            return ChunkingSettingsBuilder.fromMap(map, false);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
     @Override
     public List<String> originalValues() {
         return originalValues != null ? originalValues : Collections.emptyList();
@@ -135,6 +155,10 @@ public record SemanticTextField(
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
+        if (inference.chunkingSettings != null) {
+            builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
+        }
+
         if (useLegacyFormat) {
             builder.startArray(CHUNKS_FIELD);
         } else {
@@ -178,6 +202,7 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
+            InferenceResult inferenceResult = (InferenceResult) args[1];
             if (context.useLegacyFormat() == false) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
@@ -188,7 +213,7 @@ public record SemanticTextField(
                 context.useLegacyFormat(),
                 context.fieldName(),
                 originalValues,
-                (InferenceResult) args[1],
+                inferenceResult,
                 context.xContentType()
             );
         });
@@ -197,7 +222,13 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<InferenceResult, ParserContext> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
         INFERENCE_FIELD,
         true,
-        args -> new InferenceResult((String) args[0], (MinimalServiceSettings) args[1], (Map<String, List<Chunk>>) args[2])
+        args -> {
+            String inferenceId = (String) args[0];
+            MinimalServiceSettings modelSettings = (MinimalServiceSettings) args[1];
+            Map<String, Object> chunkingSettings = (Map<String, Object>) args[2];
+            Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[3];
+            return new InferenceResult(inferenceId, modelSettings, ChunkingSettingsBuilder.fromMap(chunkingSettings, false), chunks);
+        }
     );
 
     private static final ConstructingObjectParser<Chunk, ParserContext> CHUNKS_PARSER = new ConstructingObjectParser<>(
@@ -218,10 +249,16 @@ public record SemanticTextField(
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> MinimalServiceSettings.parse(p),
             null,
             new ParseField(MODEL_SETTINGS_FIELD)
+        );
+        INFERENCE_RESULT_PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> p.map(),
+            null,
+            new ParseField(CHUNKING_SETTINGS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.useLegacyFormat()) {
@@ -297,7 +334,7 @@ public record SemanticTextField(
         return chunks;
     }
 
-    public static Chunk toSemanticTextFieldChunkLegacy(String input, ChunkedInference.Chunk chunk) {
+    public static Chunk toSemanticTextFieldChunkLegacy(String input, org.elasticsearch.inference.ChunkedInference.Chunk chunk) {
         var text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
         return new Chunk(text, -1, -1, chunk.bytesReference());
     }

@@ -48,7 +48,7 @@ import java.util.Map;
  * <p>An implementation may also override {@link #prepareForIndicesMigration(ClusterService, Client, ActionListener)}  and
  * {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}  in order to take special action before and after a
  * feature migration, which will temporarily block access to system indices. For example, a plugin might want to enter a safe mode and
- * reject certain requests while the migration is in progress. See {@link org.elasticsearch.upgrades.SystemIndexMigrationExecutor} for
+ * reject certain requests while the migration is in progress. See org.elasticsearch.upgrades.SystemIndexMigrationExecutor for
  * more details.
  *
  * <p>After plugins are loaded, the {@link SystemIndices} class will provide the rest of the system with access to the feature's

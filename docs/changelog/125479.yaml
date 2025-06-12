@@ -1,0 +1,6 @@
+pr: 125479
+summary: ES|QL - Allow full text functions to be used in STATS
+area: ES|QL
+type: enhancement
+issues:
+ - 125481

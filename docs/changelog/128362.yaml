@@ -1,0 +1,5 @@
+pr: 128362
+summary: Avoid unnecessary determinization in index pattern conflict checks
+area: Indices APIs
+type: bug
+issues: []

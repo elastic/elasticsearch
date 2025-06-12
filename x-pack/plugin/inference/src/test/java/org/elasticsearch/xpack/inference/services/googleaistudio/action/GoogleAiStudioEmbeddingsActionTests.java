@@ -28,10 +28,10 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioEmbeddingsRequestManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,9 +46,9 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelTests.createModel;
+import static org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,7 +108,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of(input), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(input), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -163,7 +163,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -187,7 +187,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -205,7 +205,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );

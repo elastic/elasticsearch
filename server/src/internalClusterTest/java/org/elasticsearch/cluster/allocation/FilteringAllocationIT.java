@@ -186,6 +186,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
     }
 
     public void testInvalidIPFilterClusterSettings() {
+        logger.info("--> starting 2 nodes");
+        internalCluster().startNodes(2);
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
         var filterSetting = randomFrom(
             FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,

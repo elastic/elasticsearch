@@ -109,7 +109,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -166,7 +166,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -222,7 +222,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -285,7 +285,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -625,7 +625,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abcd"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -712,7 +712,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("abcd"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -784,7 +784,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("super long input"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of("super long input"), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

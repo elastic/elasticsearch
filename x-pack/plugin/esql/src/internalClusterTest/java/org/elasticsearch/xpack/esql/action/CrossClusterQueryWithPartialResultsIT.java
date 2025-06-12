@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -104,7 +105,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.includeCCSMetadata(randomBoolean());
         {
             request.allowPartialResults(false);
-            IllegalStateException error = expectThrows(IllegalStateException.class, () -> runQuery(request).close());
+            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
+
+            assertThat(error, instanceOf(IllegalStateException.class));
             assertThat(error.getMessage(), containsString("Accessing failing field"));
         }
         request.allowPartialResults(true);
@@ -157,6 +161,34 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         }
     }
 
+    public void testLocalIndexMissing() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok-local,no_such_index | LIMIT 1");
+        request.includeCCSMetadata(randomBoolean());
+        for (boolean allowPartial : Set.of(true, false)) {
+            request.allowPartialResults(allowPartial);
+            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
+            assertThat(error.getMessage(), containsString("no such index"));
+            assertThat(error.getMessage(), containsString("[no_such_index]"));
+        }
+    }
+
+    public void testRemoteIndexMissing() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM cluster-a:ok-cluster1,cluster-a:no_such_index | LIMIT 1");
+        request.includeCCSMetadata(randomBoolean());
+        for (boolean allowPartial : Set.of(true, false)) {
+            request.allowPartialResults(allowPartial);
+            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
+            assertThat(error.getMessage(), containsString("no such index"));
+            assertThat(error.getMessage(), containsString("[no_such_index]"));
+        }
+    }
+
     public void testFailToReceiveClusterResponse() throws Exception {
         populateIndices();
         Exception simulatedFailure = randomFailure();
@@ -190,10 +222,12 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             {
                 request.allowPartialResults(false);
                 Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+                error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);
                 assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
             }
+            // The failure leads to skipped regardless of allowPartialResults
             request.allowPartialResults(true);
             try (var resp = runQuery(request)) {
                 assertTrue(resp.isPartial());
@@ -236,7 +270,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                var error = expectThrows(Exception.class, () -> runQuery(request).close());
+                Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+                error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
                 EsqlTestUtils.assertEsqlFailure(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);
@@ -255,7 +290,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertThat(returnedIds, equalTo(local.okIds));
                 assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
                 EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
                 assertClusterFailure(resp, REMOTE_CLUSTER_1, simulatedFailure.getMessage());
             }
         } finally {

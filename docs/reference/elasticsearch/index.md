@@ -1,18 +1,14 @@
 # Elasticsearch and index management
 
-% TO-DO: Add links to "Elasticsearch basics"%
+This section contains reference information for {{es}} and index management features.
 
-This section contains reference information for Elasticsearch and index management features, including:
+To learn more about {{es}} features and how to get started, refer to the [{{es}}](docs-content://solutions/search.md) documentation.
 
-* Settings
-* Security roles and privileges
-* Index lifecycle actions
-* Mappings
-* Command line tools
-* Curator
-* Clients
+For more details about query and scripting languages, check these sections:
+* [Query languages](../query-languages/index.md)
+* [Scripting languages](../scripting-languages/index.md)
+ 
+{{es}} also provides the following REST APIs:
 
-% TO-DO: Add links to "query language and scripting language sections"%
-
-Elasticsearch also provides REST APIs that are used by the UI components and can be called directly to configure and access Elasticsearch features.
-Refer to [Elasticsearch API](https://www.elastic.co/docs/api/doc/elasticsearch) and [Elasticsearch Serverless API](https://www.elastic.co/docs/api/doc/elasticsearch-serverless).
+* [{{es}} API](https://www.elastic.co/docs/api/doc/elasticsearch)
+* [{{es}} Serverless API](https://www.elastic.co/docs/api/doc/elasticsearch-serverless)

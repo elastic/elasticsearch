@@ -36,7 +36,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     /**
      * Used by telemetry to say if this is the result of a FROM command
-     * or a METRICS command (or maybe something else in the future)
+     * or a TS command (or maybe something else in the future)
      */
     private final String commandName;
 

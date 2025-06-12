@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -238,8 +237,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithFailuresAndCorrectActionIncludesFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
@@ -262,8 +259,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithNonMatchingActionFailuresOmitsFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         // granted only by all, so selector message is omitted
@@ -284,8 +279,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithoutFailuresOmitsFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);
@@ -305,8 +298,6 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedWithoutIndicesOmitsFailuresMessage() {
-        assumeTrue("failure store required", DataStream.isFailureStoreFeatureFlagEnabled());
-
         Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final String action = "indices:data/read/" + randomAlphaOfLengthBetween(0, 8);

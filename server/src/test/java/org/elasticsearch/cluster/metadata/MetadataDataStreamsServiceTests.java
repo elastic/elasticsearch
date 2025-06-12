@@ -97,6 +97,65 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         IndexMetadata zeroIndex = newProject.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(zeroIndex.isSystem(), equalTo(false));
+        assertThat(zeroIndex.getAliases().size(), equalTo(0));
+    }
+
+    public void testAddBackingIndexToSystemDataStream() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(1, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .system(true)
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+
+        DataStream dataStream = DataStream.builder(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList())
+            .setSystem(true)
+            .setHidden(true)
+            .build();
+        mb.put(dataStream);
+
+        final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .system(false)
+            .build();
+        mb.put(indexToAdd, false);
+
+        ProjectMetadata projectMetadata = mb.build();
+        ProjectMetadata newState = MetadataDataStreamsService.modifyDataStream(
+            projectMetadata,
+            List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            this::getMapperService,
+            Settings.EMPTY
+        );
+
+        IndexAbstraction ds = newState.getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
+        List<String> backingIndexNames = ds.getIndices().stream().filter(x -> x.getName().startsWith(".ds-")).map(Index::getName).toList();
+        assertThat(
+            backingIndexNames,
+            containsInAnyOrder(
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+        IndexMetadata zeroIndex = newState.index(ds.getIndices().get(0));
+        assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
+        assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(zeroIndex.isSystem(), equalTo(true));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 
@@ -415,7 +474,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
             projectId,
@@ -446,13 +505,18 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     }
 
     public void testUpdateDataStreamOptions() {
+        final var projectId = randomProjectIdOrDefault();
         String dataStream = randomAlphaOfLength(5);
         // we want the data stream options to be non-empty, so we can see the removal in action
         DataStreamOptions dataStreamOptions = randomValueOtherThan(
             DataStreamOptions.EMPTY,
             DataStreamOptionsTests::randomDataStreamOptions
         );
-        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
+            List.of(new Tuple<>(dataStream, 2)),
+            List.of()
+        ).metadata().getProject(projectId);
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
@@ -460,20 +524,20 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
 
         // Ensure no data stream options are stored
-        DataStream updatedDataStream = before.metadata().getProject().dataStreams().get(dataStream);
+        DataStream updatedDataStream = before.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
 
         // Set non-empty data stream options
-        ClusterState after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
-        updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
+        ProjectMetadata after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
+        updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(dataStreamOptions));
         before = after;
 
         // Remove data stream options
         after = service.updateDataStreamOptions(before, List.of(dataStream), null);
-        updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
+        updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
     }

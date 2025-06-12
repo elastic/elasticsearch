@@ -3,6 +3,7 @@
   "type" : "operator",
   "operator" : "-",
   "name" : "sub",
+  "titleName" : "subtract",
   "description" : "Subtract one number from another. If either field is multivalued then the result is `null`.",
   "signatures" : [
     {

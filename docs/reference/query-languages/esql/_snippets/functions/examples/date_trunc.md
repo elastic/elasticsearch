@@ -14,7 +14,7 @@ FROM employees
 | Amabile | Gomatam | 1992-11-18T00:00:00.000Z | 1992-01-01T00:00:00.000Z |
 | Anneke | Preusig | 1989-06-02T00:00:00.000Z | 1989-01-01T00:00:00.000Z |
 
-Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/esql-commands.md#esql-stats-by) to create date histograms. For
+Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) to create date histograms. For
 example, the number of hires per year:
 
 ```esql

@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -147,7 +146,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, Merge.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -449,7 +448,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomInt();
         } else if (argClass == JoinType.class) {
             return JoinTypes.LEFT;
-        } else if (List.of(Fork.class, Merge.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+        } else if (List.of(Fork.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
             // limit recursion of plans, in order to prevent stackoverflow errors
             return randomEsRelation();
         }

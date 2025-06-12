@@ -1,7 +1,0 @@
-pr: 125650
-summary: Load `FieldInfos` from store if not yet initialised through a refresh on
-  `IndexShard`
-area: Search
-type: bug
-issues:
- - 125483

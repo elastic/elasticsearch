@@ -15,10 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class RateLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final long unitInMillis;
-
-  public RateLongAggregatorFunctionSupplier(long unitInMillis) {
-    this.unitInMillis = unitInMillis;
+  public RateLongAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -39,7 +36,7 @@ public final class RateLongAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public RateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return RateLongGroupingAggregatorFunction.create(channels, driverContext, unitInMillis);
+    return RateLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

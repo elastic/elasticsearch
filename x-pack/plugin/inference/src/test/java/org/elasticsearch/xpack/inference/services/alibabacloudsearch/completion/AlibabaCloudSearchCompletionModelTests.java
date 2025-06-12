@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.MatcherAssert;
 

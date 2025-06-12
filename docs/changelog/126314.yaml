@@ -1,0 +1,6 @@
+pr: 126314
+summary: Add refresh to synonyms put / delete APIs to wait for synonyms to be accessible and reload analyzers
+area: Analysis
+type: bug
+issues:
+ - 121441

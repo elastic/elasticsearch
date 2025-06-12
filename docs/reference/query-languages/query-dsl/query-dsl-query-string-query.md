@@ -168,9 +168,9 @@ The `time_zone` parameter does **not** affect the [date math](/reference/elastic
 
 The query string mini-language is used by the Query string and by the `q` query string parameter in the [`search` API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search).
 
-The query string is parsed into a series of *terms* and *operators*. A term can be a single word — `quick` or `brown` — or a phrase, surrounded by double quotes — `"quick brown"` — which searches for all the words in the phrase, in the same order.
+The query string is parsed into a series of *terms* and *operators*. A term can be a single word — `quick` or `brown` — or a phrase, surrounded by double quotes — `"quick brown"` — which searches for all the words in the phrase, in the same order.
 
-Operators allow you to customize the search — the available options are explained below.
+Operators allow you to customize the search — the available options are explained below.
 
 #### Field names [_field_names]
 
@@ -221,7 +221,7 @@ Wildcard searches can be run on individual terms, using `?` to replace a single 
 ```
 qu?ck bro*
 ```
-Be aware that wildcard queries can use an enormous amount of memory and perform very badly — just think how many terms need to be queried to match the query string `"a* b* c*"`.
+Be aware that wildcard queries can use an enormous amount of memory and perform very badly — just think how many terms need to be queried to match the query string `"a* b* c*"`.
 
 ::::{warning}
 Pure wildcards `\*` are rewritten to [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md) queries for efficiency. As a consequence, the wildcard `"field:*"` would match documents with an empty value like the following:
@@ -405,7 +405,7 @@ states that:
 
 * `fox` must be present
 * `news` must not be present
-* `quick` and `brown` are optional — their presence increases the relevance
+* `quick` and `brown` are optional — their presence increases the relevance
 
 The familiar boolean operators `AND`, `OR` and `NOT` (also written `&&`, `||` and `!`) are also supported but beware that they do not honor the usual precedence rules, so parentheses should be used whenever multiple operators are used together. For instance the previous query could be rewritten as:
 

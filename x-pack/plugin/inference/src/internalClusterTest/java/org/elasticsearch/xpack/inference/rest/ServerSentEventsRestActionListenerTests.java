@@ -50,7 +50,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 
 import java.io.IOException;
@@ -353,9 +352,8 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         private void collect(String str) throws IOException {
             sseParser.parse(str.getBytes(StandardCharsets.UTF_8))
                 .stream()
-                .filter(event -> event.name() == ServerSentEventField.DATA)
-                .filter(ServerSentEvent::hasValue)
-                .map(ServerSentEvent::value)
+                .filter(ServerSentEvent::hasData)
+                .map(ServerSentEvent::data)
                 .forEach(stringsVerified::offer);
         }
     }

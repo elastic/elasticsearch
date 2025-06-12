@@ -1,0 +1,5 @@
+pr: 126792
+summary: Revert endpoint creation validation for ELSER and E5
+area: Machine Learning
+type: bug
+issues: []

@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -119,7 +119,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -170,7 +170,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -222,7 +222,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var failureCauseMessage = "Required [data]";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -296,7 +296,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abcd"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -373,7 +373,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abcd"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -433,7 +433,11 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("super long input"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("super long input"), null, inputType),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 

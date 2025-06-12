@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.http.HttpEntity;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -20,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -39,6 +44,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -46,6 +52,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -57,8 +64,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -67,6 +74,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -101,6 +110,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -121,6 +131,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
@@ -148,6 +159,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -236,22 +249,22 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         @Override
-        public boolean exists(String field) {
+        public boolean exists(FieldName field) {
             return true;
         }
 
         @Override
-        public boolean isIndexed(String field) {
+        public boolean isIndexed(FieldName field) {
             return exists(field);
         }
 
         @Override
-        public boolean hasDocValues(String field) {
+        public boolean hasDocValues(FieldName field) {
             return exists(field);
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
+        public boolean hasExactSubfield(FieldName field) {
             return exists(field);
         }
 
@@ -261,27 +274,32 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public long count(String field) {
+        public long count(FieldName field) {
             return exists(field) ? -1 : 0;
         }
 
         @Override
-        public long count(String field, BytesRef value) {
+        public long count(FieldName field, BytesRef value) {
             return exists(field) ? -1 : 0;
         }
 
         @Override
-        public byte[] min(String field, DataType dataType) {
+        public byte[] min(FieldName field, DataType dataType) {
             return null;
         }
 
         @Override
-        public byte[] max(String field, DataType dataType) {
+        public byte[] max(FieldName field, DataType dataType) {
             return null;
         }
 
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldName field) {
+            return false;
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
         }
     }
@@ -332,23 +350,23 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public boolean exists(String field) {
-            return isConfigationSet(Config.EXISTS, field);
+        public boolean exists(FieldName field) {
+            return isConfigationSet(Config.EXISTS, field.string());
         }
 
         @Override
-        public boolean isIndexed(String field) {
-            return isConfigationSet(Config.INDEXED, field);
+        public boolean isIndexed(FieldName field) {
+            return isConfigationSet(Config.INDEXED, field.string());
         }
 
         @Override
-        public boolean hasDocValues(String field) {
-            return isConfigationSet(Config.DOC_VALUES, field);
+        public boolean hasDocValues(FieldName field) {
+            return isConfigationSet(Config.DOC_VALUES, field.string());
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
-            return isConfigationSet(Config.EXACT_SUBFIELD, field);
+        public boolean hasExactSubfield(FieldName field) {
+            return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
         }
 
         @Override
@@ -374,9 +392,22 @@ public final class EsqlTestUtils {
         mock(SearchService.class),
         null,
         mock(ClusterService.class),
+        mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
-        null
+        null,
+        mockInferenceRunner()
     );
+
+    @SuppressWarnings("unchecked")
+    private static InferenceRunner mockInferenceRunner() {
+        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+        doAnswer(i -> {
+            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
+            return null;
+        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+
+        return inferenceRunner;
+    }
 
     private EsqlTestUtils() {}
 
@@ -453,6 +484,10 @@ public final class EsqlTestUtils {
         return new EnrichResolution();
     }
 
+    public static InferenceResolution emptyInferenceResolution() {
+        return InferenceResolution.EMPTY;
+    }
+
     public static SearchStats statsForExistingField(String... names) {
         return fieldMatchingExistOrMissing(true, names);
     }
@@ -466,8 +501,8 @@ public final class EsqlTestUtils {
             private final Set<String> fields = Set.of(names);
 
             @Override
-            public boolean exists(String field) {
-                return fields.contains(field) == exists;
+            public boolean exists(FieldName field) {
+                return fields.contains(field.string()) == exists;
             }
         };
     }
@@ -783,7 +818,7 @@ public final class EsqlTestUtils {
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT, SEMANTIC_TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case TEXT -> new BytesRef(randomAlphaOfLength(50));
             case VERSION -> randomVersion().toBytesRef();
             case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
@@ -805,6 +840,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
@@ -857,5 +893,35 @@ public final class EsqlTestUtils {
     public static <T> T singleValue(Collection<T> collection) {
         assertThat(collection, hasSize(1));
         return collection.iterator().next();
+    }
+
+    public static Attribute getAttributeByName(Collection<Attribute> attributes, String name) {
+        return attributes.stream().filter(attr -> attr.name().equals(name)).findAny().orElse(null);
+    }
+
+    public static Map<String, Object> jsonEntityToMap(HttpEntity entity) throws IOException {
+        return entityToMap(entity, XContentType.JSON);
+    }
+
+    public static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
+        try (InputStream content = entity.getContent()) {
+            XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+            assertEquals(expectedContentType, xContentType);
+            return XContentHelper.convertToMap(xContentType.xContent(), content, false /* ordered */);
+        }
+    }
+
+    /**
+     * Errors from remotes are wrapped in RemoteException while the ones from the local cluster
+     * aren't. This utility method is useful for unwrapping in such cases.
+     * @param e Exception to unwrap.
+     * @return Cause of RemoteException, else the error itself.
+     */
+    public static Exception unwrapIfWrappedInRemoteException(Exception e) {
+        if (e instanceof RemoteException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
     }
 }

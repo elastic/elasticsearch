@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -33,7 +32,7 @@ import static org.mockito.Mockito.verify;
 public class OpenAiStreamingProcessorTests extends ESTestCase {
     public void testParseOpenAiResponse() throws IOException {
         var item = new ArrayDeque<ServerSentEvent>();
-        item.offer(new ServerSentEvent(ServerSentEventField.DATA, """
+        item.offer(new ServerSentEvent("""
             {
                 "id":"12345",
                 "object":"chat.completion.chunk",
@@ -62,7 +61,7 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
 
     public void testParseWithFinish() throws IOException {
         var item = new ArrayDeque<ServerSentEvent>();
-        item.offer(new ServerSentEvent(ServerSentEventField.DATA, """
+        item.offer(new ServerSentEvent("""
             {
                 "id":"12345",
                 "object":"chat.completion.chunk",
@@ -81,7 +80,7 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
                 ]
             }
             """));
-        item.offer(new ServerSentEvent(ServerSentEventField.DATA, """
+        item.offer(new ServerSentEvent("""
             {
                 "id":"12345",
                 "object":"chat.completion.chunk",
@@ -108,7 +107,7 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
 
     public void testParseErrorCallsOnError() {
         var item = new ArrayDeque<ServerSentEvent>();
-        item.offer(new ServerSentEvent(ServerSentEventField.DATA, "this isn't json"));
+        item.offer(new ServerSentEvent("this isn't json"));
 
         var exception = onError(new OpenAiStreamingProcessor(), item);
         assertThat(exception, instanceOf(XContentParseException.class));
@@ -133,7 +132,7 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
 
     public void testDoneMessageIsIgnored() throws Exception {
         var item = new ArrayDeque<ServerSentEvent>();
-        item.offer(new ServerSentEvent(ServerSentEventField.DATA, "[DONE]"));
+        item.offer(new ServerSentEvent("[DONE]"));
 
         var processor = new OpenAiStreamingProcessor();
 
@@ -151,7 +150,7 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
 
     public void testInitialLlamaResponseIsIgnored() throws Exception {
         var item = new ArrayDeque<ServerSentEvent>();
-        item.offer(new ServerSentEvent(ServerSentEventField.DATA, """
+        item.offer(new ServerSentEvent("""
             {
                 "id":"12345",
                 "object":"chat.completion.chunk",

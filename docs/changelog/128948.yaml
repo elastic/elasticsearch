@@ -1,0 +1,6 @@
+pr: 128948
+summary: ES|QL - Add COMPLETION command as a tech preview feature
+area: ES|QL
+type: feature
+issues:
+- 124405

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,6 +59,11 @@ import static org.mockito.Mockito.when;
 
 public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
+    private static final long ONE_SECOND = 1L;
+    private static final AtomicLong ATOMIC_SECOND = new AtomicLong(1);
+    private static final AtomicLong SIXTY_SECONDS = new AtomicLong(60);
+    private static final AtomicLong TWO_THOUSAND_MILLISECONDS = new AtomicLong(2_000);
+    private static final AtomicLong SIXTY_THOUSAND_MILLISECONDS = new AtomicLong(60_000);
     private TestThreadPool threadPool;
     private ClusterService clusterService;
     private Client client;
@@ -85,7 +92,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         super.tearDown();
     }
 
-    private ClusterState getClusterState(int numAllocations) {
+    private ClusterState getClusterState(int numAllocations, AssignmentState assignmentState) {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
@@ -107,7 +114,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                             100_000_000
                         ),
                         new AdaptiveAllocationsSettings(true, null, null)
-                    ).build()
+                    ).setAssignmentState(assignmentState).build()
                 )
             )
         );
@@ -118,7 +125,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         int numAllocations,
         int inferenceCount,
         double latency,
-        boolean recentStartup
+        boolean recentStartup,
+        AssignmentState assignmentState
     ) {
         return new GetDeploymentStatsAction.Response(
             List.of(),
@@ -155,7 +163,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                         )
                     ),
                     Priority.NORMAL
-                )
+                ).setState(assignmentState)
             ),
             0
         );
@@ -163,7 +171,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
     public void test_scaleUp() {
         // Initialize the cluster with a deployment with 1 allocation.
-        ClusterState clusterState = getClusterState(1);
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTED);
         when(clusterService.state()).thenReturn(clusterState);
 
         AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
@@ -173,9 +181,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            60,
-            60_000
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            SIXTY_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -189,7 +197,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, false));
+            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
@@ -205,7 +213,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 150, 10.0, false));
+            listener.onResponse(getDeploymentStatsResponse(1, 150, 10.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
         doAnswer(invocationOnMock -> {
@@ -226,7 +234,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, clusterService);
         reset(client, clusterService);
 
-        clusterState = getClusterState(2);
+        clusterState = getClusterState(2, AssignmentState.STARTED);
         ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         service.clusterChanged(clusterChangedEvent);
@@ -236,7 +244,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(2, 0, 9.0, false));
+            listener.onResponse(getDeploymentStatsResponse(2, 0, 9.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
         doAnswer(invocationOnMock -> {
@@ -257,7 +265,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
     public void test_scaleDownToZero_whenNoRequests() {
         // Initialize the cluster with a deployment with 1 allocation.
-        ClusterState clusterState = getClusterState(1);
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTED);
         when(clusterService.state()).thenReturn(clusterState);
 
         AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
@@ -267,9 +275,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            1,
-            2_000
+            ONE_SECOND,
+            ATOMIC_SECOND,
+            TWO_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -283,7 +291,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, false));
+            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
@@ -299,7 +307,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 0, 10.0, false));
+            listener.onResponse(getDeploymentStatsResponse(1, 0, 10.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
         doAnswer(invocationOnMock -> {
@@ -322,9 +330,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         service.stop();
     }
 
-    public void test_noScaleDownToZero_whenRecentlyScaledUpByOtherNode() {
+    public void test_dontScale_whenNotStarted() {
         // Initialize the cluster with a deployment with 1 allocation.
-        ClusterState clusterState = getClusterState(1);
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTING);
         when(clusterService.state()).thenReturn(clusterState);
 
         AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
@@ -334,9 +342,65 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            1,
-            2_000
+            ONE_SECOND,
+            ATOMIC_SECOND,
+            TWO_THOUSAND_MILLISECONDS
+        );
+        service.start();
+
+        verify(clusterService).state();
+        verify(clusterService).addListener(same(service));
+        verifyNoMoreInteractions(client, clusterService);
+        reset(client, clusterService);
+
+        // First cycle: many inference requests
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(getDeploymentStatsResponse(1, 10000, 10.0, false, AssignmentState.STARTING));
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+
+        safeSleep(1200);
+
+        verify(client, times(1)).threadPool();
+        verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+        verifyNoMoreInteractions(client, clusterService);
+        reset(client, clusterService);
+
+        // Second cycle: again many inference requests
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(getDeploymentStatsResponse(1, 20000, 10.0, false, AssignmentState.STARTING));
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+
+        safeSleep(1200);
+
+        verify(client, times(1)).threadPool();
+        verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+        verifyNoMoreInteractions(client, clusterService);
+        service.stop();
+    }
+
+    public void test_noScaleDownToZero_whenRecentlyScaledUpByOtherNode() {
+        // Initialize the cluster with a deployment with 1 allocation.
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTED);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            ONE_SECOND,
+            ATOMIC_SECOND,
+            TWO_THOUSAND_MILLISECONDS
         );
         service.start();
 
@@ -350,7 +414,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, true));
+            listener.onResponse(getDeploymentStatsResponse(1, 1, 11.0, true, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
@@ -366,7 +430,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 0, 10.0, true));
+            listener.onResponse(getDeploymentStatsResponse(1, 0, 10.0, true, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
         doAnswer(invocationOnMock -> {
@@ -388,7 +452,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(getDeploymentStatsResponse(1, 0, 10.0, false));
+            listener.onResponse(getDeploymentStatsResponse(1, 0, 10.0, false, AssignmentState.STARTED));
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
         doAnswer(invocationOnMock -> {
@@ -419,9 +483,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            60,
-            60_000
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            TWO_THOUSAND_MILLISECONDS
         );
 
         when(client.threadPool()).thenReturn(threadPool);
@@ -454,9 +518,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            1,
-            60,
-            60_000
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            SIXTY_THOUSAND_MILLISECONDS
         );
 
         var latch = new CountDownLatch(1);

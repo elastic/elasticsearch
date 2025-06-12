@@ -3423,7 +3423,7 @@ public class TranslogTests extends ESTestCase {
 
     public void testTranslogOpSerialization() throws Exception {
         BytesReference B_1 = new BytesArray(new byte[] { 1 });
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values()));
         long randomSeqNum = randomNonNegativeLong();
         long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
         seqID.set(randomSeqNum, randomPrimaryTerm);

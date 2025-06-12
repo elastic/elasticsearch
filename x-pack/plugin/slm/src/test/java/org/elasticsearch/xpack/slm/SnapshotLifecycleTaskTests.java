@@ -494,14 +494,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final String repo1 = randomAlphaOfLength(10);
         final String repo2 = randomAlphaOfLength(10);
 
-        final var snapshotsInProgress = SnapshotsInProgress.EMPTY.withUpdatedEntriesForRepo(
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(
             repo1,
             List.of(
                 makeSnapshotInProgress(repo1, "some-policy", snapshot1),
                 makeSnapshotInProgress(repo1, "some-policy", snapshot2),
                 makeSnapshotInProgress(repo1, "other-policy", snapshot3)
             )
-        ).withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, "other-policy", snapshot4)));
+        ).createCopyWithUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, "other-policy", snapshot4)));
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
@@ -536,7 +536,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         }
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withUpdatedEntriesForRepo(repo, inProgressEntries))
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repo, inProgressEntries))
             .metadata(
                 Metadata.builder()
                     .putCustom(SnapshotLifecycleMetadata.TYPE, makeSnapMeta(slmPolicies))

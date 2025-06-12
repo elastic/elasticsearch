@@ -1,0 +1,5 @@
+pr: 126417
+summary: Correctly handle nulls in nested paths in the remove processor
+area: Ingest Node
+type: bug
+issues: []

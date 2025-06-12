@@ -1,0 +1,5 @@
+pr: 124737
+summary: Throw exception for unsupported values type in Alias
+area: Indices APIs
+type: enhancement
+issues: []

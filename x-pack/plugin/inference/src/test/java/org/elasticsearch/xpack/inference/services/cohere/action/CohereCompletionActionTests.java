@@ -27,12 +27,12 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.CohereCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.junit.After;
 import org.junit.Before;
 

@@ -57,9 +57,13 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -67,7 +71,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -120,7 +123,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -158,14 +160,8 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -493,36 +489,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
-
-    /**
-     * Marks a test suite or a test method that should run without security manager enabled.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.TYPE })
-    @Inherited
-    public @interface WithoutSecurityManager {
-    }
-
-    private static Closeable securityManagerRestorer;
-
-    // disable security manager if test is annotated to run without it
-
-    @BeforeClass
-    public static void maybeStashClassSecurityManager() {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
-                securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
-            }
-        }
-    }
-
-    @AfterClass
-    public static void maybeRestoreClassSecurityManager() throws IOException {
-        if (securityManagerRestorer != null) {
-            securityManagerRestorer.close();
-            securityManagerRestorer = null;
-        }
-    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -1971,11 +1937,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             } else {
                 BytesReference bytesReference = output.copyBytes();
                 output.reset();
-                output.writeBytesReference(bytesReference);
+                bytesReference.writeTo(output);
                 try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                     in.setTransportVersion(version);
-                    DelayableWriteable<T> delayableWriteable = DelayableWriteable.delayed(reader, in);
-                    return delayableWriteable.expand();
+                    return reader.read(in);
                 }
             }
         }
@@ -2398,8 +2363,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * complete are a big drag on CI times which slows everyone down.
      * <p>
      * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
-     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
-     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits. For
+     * instance, use a {@link CountDownLatch} or {@link CyclicBarrier} or similar to continue execution as soon as a condition is satisfied.
+     * To wait for a particular cluster state, use {@link ClusterServiceUtils#addTemporaryStateListener} rather than busy-waiting on an API.
      */
     public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
@@ -2477,7 +2443,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        return safeAwait(listener, SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+        return safeAwait(listener, SAFE_AWAIT_TIMEOUT);
     }
 
     /**
@@ -2486,10 +2452,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @return The value with which the {@code listener} was completed.
      */
-    public static <T> T safeAwait(SubscribableListener<T> listener, long timeout, TimeUnit unit) {
+    public static <T> T safeAwait(SubscribableListener<T> listener, TimeValue timeout) {
         final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
-        return safeGet(future, timeout, unit);
+        return safeGet(future, timeout);
     }
 
     /**
@@ -2519,7 +2485,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code future} was completed.
      */
     public static <T> T safeGet(Future<T> future) {
-        return safeGet(future, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        return safeGet(future, SAFE_AWAIT_TIMEOUT);
     }
 
     /**
@@ -2528,9 +2494,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @return The value with which the {@code future} was completed.
      */
-    public static <T> T safeGet(Future<T> future, long timeout, TimeUnit unit) {
+    // NB private because tests should be designed not to need to wait for longer than SAFE_AWAIT_TIMEOUT.
+    private static <T> T safeGet(Future<T> future, TimeValue timeout) {
         try {
-            return future.get(timeout, unit);
+            return future.get(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);
@@ -2854,5 +2821,19 @@ public abstract class ESTestCase extends LuceneTestCase {
             return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
         }
         return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
+    }
+
+    /**
+     * Constructs a {@link ProjectState} for the given {@link ProjectMetadata.Builder}.
+     */
+    public static ProjectState projectStateFromProject(ProjectMetadata.Builder project) {
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.getId());
+    }
+
+    /**
+     * Constructs an empty {@link ProjectState} with one (empty) project.
+     */
+    public static ProjectState projectStateWithEmptyProject() {
+        return projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -37,6 +38,14 @@ public interface ProjectResolver extends ProjectIdResolver {
 
     default ProjectMetadata getProjectMetadata(ClusterState clusterState) {
         return getProjectMetadata(clusterState.metadata());
+    }
+
+    default boolean hasProject(ClusterState clusterState) {
+        return hasProject(clusterState.metadata());
+    }
+
+    default boolean hasProject(Metadata metadata) {
+        return metadata.hasProject(getProjectId());
     }
 
     // TODO: What happens if the context does not have a project? throw or return null?
@@ -86,6 +95,7 @@ public interface ProjectResolver extends ProjectIdResolver {
     /**
      * Returns a client that executes every request in the context of the given project.
      */
+    @FixForMultiProject(description = "This recreates a client on every invocation. We should optimize this to be less wasteful")
     default Client projectClient(Client baseClient, ProjectId projectId) {
         // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
         // take care of error handling.
@@ -102,15 +112,5 @@ public interface ProjectResolver extends ProjectIdResolver {
                 executeOnProject(projectId, () -> super.doExecute(action, request, listener));
             }
         };
-    }
-
-    /**
-     * Returns {@code false} if the cluster runs in a setup that always expects only a single default project (see also
-     * {@link Metadata#DEFAULT_PROJECT_ID}).
-     * Otherwise, it should return {@code true} to indicate the cluster can accommodate multiple projects regardless
-     * how many project it current has.
-     */
-    default boolean supportsMultipleProjects() {
-        return false;
     }
 }

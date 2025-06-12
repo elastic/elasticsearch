@@ -1,0 +1,6 @@
+pr: 126935
+summary: Synonyms API - Add refresh parameter to check synonyms index and reload analyzers
+area: Analysis
+type: enhancement
+issues:
+ - 121441

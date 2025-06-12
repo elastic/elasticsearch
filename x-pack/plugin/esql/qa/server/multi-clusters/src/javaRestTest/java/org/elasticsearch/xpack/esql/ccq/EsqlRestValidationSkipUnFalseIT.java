@@ -27,4 +27,9 @@ public class EsqlRestValidationSkipUnFalseIT extends EsqlRestValidationIT {
     protected String getTestRestCluster() {
         return localCluster.getHttpAddresses();
     }
+
+    @Override
+    protected boolean isSkipUnavailable() {
+        return false;
+    }
 }

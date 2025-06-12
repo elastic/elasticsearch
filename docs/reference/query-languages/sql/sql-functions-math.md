@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-math.html
 ---
 
-# Mathematical Functions [sql-functions-math]
+# Mathematical functions [sql-functions-math]
 
 All math and trigonometric functions require their input (where applicable) to be numeric.
 

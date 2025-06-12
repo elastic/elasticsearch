@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -37,8 +36,8 @@ class GoogleAiStudioStreamingProcessor extends DelegatingProcessor<Deque<ServerS
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
         for (ServerSentEvent event : item) {
-            if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
+            if (event.hasData()) {
+                try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
                     var delta = content.apply(jsonParser);
                     results.offer(new StreamingChatCompletionResults.Result(delta));
                 } catch (Exception e) {

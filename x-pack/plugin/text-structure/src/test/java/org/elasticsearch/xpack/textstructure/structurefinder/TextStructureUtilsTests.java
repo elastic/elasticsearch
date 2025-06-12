@@ -1106,6 +1106,16 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         }
     }
 
+    public void testGuessMappingWithNullValue() {
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("ERROR", null, "DEBUG"), ecsCompatibility));
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
     private Map<String, String> guessMapping(
         List<String> explanation,
         String fieldName,

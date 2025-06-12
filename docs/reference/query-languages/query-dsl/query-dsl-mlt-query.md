@@ -150,7 +150,7 @@ The only required parameter is `like`, all other parameters have sensible defaul
 :   The minimum document frequency below which the terms will be ignored from the input document. Defaults to `5`.
 
 `max_doc_freq`
-:   The maximum document frequency above which the terms will be ignored from the input document. This could be useful in order to ignore highly frequent words such as stop words. Defaults to unbounded (`Integer.MAX_VALUE`, which is `2^31-1` or 2147483647).
+:   The maximum document frequency above which the terms will be ignored from the input document. This could be useful in order to ignore highly frequent words such as stop words. Defaults to unbounded (`Integer.MAX_VALUE`, which is `2^31 - 1` or 2147483647).
 
 `min_word_length`
 :   The minimum word length below which the terms will be ignored. Defaults to `0`.

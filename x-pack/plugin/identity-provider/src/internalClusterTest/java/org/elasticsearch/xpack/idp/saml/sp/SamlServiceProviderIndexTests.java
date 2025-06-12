@@ -235,7 +235,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
                 services.clusterService(),
                 services.threadPool(),
                 services.client(),
-                services.xContentRegistry()
+                services.xContentRegistry(),
+                services.projectResolver()
             );
             indexTemplateRegistry.initialize();
             return List.of(indexTemplateRegistry);

@@ -73,7 +73,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
                 throw samlException("Logout request is not signed");
             }
         } else {
-            validateSignature(signature);
+            validateSignature(signature, logoutRequest.getIssuer());
         }
 
         checkIssuer(logoutRequest.getIssuer(), logoutRequest);

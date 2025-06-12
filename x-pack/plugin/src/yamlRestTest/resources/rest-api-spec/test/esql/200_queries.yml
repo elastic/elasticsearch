@@ -1,0 +1,40 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_monitoring ]
+      reason: "uses query monitoring"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              message1:
+                type: keyword
+
+---
+# Since this feature requires queries in the background, the yaml tests only test edge cases with
+# no running queries. The rest are covered by integration tests (See EsqlListQueriesActionIT).
+List with no running queries:
+  - do:
+      esql.list_queries: { }
+  - match: { queries: { } }
+
+---
+Get with invalid task ID:
+  - do:
+      catch: /malformed task id foobar/
+      esql.get_query:
+        id: "foobar"
+
+---
+Get with non-existent task ID:
+  - do:
+      catch: /task \[foobar:1234\] belongs to the node \[foobar\] which isn't part of the cluster and there is no record of the task/
+      esql.get_query:
+        id: "foobar:1234"

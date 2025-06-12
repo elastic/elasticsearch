@@ -49,12 +49,14 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -92,6 +94,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -118,6 +121,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -151,6 +155,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -265,6 +270,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static RestClient cleanupClient;
 
     private static boolean multiProjectEnabled;
+    private static String activeProject;
+    private static Set<String> extraProjects;
+    private static boolean projectsConfigured = false;
 
     public enum ProductFeature {
         XPACK,
@@ -356,6 +364,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService != ALL_FEATURES;
     }
 
+    @BeforeClass
+    public static void initializeProjectIds() {
+        // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
+        activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
+        multiProjectEnabled = Boolean.parseBoolean(System.getProperty("tests.multi_project.enabled"));
+    }
+
     @Before
     public void initClient() throws IOException {
         if (client == null) {
@@ -366,17 +382,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
-            var clientSettings = restClientSettings();
+            // We add the project ID to the client settings afterward because a lot of subclasses don't call super.restClientSettings(),
+            // meaning the project ID would be removed from the settings.
+            var clientSettings = addProjectIdToSettings(restClientSettings());
             var adminSettings = restAdminSettings();
+            var cleanupSettings = cleanupClientSettings();
             var hosts = clusterHosts.toArray(new HttpHost[0]);
             client = buildClient(clientSettings, hosts);
             adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
-            cleanupClient = getCleanupClient();
+            cleanupClient = adminSettings.equals(cleanupSettings) ? adminClient : buildClient(cleanupSettings, hosts);
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
             boolean serverless = false;
-            String multiProjectPluginVariant = null;
 
             for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
                 var nodeVersion = nodeInfo.get("version").toString();
@@ -406,11 +424,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (moduleName.startsWith("serverless-")) {
                         serverless = true;
                     }
-                    if (moduleName.contains("test-multi-project")) {
-                        multiProjectPluginVariant = "test";
-                    } else if (moduleName.contains("serverless-multi-project")) {
-                        multiProjectPluginVariant = "serverless";
-                    }
                 }
                 if (serverless) {
                     availableFeatures.removeAll(
@@ -431,20 +444,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
-
-            if (multiProjectPluginVariant != null) {
-                final Request settingRequest = new Request(
-                    "GET",
-                    "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
-                );
-                settingRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-                final var response = entityAsMap(adminClient.performRequest(settingRequest));
-                multiProjectEnabled = Boolean.parseBoolean(
-                    ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
-                );
-            }
-
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+
+            configureProjects();
         }
 
         assert testFeatureServiceInitialized();
@@ -1620,9 +1622,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns the REST client used for cleaning up the cluster.
      */
-    protected RestClient getCleanupClient() {
-        assert adminClient != null;
-        return adminClient;
+    protected Settings cleanupClientSettings() {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return restAdminSettings();
+        }
+        return addProjectIdToSettings(restAdminSettings());
+    }
+
+    private Settings addProjectIdToSettings(Settings settings) {
+        if (multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return settings;
+        }
+        return Settings.builder()
+            .put(settings)
+            .put(ThreadContext.PREFIX + "." + Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, activeProject)
+            .build();
     }
 
     /**
@@ -2047,8 +2061,34 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(RestClient client, String index) throws IOException {
-        Response response = client.performRequest(new Request("HEAD", "/" + index));
-        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("timeout", "0");
+        request.addParameter("level", "indices");
+        try {
+            final var response = client.performRequest(request);
+            @SuppressWarnings("unchecked")
+            final var indices = (Map<String, Object>) entityAsMap(response).get("indices");
+            return indices.containsKey(index);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    protected static void awaitIndexExists(String index) throws IOException {
+        awaitIndexExists(index, SAFE_AWAIT_TIMEOUT);
+    }
+
+    protected static void awaitIndexExists(String index, TimeValue timeout) throws IOException {
+        // We use the /_cluster/health/{index} API to ensure the index exists on the master node - which means all nodes see the index.
+        ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
+    }
+
+    protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
+        assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -2086,9 +2126,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns a list of the data stream's backing index names.
      */
-    @SuppressWarnings("unchecked")
     protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
-        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        return getDataStreamBackingIndexNames(client(), dataStreamName);
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(RestClient client, String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client, "/_data_stream/" + dataStreamName);
         List<?> dataStreams = (List<?>) response.get("data_streams");
         assertThat(dataStreams.size(), equalTo(1));
         Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
@@ -2665,8 +2712,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         return request;
     }
 
-    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
+    protected static MapMatcher getProfileMatcher() {
+        return matchesMap().entry("query", instanceOf(Map.class))
+            .entry("planning", instanceOf(Map.class))
+            .entry("drivers", instanceOf(List.class));
+    }
+
+    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {
         MapMatcher mapMatcher = matchesMap();
+        if (includeDocumentsFound) {
+            // Older versions may not return documents_found and values_loaded.
+            mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
         if (includeMetadata) {
             mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         }
@@ -2681,7 +2739,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"));
+        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"), result.containsKey("documents_found"));
     }
 
     /**
@@ -2707,12 +2765,58 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
 
+    /**
+     * Whether the test framework should configure an active projects and some extra projects. This is true by default (when multi-project
+     * is enabled). Subclasses can override this method to avoid configuring projects - e.g. when they configure projects themselves.
+     */
+    protected boolean shouldConfigureProjects() {
+        assert multiProjectEnabled;
+        return true;
+    }
+
+    private void configureProjects() throws IOException {
+        if (projectsConfigured || multiProjectEnabled == false || shouldConfigureProjects() == false) {
+            return;
+        }
+        projectsConfigured = true;
+        createProject(activeProject);
+        for (var project : extraProjects) {
+            createProject(project);
+        }
+
+        // The admin client does not set a project id, and can see all projects
+        assertProjectIds(
+            adminClient(),
+            CollectionUtils.concatLists(List.of(Metadata.DEFAULT_PROJECT_ID.id(), activeProject), extraProjects)
+        );
+        // The test client can only see the project it targets
+        assertProjectIds(client(), List.of(activeProject));
+    }
+
+    @After
+    public final void assertEmptyProjects() throws Exception {
+        if (projectsConfigured == false) {
+            return;
+        }
+        assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
+        for (var project : extraProjects) {
+            assertEmptyProject(project);
+        }
+    }
+
+    /**
+     * If multi-project is enabled, returns the active project ID followed by a slash, which is used to prefix various keys in REST
+     * responses. Otherwise, returns the empty string.
+     */
+    protected String activeProjectPrefix() {
+        return multiProjectEnabled ? (activeProject + "/") : "";
+    }
+
     protected void createProject(String project) throws IOException {
         assert multiProjectEnabled;
-        RestClient client = adminClient();
         final Request request = new Request("PUT", "/_project/" + project);
         try {
-            final Response response = client.performRequest(request);
+            final Response response = adminClient().performRequest(request);
             logger.info("Created project {} : {}", project, response.getStatusLine());
         } catch (ResponseException e) {
             logger.error("Failed to create project: {}", project);
@@ -2730,7 +2834,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
-    private Collection<String> getProjectIds(RestClient client) throws IOException {
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
         assert multiProjectEnabled;
         final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
         try {
@@ -2741,6 +2845,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             logger.error("Failed to retrieve cluster state");
             throw e;
         }
+    }
+
+    protected void cleanUpProjects() throws IOException {
+        assert multiProjectEnabled;
+        final var projectIds = getProjectIds(adminClient());
+        for (String projectId : projectIds) {
+            if (projectId.equals(ProjectId.DEFAULT.id())) {
+                continue;
+            }
+            deleteProject(projectId);
+        }
+    }
+
+    private void deleteProject(String project) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("DELETE", "/_project/" + project);
+        cleanupClient().performRequest(request);
     }
 
     protected void assertEmptyProject(String projectId) throws IOException {
@@ -2783,16 +2904,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (indexTemplates != null) {
             var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
             assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard templates, but was null");
         }
 
         final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
         if (componentTemplates != null) {
             var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
             assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard component templates, but was null");
         }
 
         final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
@@ -2802,8 +2919,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .filter(id -> isXPackIngestPipeline(id) == false)
                 .toList();
             assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard ingest pipelines, but was null");
         }
 
         if (has(ProductFeature.ILM)) {
@@ -2812,8 +2927,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 var policyNames = new HashSet<>(ilmPolicies.keySet());
                 policyNames.removeAll(preserveILMPolicyIds());
                 assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
-            } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-                fail("Expected default project to have standard ILM policies, but was null");
             }
         }
     }
@@ -2838,5 +2951,22 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
         final var response = responseAsMap(adminClient().performRequest(request));
         assertThat("Security index should not contain any non-reserved roles", (Collection<?>) response.get("roles"), empty());
+    }
+
+    public static final String FIPS_KEYSTORE_PASSWORD = "keystore-password";
+
+    /**
+     * @return a REST {@link Request} which will reload the keystore in the test cluster.
+     */
+    protected final Request createReloadSecureSettingsRequest() {
+        try {
+            return newXContentRequest(
+                HttpMethod.POST,
+                "/_nodes/reload_secure_settings",
+                (b, p) -> inFipsJvm() ? b.field("secure_settings_password", FIPS_KEYSTORE_PASSWORD) : b
+            );
+        } catch (IOException e) {
+            throw new AssertionError("impossible", e);
+        }
     }
 }

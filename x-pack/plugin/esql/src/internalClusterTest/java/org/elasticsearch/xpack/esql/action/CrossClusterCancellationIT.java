@@ -14,24 +14,20 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -43,7 +39,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
+public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
 
     @Override
@@ -52,35 +48,11 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(InternalExchangePlugin.class);
-        plugins.add(SimplePauseFieldPlugin.class);
-        return plugins;
-    }
-
-    public static class InternalExchangePlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting(
-                    ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueMillis(between(3000, 4000)),
-                    Setting.Property.NodeScope
-                )
-            );
-        }
-    }
-
-    @Before
-    public void resetPlugin() {
-        SimplePauseFieldPlugin.resetPlugin();
-    }
-
-    @After
-    public void releasePlugin() {
-        SimplePauseFieldPlugin.release();
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
     }
 
     @Override
@@ -163,6 +135,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
         assertThat(error.getMessage(), containsString("proxy timeout"));
     }
 
@@ -284,6 +257,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         }
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
         assertThat(error, instanceOf(TaskCancelledException.class));
     }
 }

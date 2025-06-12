@@ -35,14 +35,17 @@ public class Metrics {
         }
     }
 
+    protected static final String QUERIES_PREFIX = "queries.";
+    protected static final String FEATURES_PREFIX = "features.";
+    protected static final String FUNC_PREFIX = "functions.";
+    protected static final String TOOK_PREFIX = "took.";
+
     // map that holds total/failed counters for each client type (rest, kibana)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     private final Map<String, CounterMetric> functionMetrics;
-    protected static String QPREFIX = "queries.";
-    protected static String FPREFIX = "features.";
-    protected static String FUNC_PREFIX = "functions.";
+    private final TookMetrics tookMetrics = new TookMetrics();
 
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<Class<?>, String> classToFunctionName;
@@ -118,6 +121,10 @@ public class Metrics {
         }
     }
 
+    public void recordTook(long tookMillis) {
+        tookMetrics.count(tookMillis);
+    }
+
     public Counters stats() {
         Counters counters = new Counters();
 
@@ -129,20 +136,22 @@ public class Metrics {
                 long metricCounter = entry.getValue().get(type).count();
                 String operationTypeName = type.toString();
 
-                counters.inc(QPREFIX + metricName + "." + operationTypeName, metricCounter);
-                counters.inc(QPREFIX + "_all." + operationTypeName, metricCounter);
+                counters.inc(QUERIES_PREFIX + metricName + "." + operationTypeName, metricCounter);
+                counters.inc(QUERIES_PREFIX + "_all." + operationTypeName, metricCounter);
             }
         }
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
-            counters.inc(FPREFIX + entry.getKey().toString(), entry.getValue().count());
+            counters.inc(FEATURES_PREFIX + entry.getKey().toString(), entry.getValue().count());
         }
 
         // function metrics
         for (Entry<String, CounterMetric> entry : functionMetrics.entrySet()) {
             counters.inc(FUNC_PREFIX + entry.getKey(), entry.getValue().count());
         }
+
+        tookMetrics.counters(TOOK_PREFIX, counters);
 
         return counters;
     }

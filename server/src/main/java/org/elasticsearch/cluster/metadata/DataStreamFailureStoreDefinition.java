@@ -40,8 +40,7 @@ public class DataStreamFailureStoreDefinition {
         IndexMetadata.SETTING_NUMBER_OF_SHARDS,
         IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
-        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-        IndexMetadata.LIFECYCLE_NAME
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
     );
     public static final Set<String> SUPPORTED_USER_SETTINGS_PREFIXES = Set.of(
         IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".",

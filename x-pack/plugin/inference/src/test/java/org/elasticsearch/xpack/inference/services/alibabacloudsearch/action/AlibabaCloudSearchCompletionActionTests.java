@@ -122,7 +122,7 @@ public class AlibabaCloudSearchCompletionActionTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         assertThrows(IllegalArgumentException.class, () -> {
             action.execute(
-                new EmbeddingsInput(List.of(randomAlphaOfLength(10)), InputType.INGEST),
+                new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null, InputType.INGEST),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

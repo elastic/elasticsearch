@@ -54,7 +54,6 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, MaxBytesRefAggregatorFunctionSupplier::new)
     );
 

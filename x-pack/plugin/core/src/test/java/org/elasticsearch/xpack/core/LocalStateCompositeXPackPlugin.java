@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
@@ -220,8 +218,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>(super.getActions());
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>(super.getActions());
         filterPlugins(ActionPlugin.class).forEach(p -> actions.addAll(p.getActions()));
         return actions;
     }

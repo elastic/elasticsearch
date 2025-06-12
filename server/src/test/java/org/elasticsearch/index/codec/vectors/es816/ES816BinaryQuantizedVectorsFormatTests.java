@@ -22,9 +22,11 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
@@ -40,13 +42,16 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 
 import java.io.IOException;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -58,14 +63,11 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES816BinaryQuantizedRWVectorsFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES816BinaryQuantizedRWVectorsFormat();
-            }
-        };
+        return codec;
     }
 
     public void testSearch() throws Exception {
@@ -175,6 +177,30 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                             assertEquals(corrections[i], qvectorValues.getCorrectiveTerms(docIndexIterator.index())[i], 0.00001f);
                         }
                     }
+                }
+            }
+        }
+    }
+
+    public void testSimpleOffHeapSize() throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    assertEquals(2, offHeap.size());
+                    assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    assertTrue(offHeap.get("veb") > 0L);
                 }
             }
         }

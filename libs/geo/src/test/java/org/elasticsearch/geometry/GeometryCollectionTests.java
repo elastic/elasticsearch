@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -91,6 +92,35 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
             geometry = g;
         }
         return count;
+    }
+
+    public void testParseGeometryCollectionZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+
+        GeometryCollection<Geometry> expected = new GeometryCollection<>(
+            Arrays.asList(
+                new Point(20.0, 10.0, 100.0),
+                new Line(new double[] { 10.0, 20.0 }, new double[] { 5.0, 15.0 }, new double[] { 50.0, 150.0 })
+            )
+        );
+
+        String point = "(POINT Z (20.0 10.0 100.0)";
+        String lineString = "LINESTRING M (10.0 5.0 50.0, 20.0 15.0 150.0)";
+        assertEquals(expected, WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION Z " + point + ", " + lineString + ")"));
+
+        assertEquals(expected, WellKnownText.fromWKT(validator, true, "GEOMETRYCOLLECTION M " + point + ", " + lineString + ")"));
+    }
+
+    public void testParseGeometryCollectionZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> gcWkt = List.of(
+            "GEOMETRYCOLLECTION Z (POINT (20.0 10.0), LINESTRING (10.0 5.0, 20.0 15.0))",
+            "GEOMETRYCOLLECTION M (POINT (20.0 10.0), LINESTRING (10.0 5.0, 20.0 15.0))"
+        );
+        for (String gc : gcWkt) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, gc));
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
     }
 
     @Override

@@ -174,7 +174,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
 
     private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {
         throw new ElasticsearchStatusException(
-            "Unknown service [{}] for inference endpoint [{}]. ",
+            "Unknown service [{}] for inference endpoint [{}].",
             RestStatus.INTERNAL_SERVER_ERROR,
             service,
             inferenceId

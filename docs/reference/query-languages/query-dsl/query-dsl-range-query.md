@@ -31,30 +31,30 @@ GET /_search
 ## Top-level parameters for `range` [range-query-top-level-params]
 
 `<field>`
-&nbsp;&nbsp;&nbsp;&nbsp; (Required, object) Field you wish to search.
+:   (Required, object) Field you wish to search.
 
 
 ## Parameters for `<field>` [range-query-field-params]
 
 `gt`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional) Greater than.
+:   (Optional) Greater than.
 
 `gte`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional) Greater than or equal to.
+:   (Optional) Greater than or equal to.
 
 `lt`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional) Less than.
+:   (Optional) Less than.
 
 `lte`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional) Less than or equal to.
+:   (Optional) Less than or equal to.
 
 `format`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional, string) Date format used to convert `date` values in the query.
+:   (Optional, string) Date format used to convert `date` values in the query.
 
-&nbsp;&nbsp;&nbsp;&nbsp; By default, {{es}} uses the [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md) provided in the `<field>`'s
-&nbsp;&nbsp;&nbsp;&nbsp; mapping. This value overrides that mapping format.
+    By default, {{es}} uses the [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md) provided in the `<field>`'s
+    mapping. This value overrides that mapping format.
 
-&nbsp;&nbsp;&nbsp;&nbsp; For valid syntax, see [`format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md).
+    For valid syntax, see [`format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md).
 
 ::::{warning}
 If a format or date value is incomplete, the range query replaces any missing components with default values. See [Missing date components](#missing-date-components).
@@ -65,29 +65,28 @@ If a format or date value is incomplete, the range query replaces any missing co
 $$$querying-range-fields$$$
 
 `relation`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional, string) Indicates how the range query matches values for `range`
-&nbsp;&nbsp;&nbsp;&nbsp; fields. Valid values are:
+:   (Optional, string) Indicates how the range query matches values for `range`
+    fields. Valid values are:
 
-&nbsp;&nbsp;&nbsp;&nbsp; `INTERSECTS` (Default)
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Matches documents with a range field value that intersects the query’s range.
+    `INTERSECTS` (Default)
+    :   Matches documents with a range field value that intersects the query’s range.
 
-&nbsp;&nbsp;&nbsp;&nbsp; `CONTAINS`
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Matches documents with a range field value that entirely contains the
-&nbsp;&nbsp;&nbsp;&nbsp; query’s range.
+    `CONTAINS`
+    :   Matches documents with a range field value that entirely contains the query’s range.
 
-&nbsp;&nbsp;&nbsp;&nbsp; `WITHIN`
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Matches documents with a range field value entirely within the query’s range.
+    `WITHIN`
+    :   Matches documents with a range field value entirely within the query’s range.
 
 
 `time_zone`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional, string) [Coordinated Universal Time (UTC) offset](https://en.wikipedia.org/wiki/List_of_UTC_time_offsets) or [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
-&nbsp;&nbsp;&nbsp;&nbsp; used to convert `date` values in the query to UTC.
+:   (Optional, string) [Coordinated Universal Time (UTC) offset](https://en.wikipedia.org/wiki/List_of_UTC_time_offsets) or [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+    used to convert `date` values in the query to UTC.
 
-&nbsp;&nbsp;&nbsp;&nbsp; Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
-&nbsp;&nbsp;&nbsp;&nbsp; time zone IDs, such as `America/Los_Angeles`.
+    Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
+    time zone IDs, such as `America/Los_Angeles`.
 
-&nbsp;&nbsp;&nbsp;&nbsp; For an example query using the `time_zone` parameter, see
-&nbsp;&nbsp;&nbsp;&nbsp; [Time zone in `range` queries](#range-query-time-zone).
+    For an example query using the `time_zone` parameter, see
+    [Time zone in `range` queries](#range-query-time-zone).
 
 ::::{note}
 The `time_zone` parameter does **not** affect the [date math](/reference/elasticsearch/rest-apis/common-options.md#date-math) value of `now`. `now` is always the current system time in UTC.
@@ -99,15 +98,15 @@ However, the `time_zone` parameter does convert dates calculated using `now` and
 
 
 `boost`
-&nbsp;&nbsp;&nbsp;&nbsp; (Optional, float) Floating point number used to decrease or increase the
-&nbsp;&nbsp;&nbsp;&nbsp; [relevance scores](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) of a query. Defaults to `1.0`.
+:   (Optional, float) Floating point number used to decrease or increase the
+    [relevance scores](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) of a query. Defaults to `1.0`.
 
-&nbsp;&nbsp;&nbsp;&nbsp; You can use the `boost` parameter to adjust relevance scores for searches
-&nbsp;&nbsp;&nbsp;&nbsp; containing two or more queries.
+    You can use the `boost` parameter to adjust relevance scores for searches
+    containing two or more queries.
 
-&nbsp;&nbsp;&nbsp;&nbsp; Boost values are relative to the default value of `1.0`. A boost value between `0`
-&nbsp;&nbsp;&nbsp;&nbsp; and `1.0` decreases the relevance score. A value greater than `1.0`
-&nbsp;&nbsp;&nbsp;&nbsp; increases the relevance score.
+    Boost values are relative to the default value of `1.0`. A boost value between `0`
+    and `1.0` decreases the relevance score. A value greater than `1.0`
+    increases the relevance score.
 
 
 
@@ -169,31 +168,31 @@ When no date format is specified and the range query is targeting a date field, 
 {{es}} rounds [date math](/reference/elasticsearch/rest-apis/common-options.md#date-math) values in parameters as follows:
 
 `gt`
-&nbsp;&nbsp;&nbsp;&nbsp; Rounds up to the first millisecond not covered by the rounded date.
+:   Rounds up to the first millisecond not covered by the rounded date.
 
-&nbsp;&nbsp;&nbsp;&nbsp; For example, `2014-11-18||/M` rounds up to `2014-12-01T00:00:00.000`,
-&nbsp;&nbsp;&nbsp;&nbsp; excluding the entire month of November.
+    For example, `2014-11-18||/M` rounds up to `2014-12-01T00:00:00.000`,
+    excluding the entire month of November.
 
 
 `gte`
-&nbsp;&nbsp;&nbsp;&nbsp; Rounds down to the first millisecond.
+:   Rounds down to the first millisecond.
 
-&nbsp;&nbsp;&nbsp;&nbsp; For example, `2014-11-18||/M` rounds down to `2014-11-01T00:00:00.000`,
-&nbsp;&nbsp;&nbsp;&nbsp; including the entire month.
+    For example, `2014-11-18||/M` rounds down to `2014-11-01T00:00:00.000`,
+    including the entire month.
 
 
 `lt`
-&nbsp;&nbsp;&nbsp;&nbsp; Rounds down to the last millisecond before the rounded value.
+:   Rounds down to the last millisecond before the rounded value.
 
-&nbsp;&nbsp;&nbsp;&nbsp; For example, `2014-11-18||/M` rounds down to `2014-10-31T23:59:59.999`,
-&nbsp;&nbsp;&nbsp;&nbsp; excluding the entire month of November.
+    For example, `2014-11-18||/M` rounds down to `2014-10-31T23:59:59.999`,
+    excluding the entire month of November.
 
 
 `lte`
-&nbsp;&nbsp;&nbsp;&nbsp; Rounds up to the latest millisecond in the rounding interval.
+:   Rounds up to the latest millisecond in the rounding interval.
 
-&nbsp;&nbsp;&nbsp;&nbsp; For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`,
-&nbsp;&nbsp;&nbsp;&nbsp; including the entire month.
+    For example, `2014-11-18||/M` rounds up to `2014-11-30T23:59:59.999`,
+    including the entire month.
 
 
 

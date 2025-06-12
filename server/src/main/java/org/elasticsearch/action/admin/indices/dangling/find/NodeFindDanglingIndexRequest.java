@@ -11,14 +11,14 @@ package org.elasticsearch.action.admin.indices.dangling.find;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Used when querying every node in the cluster for a specific dangling index.
  */
-public class NodeFindDanglingIndexRequest extends TransportRequest {
+public class NodeFindDanglingIndexRequest extends AbstractTransportRequest {
     private final String indexUUID;
 
     public NodeFindDanglingIndexRequest(String indexUUID) {

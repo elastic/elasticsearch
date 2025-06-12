@@ -173,7 +173,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // the shrink index generated in the first attempt must've been deleted!
         assertBusy(() -> assertFalse(indexExists(firstAttemptShrinkIndexName[0])));
 
-        assertBusy(() -> assertTrue(indexExists(secondCycleShrinkIndexName[0])), 30, TimeUnit.SECONDS);
+        awaitIndexExists(secondCycleShrinkIndexName[0]);
 
         // at this point, the second shrink attempt was executed and the manged index is looping into the `shrunk-shards-allocated` step as
         // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this

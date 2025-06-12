@@ -53,7 +53,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
         final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
 
-        final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName())
+            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
         if (randomBoolean()) {
             settingsBuilder.put(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), randomIntBetween(10000, 60000) + "ms");
         }

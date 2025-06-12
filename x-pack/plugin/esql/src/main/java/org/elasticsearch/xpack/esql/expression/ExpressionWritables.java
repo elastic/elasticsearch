@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -116,6 +118,7 @@ public class ExpressionWritables {
         entries.addAll(binaryComparisons());
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
+        entries.addAll(vector());
         return entries;
     }
 
@@ -253,5 +256,12 @@ public class ExpressionWritables {
 
     private static List<NamedWriteableRegistry.Entry> fullText() {
         return FullTextWritables.getNamedWriteables();
+    }
+
+    private static List<NamedWriteableRegistry.Entry> vector() {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+            return List.of(Knn.ENTRY);
+        }
+        return List.of();
     }
 }

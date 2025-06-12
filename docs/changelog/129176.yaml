@@ -1,0 +1,6 @@
+pr: 129176
+summary: Adjust unpromotable shard refresh request validation to allow `RefreshResult.NO_REFRESH`
+area: Searchable Snapshots
+type: bug
+issues:
+ - 129036

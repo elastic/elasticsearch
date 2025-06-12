@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,7 +51,8 @@ import java.util.Objects;
 public class TransportMoveToStepAction extends TransportMasterNodeAction<TransportMoveToStepAction.Request, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportMoveToStepAction.class);
 
-    IndexLifecycleService indexLifecycleService;
+    private final IndexLifecycleService indexLifecycleService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMoveToStepAction(
@@ -58,7 +60,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexLifecycleService indexLifecycleService
+        IndexLifecycleService indexLifecycleService,
+        ProjectResolver projectResolver
     ) {
         super(
             ILMActions.MOVE_TO_STEP.name(),
@@ -71,11 +74,13 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexLifecycleService = indexLifecycleService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        IndexMetadata indexMetadata = state.metadata().getProject().index(request.getIndex());
+        final var project = projectResolver.getProjectMetadata(state);
+        IndexMetadata indexMetadata = project.index(request.getIndex());
         if (indexMetadata == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
             return;
@@ -95,7 +100,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
         // Resolve the key that could have optional parts into one
         // that is totally concrete given the existing policy and index
         Step.StepKey concreteTargetStepKey = indexLifecycleService.resolveStepKey(
-            state,
+            project,
             indexMetadata.getIndex(),
             abstractTargetKey.getPhase(),
             abstractTargetKey.getAction(),
@@ -125,8 +130,9 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
                 public ClusterState execute(ClusterState currentState) {
                     // Resolve the key that could have optional parts into one
                     // that is totally concrete given the existing policy and index
+                    final var currentProject = currentState.metadata().getProject(project.id());
                     Step.StepKey concreteTargetStepKey = indexLifecycleService.resolveStepKey(
-                        state,
+                        currentProject,
                         indexMetadata.getIndex(),
                         abstractTargetKey.getPhase(),
                         abstractTargetKey.getAction(),
@@ -148,7 +154,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
 
                     concreteTargetKey.set(concreteTargetStepKey);
                     final var updatedProject = indexLifecycleService.moveIndexToStep(
-                        currentState.metadata().getProject(),
+                        currentProject,
                         indexMetadata.getIndex(),
                         request.getCurrentStepKey(),
                         concreteTargetKey.get()
@@ -158,7 +164,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    IndexMetadata newIndexMetadata = newState.metadata().getProject().index(indexMetadata.getIndex());
+                    final var newProjectState = newState.projectState(project.id());
+                    IndexMetadata newIndexMetadata = newProjectState.metadata().index(indexMetadata.getIndex());
                     if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
                         logger.debug(

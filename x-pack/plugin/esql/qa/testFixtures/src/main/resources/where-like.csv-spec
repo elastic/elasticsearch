@@ -606,7 +606,7 @@ emp_no:integer | job_positions:keyword
 10025          | Accountant 
 ;
 
-likeWithUpperTurnedInsensitive
+likeWithUpperTurnedInsensitive#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -618,7 +618,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLowerTurnedInsensitive
+likeWithLowerTurnedInsensitive#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -630,7 +630,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLowerConflictingFolded
+likeWithLowerConflictingFolded#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -640,7 +640,7 @@ FROM employees
 emp_no:integer |first_name:keyword
 ;
 
-likeWithLowerTurnedInsensitiveNotPushedDown
+likeWithLowerTurnedInsensitiveNotPushedDown#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -652,7 +652,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithUpperTurnedInsensitive
+rlikeWithUpperTurnedInsensitive#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -664,7 +664,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerTurnedInsensitive
+rlikeWithLowerTurnedInsensitive#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -676,7 +676,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerConflictingFolded
+rlikeWithLowerConflictingFolded#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -686,7 +686,7 @@ FROM employees
 emp_no:integer |first_name:keyword
 ;
 
-negatedRLikeWithLowerTurnedInsensitive
+negatedRLikeWithLowerTurnedInsensitive#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -698,7 +698,7 @@ c:long
 88
 ;
 
-rlikeWithLowerTurnedInsensitiveNotPushedDown
+rlikeWithLowerTurnedInsensitiveNotPushedDown#[skip:-8.12.99]
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no

@@ -6,7 +6,6 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-<<<<<<<< HEAD:server/src/main/java/org/elasticsearch/search/aggregations/HasAggregations.java
 
 package org.elasticsearch.search.aggregations;
 
@@ -15,19 +14,3 @@ public interface HasAggregations {
     InternalAggregations getAggregations();
 
 }
-|||||||| parent of 63da93d4c3a (Delegated authorization using Microsoft Graph (SDK) (#128396)):plugins/microsoft-graph-authz/build.gradle
-
-apply plugin: "elasticsearch.internal-java-rest-test"
-
-esplugin {
-    name = "microsoft-graph-authz"
-    description = "Microsoft Graph Delegated Authorization Realm Plugin"
-    classname = "org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPlugin"
-    extendedPlugins = ["x-pack-security"]
-}
-
-dependencies {
-    compileOnly project(":x-pack:plugin:core")
-}
-========
->>>>>>>> 63da93d4c3a (Delegated authorization using Microsoft Graph (SDK) (#128396)):x-pack/extras/build.gradle

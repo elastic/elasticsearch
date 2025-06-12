@@ -87,11 +87,11 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
 
     @Override
     protected ClusterBlockException checkBlock(AddIndexBlockRequest request, ClusterState state) {
-        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         if (request.getBlock().getBlock().levels().contains(ClusterBlockLevel.METADATA_WRITE)
-            && state.blocks().global(projectMetadata.id(), ClusterBlockLevel.METADATA_WRITE).isEmpty()) {
+            && state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty()) {
             return null;
         }
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
             .indicesBlockedException(
                 projectMetadata.id(),

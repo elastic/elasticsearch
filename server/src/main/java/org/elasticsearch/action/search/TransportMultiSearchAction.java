@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,7 +44,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeProvider;
     private final NodeClient client;
-    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMultiSearchAction(
@@ -53,15 +51,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        NodeClient client,
-        ProjectResolver projectResolver
+        NodeClient client
     ) {
         super(TYPE.name(), transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         this.relativeTimeProvider = System::nanoTime;
         this.client = client;
-        this.projectResolver = projectResolver;
     }
 
     TransportMultiSearchAction(
@@ -70,15 +66,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         ClusterService clusterService,
         int allocatedProcessors,
         LongSupplier relativeTimeProvider,
-        NodeClient client,
-        ProjectResolver projectResolver
+        NodeClient client
     ) {
         super(TYPE.name(), transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.allocatedProcessors = allocatedProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
         this.client = client;
-        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -86,7 +80,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final long relativeStartTime = relativeTimeProvider.getAsLong();
 
         ClusterState clusterState = clusterService.state();
-        clusterState.blocks().globalBlockedRaiseException(projectResolver.getProjectId(), ClusterBlockLevel.READ);
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         int maxConcurrentSearches = request.maxConcurrentSearchRequests();
         if (maxConcurrentSearches == MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {

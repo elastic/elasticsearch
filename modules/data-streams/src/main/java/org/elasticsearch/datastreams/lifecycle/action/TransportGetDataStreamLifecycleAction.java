@@ -122,6 +122,6 @@ public class TransportGetDataStreamLifecycleAction extends TransportLocalProject
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamLifecycleAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

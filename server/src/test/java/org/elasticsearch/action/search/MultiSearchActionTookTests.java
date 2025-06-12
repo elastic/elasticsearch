@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -172,8 +171,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 clusterService,
                 availableProcessors,
                 expected::get,
-                client,
-                DefaultProjectResolver.INSTANCE
+                client
             ) {
                 @Override
                 void executeSearch(
@@ -194,8 +192,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 clusterService,
                 availableProcessors,
                 System::nanoTime,
-                client,
-                DefaultProjectResolver.INSTANCE
+                client
             ) {
                 @Override
                 void executeSearch(

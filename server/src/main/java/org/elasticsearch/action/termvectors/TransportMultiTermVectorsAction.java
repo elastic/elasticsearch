@@ -65,7 +65,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     protected void doExecute(Task task, final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        clusterState.blocks().globalBlockedRaiseException(project.id(), ClusterBlockLevel.READ);
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         final AtomicArray<MultiTermVectorsItemResponse> responses = new AtomicArray<>(request.requests.size());
 

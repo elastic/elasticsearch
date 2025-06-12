@@ -68,7 +68,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     protected void doExecute(Task task, final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        clusterState.blocks().globalBlockedRaiseException(project.id(), ClusterBlockLevel.READ);
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<>(request.items.size());
         final Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<>();

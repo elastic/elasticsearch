@@ -60,6 +60,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -367,6 +369,31 @@ public abstract class FullTextFunction extends Function
                 throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
             }
         }
+    }
+
+    protected TypeResolution resolveOptions(Expression options, TypeResolutions.ParamOrdinal paramOrdinal) {
+        if (options != null) {
+            TypeResolution resolution = isNotNull(options, sourceText(), paramOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            // MapExpression does not have a DataType associated with it
+            resolution = isMapExpression(options, sourceText(), paramOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            try {
+                resolvedOptions();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    protected Map<String, Object> resolvedOptions() throws InvalidArgumentException {
+        return Map.of();
     }
 
     public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {

@@ -18,18 +18,14 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -37,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -53,7 +48,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -68,8 +62,6 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_F
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -302,7 +294,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions()).and(checkParamCompatibility());
+        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
     }
 
     private TypeResolution resolveField() {
@@ -346,25 +338,9 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
     }
 
-    private TypeResolution resolveOptions() {
-        if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            try {
-                matchQueryOptions();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
+    @Override
+    protected Map<String, Object> resolvedOptions() {
+        return matchQueryOptions();
     }
 
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
@@ -377,33 +353,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
 
-        for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
-            Expression optionExpr = entry.key();
-            Expression valueExpr = entry.value();
-            TypeResolution resolution = isFoldable(optionExpr, sourceText(), SECOND).and(isFoldable(valueExpr, sourceText(), SECOND));
-            if (resolution.unresolved()) {
-                throw new InvalidArgumentException(resolution.message());
-            }
-            Object optionExprLiteral = ((Literal) optionExpr).value();
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
-            // validate the optionExpr is supported
-            DataType dataType = ALLOWED_OPTIONS.get(optionName);
-            if (dataType == null) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText(), ALLOWED_OPTIONS.keySet())
-                );
-            }
-            try {
-                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
-            } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
-                );
-            }
-        }
-
+        populateOptionsMap((MapExpression) options(), matchOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
         return matchOptions;
     }
 
@@ -486,22 +436,13 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     protected Query translate(TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-            fieldName = multiTypeEsField.getName();
-        }
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
     }
 
     private FieldAttribute fieldAsFieldAttribute() {
-        Expression fieldExpression = field;
-        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
-        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
-            fieldExpression = convertFunction.field();
-        }
-        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+        return fieldAsFieldAttribute(field);
     }
 
     @Override

@@ -582,8 +582,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testFiltered() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER, false, true);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER, true, false);
+        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 1)).build()
         )
@@ -638,9 +638,9 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testFilteredAsSubAgg() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("h", NumberFieldMapper.NumberType.INTEGER, false, true);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER, false, true);
-        MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER, true, false);
+        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("h", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
         TTestAggregationBuilder ttestAggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 1)).build()
         )
@@ -711,7 +711,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         boolean fieldInA = randomBoolean();
         TTestType tTestType = randomFrom(TTestType.HOMOSCEDASTIC, TTestType.HETEROSCEDASTIC);
 
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.INTEGER, false, true);
+        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("term", NumberFieldMapper.NumberType.INTEGER);
 
         boolean filterTermOne = randomBoolean();

@@ -57,7 +57,11 @@ public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotI
             (p, c) -> SnapshotShardsStatsTests.PARSER.apply(p, null),
             new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS)
         );
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
+        innerParser.declareObject(
+            constructorArg(),
+            (p, c) -> SnapshotStatsTests.fromXContent(p),
+            new ParseField(SnapshotStats.Fields.STATS)
+        );
         innerParser.declareNamedObjects(
             constructorArg(),
             SnapshotIndexShardStatusTests.PARSER,

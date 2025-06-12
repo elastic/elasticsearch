@@ -4585,6 +4585,38 @@ emp_no:integer | language_code:integer | language_name:keyword
 10004          |null           |null
 ;
 
+lookupJoinOnTimeSeriesIndex
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_mixed_numeric_fields
+
+FROM k8s
+| RENAME network.bytes_in AS language_code
+| WHERE language_code < 10
+| LOOKUP JOIN languages_lookup ON language_code
+| DROP network*, event
+| SORT language_code, @timestamp
+;
+
+@timestamp:date         |client.ip:ip   |cluster:keyword|language_code:long|pod:keyword    |language_name:keyword
+2024-05-10T00:17:14.000Z|10.10.20.35    |prod           |0                 |one            |null
+2024-05-10T00:07:33.000Z|10.10.20.32    |qa             |1                 |two            |English
+2024-05-10T00:20:00.000Z|10.10.20.35    |staging        |1                 |three          |English
+2024-05-10T00:18:02.000Z|10.10.20.33    |qa             |2                 |one            |French
+2024-05-10T00:04:49.000Z|10.10.20.34    |prod           |3                 |one            |Spanish
+2024-05-10T00:05:16.000Z|10.10.20.35    |prod           |3                 |one            |Spanish
+2024-05-10T00:05:58.000Z|10.10.20.30    |qa             |3                 |two            |Spanish
+2024-05-10T00:06:07.000Z|10.10.20.32    |staging        |3                 |two            |Spanish
+2024-05-10T00:07:19.000Z|10.10.20.32    |qa             |3                 |one            |Spanish
+2024-05-10T00:09:58.000Z|10.10.20.35    |prod           |3                 |one            |Spanish
+2024-05-10T00:16:55.000Z|10.10.20.32    |staging        |3                 |two            |Spanish
+2024-05-10T00:22:42.000Z|10.10.20.30    |staging        |3                 |three          |Spanish
+2024-05-10T00:22:49.000Z|10.10.20.34    |staging        |3                 |two            |Spanish
+2024-05-10T00:11:24.000Z|10.10.20.35    |qa             |4                 |two            |German
+2024-05-10T00:14:33.000Z|10.10.20.30    |prod           |4                 |two            |German
+2024-05-10T00:18:02.000Z|10.10.20.33    |staging        |4                 |one            |German
+2024-05-10T00:19:48.000Z|10.10.20.32    |prod           |4                 |three          |German
+;
+
 ###############################################
 # LOOKUP JOIN on date_nanos field
 ###############################################

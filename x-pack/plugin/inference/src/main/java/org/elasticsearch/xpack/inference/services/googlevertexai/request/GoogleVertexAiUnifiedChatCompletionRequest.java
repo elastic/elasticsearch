@@ -25,15 +25,17 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
     private final GoogleVertexAiChatCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
+    private final URI uri;
 
     public GoogleVertexAiUnifiedChatCompletionRequest(UnifiedChatInput unifiedChatInput, GoogleVertexAiChatCompletionModel model) {
         this.model = Objects.requireNonNull(model);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
+        this.uri = unifiedChatInput.stream() ? model.streamingURI() : model.nonStreamingUri();
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(model.uri());
+        HttpPost httpPost = new HttpPost(uri);
 
         var requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
 
@@ -52,7 +54,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
     @Override
     public URI getURI() {
-        return model.uri();
+        return this.uri;
     }
 
     @Override

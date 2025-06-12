@@ -57,9 +57,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<ShardId, Long> shardDataSetSizes;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, ShardHeapUsage> shardHeapUsages;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -71,6 +72,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param shardHeapUsages shard heap usage broken down by node
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -79,7 +81,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
-        Map<NodeAndPath, ReservedSpace> reservedSpace
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, ShardHeapUsage> shardHeapUsages
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -87,6 +90,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
+        this.shardHeapUsages = Map.copyOf(shardHeapUsages);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -98,6 +102,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
             : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+            this.shardHeapUsages = in.readImmutableMap(ShardHeapUsage::new);
+        } else {
+            this.shardHeapUsages = Map.of();
+        }
     }
 
     @Override
@@ -112,6 +121,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
         out.writeMap(this.reservedSpace);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardHeapUsages, StreamOutput::writeWriteable);
+        }
     }
 
     /**
@@ -192,7 +204,20 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 return builder.endObject(); // NodeAndPath
             }),
             endArray() // end "reserved_sizes"
+            // NOTE: We don't serialize shardHeapUsages at this stage, to avoid
+            // committing to API payloads until the feature is settled
         );
+    }
+
+    /**
+     * Returns a node id to estimated heap usage mapping for all nodes that we have such data for.
+     * Note that these estimates should be considered minimums. They may be used to determine whether
+     * there IS NOT capacity to do something, but not to determine that there IS capacity to do something.
+     * Also note that the map may not be complete, it may contain none, or a subset of the nodes in
+     * the cluster at any time. It may also contain entries for nodes that have since left the cluster.
+     */
+    public Map<String, ShardHeapUsage> getShardHeapUsages() {
+        return shardHeapUsages;
     }
 
     /**

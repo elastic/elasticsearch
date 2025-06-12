@@ -729,4 +729,59 @@ public class SettingsTests extends ESTestCase {
         assertThat(values, contains("1"));
     }
 
+    public void testMergeNullOrEmptySettingsIntoEmptySettings() {
+        expectThrows(NullPointerException.class, () -> Settings.EMPTY.merge(null));
+        assertThat(Settings.EMPTY.merge(Settings.EMPTY), equalTo(Settings.EMPTY));
+    }
+
+    public void testMergeEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings settings = builder.build();
+        assertThat(settings.merge(Settings.EMPTY), equalTo(settings));
+    }
+
+    public void testMergeNonEmptySettingsIntoEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings newSettings = builder.build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(newSettings));
+    }
+
+    public void testMergeNonEmptySettingsIntoNonEmptySettings() {
+        Settings settings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        assertThat(settings.merge(newSettings), equalTo(mergedSettings));
+    }
+
+    public void testMergeNonEmptySettingsWithNullIntoEmptySettings() {
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(mergedSettings));
+    }
+
 }

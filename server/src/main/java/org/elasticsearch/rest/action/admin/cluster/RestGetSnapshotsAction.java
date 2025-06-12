@@ -130,8 +130,10 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
 
         final String stateString = request.param("state");
-        if (Strings.hasLength(stateString) == false) {
+        if (stateString == null) {
             getSnapshotsRequest.states(EnumSet.allOf(SnapshotState.class));
+        } else if (Strings.hasText(stateString) == false) {
+            throw new IllegalArgumentException("[state] parameter must not be empty");
         } else if (clusterSupportsFeature.test(GetSnapshotsFeatures.GET_SNAPSHOTS_STATE_PARAMETER)) {
             getSnapshotsRequest.states(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::valueOf).toList()));
         } else {

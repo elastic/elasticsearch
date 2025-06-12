@@ -42,7 +42,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
     public static final Setting<Boolean> SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING = Setting.boolSetting(
         "serverless.cluster.routing.allocation.balance.separate_weights_enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
@@ -72,7 +72,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
     public static final Setting<Float> SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "serverless.cluster.routing.allocation.balance.write_load.search_tier",
-        0.0f,
+        10.0f,
         0.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

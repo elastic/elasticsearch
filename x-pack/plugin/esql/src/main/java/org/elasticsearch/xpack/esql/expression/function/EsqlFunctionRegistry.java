@@ -465,7 +465,7 @@ public class EsqlFunctionRegistry {
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, Match::new, "match"),
                 def(QueryString.class, bi(QueryString::new), "qstr") } };
-
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -484,7 +484,6 @@ public class EsqlFunctionRegistry {
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
                 def(Knn.class, tri(Knn::new), "knn") } };
     }
 

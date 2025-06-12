@@ -97,23 +97,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IndexInput clusters
     ) throws IOException;
 
-    protected abstract FloatVectorValues getCentroids(IndexInput indexInput, int numCentroids, FieldInfo info) throws IOException;
-
-    public FloatVectorValues getCentroids(FieldInfo fieldInfo) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
-        if (entry == null) {
-            return null;
-        }
-        return getCentroids(entry.centroidSlice(ivfCentroids), entry.postingListOffsets.length, fieldInfo);
-    }
-
-    int centroidSize(String fieldName, int centroidOrdinal) throws IOException {
-        FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldName);
-        FieldEntry entry = fields.get(fieldInfo.number);
-        ivfClusters.seek(entry.postingListOffsets[centroidOrdinal]);
-        return ivfClusters.readVInt();
-    }
-
     private static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,

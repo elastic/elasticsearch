@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -26,8 +25,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.core.Tuple.tuple;
-
 public class MetadataAttribute extends TypedAttribute {
     public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
@@ -40,22 +37,18 @@ public class MetadataAttribute extends TypedAttribute {
         MetadataAttribute::readFrom
     );
 
-    private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
-        "_version",
-        tuple(DataType.LONG, false), // _version field is not searchable
-        INDEX,
-        tuple(DataType.KEYWORD, true),
-        IdFieldMapper.NAME,
-        tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
-        IgnoredFieldMapper.NAME,
-        tuple(DataType.KEYWORD, true),
-        SourceFieldMapper.NAME,
-        tuple(DataType.SOURCE, false),
-        IndexModeFieldMapper.NAME,
-        tuple(DataType.KEYWORD, true),
-        SCORE,
-        tuple(DataType.DOUBLE, false)
+    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
+        Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
+        Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+        // actually _id is searchable, but fielddata access on it is disallowed by default
+        Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)),
+        Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+        Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
+        Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false))
     );
+
+    private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}
 
     private final boolean searchable;
 
@@ -160,12 +153,12 @@ public class MetadataAttribute extends TypedAttribute {
 
     public static MetadataAttribute create(Source source, String name) {
         var t = ATTRIBUTES_MAP.get(name);
-        return t != null ? new MetadataAttribute(source, name, t.v1(), t.v2()) : null;
+        return t != null ? new MetadataAttribute(source, name, t.dataType(), t.searchable()) : null;
     }
 
     public static DataType dataType(String name) {
         var t = ATTRIBUTES_MAP.get(name);
-        return t != null ? t.v1() : null;
+        return t != null ? t.dataType() : null;
     }
 
     public static boolean isSupported(String name) {

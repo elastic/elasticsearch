@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.HttpChannel;
@@ -193,7 +194,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         private final boolean timeout;
 
         TestClient(Settings settings, ThreadPool threadPool, boolean timeout) {
-            super(settings, threadPool);
+            super(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
             this.timeout = timeout;
         }
 

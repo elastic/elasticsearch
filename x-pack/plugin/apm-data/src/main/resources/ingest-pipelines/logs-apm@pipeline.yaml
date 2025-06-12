@@ -6,9 +6,9 @@ description: Built-in ingest pipeline for logs-apm.*-* data streams
 processors:
 # Set event.dataset if unset to meet Anomaly Detection requirements
 - set:
-    if: "ctx.data_stream?.dataset != null"
     field: event.dataset
-    value: "{{{data_stream.dataset}}}"
+    copy_from: "data_stream.dataset"
+    ignore_empty_value: true
     override: false
 - pipeline:
     name: apm@pipeline

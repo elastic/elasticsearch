@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+/**
+ * Traverses the logical plan and pushes down the limit to the KNN function(s) in filter expressions, so KNN can use
+ * it to set k if not specified.
+ */
 public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
     public PushLimitToKnn() {

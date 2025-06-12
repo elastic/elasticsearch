@@ -25,10 +25,15 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -41,9 +46,13 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -198,6 +207,32 @@ public class MemoryMetricsService implements ClusterStateListener {
         var nodeHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes() + minimumRequiredHeapForAcceptingLargeIndexingOps()
             + mergeMemoryEstimation();
         return getMemoryMetrics(nodeHeapEstimateInBytes);
+    }
+
+    public Map<String, Long> getPerNodeMemoryMetrics(DiscoveryNodes discoveryNodes) {
+        final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
+        final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
+        final Map<String, ShardHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
+        for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetrics.entrySet()) {
+            final ShardHeapUsageBuilder builderForNode = heapUsageBuilders.computeIfAbsent(entry.getValue().getMetricShardNodeId(), id -> {
+                // Pass the DiscoveryNode if available, this allows us to determine the ephemeral ID and look for current merge memory
+                // estimates
+                final DiscoveryNode discoveryNode = discoveryNodes.get(id);
+                // We only provide estimates for indexing nodes
+                if (discoveryNode != null && discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+                    return null;
+                }
+                return new ShardHeapUsageBuilder(
+                    discoveryNode,
+                    nodeBaseHeapEstimateInBytes,
+                    minimumRequiredHeapForHandlingLargeIndexingOps
+                );
+            });
+            if (builderForNode != null) {
+                builderForNode.add(entry.getKey(), entry.getValue());
+            }
+        }
+        return Maps.transformValues(heapUsageBuilders, ShardHeapUsageBuilder::getShardHeapUsageEstimate);
     }
 
     private MemoryMetrics getMemoryMetrics(long nodeHeapEstimateInBytes) {
@@ -658,8 +693,8 @@ public class MemoryMetricsService implements ClusterStateListener {
         ShardMergeMemoryEstimate estimate,
         long nodeLeftTimestampNanos
     ) {
-        public ShardMergeMemoryEstimatePublication(long seqNo, String nodeId, ShardMergeMemoryEstimate estimate) {
-            this(seqNo, nodeId, estimate, -1);
+        public ShardMergeMemoryEstimatePublication(long seqNo, String nodeEphemeralId, ShardMergeMemoryEstimate estimate) {
+            this(seqNo, nodeEphemeralId, estimate, -1);
         }
 
         public ShardMergeMemoryEstimatePublication withNodeLeftTimestamp(long timestamp) {
@@ -678,5 +713,46 @@ public class MemoryMetricsService implements ClusterStateListener {
     // Visible for testing
     public Map<String, ShardMergeMemoryEstimatePublication> getMaxShardMergeMemoryEstimatePerNode() {
         return Map.copyOf(maxShardMergeMemoryEstimatePerNode);
+    }
+
+    private class ShardHeapUsageBuilder {
+        @Nullable
+        private final DiscoveryNode discoveryNode;
+        private final long nodeBaseHeapEstimateInBytes;
+        private final long minimumRequiredHeapForAcceptingLargeIndexingOps;
+        private final Set<String> seenIndices = new HashSet<>();
+        private long mappingSizeInBytes;
+        private long totalSegments;
+        private long totalFields;
+        private int totalShards;
+
+        ShardHeapUsageBuilder(
+            @Nullable DiscoveryNode discoveryNode,
+            long nodeBaseHeapEstimateInBytes,
+            long minimumRequiredHeapForAcceptingLargeIndexingOps
+        ) {
+            this.discoveryNode = discoveryNode;
+            this.nodeBaseHeapEstimateInBytes = nodeBaseHeapEstimateInBytes;
+            this.minimumRequiredHeapForAcceptingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps;
+        }
+
+        void add(ShardId shardId, ShardMemoryMetrics shardMemoryMetrics) {
+            if (seenIndices.add(shardId.getIndexName())) {
+                mappingSizeInBytes += shardMemoryMetrics.getMappingSizeInBytes();
+            }
+            totalSegments += shardMemoryMetrics.getNumSegments();
+            totalFields += shardMemoryMetrics.getTotalFields();
+            totalShards++;
+        }
+
+        long getShardHeapUsageEstimate() {
+            final long shardMergeMemoryEstimate = Optional.ofNullable(discoveryNode)
+                .map(node -> maxShardMergeMemoryEstimatePerNode.get(node.getEphemeralId()))
+                .map(publication -> publication.estimate().estimateInBytes())
+                .orElse(0L);
+            final long shardMemoryUsageInBytes = estimateShardMemoryUsageInBytes(totalShards, totalSegments, totalFields);
+            return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
+                + minimumRequiredHeapForAcceptingLargeIndexingOps;
+        }
     }
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -97,14 +96,14 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
                 // In that case we exclude the upgraded node from the shard allocation and cancel the shard to force moving
                 // the primary to a node in the old version, this allows adding replicas in the first mixed round.
                 logger.info("--> Primary node in first mixed round {} / {}", primaryNodeId, primaryNodeVersion);
-                if (isOldClusterVersion(primaryNodeVersion.v1(), primaryNodeVersion.v2()) == false) {
+                if (isOldClusterVersion(primaryNodeVersion.version(), primaryNodeVersion.buildHash()) == false) {
                     logger.info("--> cancelling primary shard on node [{}]", primaryNodeId);
                     cancelShard(indexName, 0, primaryNodeId);
                     logger.info("--> done cancelling primary shard on node [{}]", primaryNodeId);
 
                     String currentPrimaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                     var currentPrimaryNodeVersion = getNodeVersion(currentPrimaryNodeId);
-                    assertTrue(isOldClusterVersion(currentPrimaryNodeVersion.v1(), currentPrimaryNodeVersion.v2()));
+                    assertTrue(isOldClusterVersion(currentPrimaryNodeVersion.version(), currentPrimaryNodeVersion.buildHash()));
                 }
             } else {
                 logger.info("--> not in first upgrade round, removing exclusions for [{}]", indexName);
@@ -147,11 +146,13 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
         return upgradedNodes;
     }
 
-    private Tuple<String, String> getNodeVersion(String primaryNodeId) throws IOException {
+    private record NodeVersion(String version, String buildHash) {}
+
+    private NodeVersion getNodeVersion(String primaryNodeId) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "_nodes/" + primaryNodeId);
         Response response = client().performRequest(request);
         Map<String, Object> responseAsMap = responseAsMap(response);
-        return Tuple.tuple(
+        return new NodeVersion(
             extractValue(responseAsMap, "nodes." + primaryNodeId + ".version"),
             extractValue(responseAsMap, "nodes." + primaryNodeId + ".build_hash")
         );

@@ -34,9 +34,9 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
 
     private static final ElasticsearchCluster cluster = buildCluster();
 
-    // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
-    // builder uses to lookup a particular distribution
     private static ElasticsearchCluster buildCluster() {
+        // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
+        // builder uses to lookup a particular distribution
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(OLD_CLUSTER_VERSION)
@@ -52,8 +52,8 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
             });
 
         // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
-        // inconsistent
-        if (Version.fromString(getOldClusterVersion()).before(Version.fromString("8.18.0"))) {
+        // inconsistent. Assume non-parseable versions (serverless) do not need this.
+        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

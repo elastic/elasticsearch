@@ -1,0 +1,5 @@
+pr: 129320
+summary: Refine indexing pressure accounting in semantic bulk inference filter
+area: Relevance
+type: enhancement
+issues: []

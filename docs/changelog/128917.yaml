@@ -2,5 +2,5 @@ pr: 128917
 summary: Adopt a "LogicalPlan" approach to running multiple sub-queries (with INLINESTATS
   so far)
 area: ES|QL
-type: bug
+type: enhancement
 issues: []

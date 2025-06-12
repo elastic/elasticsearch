@@ -138,12 +138,12 @@ public class IndexLifecycleService
      * Resolve the given phase, action, and name into a real {@link StepKey}. The phase is always
      * required, but the action and name are optional. If a name is specified, an action is also required.
      */
-    public StepKey resolveStepKey(ClusterState state, Index index, String phase, @Nullable String action, @Nullable String name) {
+    public StepKey resolveStepKey(ProjectMetadata project, Index index, String phase, @Nullable String action, @Nullable String name) {
         if (name == null) {
             if (action == null) {
-                return this.policyRegistry.getFirstStepForPhase(state, index, phase);
+                return this.policyRegistry.getFirstStepForPhase(project, index, phase);
             } else {
-                return this.policyRegistry.getFirstStepForPhaseAndAction(state, index, phase, action);
+                return this.policyRegistry.getFirstStepForPhaseAndAction(project, index, phase, action);
             }
         } else {
             assert action != null

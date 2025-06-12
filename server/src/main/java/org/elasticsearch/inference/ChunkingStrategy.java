@@ -15,7 +15,8 @@ import java.util.EnumSet;
 
 public enum ChunkingStrategy {
     WORD("word"),
-    SENTENCE("sentence");
+    SENTENCE("sentence"),
+    NONE("none");
 
     private final String chunkingStrategy;
 

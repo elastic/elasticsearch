@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -865,10 +865,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 AutoFollowMetadata empty = new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metadata(
-                    Metadata.builder(currentState.getMetadata())
+                newState.putProjectMetadata(
+                    ProjectMetadata.builder(currentState.metadata().getProject())
                         .putCustom(AutoFollowMetadata.TYPE, empty)
-                        .removeProjectCustom(PersistentTasksCustomMetadata.TYPE)
+                        .removeCustom(PersistentTasksCustomMetadata.TYPE)
                         .build()
                 );
                 return newState.build();

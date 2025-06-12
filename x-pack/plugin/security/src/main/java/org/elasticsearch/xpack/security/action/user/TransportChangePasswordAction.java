@@ -116,36 +116,19 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                         return;
                     }
 
-                    GroupedActionListener<User> gal = new GroupedActionListener<>(nonNativeRealms.size(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(Collection<User> users) {
-                            List<String> realmErrors = new ArrayList<>();
-                            for (User user : users) {
-                                if (user != null) {
-                                    realmErrors.add(
-                                        "user ["
-                                            + username
-                                            + "] does not belong to the native realm and cannot be"
-                                            + " managed via this API."
-                                    );
-                                    break;
-                                }
-                            }
-                            if (realmErrors.isEmpty()) {
-                                // user wasn't found in any other realm, display standard not-found message
-                                listener.onFailure(createUserNotFoundException());
-                            } else {
-                                ValidationException validationException = new ValidationException();
-                                realmErrors.forEach(validationException::addValidationError);
-                                listener.onFailure(validationException);
-                            }
+                    GroupedActionListener<User> gal = new GroupedActionListener<>(nonNativeRealms.size(), ActionListener.wrap(users -> {
+                        final Optional<User> nonNativeUser = users.stream().filter(Objects::nonNull).findAny();
+                        if (nonNativeUser.isPresent()) {
+                            listener.onFailure(
+                                new ValidationException().addValidationError(
+                                    "user [" + username + "] does not belong to the native realm and cannot be managed via this API."
+                                )
+                            );
+                        } else {
+                            // user wasn't found in any other realm, display standard not-found message
+                            listener.onFailure(createUserNotFoundException());
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                    }, listener::onFailure));
                     for (Realm realm : nonNativeRealms) {
                         EsExecutors.DIRECT_EXECUTOR_SERVICE.execute(
                             ActionRunnable.wrap(gal, userActionListener -> realm.lookupUser(username, userActionListener))

@@ -270,6 +270,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "can't use MATCH_PHRASE function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "can't use KQL function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
             );

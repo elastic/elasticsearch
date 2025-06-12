@@ -237,14 +237,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     }
 
     private static ReaderContext createReaderContext(IndexShard indexShard) {
-        return new ReaderContext(
-            new ShardSearchContextId("test", 1L),
-            null,
-            indexShard,
-            null,
-            0L,
-            false
-        );
+        return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
     }
 
     private static SearchContext createSearchContext(boolean suggested) {

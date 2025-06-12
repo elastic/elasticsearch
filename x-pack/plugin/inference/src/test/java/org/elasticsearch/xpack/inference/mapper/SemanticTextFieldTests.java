@@ -19,6 +19,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -28,8 +29,8 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
+import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -351,9 +352,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         if (allowNull && randomBoolean()) {
             return null; // Use model defaults
         }
-        return randomBoolean()
-            ? new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10))
-            : new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> NoneChunkingSettings.INSTANCE;
+            case 1 -> new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10));
+            case 2 -> new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
+            default -> throw new IllegalStateException("Illegal state while generating random chunking settings");
+        };
     }
 
     public static ChunkingSettings generateRandomChunkingSettingsOtherThan(ChunkingSettings chunkingSettings) {

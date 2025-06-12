@@ -23,10 +23,10 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
+import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -43,10 +43,8 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     private static final String ERROR_MESSAGE_FIELD = "message";
     private static final String ERROR_STATUS_FIELD = "status";
 
-    private static final ResponseParser noopParseFunction = (a, b) -> null;
-
     public GoogleVertexAiUnifiedChatCompletionResponseHandler(String requestType) {
-        super(requestType, noopParseFunction, GoogleVertexAiErrorResponse::fromResponse, true);
+        super(requestType, GoogleVertexAiCompletionResponseEntity::fromResponse, GoogleVertexAiErrorResponse::fromResponse, true);
     }
 
     @Override
@@ -64,6 +62,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     @Override
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         assert request.isStreaming() : "Only streaming requests support this format";
+
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
         var restStatus = toRestStatus(responseStatusCode);
@@ -111,7 +110,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         }
     }
 
-    private static class GoogleVertexAiErrorResponse extends ErrorResponse {
+    public static class GoogleVertexAiErrorResponse extends ErrorResponse {
         private static final Logger logger = LogManager.getLogger(GoogleVertexAiErrorResponse.class);
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
             "google_vertex_ai_error_wrapper",
@@ -138,7 +137,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             );
         }
 
-        static ErrorResponse fromResponse(HttpResult response) {
+        public static ErrorResponse fromResponse(HttpResult response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response.body())

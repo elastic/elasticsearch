@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.index.IndexVersion;
@@ -122,14 +121,12 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 .numberOfReplicas(2)
                 .build();
 
-            ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             List<Step> steps = MigrateAction.ENABLED.toSteps(null, HOT_PHASE, nextStepKey);
             BranchingStep firstStep = (BranchingStep) steps.get(0);
             UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
-            firstStep.performAction(indexMetadata.getIndex(), clusterState);
+            firstStep.performAction(indexMetadata.getIndex(), state);
 
             assertEquals(secondStep.getKey(), firstStep.getNextStepKey());
         }
@@ -145,13 +142,11 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 .numberOfReplicas(2)
                 .build();
 
-            ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             List<Step> steps = MigrateAction.ENABLED.toSteps(null, HOT_PHASE, nextStepKey);
             BranchingStep firstStep = (BranchingStep) steps.get(0);
-            firstStep.performAction(indexMetadata.getIndex(), clusterState);
+            firstStep.performAction(indexMetadata.getIndex(), state);
 
             assertEquals(nextStepKey, firstStep.getNextStepKey());
         }

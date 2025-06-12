@@ -312,7 +312,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testDataStreamsAreNotIncludedInAuthorizedIndicesWithFailuresSelectorAndAllPrivilege() {
-        assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
         RoleDescriptor aStarRole = new RoleDescriptor(
             "a_star",
             null,
@@ -400,7 +399,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testDataStreamsAreIncludedInAuthorizedIndicesWithFailuresSelectorAndAllPrivilege() {
-        assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
         RoleDescriptor aStarRole = new RoleDescriptor(
             "a_star",
             null,
@@ -494,7 +492,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testDataStreamsAreIncludedInAuthorizedIndicesWithFailuresSelector() {
-        assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
         RoleDescriptor aReadFailuresStarRole = new RoleDescriptor(
             "a_read_failure_store",
             null,
@@ -577,7 +574,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testDataStreamsAreNotIncludedInAuthorizedIndicesWithFailuresSelector() {
-        assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
         RoleDescriptor aReadFailuresStarRole = new RoleDescriptor(
             "a_read_failure_store",
             null,

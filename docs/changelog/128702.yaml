@@ -1,0 +1,5 @@
+pr: 128702
+summary: Fix missing highlighting in `match_all` queries for `semantic_text` fields
+area: Search
+type: bug
+issues: []

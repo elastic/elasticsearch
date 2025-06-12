@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.options.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
+import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
@@ -81,6 +82,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
         metadataDataStreamsService.setDataStreamOptions(
+            state.projectId(),
             dataStreamNames,
             request.getOptions(),
             request.ackTimeout(),

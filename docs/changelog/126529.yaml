@@ -1,0 +1,6 @@
+pr: 126529
+summary: "Batch ILM policy cluster state updates [#122917]"
+area: ILM+SLM
+type: enhancement
+issues:
+ - 122917

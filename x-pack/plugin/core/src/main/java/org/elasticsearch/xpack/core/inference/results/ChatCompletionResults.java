@@ -68,11 +68,6 @@ public record ChatCompletionResults(List<Result> results) implements InferenceSe
         return results;
     }
 
-    @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException();
-    }
-
     public List<Result> getResults() {
         return results;
     }

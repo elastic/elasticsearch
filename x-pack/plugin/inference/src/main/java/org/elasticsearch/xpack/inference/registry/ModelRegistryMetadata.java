@@ -51,7 +51,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "model_registry";
 
-    public static final ModelRegistryMetadata EMPTY = new ModelRegistryMetadata(ImmutableOpenMap.of(), Set.of());
+    public static final ModelRegistryMetadata EMPTY_NOT_UPGRADED = new ModelRegistryMetadata(ImmutableOpenMap.of(), Set.of());
+    public static final ModelRegistryMetadata EMPTY_UPGRADED = new ModelRegistryMetadata(ImmutableOpenMap.of());
 
     private static final ParseField UPGRADED_FIELD = new ParseField("upgraded");
     private static final ParseField MODELS_FIELD = new ParseField("models");
@@ -87,7 +88,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     public static ModelRegistryMetadata fromState(ProjectMetadata projectMetadata) {
         ModelRegistryMetadata resp = projectMetadata.custom(TYPE);
-        return resp != null ? resp : EMPTY;
+        return resp != null ? resp : EMPTY_NOT_UPGRADED;
     }
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {

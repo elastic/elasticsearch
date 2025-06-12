@@ -87,7 +87,7 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             "ToStringFromDatetimeEvaluator[datetime=" + read + "]",
             TestCaseSupplier.dateCases(),
             DataType.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) i).toEpochMilli())),
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DateUtils.toLongMillis((Instant) i))),
             List.of()
         );
         TestCaseSupplier.unary(

@@ -80,7 +80,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), nullValue());
         assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
@@ -119,7 +119,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.LOGSDB));
-        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
             project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
@@ -653,6 +653,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 .build(),
             Map.of(),
             List.of("stack"),
+            "stack",
             ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
         );
     }

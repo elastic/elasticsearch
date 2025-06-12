@@ -18,6 +18,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -309,6 +310,34 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return builder;
     }
 
+    /*
+     * Merges the given settings into the settings in this ComposableIndexTemplate. Any null values in the
+     * given settings are removed from the settings in the returned ComposableIndexTemplate. If this
+     * ComposableIndexTemplate has no settings, the given settings are the only ones in the returned template
+     * (with any null values removed). If this ComposableIndexTemplate has no template, an empty template with
+     * those settings is created. If the given settings are empty, this ComposableIndexTemplate is just
+     * returned unchanged. This method never changes this object.
+     */
+    public ComposableIndexTemplate mergeSettings(Settings settings) {
+        Objects.requireNonNull(settings);
+        if (Settings.EMPTY.equals(settings)) {
+            return this;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        Settings templateSettings;
+        if (this.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateSettings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(this.template());
+            templateSettings = this.template().settings();
+        }
+        mergedTemplateBuilder.settings(templateSettings == null ? settings : templateSettings.merge(settings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -383,9 +412,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
-            }
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
         }
 
         private final boolean hidden;

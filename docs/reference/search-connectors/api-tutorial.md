@@ -48,7 +48,7 @@ docker run -p 9200:9200 -d --name elasticsearch \
 ```
 
 ::::{warning}
-This {{es}} setup is for development purposes only. Never use this configuration in production. Refer to [Set up {{es}}](docs-content://deploy-manage/deploy/self-managed/deploy-cluster.md) for production-grade installation instructions, including Docker.
+This {{es}} setup is for development purposes only. Never use this configuration in production. Refer to [Set up {{es}}](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md) for production-grade installation instructions, including Docker.
 
 ::::
 

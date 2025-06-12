@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToStringTests;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,18 +31,38 @@ public class NullPredicatesTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void renderDocs() throws IOException {
+    public static void renderDocs() throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        DocsV3Support.OperatorConfig op = new DocsV3Support.OperatorConfig(
-            "predicates",
-            "IS NULL and IS NOT NULL",
-            TestCastOperator.class,
-            DocsV3Support.OperatorCategory.UNARY,
-            false
+        renderNullPredicate(
+            new DocsV3Support.OperatorConfig(
+                "predicates",
+                "IS NULL and IS NOT NULL",
+                TestNullPredicates.class,
+                DocsV3Support.OperatorCategory.UNARY
+            )
         );
-        var docs = new DocsV3Support.OperatorsDocsSupport("predicates", NullPredicatesTests.class, op, NullPredicatesTests::signatures);
+        renderNullPredicate(
+            new DocsV3Support.OperatorConfig(
+                "is_null",
+                "IS NULL",
+                TestIsNullPredicate.class,
+                DocsV3Support.OperatorCategory.NULL_PREDICATES
+            )
+        );
+        renderNullPredicate(
+            new DocsV3Support.OperatorConfig(
+                "is_not_null",
+                "IS NOT NULL",
+                TestIsNotNullPredicate.class,
+                DocsV3Support.OperatorCategory.NULL_PREDICATES
+            )
+        );
+    }
+
+    private static void renderNullPredicate(DocsV3Support.OperatorConfig op) throws Exception {
+        var docs = new DocsV3Support.OperatorsDocsSupport(op.name(), NullPredicatesTests.class, op, NullPredicatesTests::signatures);
         docs.renderSignature();
         docs.renderDocs();
     }
@@ -62,14 +81,81 @@ public class NullPredicatesTests extends ESTestCase {
     /**
      * This class only exists to provide FunctionInfo for the documentation
      */
-    public class TestCastOperator {
+    public class TestNullPredicates {
         @FunctionInfo(
-            operator = "predicates",
             returnType = {},
-            description = "For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates:",
+            description = "For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates.",
             examples = { @Example(file = "null", tag = "is-null"), @Example(file = "null", tag = "is-not-null") }
         )
-        public TestCastOperator(
+        public TestNullPredicates(
+            @Param(
+                name = "field",
+                type = {
+                    "boolean",
+                    "cartesian_point",
+                    "cartesian_shape",
+                    "date",
+                    "date_nanos",
+                    "double",
+                    "geo_point",
+                    "geo_shape",
+                    "integer",
+                    "ip",
+                    "keyword",
+                    "long",
+                    "text",
+                    "unsigned_long",
+                    "version" },
+                description = "Input value. The input can be a single- or multi-valued column or an expression."
+            ) Expression v
+        ) {}
+    }
+
+    /**
+     * This class only exists to provide FunctionInfo for the documentation
+     */
+    public class TestIsNullPredicate {
+        @FunctionInfo(
+            operator = "IS NULL",
+            returnType = {},
+            description = "Use `IS NULL` to filter data based on whether the field exists or not.",
+            examples = { @Example(file = "null", tag = "is-null") }
+        )
+        public TestIsNullPredicate(
+            @Param(
+                name = "field",
+                type = {
+                    "boolean",
+                    "cartesian_point",
+                    "cartesian_shape",
+                    "date",
+                    "date_nanos",
+                    "double",
+                    "geo_point",
+                    "geo_shape",
+                    "integer",
+                    "ip",
+                    "keyword",
+                    "long",
+                    "text",
+                    "unsigned_long",
+                    "version" },
+                description = "Input value. The input can be a single- or multi-valued column or an expression."
+            ) Expression v
+        ) {}
+    }
+
+    /**
+     * This class only exists to provide FunctionInfo for the documentation
+     */
+    public class TestIsNotNullPredicate {
+        @FunctionInfo(
+            operator = "IS NOT NULL",
+            returnType = {},
+            description = "Use `IS NOT NULL` to filter data based on whether the field exists or not.",
+            examples = { @Example(file = "null", tag = "is-not-null") }
+        )
+        public TestIsNotNullPredicate(
             @Param(
                 name = "field",
                 type = {

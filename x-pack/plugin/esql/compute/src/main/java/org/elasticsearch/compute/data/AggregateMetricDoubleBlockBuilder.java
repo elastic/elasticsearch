@@ -59,22 +59,22 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+    public Block.Builder copyFrom(Block b, int beginInclusive, int endExclusive) {
         Block minBlock;
         Block maxBlock;
         Block sumBlock;
         Block countBlock;
-        if (block.areAllValuesNull()) {
-            minBlock = block;
-            maxBlock = block;
-            sumBlock = block;
-            countBlock = block;
+        if (b.areAllValuesNull()) {
+            minBlock = b;
+            maxBlock = b;
+            sumBlock = b;
+            countBlock = b;
         } else {
-            CompositeBlock composite = (CompositeBlock) block;
-            minBlock = composite.getBlock(Metric.MIN.getIndex());
-            maxBlock = composite.getBlock(Metric.MAX.getIndex());
-            sumBlock = composite.getBlock(Metric.SUM.getIndex());
-            countBlock = composite.getBlock(Metric.COUNT.getIndex());
+            AggregateMetricDoubleBlock block = (AggregateMetricDoubleBlock) b;
+            minBlock = block.minBlock();
+            maxBlock = block.maxBlock();
+            sumBlock = block.sumBlock();
+            countBlock = block.countBlock();
         }
         minBuilder.copyFrom(minBlock, beginInclusive, endExclusive);
         maxBuilder.copyFrom(maxBlock, beginInclusive, endExclusive);
@@ -103,20 +103,23 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
     @Override
     public Block build() {
-        Block[] blocks = new Block[4];
+        DoubleBlock minBlock = null;
+        DoubleBlock maxBlock = null;
+        DoubleBlock sumBlock = null;
+        IntBlock countBlock = null;
         boolean success = false;
         try {
             finish();
-            blocks[Metric.MIN.getIndex()] = minBuilder.build();
-            blocks[Metric.MAX.getIndex()] = maxBuilder.build();
-            blocks[Metric.SUM.getIndex()] = sumBuilder.build();
-            blocks[Metric.COUNT.getIndex()] = countBuilder.build();
-            CompositeBlock block = new CompositeBlock(blocks);
+            minBlock = minBuilder.build();
+            maxBlock = maxBuilder.build();
+            sumBlock = sumBuilder.build();
+            countBlock = countBuilder.build();
+            AggregateMetricDoubleBlock block = new AggregateMetricDoubleBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return block;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(blocks);
+                Releasables.closeExpectNoException(minBlock, maxBlock, sumBlock, countBlock);
             }
         }
     }
@@ -200,9 +203,14 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         }
 
         @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL;
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL);
         }
 
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
     }
 }

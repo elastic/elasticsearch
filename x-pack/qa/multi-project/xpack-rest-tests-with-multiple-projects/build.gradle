@@ -10,6 +10,7 @@ dependencies {
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
   restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
+  restXpackTestConfig project(path: ':x-pack:plugin:stack', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -45,11 +46,11 @@ tasks.named("yamlRestTest").configure {
     '^esql/190_lookup_join/*',
     '^esql/191_lookup_join_on_datastreams/*',
     '^esql/191_lookup_join_text/*',
+    '^esql/192_lookup_join_on_aliases/*',
     '^health/10_usage/*',
     '^ilm/10_basic/Test Undeletable Policy In Use',
     '^ilm/20_move_to_step/*',
     '^ilm/30_retry/*',
-    '^ilm/40_explain_lifecycle/*',
     '^ilm/60_operation_mode/*',
     '^ilm/60_remove_policy_for_index/*',
     '^ilm/70_downsampling/*',
@@ -58,6 +59,8 @@ tasks.named("yamlRestTest").configure {
     '^migrate/10_reindex/*',
     '^migrate/20_reindex_status/*',
     '^migrate/30_create_from/*',
+    '^migration/10_get_feature_upgrade_status/*',
+    '^migration/20_post_feature_upgrade/*',
     '^ml/3rd_party_deployment/*',
     '^ml/bucket_correlation_agg/*',
     '^ml/bucket_count_ks_test_agg/*',
@@ -163,4 +166,5 @@ tasks.named("yamlRestTest").configure {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
+  systemProperty "tests.multi_project.enabled", true
 }

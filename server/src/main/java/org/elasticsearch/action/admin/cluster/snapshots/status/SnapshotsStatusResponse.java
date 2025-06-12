@@ -10,9 +10,11 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -70,5 +72,10 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
             Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
             Iterators.single((b, p) -> b.endArray().endObject())
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(this), true, true);
     }
 }

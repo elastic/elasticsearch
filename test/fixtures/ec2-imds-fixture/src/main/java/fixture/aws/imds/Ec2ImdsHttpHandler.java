@@ -121,7 +121,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
 
             if ("GET".equals(requestMethod)) {
                 if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH) && dynamicProfileNames) {
-                    final var profileName = randomIdentifier();
+                    final var profileName = "imds_profile_" + randomIdentifier();
                     validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
                     sendStringResponse(exchange, profileName);
                     return;
@@ -133,7 +133,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     sendStringResponse(exchange, Strings.toString(instanceIdentityDocument));
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
-                    final String accessKey = randomIdentifier();
+                    final String accessKey = "test_key_imds_" + randomIdentifier();
                     final String sessionToken = randomIdentifier();
                     newCredentialsConsumer.accept(accessKey, sessionToken);
                     final byte[] response = Strings.format(

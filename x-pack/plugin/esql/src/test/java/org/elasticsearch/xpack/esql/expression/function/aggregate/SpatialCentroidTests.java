@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.license.License;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,6 +38,10 @@ import static org.hamcrest.Matchers.closeTo;
 public class SpatialCentroidTests extends AbstractAggregationTestCase {
     public SpatialCentroidTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return SpatialAggregationTestCase.licenseRequirement(fieldTypes);
     }
 
     @ParametersFactory

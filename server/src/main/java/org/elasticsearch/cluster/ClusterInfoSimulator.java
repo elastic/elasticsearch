@@ -92,7 +92,7 @@ public class ClusterInfoSimulator {
         var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
             shard,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            shard.getExpectedShardSize(),
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
             project,
@@ -153,6 +153,7 @@ public class ClusterInfoSimulator {
             shardSizes.toImmutableMap(),
             shardDataSetSizes,
             dataPath,
+            Map.of(),
             Map.of()
         );
     }

@@ -36,6 +36,7 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
                 i,
                 randomDoubleBetween(1, 10, true),
                 randomDoubleBetween(1, 10, true),
+                randomLongBetween(1, 1000),
                 randomLongBetween(1, 1000)
             );
         }
@@ -61,10 +62,13 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
             double recentShardLoad = existingShard && randomBoolean()
                 ? originalWriteLoad.getRecentWriteLoadForShard(i).getAsDouble()
                 : randomDoubleBetween(0, 128, true);
+            double peakShardLoad = existingShard && randomBoolean()
+                ? originalWriteLoad.getPeakWriteLoadForShard(i).getAsDouble()
+                : randomDoubleBetween(0, 128, true);
             long uptimeInMillis = existingShard && randomBoolean()
                 ? originalWriteLoad.getUptimeInMillisForShard(i).getAsLong()
                 : randomNonNegativeLong();
-            indexWriteLoad.withShardWriteLoad(i, shardLoad, recentShardLoad, uptimeInMillis);
+            indexWriteLoad.withShardWriteLoad(i, shardLoad, recentShardLoad, peakShardLoad, uptimeInMillis);
         }
         return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }

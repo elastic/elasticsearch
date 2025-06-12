@@ -70,9 +70,6 @@ excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 // sync_id is removed in 9.0
 excludeList.add("cat.shards/10_basic/Help")
 
-// Can't work until auto-expand replicas is 0-1 for synonyms index
-excludeList.add("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set")
-
 def clusterPath = getPath()
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

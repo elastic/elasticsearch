@@ -18,9 +18,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     @FunctionalInterface
-    interface NumericValueWriter {
+    public interface NumericValueWriter {
         void writeLongValue(XContentBuilder b, long value) throws IOException;
     }
 
@@ -29,7 +29,11 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Comp
     private final NumericValueWriter valueWriter;
     private NumericDocValuesWithOffsetsLoader docValuesLoader;
 
-    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(String fullPath, String offsetsFieldName, NumericValueWriter valueWriter) {
+    public SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
+        String fullPath,
+        String offsetsFieldName,
+        NumericValueWriter valueWriter
+    ) {
         this.fullPath = fullPath;
         this.offsetsFieldName = offsetsFieldName;
         this.valueWriter = valueWriter;

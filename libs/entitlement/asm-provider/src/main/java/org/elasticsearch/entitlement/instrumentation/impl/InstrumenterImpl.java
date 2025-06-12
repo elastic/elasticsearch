@@ -37,12 +37,11 @@ import java.util.stream.Stream;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
-import static org.objectweb.asm.Opcodes.GETSTATIC;
+import static org.objectweb.asm.Opcodes.CHECKCAST;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
-public class InstrumenterImpl implements Instrumenter {
+public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
 
     private final String getCheckerClassMethodDescriptor;
@@ -273,7 +272,8 @@ public class InstrumenterImpl implements Instrumenter {
         }
 
         private void pushEntitlementChecker() {
-            InstrumenterImpl.this.pushEntitlementChecker(mv);
+            mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
+            mv.visitTypeInsn(CHECKCAST, checkMethod.className());
         }
 
         private void pushCallerClass() {
@@ -286,22 +286,9 @@ public class InstrumenterImpl implements Instrumenter {
                     false
                 );
             } else {
-                mv.visitFieldInsn(
-                    GETSTATIC,
-                    Type.getInternalName(StackWalker.Option.class),
-                    "RETAIN_CLASS_REFERENCE",
-                    Type.getDescriptor(StackWalker.Option.class)
-                );
                 mv.visitMethodInsn(
                     INVOKESTATIC,
-                    Type.getInternalName(StackWalker.class),
-                    "getInstance",
-                    Type.getMethodDescriptor(Type.getType(StackWalker.class), Type.getType(StackWalker.Option.class)),
-                    false
-                );
-                mv.visitMethodInsn(
-                    INVOKEVIRTUAL,
-                    Type.getInternalName(StackWalker.class),
+                    "org/elasticsearch/entitlement/bridge/Util",
                     "getCallerClass",
                     Type.getMethodDescriptor(Type.getType(Class.class)),
                     false
@@ -334,10 +321,7 @@ public class InstrumenterImpl implements Instrumenter {
                 true
             );
         }
-    }
 
-    protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
     }
 
     record ClassFileInfo(String fileName, byte[] bytecodes) {}

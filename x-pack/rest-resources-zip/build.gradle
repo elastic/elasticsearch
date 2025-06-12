@@ -26,7 +26,7 @@ dependencies {
   freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restXpackTests')
-  platinumTests project(path: ':x-pack:plugin:ent-search:qa:rest', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:ent-search', configuration: 'restXpackTests')
   platinumCompatTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
   platinumCompatTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restCompatTests')
 }

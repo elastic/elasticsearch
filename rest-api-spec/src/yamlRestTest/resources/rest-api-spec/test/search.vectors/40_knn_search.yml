@@ -605,3 +605,28 @@ setup:
   - match: { hits.hits.0._score: $knn_score0 }
   - match: { hits.hits.1._score: $knn_score1 }
   - match: { hits.hits.2._score: $knn_score2 }
+---
+"Updating dim to null is not allowed":
+  - requires:
+      cluster_features: "mapper.npe_on_dims_update_fix"
+      reason: "dims update fix"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector

@@ -12,4 +12,7 @@ description = 'Fixture for URL external service'
 dependencies {
   api project(':server')
   api project(':test:framework')
+  api "org.apache.ftpserver:ftpserver-core:1.2.1"
+  api "org.apache.ftpserver:ftplet-api:1.2.1"
+  api "org.apache.mina:mina-core:${versions.apache_mina}"
 }

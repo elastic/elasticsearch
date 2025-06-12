@@ -16,11 +16,11 @@ This section provides detailed **reference information** for Elasticsearch audit
 Refer to [Security event audit logging](docs-content://deploy-manage/security/logging-configuration/security-event-audit-logging.md) in the **Deploy and manage** section for overview, getting started and conceptual information about audit logging.
 :::
 
-When you are [auditing security events](docs-content://deploy-manage/monitor/logging-configuration/enabling-audit-logs.md), a single client request might generate multiple audit events, across multiple cluster nodes. The common `request.id` attribute can be used to correlate the associated events.
+When you are [auditing security events](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md), a single client request might generate multiple audit events, across multiple cluster nodes. The common `request.id` attribute can be used to correlate the associated events.
 
 This document provides a reference for all types of audit events and their associated [attributes](#audit-event-attributes) in {{es}}. Use [audit event settings](./configuration-reference/auding-settings.md) options to control what gets logged.
 
-For more information and options about tuning audit logs, refer to [Configuring audit logs](docs-content://deploy-manage/monitor/logging-configuration/configuring-audit-logs.md).
+For more information and options about tuning audit logs, refer to [Configuring audit logs](docs-content://deploy-manage/security/logging-configuration/configuring-audit-logs.md).
 
 ::::{note}
 Certain audit events require the `security_config_change` event type to log the related event action. The event descriptions in this document indicate whether this requirement is applicable.
@@ -573,7 +573,7 @@ $$$event-tampered-request$$$
 
 ## Audit event attributes [audit-event-attributes]
 
-The audit events are formatted as JSON documents, and each event is printed on a separate line in the audit log. The entries themselves do not contain an end-of-line delimiter. For more details, see [Log entry format](docs-content://deploy-manage/monitor/logging-configuration/logfile-audit-output.md#audit-log-entry-format).
+The audit events are formatted as JSON documents, and each event is printed on a separate line in the audit log. The entries themselves do not contain an end-of-line delimiter. For more details, see [Log entry format](docs-content://deploy-manage/security/logging-configuration/logfile-audit-output.md#audit-log-entry-format).
 
 ### Common attributes
 

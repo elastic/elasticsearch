@@ -71,7 +71,6 @@ final class Ec2ClientSettings {
         Property.NodeScope,
         Property.Deprecated
     );
-    // NOMERGE should we now reject this if set to `http` or just silently ignore it?
 
     /** The username of a proxy to connect to EC2 through. */
     static final Setting<SecureString> PROXY_USERNAME_SETTING = SecureSetting.secureString("discovery.ec2.proxy.username", null);

@@ -18,13 +18,16 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -55,6 +58,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -72,10 +76,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
@@ -90,8 +92,8 @@ import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndProjectIndex;
 
 /**
  * This indicator reports health for shards.
@@ -132,19 +134,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private final AllocationService allocationService;
 
     private final SystemIndices systemIndices;
+    protected final ProjectResolver projectResolver;
 
     private volatile TimeValue replicaUnassignedBufferTime;
 
     public ShardsAvailabilityHealthIndicatorService(
         ClusterService clusterService,
         AllocationService allocationService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver
     ) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.systemIndices = systemIndices;
         this.replicaUnassignedBufferTime = REPLICA_UNASSIGNED_BUFFER_TIME.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
+        this.projectResolver = projectResolver;
     }
 
     private void setReplicaUnassignedBufferTime(TimeValue replicaUnassignedBufferTime) {
@@ -189,12 +194,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         boolean verbose,
         TimeValue replicaUnassignedBufferTime
     ) {
-        for (IndexRoutingTable indexShardRouting : state.globalRoutingTable().indexRouting()) {
-            for (int i = 0; i < indexShardRouting.size(); i++) {
-                IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, verbose);
-                for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
+        for (Map.Entry<ProjectId, RoutingTable> entries : state.globalRoutingTable().routingTables().entrySet()) {
+            ProjectId projectId = entries.getKey();
+            RoutingTable projectRoutingTable = entries.getValue();
+
+            for (IndexRoutingTable indexShardRouting : projectRoutingTable.indicesRouting().values()) {
+                for (int i = 0; i < indexShardRouting.size(); i++) {
+                    IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
+                    status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose);
+                    for (ShardRouting replicaShard : shardRouting.replicaShards()) {
+                        status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
+                    }
                 }
             }
         }
@@ -299,7 +309,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the index "
-            + "shard limit. ",
+            + "shard limit.",
         "Increase the values for the ["
             + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
@@ -316,7 +326,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_index_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the index shard limit. ",
+                        + "] tier has reached the index shard limit.",
                     "Increase the values for the ["
                         + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] index setting on each index or add more nodes to the target tiers.",
@@ -347,7 +357,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_cluster_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the cluster shard limit. ",
+                        + "] tier has reached the cluster shard limit.",
                     "Increase the values for the ["
                         + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] cluster setting or add more nodes to the target tiers.",
@@ -395,7 +405,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         NAME,
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
-            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. ",
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier.",
         "Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
             + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
@@ -460,35 +470,37 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         int initializing = 0;
         int started = 0;
         int relocating = 0;
-        public final Set<String> indicesWithUnavailableShards = new HashSet<>();
-        public final Set<String> indicesWithAllShardsUnavailable = new HashSet<>();
+        public final Set<ProjectIndexName> indicesWithUnavailableShards = new HashSet<>();
+        public final Set<ProjectIndexName> indicesWithAllShardsUnavailable = new HashSet<>();
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
         public SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
-        final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
+        final Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(
+            ProjectId projectId,
             ShardRouting routing,
             ClusterState state,
             NodesShutdownMetadata shutdowns,
             boolean verbose,
             TimeValue replicaUnassignedBufferTime
         ) {
-            boolean isNew = isUnassignedDueToNewInitialization(routing, state);
+            boolean isNew = isUnassignedDueToNewInitialization(projectId, routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             long replicaUnassignedCutoffTime = Instant.now().toEpochMilli() - replicaUnassignedBufferTime.millis();
-            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state)
-                && isNewlyCreatedAndInitializingReplica(routing, state, replicaUnassignedCutoffTime) == false;
+            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(projectId, routing, state)
+                && isNewlyCreatedAndInitializingReplica(projectId, routing, state, replicaUnassignedCutoffTime) == false;
+
+            ProjectIndexName projectIndex = new ProjectIndexName(projectId, routing.getIndexName());
             if (allUnavailable) {
-                indicesWithAllShardsUnavailable.add(routing.getIndexName());
+                indicesWithAllShardsUnavailable.add(projectIndex);
             }
             if ((routing.active() || isRestarting || isNew) == false) {
-                String indexName = routing.getIndexName();
-                Settings indexSettings = state.metadata().indexMetadata(routing.index()).getSettings();
+                Settings indexSettings = state.metadata().getProject(projectId).index(routing.index()).getSettings();
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
-                    searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(indexName);
+                    searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(projectIndex);
                 } else {
-                    indicesWithUnavailableShards.add(indexName);
+                    indicesWithUnavailableShards.add(projectIndex);
                 }
             }
 
@@ -501,16 +513,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     } else {
                         unassigned++;
                         if (verbose) {
-                            diagnoseUnassignedShardRouting(routing, state).forEach(
-                                definition -> addDefinition(definition, routing.getIndexName())
-                            );
+                            diagnoseUnassignedShardRouting(routing, state).forEach(definition -> addDefinition(definition, projectIndex));
                         }
                     }
                 }
                 case INITIALIZING -> {
                     initializing++;
                     if (verbose) {
-                        addDefinition(DIAGNOSIS_WAIT_FOR_INITIALIZATION, routing.getIndexName());
+                        addDefinition(DIAGNOSIS_WAIT_FOR_INITIALIZATION, projectIndex);
                     }
                 }
                 case STARTED -> started++;
@@ -526,8 +536,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return indicesWithAllShardsUnavailable.isEmpty() == false;
         }
 
-        private void addDefinition(Diagnosis.Definition diagnosisDefinition, String indexName) {
-            diagnosisDefinitions.computeIfAbsent(diagnosisDefinition, (k) -> new HashSet<>()).add(indexName);
+        private void addDefinition(Diagnosis.Definition diagnosisDefinition, ProjectIndexName projectIndexName) {
+            diagnosisDefinitions.computeIfAbsent(diagnosisDefinition, (k) -> new HashSet<>()).add(projectIndexName);
         }
     }
 
@@ -536,11 +546,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * example: if a replica is passed then this will return true if ALL replicas are unassigned,
      * but if at least one is assigned, it will return false.
      */
-    boolean areAllShardsOfThisTypeUnavailable(ShardRouting routing, ClusterState state) {
-        return StreamSupport.stream(
-            state.routingTable().allActiveShardsGrouped(new String[] { routing.getIndexName() }, true).spliterator(),
-            false
-        )
+    boolean areAllShardsOfThisTypeUnavailable(ProjectId projectId, ShardRouting routing, ClusterState state) {
+        return state.routingTable(projectId)
+            .allActiveShardsGrouped(new String[] { routing.getIndexName() }, true)
+            .stream()
             .flatMap(shardIter -> shardIter.getShardRoutings().stream())
             .filter(sr -> sr.shardId().equals(routing.shardId()))
             .filter(sr -> sr.primary() == routing.primary())
@@ -551,19 +560,23 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * Returns true if the given shard is a replica that is only unassigned due to its primary being
      * newly created. See {@link ClusterShardHealth#getInactivePrimaryHealth(ShardRouting)} for more
      * information.
-     *
      * We use this information when considering whether a cluster should turn red. For some cases
      * (a newly created index having unassigned replicas for example), we don't want the cluster
      * to turn "unhealthy" for the tiny amount of time before the shards are allocated.
      */
-    static boolean isNewlyCreatedAndInitializingReplica(ShardRouting routing, ClusterState state, long replicaUnassignedCutoffTime) {
+    static boolean isNewlyCreatedAndInitializingReplica(
+        ProjectId projectId,
+        ShardRouting routing,
+        ClusterState state,
+        long replicaUnassignedCutoffTime
+    ) {
         if (routing.active()) {
             return false;
         }
         if (routing.primary()) {
             return false;
         }
-        ShardRouting primary = state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
+        ShardRouting primary = state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
         if (primary.active() == false) {
             return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
         }
@@ -589,13 +602,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return now - restartingAllocationDelayExpiration <= 0;
     }
 
-    private static boolean isUnassignedDueToNewInitialization(ShardRouting routing, ClusterState state) {
+    private static boolean isUnassignedDueToNewInitialization(ProjectId projectId, ShardRouting routing, ClusterState state) {
         if (routing.active()) {
             return false;
         }
         // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the
         // replica are considered new initializations.
-        ShardRouting primary = routing.primary() ? routing : state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
+        ShardRouting primary = routing.primary()
+            ? routing
+            : state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
         return primary.active() == false && getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
     }
 
@@ -950,18 +965,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            primaries.increment(routing, state, shutdowns, verbose, TimeValue.MINUS_ONE);
+        void addPrimary(ProjectId projectId, ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+            primaries.increment(projectId, routing, state, shutdowns, verbose, TimeValue.MINUS_ONE);
         }
 
         void addReplica(
+            ProjectId projectId,
             ShardRouting routing,
             ClusterState state,
             NodesShutdownMetadata shutdowns,
             boolean verbose,
             TimeValue replicaUnassignedBufferTime
         ) {
-            replicas.increment(routing, state, shutdowns, verbose, replicaUnassignedBufferTime);
+            replicas.increment(projectId, routing, state, shutdowns, verbose, replicaUnassignedBufferTime);
         }
 
         void updateSearchableSnapshotsOfAvailableIndices() {
@@ -1068,7 +1084,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
                     primaries.indicesWithUnavailableShards.size(),
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndices(primaries.indicesWithUnavailableShards, clusterMetadata)
+                    getTruncatedProjectIndices(
+                        primaries.indicesWithUnavailableShards,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
                 );
                 impacts.add(
                     new HealthIndicatorImpact(
@@ -1080,14 +1100,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     )
                 );
             }
-            Set<String> readOnlyIndicesWithUnavailableShards = primaries.searchableSnapshotsState.getRedSearchableSnapshots();
+            Set<ProjectIndexName> readOnlyIndicesWithUnavailableShards = primaries.searchableSnapshotsState.getRedSearchableSnapshots();
             if (readOnlyIndicesWithUnavailableShards.isEmpty() == false) {
                 String impactDescription = String.format(
                     Locale.ROOT,
                     "Searching %d %s [%s] might return incomplete results.",
                     readOnlyIndicesWithUnavailableShards.size(),
                     readOnlyIndicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndices(readOnlyIndicesWithUnavailableShards, clusterMetadata)
+                    getTruncatedProjectIndices(
+                        readOnlyIndicesWithUnavailableShards,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
                 );
                 impacts.add(
                     new HealthIndicatorImpact(
@@ -1104,7 +1128,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
              * that is reported as unavailable. That replica is likely being promoted to primary. The only impact that matters at this
              * point is the one above, which has already been reported for this index.
              */
-            Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
+            Set<ProjectIndexName> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
             indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
             if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {
                 String impactDescription = String.format(
@@ -1112,7 +1136,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on %d %s [%s].",
                     indicesWithUnavailableReplicasOnly.size(),
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
-                    getTruncatedIndices(indicesWithUnavailableReplicasOnly, clusterMetadata)
+                    getTruncatedProjectIndices(
+                        indicesWithUnavailableReplicasOnly,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
                 );
                 impacts.add(
                     new HealthIndicatorImpact(NAME, REPLICA_UNASSIGNED_IMPACT_ID, 2, impactDescription, List.of(ImpactArea.SEARCH))
@@ -1123,15 +1151,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Returns the diagnosis for unassigned primary and replica shards.
-         * @param verbose true if the diagnosis should be generated, false if they should be omitted.
+         *
+         * @param verbose                   true if the diagnosis should be generated, false if they should be omitted.
          * @param maxAffectedResourcesCount the max number of affected resources to be returned as part of the diagnosis
          * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or verbose is false.
          */
         public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
             if (verbose) {
-                Map<Diagnosis.Definition, Set<String>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
+                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
-                    Set<String> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
+                    Set<ProjectIndexName> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
                     if (indicesWithPrimariesUnassigned == null) {
                         diagnosisToAffectedIndices.put(diagnosisDef, indicesWithReplicasUnassigned);
                     } else {
@@ -1145,13 +1174,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     return diagnosisToAffectedIndices.entrySet().stream().map(e -> {
                         List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
                         if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
-                            Set<String> restoreFromSnapshotIndices = e.getValue();
+                            Set<ProjectIndexName> restoreFromSnapshotIndices = e.getValue();
                             if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
                                 affectedResources = getRestoreFromSnapshotAffectedResources(
                                     clusterMetadata,
                                     systemIndices,
                                     restoreFromSnapshotIndices,
-                                    maxAffectedResourcesCount
+                                    maxAffectedResourcesCount,
+                                    projectResolver.supportsMultipleProjects()
                                 );
                             }
                         } else {
@@ -1160,7 +1190,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                                     INDEX,
                                     e.getValue()
                                         .stream()
-                                        .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                        .sorted(
+                                            indicesComparatorByPriorityAndProjectIndex(
+                                                clusterMetadata,
+                                                projectResolver.supportsMultipleProjects()
+                                            )
+                                        )
+                                        .map(projectIndex -> projectIndex.toString(projectResolver.supportsMultipleProjects()))
                                         .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
                                         .collect(Collectors.toList())
                                 )
@@ -1183,27 +1219,23 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         static List<Diagnosis.Resource> getRestoreFromSnapshotAffectedResources(
             Metadata metadata,
             SystemIndices systemIndices,
-            Set<String> restoreFromSnapshotIndices,
-            int maxAffectedResourcesCount
+            Set<ProjectIndexName> restoreFromSnapshotIndices,
+            int maxAffectedResourcesCount,
+            boolean supportsMultipleProjects
         ) {
             List<Diagnosis.Resource> affectedResources = new ArrayList<>(2);
-
-            Set<String> affectedIndices = new HashSet<>(restoreFromSnapshotIndices);
+            Set<ProjectId> affectedProjects = restoreFromSnapshotIndices.stream().map(ProjectIndexName::projectId).collect(toSet());
+            Set<ProjectIndexName> affectedIndices = new HashSet<>(restoreFromSnapshotIndices);
             Set<String> affectedFeatureStates = new HashSet<>();
-            Map<String, Set<String>> featureToSystemIndices = systemIndices.getFeatures()
-                .stream()
-                .collect(
-                    toMap(
-                        SystemIndices.Feature::getName,
-                        feature -> feature.getIndexDescriptors()
-                            .stream()
-                            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata.getProject()).stream())
-                            .collect(toSet())
-                    )
-                );
 
-            for (Map.Entry<String, Set<String>> featureToIndices : featureToSystemIndices.entrySet()) {
-                for (String featureIndex : featureToIndices.getValue()) {
+            Map<String, Set<ProjectIndexName>> featureToSystemIndices = getSystemIndicesForProjects(
+                systemIndices,
+                affectedProjects,
+                metadata
+            );
+
+            for (Map.Entry<String, Set<ProjectIndexName>> featureToIndices : featureToSystemIndices.entrySet()) {
+                for (ProjectIndexName featureIndex : featureToIndices.getValue()) {
                     if (restoreFromSnapshotIndices.contains(featureIndex)) {
                         affectedFeatureStates.add(featureToIndices.getKey());
                         affectedIndices.remove(featureIndex);
@@ -1211,31 +1243,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
 
-            Map<String, Set<String>> featureToDsBackingIndices = systemIndices.getFeatures()
-                .stream()
-                .collect(
-                    toMap(
-                        SystemIndices.Feature::getName,
-                        feature -> feature.getDataStreamDescriptors()
-                            .stream()
-                            .flatMap(descriptor -> descriptor.getBackingIndexNames(metadata).stream())
-                            .collect(toSet())
+            if (affectedIndices.isEmpty() == false) {
+                affectedResources.add(
+                    new Diagnosis.Resource(
+                        INDEX,
+                        affectedIndices.stream()
+                            .sorted(indicesComparatorByPriorityAndProjectIndex(metadata, supportsMultipleProjects))
+                            .map(index -> index.toString(supportsMultipleProjects))
+                            .limit(maxAffectedResourcesCount)
+                            .toList()
                     )
                 );
-
-            // the shards_availability indicator works with indices so let's remove the feature states data streams backing indices from
-            // the list of affected indices (the feature state will cover the restore of these indices too)
-            for (Map.Entry<String, Set<String>> featureToBackingIndices : featureToDsBackingIndices.entrySet()) {
-                for (String featureIndex : featureToBackingIndices.getValue()) {
-                    if (restoreFromSnapshotIndices.contains(featureIndex)) {
-                        affectedFeatureStates.add(featureToBackingIndices.getKey());
-                        affectedIndices.remove(featureIndex);
-                    }
-                }
-            }
-
-            if (affectedIndices.isEmpty() == false) {
-                affectedResources.add(new Diagnosis.Resource(INDEX, affectedIndices.stream().limit(maxAffectedResourcesCount).toList()));
             }
             if (affectedFeatureStates.isEmpty() == false) {
                 affectedResources.add(
@@ -1244,35 +1262,69 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             return affectedResources;
         }
+
+        /**
+         * Retrieve the system indices and indices backing system data streams for the projects and group them by Feature
+         */
+        private static Map<String, Set<ProjectIndexName>> getSystemIndicesForProjects(
+            SystemIndices systemIndices,
+            Set<ProjectId> projects,
+            Metadata metadata
+        ) {
+            return systemIndices.getFeatures()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        SystemIndices.Feature::getName,
+                        feature -> feature.getSystemResourceDescriptors()
+                            .stream()
+                            .flatMap(
+                                descriptor -> projects.stream()
+                                    .flatMap(
+                                        projectId -> descriptor.getMatchingIndices(metadata.getProject(projectId))
+                                            .stream()
+                                            .map(index -> new ProjectIndexName(projectId, index))
+                                    )
+                            )
+                            .collect(Collectors.toSet())
+                    )
+                );
+        }
     }
 
     public static class SearchableSnapshotsState {
-        private final Set<String> searchableSnapshotWithUnavailableShard = new HashSet<>();
-        private final Set<String> searchableSnapshotWithOriginalIndexAvailable = new HashSet<>();
+        private final Set<ProjectIndexName> searchableSnapshotWithUnavailableShard = new HashSet<>();
+        private final Set<ProjectIndexName> searchableSnapshotWithOriginalIndexAvailable = new HashSet<>();
 
-        void addSearchableSnapshotWithUnavailableShard(String indexName) {
+        void addSearchableSnapshotWithUnavailableShard(ProjectIndexName indexName) {
             searchableSnapshotWithUnavailableShard.add(indexName);
         }
 
-        void addSearchableSnapshotWithOriginalIndexAvailable(String indexName) {
+        void addSearchableSnapshotWithOriginalIndexAvailable(ProjectIndexName indexName) {
             searchableSnapshotWithOriginalIndexAvailable.add(indexName);
         }
 
-        public Set<String> getRedSearchableSnapshots() {
+        public Set<ProjectIndexName> getRedSearchableSnapshots() {
             return Sets.difference(searchableSnapshotWithUnavailableShard, searchableSnapshotWithOriginalIndexAvailable);
         }
 
         // If the original index of a searchable snapshot with unavailable shards is available then we remove the searchable snapshot
         // from the list of the unavailable searchable snapshots because the data is available via the original index.
-        void updateSearchableSnapshotWithAvailableIndices(Metadata clusterMetadata, Set<String> indicesWithUnavailableShards) {
-            for (String index : searchableSnapshotWithUnavailableShard) {
-                assert clusterMetadata.getProject().index(index) != null : "Index metadata of index '" + index + "' should not be null";
-                Settings indexSettings = clusterMetadata.getProject().index(index).getSettings();
+        void updateSearchableSnapshotWithAvailableIndices(Metadata clusterMetadata, Set<ProjectIndexName> indicesWithUnavailableShards) {
+            for (ProjectIndexName projectIndex : searchableSnapshotWithUnavailableShard) {
+                ProjectId projectId = projectIndex.projectId();
+                String index = projectIndex.indexName();
+
+                assert clusterMetadata.getProject(projectId).index(index) != null
+                    : "Index metadata of index '" + index + "' should not be null";
+
+                Settings indexSettings = clusterMetadata.getProject(projectId).index(index).getSettings();
                 String originalIndex = indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
+                ProjectIndexName originalProjectIndex = new ProjectIndexName(projectId, originalIndex);
                 if (originalIndex != null
-                    && clusterMetadata.getProject().indices().containsKey(originalIndex) != false
-                    && indicesWithUnavailableShards.contains(originalIndex) == false) {
-                    addSearchableSnapshotWithOriginalIndexAvailable(index);
+                    && clusterMetadata.getProject(projectId).indices().containsKey(originalIndex) != false
+                    && indicesWithUnavailableShards.contains(originalProjectIndex) == false) {
+                    addSearchableSnapshotWithOriginalIndexAvailable(projectIndex);
                 }
             }
         }

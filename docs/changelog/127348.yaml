@@ -1,0 +1,5 @@
+pr: 127348
+summary: Speed loading stored fields
+area: ES|QL
+type: enhancement
+issues: []

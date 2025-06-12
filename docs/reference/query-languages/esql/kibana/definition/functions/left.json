@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| KEEP last_name\n| EVAL left = LEFT(last_name, 3)\n| SORT last_name ASC\n| LIMIT 5"
+    "FROM employees\n| KEEP last_name\n| EVAL left = LEFT(last_name, 3)"
   ],
   "preview" : false,
   "snapshot_only" : false

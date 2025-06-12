@@ -14,7 +14,6 @@ import org.apache.lucene.search.TopDocs;
 /**
  * Wrapper around a {@link TopDocs} instance and the maximum score.
  */
-// TODO: Remove this class when https://github.com/elastic/elasticsearch/issues/32981 is addressed.
 public final class TopDocsAndMaxScore {
 
     public final TopDocs topDocs;
@@ -24,5 +23,4 @@ public final class TopDocsAndMaxScore {
         this.topDocs = topDocs;
         this.maxScore = maxScore;
     }
-
 }

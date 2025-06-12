@@ -200,6 +200,30 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
+convert with zones#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+ROW str = "2025-04-11T05:00:00+0400"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00+0400" | 2025-04-11T01:00:00.000Z
+;
+
+equality with zones
+ROW dt = TO_DATETIME("2025-04-11T01:00:00.000Z")
+| EVAL bool = "2025-04-11T05:00:00+0400" == dt;
+
+dt:datetime              | bool:boolean
+2025-04-11T01:00:00.000Z | true
+;
+
+convert no zone#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+ROW str = "2025-04-11T05:00:00.000"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00.000" | 2025-04-11T05:00:00.000Z
+;
+
 convertFromString#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 // tag::to_datetime-str[]
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
@@ -1141,9 +1165,7 @@ FROM sample_data
 // end::docsNowWhere[]
 ;
 
-// tag::docsNowWhere-result[]
 @timestamp:date   | client_ip:ip | event_duration:long | message:keyword
-// end::docsNowWhere-result[]
 ;
 
 mvSort
@@ -1479,7 +1501,7 @@ cnt:long
 ;
 
 implicit casting strings to dates for IN operator
-required_capability: string_literal_auto_casting
+required_capability: rangequery_for_datetime
 FROM employees
 | WHERE birth_date IN ("1953-04-20", "1958-10-31")
 | KEEP emp_no, first_name;
@@ -1490,8 +1512,8 @@ emp_no:integer | first_name:keyword
 10025          | Prasadram 
 ;
 
-IN operator with null in list, finds match#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
-
+IN operator with null in list, finds match
+required_capability: rangequery_for_datetime
 FROM employees
 | EVAL x = NULL
 | WHERE birth_date IN (TO_DATETIME("1958-02-19T00:00:00Z"), x)
@@ -1501,8 +1523,8 @@ birth_date:datetime      | first_name:keyword
 1958-02-19T00:00:00.000Z | Saniya     
 ;
 
-IN operator with null in list, doesn't find match#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
-
+IN operator with null in list, doesn't find match
+required_capability: rangequery_for_datetime
 FROM employees
 | EVAL x = NULL
 | WHERE birth_date IN (TO_DATETIME("1900-02-19T00:00:00Z"), x)
@@ -1511,8 +1533,8 @@ FROM employees
 birth_date:datetime      | first_name:keyword
 ;
 
-IN operator with null in list, doesn't find match, EVAL to check value#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
-
+IN operator with null in list, doesn't find match, EVAL to check value
+required_capability: rangequery_for_datetime
 FROM employees
 | EVAL x = NULL
 | EVAL result = birth_date IN (TO_DATETIME("1900-02-19T00:00:00Z"), x)
@@ -1522,3 +1544,41 @@ FROM employees
 result:boolean
 null
 ;
+
+evalDateTruncYearInArbitraryIntervals
+required_capability: date_trunc_with_arbitrary_intervals
+
+ROW x = ["1963-01-01", "1973-04-11", "1978-04-12", "0000-01-01",  "-0006-01-01", "-0007-01-01"]::DATETIME 
+| MV_EXPAND x 
+| EVAL y = DATE_TRUNC(7 years, x)
+;
+
+x:date                      | y:date
+1963-01-01T00:00:00.000Z    | 1961-01-01T00:00:00.000Z 
+1973-04-11T00:00:00.000Z    | 1968-01-01T00:00:00.000Z 
+1978-04-12T00:00:00.000Z    | 1975-01-01T00:00:00.000Z 
+0000-01-01T00:00:00.000Z    | -0006-01-01T00:00:00.000Z
+-0006-01-01T00:00:00.000Z   | -0006-01-01T00:00:00.000Z
+-0007-01-01T00:00:00.000Z   | -0013-01-01T00:00:00.000Z
+;
+
+evalDateTruncMonthInArbitraryIntervals
+required_capability: date_trunc_with_arbitrary_intervals
+
+ROW x = ["1969-11-12", "1970-05-01", "1970-12-31", "1972-01-12", "0001-01-01", "0000-12-01", "-0001-12-01"]::DATETIME 
+| MV_EXPAND x 
+| EVAL y = DATE_TRUNC(7 months, x)
+;
+
+x:date                      | y:date
+1969-11-12T00:00:00.000Z    | 1969-10-01T00:00:00.000Z 
+1970-05-01T00:00:00.000Z    | 1970-05-01T00:00:00.000Z 
+1970-12-31T00:00:00.000Z    | 1970-12-01T00:00:00.000Z 
+1972-01-12T00:00:00.000Z    | 1971-07-01T00:00:00.000Z 
+0001-01-01T00:00:00.000Z    | 0001-01-01T00:00:00.000Z 
+0000-12-01T00:00:00.000Z    | 0000-06-01T00:00:00.000Z 
+-0001-12-01T00:00:00.000Z   | -0001-11-01T00:00:00.000Z
+
+;
+
+

@@ -1,0 +1,5 @@
+pr: 128689
+summary: Fix minmax normalizer handling of single-doc result sets
+area: Search
+type: bug
+issues: []

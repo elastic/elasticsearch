@@ -2,9 +2,9 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| ip | ip |
-| keyword | ip |
-| text | ip |
+| field | options | result |
+| --- | --- | --- |
+| ip | | ip |
+| keyword | | ip |
+| text | | ip |
 

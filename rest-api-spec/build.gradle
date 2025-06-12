@@ -88,4 +88,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("indices.create/21_synthetic_source_stored/field param - keep nested array", "Synthetic source keep arrays now stores leaf arrays natively")
   task.skipTest("indices.create/21_synthetic_source_stored/field param - keep root array", "Synthetic source keep arrays now stores leaf arrays natively")
   task.skipTest("cluster.info/30_info_thread_pool/Cluster HTTP Info", "The search_throttled thread pool has been removed")
+  task.skipTest("synonyms/80_synonyms_from_index/Fail loading synonyms from index if synonyms_set doesn't exist", "Synonyms do no longer fail if the synonyms_set doesn't exist")
 })

@@ -46,7 +46,7 @@ public class Transformer implements ClassFileTransformer {
             return instrumenter.instrumentClass(className, classfileBuffer, verifyClasses);
         } else {
             // System.out.println("Not transforming " + className);
-            return classfileBuffer;
+            return null;
         }
     }
 

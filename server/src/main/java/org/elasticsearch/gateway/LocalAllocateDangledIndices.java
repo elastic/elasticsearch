@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -36,8 +36,8 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -118,7 +118,7 @@ public class LocalAllocateDangledIndices {
                     if (currentState.blocks().disableStatePersistence()) {
                         return currentState;
                     }
-                    Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+                    ProjectMetadata.Builder project = ProjectMetadata.builder(currentState.metadata().getProject());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(
                         allocationService.getShardRoutingRoleStrategy(),
@@ -205,7 +205,7 @@ public class LocalAllocateDangledIndices {
                                 .version(indexMetadata.getVersion() + 1)
                                 .build();
                         }
-                        metadata.put(newIndexMetadata, false);
+                        project.put(newIndexMetadata, false);
                         blocks.addBlocks(newIndexMetadata);
                         if (newIndexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                             routingTableBuilder.addAsFromDangling(newIndexMetadata);
@@ -220,7 +220,7 @@ public class LocalAllocateDangledIndices {
 
                     RoutingTable routingTable = routingTableBuilder.build();
                     ClusterState updatedState = ClusterState.builder(currentState)
-                        .metadata(metadata)
+                        .putProjectMetadata(project)
                         .blocks(blocks)
                         .routingTable(routingTable)
                         .build();
@@ -251,7 +251,7 @@ public class LocalAllocateDangledIndices {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    public static class AllocateDangledRequest extends TransportRequest {
+    public static class AllocateDangledRequest extends AbstractTransportRequest {
 
         DiscoveryNode fromNode;
         IndexMetadata[] indices;

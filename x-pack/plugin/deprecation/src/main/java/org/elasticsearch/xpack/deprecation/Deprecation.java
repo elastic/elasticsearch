@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -56,11 +54,11 @@ public class Deprecation extends Plugin implements ActionPlugin {
     );
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
-            new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
-            new ActionHandler<>(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class)
+            new ActionHandler(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
+            new ActionHandler(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
+            new ActionHandler(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class)
         );
     }
 
@@ -87,7 +85,8 @@ public class Deprecation extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         templateRegistry.initialize();
 

@@ -1,0 +1,5 @@
+pr: 126002
+summary: Run `TransportGetLifecycleAction` on local node
+area: ILM+SLM
+type: enhancement
+issues: []

@@ -350,7 +350,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.BooleansBlockLoader(name());
             }
 
-            if (isSyntheticSource) {
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -659,7 +660,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (offsetsFieldName != null) {
-            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(
                 new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
                     fullPath(),

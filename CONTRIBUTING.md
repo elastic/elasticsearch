@@ -401,7 +401,8 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> [!NOTE]
+> If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
@@ -467,7 +468,7 @@ expensive messages that will usually be discarded:
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
-and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
+and when to log it. You can use a `org.elasticsearch.test.MockLog` to
 make assertions about the logs that are being emitted.
 
 Logging is a powerful diagnostic technique, but it is not the only possibility.

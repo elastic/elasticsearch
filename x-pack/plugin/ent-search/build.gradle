@@ -1,12 +1,14 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name = 'x-pack-ent-search'
   description = 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
   classname = 'org.elasticsearch.xpack.application.EnterpriseSearch'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'search-business-rules']
 }
 
 base {
@@ -15,7 +17,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  implementation project(xpackModule('search-business-rules'))
+  compileOnly project(xpackModule('search-business-rules'))
   api project(':modules:lang-mustache')
 
   // JSON Schema dependencies
@@ -35,25 +37,54 @@ dependencies {
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
+
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
-  user username: 'x_pack_rest_user', password: 'x-pack-test-password'
+restResources {
+  restApi {
+    include '_common',
+      'bulk',
+      'cluster',
+      'connector',
+      'nodes',
+      'indices',
+      'index',
+      'query_rules',
+      'search_application',
+      'xpack',
+      'security',
+      'search',
+      'ml'
+  }
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.named("dependencyLicenses") {
   mapping from: /jackson.*/, to: 'jackson'
 }
 
-tasks.named("thirdPartyAudit").configure {
+tasks.named("thirdPartyAudit") {
   ignoreMissingClasses(
     // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
     'org.slf4j.ext.EventData'
   )
 }
 
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("uses the xpack/usage api")
+}
+
+tasks.named("yamlRestCompatTest") {
+  usesDefaultDistribution("uses the xpack/usage api")
+}
+
+tasks.named("yamlRestCompatTestTransform") { task ->
+  // Behavioral Analytics is deprecated with 9.0.0.
+  task.addAllowedWarning("Behavioral Analytics is deprecated and will be removed in a future release.")
+}
+
 addQaCheckDependencies(project)
 
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

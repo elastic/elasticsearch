@@ -14,7 +14,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 
@@ -23,7 +22,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 
-public class HttpCompressionIT extends ESRestTestCase {
+public class HttpCompressionIT extends AbstractHttpSmokeTestIT {
 
     private static final String GZIP_ENCODING = "gzip";
     private static final String SAMPLE_DOCUMENT = """

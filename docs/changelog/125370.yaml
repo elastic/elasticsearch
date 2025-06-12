@@ -1,6 +1,0 @@
-pr: 125370
-summary: Set default similarity for Cohere model to cosine
-area: Machine Learning
-type: bug
-issues:
- - 122878

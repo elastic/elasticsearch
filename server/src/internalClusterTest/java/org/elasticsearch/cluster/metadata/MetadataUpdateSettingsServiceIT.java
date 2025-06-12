@@ -39,7 +39,8 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
          * This test makes sure that when non-dynamic settings are updated that they actually take effect (as opposed to just being set
          * in the cluster state).
          */
-        createIndex("test", Settings.EMPTY);
+        createIndex("test-1", Settings.EMPTY);
+        createIndex("test-2", Settings.EMPTY);
         MetadataUpdateSettingsService metadataUpdateSettingsService = internalCluster().getCurrentMasterNodeInstance(
             MetadataUpdateSettingsService.class
         );

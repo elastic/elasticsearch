@@ -893,15 +893,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return updated instance with incremented primary term
      */
     public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
-        final long[] incremented = this.primaryTerms.clone();
-        incremented[shardId]++;
+        return withSetPrimaryTerm(shardId, this.primaryTerms[shardId] + 1);
+    }
+
+    /**
+     * Creates a copy of this instance that has the primary term for the given shard id set to the value provided.
+     * @param shardId shard id to set primary term for
+     * @param primaryTerm primary term to set
+     * @return updated instance with set primary term
+     */
+    public IndexMetadata withSetPrimaryTerm(int shardId, long primaryTerm) {
+        final long[] newPrimaryTerms = this.primaryTerms.clone();
+        newPrimaryTerms[shardId] = primaryTerm;
         return new IndexMetadata(
             this.index,
             this.version,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
-            incremented,
+            newPrimaryTerms,
             this.state,
             this.numberOfShards,
             this.numberOfReplicas,
@@ -1988,34 +1998,31 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         /**
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
-         * The new shard count must be a multiple of the original shardcount.
+         * The new shard count must be a multiple of the original shardcount as well as a factor
+         * of routingNumShards.
          * We do not support shrinking the shard count.
-         * @param shardCount   updated shardCount
-         *
-         * TODO: Check if this.version needs to be incremented
+         * @param targetShardCount   target shard count after resharding
          */
-        public Builder reshardAddShards(int shardCount) {
-            // Assert routingNumShards is null ?
-            // Assert numberOfShards > 0
-            if (shardCount % numberOfShards() != 0) {
+        public Builder reshardAddShards(int targetShardCount) {
+            final int sourceNumShards = numberOfShards();
+            if (targetShardCount % sourceNumShards != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
-                        + shardCount
+                        + targetShardCount
                         + "] should be a multiple"
                         + " of current shard count ["
-                        + numberOfShards()
+                        + sourceNumShards
                         + "] for ["
                         + index
                         + "]"
                 );
             }
-            IndexVersion indexVersionCreated = indexCreatedVersion(settings);
-            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
-            var newPrimaryTerms = new long[shardCount];
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, targetShardCount).build();
+            var newPrimaryTerms = new long[targetShardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
             primaryTerms = newPrimaryTerms;
-            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
+            routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceNumShards, this.routingNumShards);
             return this;
         }
 
@@ -3024,7 +3031,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new ShardId(sourceIndexMetadata.getIndex(), shardId);
     }
 
-    private static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetadata sourceIndexMetadata) {
+    public static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetadata sourceIndexMetadata) {
         if (numSourceShards > numTargetShards) {
             throw new IllegalArgumentException(
                 "the number of source shards ["

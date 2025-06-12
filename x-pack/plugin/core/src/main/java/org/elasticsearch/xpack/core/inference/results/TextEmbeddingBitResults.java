@@ -83,16 +83,6 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
             .toList();
     }
 
-    @Override
-    @SuppressWarnings("deprecation")
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloatArray())).toList()
-        );
-
-        return List.of(legacyEmbedding);
-    }
-
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(TEXT_EMBEDDING_BITS, embeddings);

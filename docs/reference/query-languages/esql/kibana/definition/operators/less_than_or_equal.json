@@ -3,8 +3,8 @@
   "type" : "operator",
   "operator" : "<=",
   "name" : "less_than_or_equal",
-  "description" : "Check if one field is less than or equal to another. If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
-  "note" : "This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.",
+  "description" : "Check if one field is less than or equal to another. If either field is multivalued then the result is `null`.",
+  "note" : "This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an mapping-index and doc-values.",
   "signatures" : [
     {
       "params" : [

@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -36,8 +37,8 @@ import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate the AWS STS endpoint")
 public class AwsStsHttpHandler implements HttpHandler {
 
-    static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
-    static final String ROLE_NAME = "sts-fixture-test";
+    public static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
+    public static final String ROLE_NAME = "sts-fixture-test";
 
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final String webIdentityToken;
@@ -55,7 +56,7 @@ public class AwsStsHttpHandler implements HttpHandler {
             final var requestMethod = exchange.getRequestMethod();
             final var path = exchange.getRequestURI().getPath();
 
-            if ("POST".equals(requestMethod) && "/assume-role-with-web-identity/".equals(path)) {
+            if ("POST".equals(requestMethod) && "/".equals(path)) {
 
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> params = Arrays.stream(body.split("&"))
@@ -73,7 +74,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     exchange.close();
                     return;
                 }
-                final var accessKey = randomIdentifier();
+                final var accessKey = "test_key_STS_" + randomIdentifier();
                 final var sessionToken = randomIdentifier();
                 newCredentialsConsumer.accept(accessKey, sessionToken);
                 final byte[] response = String.format(
@@ -104,7 +105,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     ROLE_NAME,
                     sessionToken,
                     randomSecretKey(),
-                    ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
+                    ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
                     accessKey
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");

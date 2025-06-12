@@ -123,7 +123,6 @@ public class RestIndicesAction extends AbstractCatAction {
                     .indices()
                     .prepareGetSettings(masterNodeTimeout, indices)
                     .setIndicesOptions(indicesOptions)
-                    .setMasterNodeTimeout(masterNodeTimeout)
                     .execute(listeners.acquire(indexSettingsRef::set));
 
                 // The other requests just provide additional detail, and wildcards may be resolved differently depending on the type of

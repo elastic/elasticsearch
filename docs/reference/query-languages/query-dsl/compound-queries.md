@@ -10,7 +10,7 @@ Compound queries wrap other compound or leaf queries, either to combine their re
 The queries in this group are:
 
 [`bool` query](/reference/query-languages/query-dsl/query-dsl-bool-query.md)
-:   The default query for combining multiple leaf or compound query clauses, as `must`, `should`, `must_not`, or `filter` clauses. The `must` and `should` clauses have their scores combined — the more matching clauses, the better — while the `must_not` and `filter` clauses are executed in filter context.
+:   The default query for combining multiple leaf or compound query clauses, as `must`, `should`, `must_not`, or `filter` clauses. The `must` and `should` clauses have their scores combined — the more matching clauses, the better — while the `must_not` and `filter` clauses are executed in filter context.
 
 [`boosting` query](/reference/query-languages/query-dsl/query-dsl-boosting-query.md)
 :   Return documents which match a `positive` query, but reduce the score of documents which also match a `negative` query.

@@ -788,7 +788,7 @@ You cannot use EQL to search the values of a [`nested`](/reference/elasticsearch
 * If two pending sequences are in the same state at the same time, the most recent sequence overwrites the older one.
 * If the query includes [`by` fields](#eql-by-keyword), the query uses a separate state machine for each unique `by` field value.
 
-:::::{dropdown} **Example**
+:::::{dropdown} Example
 A data set contains the following `process` events in ascending chronological order:
 
 ```js
@@ -831,13 +831,13 @@ The query’s event items correspond to the following states:
 * State B:  `[process where process.name == "bash"]`
 * Complete: `[process where process.name == "cat"]`
 
-:::{image} /images/sequence-state-machine.svg
+:::{image} ../images/sequence-state-machine.svg
 :alt: sequence state machine
 :::
 
 To find matching sequences, the query uses separate state machines for each unique `user.name` value. Based on the data set, you can expect two state machines: one for the `root` user and one for `elkbee`.
 
-:::{image} /images/separate-state-machines.svg
+:::{image} ../images/separate-state-machines.svg
 :alt: separate state machines
 :::
 

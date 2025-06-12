@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "+",
   "name" : "add",
-  "description" : "Add two numbers together. If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+  "description" : "Add two numbers together. If either field is multivalued then the result is `null`.",
   "signatures" : [
     {
       "params" : [

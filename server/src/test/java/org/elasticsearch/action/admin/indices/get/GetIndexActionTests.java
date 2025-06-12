@@ -14,10 +14,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -124,20 +124,19 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
                 new GetIndexActionTests.Resolver(),
                 indicesService,
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                DefaultProjectResolver.INSTANCE
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
             );
         }
 
         @Override
-        protected void doMasterOperation(
+        protected void localClusterStateOperation(
             Task task,
             GetIndexRequest request,
-            String[] concreteIndices,
-            ClusterState state,
+            ProjectState state,
             ActionListener<GetIndexResponse> listener
-        ) {
-            ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.doMasterOperation(task, request, concreteIndices, stateWithIndex, listener);
+        ) throws Exception {
+            ProjectState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1).projectState(ProjectId.DEFAULT);
+            super.localClusterStateOperation(task, request, stateWithIndex, listener);
         }
     }
 

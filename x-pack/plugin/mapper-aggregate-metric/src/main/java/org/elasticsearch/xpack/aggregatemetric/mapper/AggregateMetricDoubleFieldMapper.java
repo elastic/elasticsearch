@@ -627,22 +627,22 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     }
 
                     private void readSingleRow(int docId, AggregateMetricDoubleBuilder builder) throws IOException {
-                        if (minValues.advanceExact(docId)) {
+                        if (minValues != null && minValues.advanceExact(docId)) {
                             builder.min().appendDouble(NumericUtils.sortableLongToDouble(minValues.longValue()));
                         } else {
                             builder.min().appendNull();
                         }
-                        if (maxValues.advanceExact(docId)) {
+                        if (maxValues != null && maxValues.advanceExact(docId)) {
                             builder.max().appendDouble(NumericUtils.sortableLongToDouble(maxValues.longValue()));
                         } else {
                             builder.max().appendNull();
                         }
-                        if (sumValues.advanceExact(docId)) {
+                        if (sumValues != null && sumValues.advanceExact(docId)) {
                             builder.sum().appendDouble(NumericUtils.sortableLongToDouble(sumValues.longValue()));
                         } else {
                             builder.sum().appendNull();
                         }
-                        if (valueCountValues.advanceExact(docId)) {
+                        if (valueCountValues != null && valueCountValues.advanceExact(docId)) {
                             builder.count().appendInt(Math.toIntExact(valueCountValues.longValue()));
                         } else {
                             builder.count().appendNull();
@@ -851,6 +851,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             // by its FieldMapper#parse()
             throw e;
         }
+
         for (Map.Entry<Metric, Number> parsed : metricsParsed.entrySet()) {
             NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(parsed.getKey());
             delegateFieldMapper.indexValue(context, parsed.getValue());

@@ -11,9 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -28,16 +26,15 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -53,7 +50,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasks;
@@ -64,12 +60,9 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
-import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -615,27 +608,35 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testMetadataGlobalStateChangesOnIndexDeletions() {
+        final var projectId = randomProjectIdOrDefault();
         IndexGraveyard.Builder builder = IndexGraveyard.builder();
         builder.addTombstone(new Index("idx1", UUIDs.randomBase64UUID()));
-        final Metadata metadata1 = Metadata.builder().indexGraveyard(builder.build()).build();
-        builder = IndexGraveyard.builder(metadata1.getProject().indexGraveyard());
+        final Metadata metadata1 = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(builder.build())).build();
+        builder = IndexGraveyard.builder(metadata1.getProject(projectId).indexGraveyard());
         builder.addTombstone(new Index("idx2", UUIDs.randomBase64UUID()));
-        final Metadata metadata2 = Metadata.builder(metadata1).indexGraveyard(builder.build()).build();
+        final Metadata metadata2 = Metadata.builder(metadata1)
+            .put(ProjectMetadata.builder(metadata1.getProject(projectId)).indexGraveyard(builder.build()))
+            .build();
         assertFalse("metadata not equal after adding index deletions", Metadata.isGlobalStateEquals(metadata1, metadata2));
         final Metadata metadata3 = Metadata.builder(metadata2).build();
         assertTrue("metadata equal when not adding index deletions", Metadata.isGlobalStateEquals(metadata2, metadata3));
     }
 
     public void testXContentWithIndexGraveyard() throws IOException {
+        @FixForMultiProject // XContent serialization and parsing with a random project ID currently only works when serializing in MP mode
+        final var projectId = ProjectId.DEFAULT;
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();
+        final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         Metadata.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
-            assertThat(fromXContentMeta.getProject().indexGraveyard(), equalTo(originalMeta.getProject().indexGraveyard()));
+            assertThat(
+                fromXContentMeta.getProject(projectId).indexGraveyard(),
+                equalTo(originalMeta.getProject(projectId).indexGraveyard())
+            );
         }
     }
 
@@ -770,10 +771,6 @@ public class MetadataTests extends ESTestCase {
                     {
                       "id": "health-node",
                       "task":{ "health-node": {"params":{}} }
-                    },
-                    {
-                      "id": "upgrade-system-indices",
-                      "task":{ "upgrade-system-indices": {"params":{}} }
                     }
                   ]
                 },
@@ -812,6 +809,17 @@ public class MetadataTests extends ESTestCase {
                     }
                   }
                 },
+                "repositories": {
+                  "my-repo": {
+                    "type": "fs",
+                    "uuid": "_my-repo-uuid_",
+                    "settings": {
+                      "location": "backup"
+                    },
+                    "generation": 42,
+                    "pending_generation": 42
+                  }
+                },
                 "reserved_state":{ }
               }
             }
@@ -830,14 +838,107 @@ public class MetadataTests extends ESTestCase {
         );
         assertThat(
             metadata.getProject().customs().keySet(),
-            containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template")
+            containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template", "repositories")
         );
-        final var projectTasks = PersistentTasksCustomMetadata.get(metadata.getProject());
+        assertThat(metadata.customs(), not(hasKey("repositories")));
+        final var repositoriesMetadata = RepositoriesMetadata.get(metadata.getProject(ProjectId.DEFAULT));
         assertThat(
-            projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
-            containsInAnyOrder("upgrade-system-indices")
+            repositoriesMetadata.repositories(),
+            equalTo(
+                List.of(
+                    new RepositoryMetadata("my-repo", "_my-repo-uuid_", "fs", Settings.builder().put("location", "backup").build(), 42, 42)
+                )
+            )
         );
-        assertThat(clusterTasks.getLastAllocationId(), equalTo(projectTasks.getLastAllocationId()));
+    }
+
+    public void testParseXContentFormatBeforeRepositoriesMetadataMigration() throws IOException {
+        final String json = org.elasticsearch.core.Strings.format("""
+            {
+              "meta-data": {
+                "version": 54321,
+                "cluster_uuid":"aba1aa1ababbbaabaabaab",
+                "cluster_uuid_committed":false,
+                "cluster_coordination":{
+                  "term":1,
+                  "last_committed_config":[],
+                  "last_accepted_config":[],
+                  "voting_config_exclusions":[]
+                },
+                "projects" : [
+                  {
+                    "id" : "default",
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  },
+                  {
+                    "id" : "another_project",
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  }
+                ],
+                "repositories": {
+                  "my-repo": {
+                    "type": "fs",
+                    "uuid": "_my-repo-uuid_",
+                    "settings": {
+                      "location": "backup"
+                    },
+                    "generation": 42,
+                    "pending_generation": 42
+                  }
+                },
+                "reserved_state":{ }
+              }
+            }
+            """, IndexVersion.current(), IndexVersion.current());
+
+        final Metadata metadata = fromJsonXContentStringWithPersistentTasks(json);
+        assertThat(metadata, notNullValue());
+        assertThat(metadata.clusterUUID(), is("aba1aa1ababbbaabaabaab"));
+
+        assertThat(metadata.projects().keySet(), containsInAnyOrder(ProjectId.fromId("default"), ProjectId.fromId("another_project")));
+        assertThat(metadata.customs(), not(hasKey("repositories")));
+        final var repositoriesMetadata = RepositoriesMetadata.get(metadata.getProject(ProjectId.DEFAULT));
+        assertThat(
+            repositoriesMetadata.repositories(),
+            equalTo(
+                List.of(
+                    new RepositoryMetadata("my-repo", "_my-repo-uuid_", "fs", Settings.builder().put("location", "backup").build(), 42, 42)
+                )
+            )
+        );
+        assertThat(metadata.getProject(ProjectId.fromId("another_project")).customs(), not(hasKey("repositories")));
     }
 
     private Metadata fromJsonXContentStringWithPersistentTasks(String json) throws IOException {
@@ -845,7 +946,6 @@ public class MetadataTests extends ESTestCase {
         registry.addAll(ClusterModule.getNamedXWriteables());
         registry.addAll(IndicesModule.getNamedXContents());
         registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
-        registry.addAll(SystemIndexMigrationExecutor.getNamedXContentParsers());
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
@@ -855,15 +955,7 @@ public class MetadataTests extends ESTestCase {
             Settings.EMPTY,
             ClusterSettings.createBuiltInClusterSettings()
         );
-        final var systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
-            mock(Client.class),
-            clusterService,
-            mock(SystemIndices.class),
-            mock(MetadataUpdateSettingsService.class),
-            mock(MetadataCreateIndexService.class),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
-        );
-        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor, systemIndexMigrationExecutor));
+        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor));
 
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, json)) {
@@ -892,15 +984,16 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {
+        final var projectId = randomProjectIdOrDefault();
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();
+        final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final BytesStreamOutput out = new BytesStreamOutput();
         originalMeta.writeTo(out);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Metadata fromStreamMeta = Metadata.readFrom(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
         );
-        assertThat(fromStreamMeta.getProject().indexGraveyard(), equalTo(fromStreamMeta.getProject().indexGraveyard()));
+        assertThat(fromStreamMeta.getProject(projectId).indexGraveyard(), equalTo(originalMeta.getProject(projectId).indexGraveyard()));
     }
 
     public void testFindMappings() throws IOException {
@@ -1308,20 +1401,6 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.custom("custom2"), sameInstance(custom2));
     }
 
-    public void testBuilderRemoveProjectCustomIf() {
-        var custom1 = new TestProjectCustomMetadata();
-        var custom2 = new TestProjectCustomMetadata();
-        var builder = Metadata.builder();
-        builder.putCustom("custom1", custom1);
-        builder.putCustom("custom2", custom2);
-
-        builder.removeProjectCustomIf((key, value) -> Objects.equals(key, "custom1"));
-
-        var metadata = builder.build();
-        assertThat(metadata.getProject().custom("custom1"), nullValue());
-        assertThat(metadata.getProject().custom("custom2"), sameInstance(custom2));
-    }
-
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
@@ -1604,38 +1683,6 @@ public class MetadataTests extends ESTestCase {
                 assertThat(fromStreamProject.dataStreams().get(name), equalTo(value));
             });
         }
-    }
-
-    public void testMetadataSerializationPreMultiProject() throws IOException {
-        final Metadata orig = randomMetadata();
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        orig.writeTo(out);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-        assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
-    }
-
-    public void testDiffSerializationPreMultiProject() throws IOException {
-        final Metadata meta1 = randomMetadata(1);
-        final Metadata meta2 = randomMetadata(2);
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-        final Diff<Metadata> diff = meta2.diff(meta1);
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(version);
-        diff.writeTo(out);
-
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(version);
-        final Diff<Metadata> read = Metadata.readDiffFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
-
-        final Metadata applied = read.apply(meta1);
-        assertTrue(Metadata.isGlobalStateEquals(meta2, applied));
     }
 
     public void testGetNonExistingProjectThrows() {
@@ -2600,17 +2647,14 @@ public class MetadataTests extends ESTestCase {
             .map(
                 project -> ProjectMetadata.builder(project)
                     .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(
-                            lastAllocationId,
-                            Map.of(
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                new PersistentTasksCustomMetadata.PersistentTask<>(
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    new SystemIndexMigrationTaskParams(),
-                                    lastAllocationId,
-                                    PersistentTasks.INITIAL_ASSIGNMENT
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(
+                            List.of(
+                                new RepositoryMetadata(
+                                    "backup",
+                                    "uuid-" + project.id().id(),
+                                    "fs",
+                                    Settings.builder().put("location", project.id().id()).build()
                                 )
                             )
                         )
@@ -2661,22 +2705,22 @@ public class MetadataTests extends ESTestCase {
             equalTo(projects.stream().map(pp -> pp.id().id()).collect(Collectors.toUnmodifiableSet()))
         );
 
-        for (int i = 0; i < projects.size(); i++) {
-            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks"), notNullValue());
-            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.last_allocation_id"), equalTo(lastAllocationId));
-            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks"), hasSize(1));
-            assertThat(
-                objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks.0.id"),
-                equalTo(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
-            );
-        }
-
         Metadata fromXContentMeta = fromJsonXContentStringWithPersistentTasks(bytes.utf8ToString());
         assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
         for (var project : fromXContentMeta.projects().values()) {
-            final var projectTasks = PersistentTasksCustomMetadata.get(project);
-            assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId));
-            assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)));
+            assertThat(
+                RepositoriesMetadata.get(project).repositories(),
+                equalTo(
+                    List.of(
+                        new RepositoryMetadata(
+                            "backup",
+                            "uuid-" + project.id().id(),
+                            "fs",
+                            Settings.builder().put("location", project.id().id()).build()
+                        )
+                    )
+                )
+            );
         }
         final var clusterTasks = ClusterPersistentTasksCustomMetadata.get(fromXContentMeta);
         assertThat(clusterTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
@@ -2688,25 +2732,6 @@ public class MetadataTests extends ESTestCase {
         final var originalMeta = Metadata.builder()
             .clusterUUID(randomUUID())
             .clusterUUIDCommitted(true)
-            .put(
-                ProjectMetadata.builder(ProjectId.DEFAULT)
-                    .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(
-                            lastAllocationId,
-                            Map.of(
-                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                new PersistentTasksCustomMetadata.PersistentTask<>(
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    new SystemIndexMigrationTaskParams(),
-                                    lastAllocationId,
-                                    PersistentTasks.INITIAL_ASSIGNMENT
-                                )
-                            )
-                        )
-                    )
-            )
             .putCustom(
                 ClusterPersistentTasksCustomMetadata.TYPE,
                 new ClusterPersistentTasksCustomMetadata(
@@ -2736,14 +2761,7 @@ public class MetadataTests extends ESTestCase {
         assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks"), nullValue());
         // The combined lastAllocationId is the max between cluster and project tasks
         assertThat(objectPath.evaluate("meta-data.persistent_tasks.last_allocation_id"), equalTo(lastAllocationId + 1));
-        assertThat(objectPath.evaluate("meta-data.persistent_tasks.tasks"), hasSize(2));
-        assertThat(
-            Set.of(
-                objectPath.evaluate("meta-data.persistent_tasks.tasks.0.id"),
-                objectPath.evaluate("meta-data.persistent_tasks.tasks.1.id")
-            ),
-            equalTo(Set.of(HealthNode.TASK_NAME, SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME))
-        );
+        assertThat(objectPath.evaluate("meta-data.persistent_tasks.tasks"), hasSize(1));
 
         // Deserialize from the XContent should separate cluster and project tasks
         final Metadata fromXContentMeta = fromJsonXContentStringWithPersistentTasks(bytes.utf8ToString());
@@ -2754,13 +2772,6 @@ public class MetadataTests extends ESTestCase {
         assertThat(
             clusterTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getId).toList(),
             contains(HealthNode.TASK_NAME)
-        );
-        final var projectTasks = PersistentTasksCustomMetadata.get(fromXContentMeta.getProject(ProjectId.DEFAULT));
-        assertThat(projectTasks, notNullValue());
-        assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
-        assertThat(
-            projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getId).toList(),
-            contains(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
         );
     }
 
@@ -2937,8 +2948,6 @@ public class MetadataTests extends ESTestCase {
                 chunkCount += checkChunkSize(custom, params, 1);
             } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
                 chunkCount += checkChunkSize(custom, params, 2 + nodesShutdownMetadata.getAll().size());
-            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -44,30 +43,27 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         boolean groupingChanged = false;
 
-        // start with the groupings since the aggs might duplicate it
+        // start with the groupings since the aggs might reuse/reference them
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
             Expression g = newGroupings.get(i);
-            // Move the alias into an eval and replace it with its attribute.
-            // Exception: Categorize is internal to the aggregation and remains in the groupings. We move its child expression into an eval.
             if (g instanceof Alias as) {
-                if (as.child() instanceof Categorize cat) {
-                    // For Categorize grouping function, we only move the child expression into an eval
-                    if (cat.field() instanceof Attribute == false) {
+                Expression asChild = as.child();
+                // for non-evaluable grouping functions, replace their nested expressions with attributes and extract the expression out
+                // into an eval (added later below)
+                if (asChild instanceof GroupingFunction.NonEvaluatableGroupingFunction gf) {
+                    Expression newGroupingFunction = transformNonEvaluatableGroupingFunction(gf, evals);
+                    if (newGroupingFunction != gf) {
                         groupingChanged = true;
-                        var fieldAs = new Alias(as.source(), as.name(), cat.field(), null, true);
-                        var fieldAttr = fieldAs.toAttribute();
-                        evals.add(fieldAs);
-                        evalNames.put(fieldAs.name(), fieldAttr);
-                        Categorize replacement = cat.replaceChildren(List.of(fieldAttr));
-                        newGroupings.set(i, as.replaceChild(replacement));
+                        newGroupings.set(i, as.replaceChild(newGroupingFunction));
                     }
                 } else {
+                    // Move the alias into an eval and replace it with its attribute.
                     groupingChanged = true;
                     var attr = as.toAttribute();
                     evals.add(as);
                     evalNames.put(as.name(), attr);
                     newGroupings.set(i, attr);
-                    if (as.child() instanceof GroupingFunction gf) {
+                    if (asChild instanceof GroupingFunction.EvaluatableGroupingFunction gf) {
                         groupingAttributes.put(gf, attr);
                     }
                 }
@@ -91,17 +87,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 // if the child is a nested expression
                 Expression child = as.child();
 
-                // do not replace nested aggregates
-                if (child instanceof AggregateFunction af) {
-                    Holder<Boolean> foundNestedAggs = new Holder<>(Boolean.FALSE);
-                    af.children().forEach(e -> e.forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE)));
-                    if (foundNestedAggs.get()) {
-                        return as;
-                    }
-                }
-
-                // shortcut for common scenario
-                if (child instanceof AggregateFunction af && af.field() instanceof Attribute) {
+                if (child instanceof AggregateFunction af && skipOptimisingAgg(af)) {
                     return as;
                 }
 
@@ -112,33 +98,13 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     return ref;
                 }
 
-                // 1. look for the aggregate function
-                var replaced = child.transformUp(AggregateFunction.class, af -> {
-                    Expression result = af;
-
-                    Expression field = af.field();
-                    // 2. if the field is a nested expression (not attribute or literal), replace it
-                    if (field instanceof Attribute == false && field.foldable() == false) {
-                        // 3. create a new alias if one doesn't exist yet no reference
-                        Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
-                            Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
-                            evals.add(newAlias);
-                            return newAlias.toAttribute();
-                        });
-                        aggsChanged.set(true);
-                        // replace field with attribute
-                        List<Expression> newChildren = new ArrayList<>(af.children());
-                        newChildren.set(0, attr);
-                        result = af.replaceChildren(newChildren);
-                    }
-                    return result;
-                });
-                // replace any grouping functions with their references pointing to the added synthetic eval
-                replaced = replaced.transformDown(GroupingFunction.class, gf -> {
-                    // Categorize in aggs depends on the grouping result, not on an early eval
-                    if (gf instanceof Categorize) {
-                        return gf;
-                    }
+                // look for the aggregate function
+                var replaced = child.transformUp(
+                    AggregateFunction.class,
+                    af -> transformAggregateFunction(af, expToAttribute, evals, counter, aggsChanged)
+                );
+                // replace any evaluatable grouping functions with their references pointing to the added synthetic eval
+                replaced = replaced.transformDown(GroupingFunction.EvaluatableGroupingFunction.class, gf -> {
                     aggsChanged.set(true);
                     // should never return null, as it's verified.
                     // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
@@ -159,10 +125,71 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             aggregate = aggregate.with(newEval, groupings, aggregates);
         }
 
-        return (LogicalPlan) aggregate;
+        return aggregate;
     }
 
-    static String syntheticName(Expression expression, AggregateFunction af, int counter) {
-        return TemporaryNameUtils.temporaryName(expression, af, counter);
+    private static Expression transformNonEvaluatableGroupingFunction(
+        GroupingFunction.NonEvaluatableGroupingFunction gf,
+        List<Alias> evals
+    ) {
+        int counter = 0;
+        boolean childrenChanged = false;
+        List<Expression> newChildren = new ArrayList<>(gf.children().size());
+
+        for (Expression ex : gf.children()) {
+            if (ex instanceof Attribute == false) { // TODO: foldables shouldn't require eval'ing either
+                var alias = new Alias(ex.source(), syntheticName(ex, gf, counter++), ex, null, true);
+                evals.add(alias);
+                newChildren.add(alias.toAttribute());
+                childrenChanged = true;
+            } else {
+                newChildren.add(ex);
+            }
+        }
+
+        return childrenChanged ? gf.replaceChildren(newChildren) : gf;
+    }
+
+    private static boolean skipOptimisingAgg(AggregateFunction af) {
+        // shortcut for the common scenario
+        if (af.field() instanceof Attribute) {
+            return true;
+        }
+
+        // do not replace nested aggregates
+        Holder<Boolean> foundNestedAggs = new Holder<>(Boolean.FALSE);
+        af.field().forEachDown(AggregateFunction.class, unused -> foundNestedAggs.set(Boolean.TRUE));
+        return foundNestedAggs.get();
+    }
+
+    private static Expression transformAggregateFunction(
+        AggregateFunction af,
+        Map<Expression, Attribute> expToAttribute,
+        List<Alias> evals,
+        int[] counter,
+        Holder<Boolean> aggsChanged
+    ) {
+        Expression result = af;
+
+        Expression field = af.field();
+        // if the field is a nested expression (not attribute or literal), replace it
+        if (field instanceof Attribute == false && field.foldable() == false) {
+            // create a new alias if one doesn't exist yet
+            Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
+                Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
+                evals.add(newAlias);
+                return newAlias.toAttribute();
+            });
+            aggsChanged.set(true);
+            // replace field with attribute
+            List<Expression> newChildren = new ArrayList<>(af.children());
+            newChildren.set(0, attr);
+            result = af.replaceChildren(newChildren);
+        }
+        return result;
+    }
+
+    private static String syntheticName(Expression expression, Expression func, int counter) {
+        return TemporaryNameUtils.temporaryName(expression, func, counter);
     }
 }

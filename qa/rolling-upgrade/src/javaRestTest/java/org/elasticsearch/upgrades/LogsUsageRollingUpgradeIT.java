@@ -30,7 +30,7 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testUsage() throws Exception {
-        assumeTrue("logsdb.prior_logs_usage only gets set in 8.x", getOldClusterTestVersion().before("9.0.0"));
+        assumeFalse("logsdb.prior_logs_usage only gets set in 8.x", oldClusterHasFeature("gte_v9.0.0"));
         String dataStreamName = "logs-mysql-error";
         if (isOldCluster()) {
             bulkIndex(dataStreamName, 4, 256, Instant.now());

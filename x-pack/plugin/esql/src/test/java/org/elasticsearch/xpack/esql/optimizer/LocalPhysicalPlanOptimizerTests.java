@@ -1365,6 +1365,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnOptionsPushDown() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
@@ -2059,6 +2061,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnWithoutExplicitLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test
             | where knn(dense_vector, [0, 1, 2])
@@ -2077,6 +2081,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnWithoutExplicitLimitSorted() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test metadata _score
             | where knn(dense_vector, [0, 1, 2])
@@ -2095,7 +2101,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
     }
 
-    public void testKnnWithoExplicitLimitSorted() {
+    public void testKnnWithExplicitLimitSorted() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test metadata _score
             | where knn(dense_vector, [0, 1, 2])
@@ -2115,7 +2123,35 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(knnQuery.k(), is(10));
     }
 
-    public void testKnnWithoExplicitLimitSortedAndCommandsInBetween() {
+    public void testKnnWithStatsAndLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | limit 500
+            | stats c = count(*)
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var finalAggExec = as(limitExec.child(), AggregateExec.class);
+        var initialAggExec = as(finalAggExec.child(), AggregateExec.class);
+        var topNExec = as(initialAggExec.child(), TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(500));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var esQueryExec = as(projectExec.child(), EsQueryExec.class);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 500, null, null, null);
+        assertEquals(expectedQuery.toString(), esQueryExec.query().toString());
+    }
+
+    public void testKnnWithoutExplicitLimitSortedAndCommandsInBetween() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test metadata _score
             | where knn(dense_vector, [0, 1, 2])
@@ -2137,6 +2173,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnWithExplicitLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test metadata _score
             | where knn(dense_vector, [0, 1, 2]) or match(text, "blue")
@@ -2163,6 +2201,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnWithExplicitLimitAndExistingTopK() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test
             | where knn(dense_vector, [0, 1, 2], {"k": 10})
@@ -2182,6 +2222,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testMultipleKnnQueriesLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test
             | where knn(dense_vector, [0, 1, 2]) and (match(text, "example") or knn(dense_vector, [3, 4, 5]))
@@ -2227,9 +2269,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnWithCombinedLimits() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         var query = """
             from test
             | where knn(dense_vector, [0, 1, 2])
+            | limit 30
             | limit 20
             | limit 10
             """;
@@ -2250,6 +2295,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | where knn(dense_vector, [0, 1, 2])
             | limit 10
             | limit 20
+            | limit 30
             """;
         analyzer = makeAnalyzer("mapping-all-types.json");
         plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);

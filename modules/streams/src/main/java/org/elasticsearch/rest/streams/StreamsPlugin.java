@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.streams;
 
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -68,6 +69,9 @@ public class StreamsPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, StreamsMetadata.TYPE, StreamsMetadata::new));
+        return List.of(
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, StreamsMetadata.TYPE, StreamsMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, StreamsMetadata.TYPE, StreamsMetadata::readDiffFrom)
+        );
     }
 }

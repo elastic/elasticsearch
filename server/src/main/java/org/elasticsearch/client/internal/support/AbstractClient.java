@@ -432,6 +432,13 @@ public abstract class AbstractClient implements Client {
             ) {
                 projectResolver.executeOnProject(projectId, () -> super.doExecute(action, request, listener));
             }
+
+            @Override
+            public Client projectClient(ProjectId projectId) {
+                throw new IllegalStateException(
+                    "Unable to create a project client for project [" + projectId + "], nested project client creation is not supported"
+                );
+            }
         };
     }
 

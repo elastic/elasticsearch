@@ -5,6 +5,8 @@ navigation_title: Term vectors API examples
 ---
 # Term vectors API examples
 
+[Term vectors](reference/mapping-reference/term-vector.md) provide information about the terms that were produced by the analysis process, including term frequencies, positions, offsets, and payloads. They're useful for applications like highlighting, more-like-this queries, and text analysis.
+
 This page shows you examples of using the [term vectors API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors).
 
 ## Returning stored term vectors [docs-termvectors-api-stored-termvectors]

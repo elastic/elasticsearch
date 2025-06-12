@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -933,7 +934,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 if (scope == PersistentTasksExecutor.Scope.CLUSTER) {
                     metadata = Metadata.builder(clusterState.metadata()).removeCustom(ClusterPersistentTasksCustomMetadata.TYPE);
                 } else {
-                    metadata = Metadata.builder(clusterState.metadata()).removeProjectCustom(PersistentTasksCustomMetadata.TYPE);
+                    metadata = Metadata.builder(clusterState.metadata())
+                        .put(
+                            ProjectMetadata.builder(clusterState.metadata().getProject()).removeCustom(PersistentTasksCustomMetadata.TYPE)
+                        );
                 }
                 return builder.metadata(metadata).build();
             }

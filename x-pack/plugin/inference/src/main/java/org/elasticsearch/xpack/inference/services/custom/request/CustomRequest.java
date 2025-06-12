@@ -44,7 +44,7 @@ public class CustomRequest implements Request {
     private final ValidatingSubstitutor stringPlaceholderReplacer;
     private final CustomModel model;
 
-    public CustomRequest(String query, List<String> input, CustomModel model) {
+    public CustomRequest(RequestParameters requestParams, CustomModel model) {
         this.model = Objects.requireNonNull(model);
 
         var stringOnlyParams = new HashMap<String, String>();
@@ -55,11 +55,13 @@ public class CustomRequest implements Request {
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
         addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
 
-        if (query != null) {
-            jsonParams.put(QUERY, toJson(query, QUERY));
-        }
+        // if (query != null) {
+        // jsonParams.put(QUERY, toJson(query, QUERY));
+        // }
 
-        addInputJsonParam(jsonParams, input, model.getTaskType());
+        // addInputJsonParam(jsonParams, input, model.getTaskType());
+
+        jsonParams.putAll(requestParams.jsonParameters());
 
         jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
         stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
@@ -107,7 +109,6 @@ public class CustomRequest implements Request {
         } catch (URISyntaxException e) {
             throw new IllegalStateException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
         }
-
     }
 
     @Override

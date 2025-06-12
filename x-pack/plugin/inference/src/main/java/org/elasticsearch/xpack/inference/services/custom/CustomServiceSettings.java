@@ -125,6 +125,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
+        var inputTypeTranslator = InputTypeTranslator.fromMap(map, validationException, CustomService.NAME);
+
         if (requestBodyMap == null || responseParserMap == null || jsonParserMap == null || errorParserMap == null) {
             throw validationException;
         }
@@ -146,7 +148,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             requestContentString,
             responseJsonParser,
             rateLimitSettings,
-            errorParser
+            errorParser,
+            inputTypeTranslator
         );
     }
 
@@ -219,6 +222,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final CustomResponseParser responseJsonParser;
     private final RateLimitSettings rateLimitSettings;
     private final ErrorResponseParser errorParser;
+    private final InputTypeTranslator inputTypeTranslator;
 
     public CustomServiceSettings(
         TextEmbeddingSettings textEmbeddingSettings,
@@ -230,6 +234,30 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable RateLimitSettings rateLimitSettings,
         ErrorResponseParser errorParser
     ) {
+        this(
+            textEmbeddingSettings,
+            url,
+            headers,
+            queryParameters,
+            requestContentString,
+            responseJsonParser,
+            rateLimitSettings,
+            errorParser,
+            InputTypeTranslator.EMPTY_TRANSLATOR
+        );
+    }
+
+    public CustomServiceSettings(
+        TextEmbeddingSettings textEmbeddingSettings,
+        String url,
+        @Nullable Map<String, String> headers,
+        @Nullable QueryParameters queryParameters,
+        String requestContentString,
+        CustomResponseParser responseJsonParser,
+        @Nullable RateLimitSettings rateLimitSettings,
+        ErrorResponseParser errorParser,
+        InputTypeTranslator inputTypeTranslator
+    ) {
         this.textEmbeddingSettings = Objects.requireNonNull(textEmbeddingSettings);
         this.url = Objects.requireNonNull(url);
         this.headers = Collections.unmodifiableMap(Objects.requireNonNullElse(headers, Map.of()));
@@ -238,6 +266,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.responseJsonParser = Objects.requireNonNull(responseJsonParser);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         this.errorParser = Objects.requireNonNull(errorParser);
+        this.inputTypeTranslator = Objects.requireNonNull(inputTypeTranslator);
     }
 
     public CustomServiceSettings(StreamInput in) throws IOException {
@@ -249,6 +278,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
         errorParser = new ErrorResponseParser(in);
+        inputTypeTranslator = new InputTypeTranslator(in);
     }
 
     @Override
@@ -294,6 +324,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     public CustomResponseParser getResponseJsonParser() {
         return responseJsonParser;
+    }
+
+    public InputTypeTranslator getInputTypeTranslator() {
+        return inputTypeTranslator;
     }
 
     public ErrorResponseParser getErrorParser() {
@@ -348,6 +382,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         }
         builder.endObject();
 
+        inputTypeTranslator.toXContent(builder, params);
+
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -373,6 +409,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
         errorParser.writeTo(out);
+        inputTypeTranslator.writeTo(out);
     }
 
     @Override
@@ -387,7 +424,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(requestContentString, that.requestContentString)
             && Objects.equals(responseJsonParser, that.responseJsonParser)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && Objects.equals(errorParser, that.errorParser);
+            && Objects.equals(errorParser, that.errorParser)
+            && Objects.equals(inputTypeTranslator, that.inputTypeTranslator);
     }
 
     @Override
@@ -400,7 +438,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             requestContentString,
             responseJsonParser,
             rateLimitSettings,
-            errorParser
+            errorParser,
+            inputTypeTranslator
         );
     }
 

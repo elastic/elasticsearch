@@ -118,7 +118,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -191,7 +191,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
-        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -238,7 +238,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -324,7 +324,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             profileUids = new ArrayList<>(1);
             profileUids.add(randomAlphaOfLength(8));
         }
-        var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

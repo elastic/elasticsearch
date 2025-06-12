@@ -185,7 +185,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index1", "1"));
         request.add(new MultiGetRequest.Item("index1", "2"));
@@ -219,7 +219,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
         request.add(new MultiGetRequest.Item("index2", "2"));

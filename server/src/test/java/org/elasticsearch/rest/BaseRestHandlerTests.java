@@ -41,7 +41,7 @@ public class BaseRestHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(this.getClass().getSimpleName() + "ThreadPool");
-        mockClient = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+        mockClient = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
     }
 
     @Override

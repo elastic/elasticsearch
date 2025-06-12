@@ -69,7 +69,7 @@ public final class TransportRankEvalActionTests extends ESTestCase {
         );
         rankEvalRequest.indicesOptions(expectedIndicesOptions);
 
-        NodeClient client = new NodeClient(settings, null, TestProjectResolvers.mustExecuteFirst()) {
+        NodeClient client = new NodeClient(settings, null, TestProjectResolvers.alwaysThrow()) {
             @Override
             public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
                 assertEquals(1, request.requests().size());

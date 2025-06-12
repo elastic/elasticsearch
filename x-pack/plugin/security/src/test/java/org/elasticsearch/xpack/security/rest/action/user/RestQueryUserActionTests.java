@@ -82,7 +82,7 @@ public class RestQueryUserActionTests extends ESTestCase {
         };
 
         try (var threadPool = createThreadPool()) {
-            final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+            final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @SuppressWarnings("unchecked")
                 @Override
                 public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -141,7 +141,7 @@ public class RestQueryUserActionTests extends ESTestCase {
         };
 
         try (var threadPool = createThreadPool()) {
-            final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+            final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @SuppressWarnings("unchecked")
                 @Override
                 public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

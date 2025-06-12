@@ -49,7 +49,7 @@ import static org.mockito.Mockito.mock;
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private ThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
-    private NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+    private NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private UsageService usageService = new UsageService();
     private RestController controller = new RestController(

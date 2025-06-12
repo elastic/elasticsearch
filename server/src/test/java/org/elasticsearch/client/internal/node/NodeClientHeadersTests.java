@@ -42,7 +42,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         Map<ActionType<?>, TransportAction<?, ?>> actions = Stream.of(testedActions)
             .collect(Collectors.toMap(Function.identity(), a -> new InternalTransportAction(a.name(), taskManager)));
-        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst());
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
         client.initialize(actions, taskManager, () -> "test", mock(Transport.Connection.class), null);
         return client;
     }

@@ -49,7 +49,7 @@ import static org.mockito.Mockito.mock;
 public class RestTermsEnumActionTests extends ESTestCase {
 
     private static ThreadPool threadPool = new TestThreadPool(RestTermsEnumActionTests.class.getName());
-    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
+    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(

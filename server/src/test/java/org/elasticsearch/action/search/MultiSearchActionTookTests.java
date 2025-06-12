@@ -138,7 +138,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         final Executor commonExecutor = randomExecutor(threadPool);
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
-        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);

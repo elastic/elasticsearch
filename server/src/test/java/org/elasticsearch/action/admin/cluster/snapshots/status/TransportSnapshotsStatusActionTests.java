@@ -66,7 +66,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             clusterService.getClusterSettings(),
             Set.of()
         );
-        final var nodeClient = new NodeClient(clusterService.getSettings(), threadPool, TestProjectResolvers.mustExecuteFirst());
+        final var nodeClient = new NodeClient(clusterService.getSettings(), threadPool, TestProjectResolvers.alwaysThrow());
         repositoriesService = new RepositoriesService(
             clusterService.getSettings(),
             clusterService,

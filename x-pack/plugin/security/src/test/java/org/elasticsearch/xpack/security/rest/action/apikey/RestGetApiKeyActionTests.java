@@ -102,7 +102,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final ApiKey apiKey = randomApiKeyInfo(withLimitedBy);
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(List.of(apiKey), profileUids);
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -168,7 +168,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         };
         final ApiKey apiKey1 = randomApiKeyInfo(randomBoolean());
         final List<String> profileUids1 = randomSize1ProfileUidsList();
-        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -242,7 +242,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             profileUids2
         );
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst()) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

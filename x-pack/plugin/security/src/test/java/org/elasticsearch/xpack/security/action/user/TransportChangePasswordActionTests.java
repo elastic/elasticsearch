@@ -21,6 +21,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -162,6 +165,69 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(
             throwableRef.get().getMessage(),
             containsString("In a cloud deployment, the password can be changed through the " + "cloud console.")
+        );
+        verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), anyActionListener());
+    }
+
+    public void testUserPresentInNonNativeRealms() {
+        // place a user 'foo' in both file and pki realms. it will not be found in the native realm.
+        final Hasher hasher = getFastStoredHashAlgoForTests();
+        Settings settings = Settings.builder()
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "superuser")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
+            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), true)
+            .build();
+        User foo = new User("foo", "admin");
+        NativeUsersStore usersStore = mock(NativeUsersStore.class);
+
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportChangePasswordAction action = new TransportChangePasswordAction(
+            settings,
+            transportService,
+            mock(ActionFilters.class),
+            usersStore,
+            mockRealms(mockFileRealm(foo), mockPkiRealm(foo))
+        );
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.username(foo.principal());
+        request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(null);
+            return null;
+        }).when(usersStore).getUser(eq(request.username()), anyActionListener());
+
+        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
+            @Override
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
+                responseRef.set(changePasswordResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableRef.set(e);
+            }
+        });
+
+        assertThat(responseRef.get(), is(nullValue()));
+        assertThat(throwableRef.get(), instanceOf(ValidationException.class));
+        assertThat(
+            throwableRef.get().getMessage(),
+            containsString("user [" + foo.principal() + "] does not belong to the native realm and cannot be managed via this API.")
         );
         verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), anyActionListener());
     }
@@ -421,11 +487,26 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         return fileRealm;
     }
 
+    private Realm mockPkiRealm(User foo) {
+        PkiRealm ldapRealm = Mockito.mock(PkiRealm.class);
+        Mockito.when(ldapRealm.type()).thenReturn(LdapRealmSettings.LDAP_TYPE);
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) args[1];
+            listener.onResponse(foo);
+            return null;
+        }).when(ldapRealm).lookupUser(Mockito.any(String.class), anyActionListener());
+
+        return ldapRealm;
+    }
+
     private static Realms mockRealms() {
         return mockRealms(mockFileRealm(null));
     }
 
-    private static Realms mockRealms(FileRealm realm) {
+    private static Realms mockRealms(Realm... realm) {
         Realms realms = mock(Realms.class);
         Mockito.when(realms.stream()).thenReturn(realm == null ? Stream.of() : Stream.of(realm));
         Mockito.when(realms.getActiveRealms()).thenReturn(realm == null ? List.of() : List.of(realm));

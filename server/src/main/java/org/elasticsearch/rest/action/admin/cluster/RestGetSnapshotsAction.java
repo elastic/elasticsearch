@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -138,14 +137,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
             getSnapshotsRequest.states(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::valueOf).toList()));
         } else {
             throw new IllegalArgumentException("[state] parameter is not supported on all nodes in the cluster");
-        }
-
-        // Consume these response parameters used in SnapshotInfo now, to avoid assertion errors in BaseRestHandler for requests where they
-        // may not get used.
-        if (Assertions.ENABLED) {
-            for (final var responseParameter : SUPPORTED_RESPONSE_PARAMETERS) {
-                request.param(responseParameter);
-            }
         }
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

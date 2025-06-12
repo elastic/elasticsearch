@@ -154,6 +154,10 @@ public abstract class BaseRestHandler implements RestHandler {
             supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
             final var consumed = new TreeSet<>(request.consumedParams());
             consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            // Add exclusions for response parameters since they may not always be consumed for every request.
+            final var unconsumedResponseParams = new HashSet<>(responseParams(request.getRestApiVersion()));
+            unconsumedResponseParams.removeAll(consumed);
+            supportedAndCommon.removeAll(unconsumedResponseParams);
             assert supportedAndCommon.equals(consumed)
                 : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
         }

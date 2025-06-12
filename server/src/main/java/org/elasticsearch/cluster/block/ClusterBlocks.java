@@ -77,12 +77,16 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return Sets.union(global, projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals());
     }
 
-    public boolean noIndexBlockAllProjects() {
+    public boolean noProjectBlockAllProjects() {
         return projectBlocksMap.values().stream().allMatch(ProjectBlocks::isEmpty);
     }
 
     public Map<String, Set<ClusterBlock>> indices(ProjectId projectId) {
         return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).indices();
+    }
+
+    public ProjectBlocks projectBlocks(ProjectId projectId) {
+        return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY);
     }
 
     protected Set<ClusterBlock> projectGlobal(ProjectId projectId) {
@@ -369,7 +373,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     @Override
     public String toString() {
-        if (global.isEmpty() && noIndexBlockAllProjects()) {
+        if (global.isEmpty() && noProjectBlockAllProjects()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
@@ -383,7 +387,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         for (var projectId : projectBlocksMap.keySet().stream().sorted(Comparator.comparing(ProjectId::id)).toList()) {
             final Map<String, Set<ClusterBlock>> indices = indices(projectId);
             sb.append("   ").append(projectId).append(":\n");
-            for (ClusterBlock block: projectGlobal(projectId)) {
+            for (ClusterBlock block : projectGlobal(projectId)) {
                 sb.append("      ").append(block).append("\n");
             }
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
@@ -535,7 +539,12 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return SimpleDiffable.empty();
     }
 
-    static class ProjectBlocks implements Writeable {
+    /**
+     * ProjectBlocks encapsulates the project-specific ClusterBlocks. These apply either to a specific index
+     * or are project global blocks. Project global blocks are similar to cluster-global blocks, but impact
+     * only one project.
+     */
+    public static class ProjectBlocks implements Writeable {
 
         static final ProjectBlocks EMPTY = new ProjectBlocks(Map.of(), Set.of());
 
@@ -552,11 +561,11 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return new ProjectBlocks(new HashMap<>(), new HashSet<>());
         }
 
-        Map<String, Set<ClusterBlock>> indices() {
+        public Map<String, Set<ClusterBlock>> indices() {
             return indices;
         }
 
-        Set<ClusterBlock> projectGlobals() {
+        public Set<ClusterBlock> projectGlobals() {
             return projectGlobal;
         }
 
@@ -564,16 +573,17 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return indices.get(index);
         }
 
-        boolean isEmpty() {
+        public boolean isEmpty() {
             return indices.isEmpty() && projectGlobal.isEmpty();
         }
 
         static ProjectBlocks readFrom(StreamInput in) throws IOException {
+            Map<String, Set<ClusterBlock>> indices = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
             Set<ClusterBlock> projectGlobal = new HashSet<>();
             if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
                 projectGlobal = ClusterBlocks.readBlockSet(in);
             }
-            return new ProjectBlocks(in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet), projectGlobal);
+            return new ProjectBlocks(indices, projectGlobal);
         }
 
         @Override
@@ -698,6 +708,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
 
         public Builder addProjectGlobalBlock(ProjectId projectId, ClusterBlock block) {
+            assert projectId.equals(ProjectId.DEFAULT) == false;
             projects.computeIfAbsent(projectId, k -> ProjectBlocks.emptyMutable()).projectGlobal.add(block);
             return this;
         }

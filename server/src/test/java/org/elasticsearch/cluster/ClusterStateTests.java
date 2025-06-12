@@ -317,6 +317,16 @@ public class ClusterStateTests extends ESTestCase {
                             }
                           }
                         }
+                      },
+                      {
+                        "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
+                        "project_globals": {
+                          "15": {
+                            "retryable": false,
+                            "description": "project is under deletion",
+                            "levels": [ "read", "write", "metadata_read", "metadata_write"]
+                          }
+                        }
                       }
                     ]
                   },
@@ -2126,9 +2136,13 @@ public class ClusterStateTests extends ESTestCase {
                 chunkCount += clusterState.blocks().indices(Metadata.DEFAULT_PROJECT_ID).size();
             } else {
                 for (var projectId : clusterState.metadata().projects().keySet()) {
+                    chunkCount += 2; // for writing project id
                     final Map<String, Set<ClusterBlock>> indicesBlocks = clusterState.blocks().indices(projectId);
                     if (indicesBlocks.isEmpty() == false) {
                         chunkCount += 2 + indicesBlocks.size();
+                    }
+                    if (clusterState.blocks().projectBlocks(projectId).projectGlobals().isEmpty() == false) {
+                        chunkCount += 1;
                     }
                 }
             }

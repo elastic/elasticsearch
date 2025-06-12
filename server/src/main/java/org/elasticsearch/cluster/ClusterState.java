@@ -873,13 +873,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
             }
-            if (blocks().noIndexBlockAllProjects() == false) {
+            if (blocks().noProjectBlockAllProjects() == false) {
                 builder.startArray("projects");
             }
             return builder;
         };
         final ToXContent after = (builder, params) -> {
-            if (blocks().noIndexBlockAllProjects() == false) {
+            if (blocks().noProjectBlockAllProjects() == false) {
                 builder.endArray();
             }
             return builder.endObject();
@@ -887,7 +887,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return chunkedSection(
             true,
             before,
-            Iterators.map(metadata().projects().keySet().iterator(), projectId -> new Tuple<>(projectId, blocks().indices(projectId))),
+            Iterators.map(
+                metadata().projects().keySet().iterator(),
+                projectId -> new Tuple<>(projectId, blocks().projectBlocks(projectId))
+            ),
             ClusterState::projectBlocksXContent,
             after
         );
@@ -929,19 +932,37 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         );
     }
 
-    private static Iterator<ToXContent> projectBlocksXContent(Tuple<ProjectId, Map<String, Set<ClusterBlock>>> entry) {
-        return chunkedSection(
-            entry.v2().isEmpty() == false,
-            (builder, params) -> builder.startObject().field("id", entry.v1()).startObject("indices"),
-            entry.v2().entrySet().iterator(),
-            e -> Iterators.single((builder, params) -> {
-                builder.startObject(e.getKey());
-                for (ClusterBlock block : e.getValue()) {
+    private static Iterator<ToXContent> projectBlocksXContent(Tuple<ProjectId, ClusterBlocks.ProjectBlocks> entry) {
+        final var projectId = entry.v1();
+        final var projectBlocks = entry.v2();
+        if (projectBlocks.isEmpty()) {
+            return Collections.emptyIterator();
+        }
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startObject().field("id", projectId)),
+            // write index blocks for the project
+            projectBlocks.indices().isEmpty()
+                ? Collections.emptyIterator()
+                : Iterators.concat(
+                    Iterators.single((builder, params) -> builder.startObject("indices")),
+                    Iterators.flatMap(projectBlocks.indices().entrySet().iterator(), indexBlocks -> Iterators.single((builder, params) -> {
+                        builder.startObject(indexBlocks.getKey());
+                        for (ClusterBlock block : indexBlocks.getValue()) {
+                            block.toXContent(builder, params);
+                        }
+                        return builder.endObject();
+                    })),
+                    Iterators.single((builder, params) -> builder.endObject())
+                ),
+            // write project global blocks in one chunk
+            projectBlocks.projectGlobals().isEmpty() ? Collections.emptyIterator() : Iterators.single((builder, params) -> {
+                builder.startObject("project_globals");
+                for (ClusterBlock block : projectBlocks.projectGlobals()) {
                     block.toXContent(builder, params);
                 }
                 return builder.endObject();
             }),
-            (builder, params) -> builder.endObject().endObject()
+            Iterators.single((builder, params) -> builder.endObject())
         );
     }
 

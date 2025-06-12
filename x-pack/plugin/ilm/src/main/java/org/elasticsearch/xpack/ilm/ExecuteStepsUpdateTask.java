@@ -166,7 +166,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             currentStep.getClass().getSimpleName(),
             currentStep.getKey()
         );
-        ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
+        ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state.projectState());
         // some steps can decide to change the next step to execute after waiting for some time for the condition
         // to be met (eg. {@link LifecycleSettings#LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING}, so it's important we
         // re-evaluate what the next step is after we evaluate the condition

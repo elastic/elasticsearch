@@ -266,6 +266,9 @@ setup:
 
 ---
 "should normalize initial scores with l2_norm":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Requires l2_norm normalization support in linear retriever"
   - do:
       search:
         index: test
@@ -319,6 +322,9 @@ setup:
 
 ---
 "should handle all zero scores in normalization":
+  - requires:
+      cluster_features: [ "linear_retriever.l2_norm" ]
+      reason: "Requires l2_norm normalization support in linear retriever"
   - do:
       search:
         index: test

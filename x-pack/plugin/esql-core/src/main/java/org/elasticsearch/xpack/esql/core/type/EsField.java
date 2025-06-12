@@ -117,7 +117,7 @@ public class EsField implements Writeable {
     }
 
     /**
-     * Returns the field path
+     * Returns the simple name, but not the full field path. The latter requires knowing the path of the parent field.
      */
     public String getName() {
         return name;

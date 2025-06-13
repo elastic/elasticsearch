@@ -25,14 +25,14 @@ public abstract class RequestParameters {
     }
 
     Map<String, String> jsonParameters() {
-        var additionalParameters = childParameters();
+        var additionalParameters = taskTypeParameters();
         var totalParameters = new HashMap<>(additionalParameters);
         totalParameters.put(INPUT, toJson(inputs, INPUT));
 
         return totalParameters;
     }
 
-    protected Map<String, String> childParameters() {
+    protected Map<String, String> taskTypeParameters() {
         return Map.of();
     }
 }

@@ -25,11 +25,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
+import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.RequestParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.RerankParameters;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseEntity;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -68,17 +68,16 @@ public class CustomRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        String query;
-        List<String> input;
         RequestParameters requestParameters;
         if (inferenceInputs instanceof QueryAndDocsInputs) {
             requestParameters = RerankParameters.of(QueryAndDocsInputs.of(inferenceInputs));
         } else if (inferenceInputs instanceof ChatCompletionInput chatInputs) {
             requestParameters = CompletionParameters.of(chatInputs);
         } else if (inferenceInputs instanceof EmbeddingsInput) {
-            EmbeddingsInput embeddingsInput = EmbeddingsInput.of(inferenceInputs);
-            query = null;
-            input = embeddingsInput.getStringInputs();
+            requestParameters = EmbeddingParameters.of(
+                EmbeddingsInput.of(inferenceInputs),
+                model.getServiceSettings().getInputTypeTranslator()
+            );
         } else {
             listener.onFailure(
                 new ElasticsearchStatusException(

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEmptyString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
@@ -75,7 +76,7 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
         this.defaultValue = in.readString();
     }
 
-    public Map<InputType, String> getInputTypeTranslation() {
+    public Map<InputType, String> getTranslation() {
         return inputTypeTranslation;
     }
 
@@ -85,10 +86,12 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        var sortedMap = new TreeMap<>(inputTypeTranslation);
+
         builder.startObject(INPUT_TYPE_TRANSLATOR);
         {
             builder.startObject(TRANSLATION);
-            for (var entry : inputTypeTranslation.entrySet()) {
+            for (var entry : sortedMap.entrySet()) {
                 builder.field(entry.getKey().toString(), entry.getValue());
             }
             builder.endObject();

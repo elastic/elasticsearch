@@ -33,9 +33,9 @@ public class RerankParameters extends RequestParameters {
     }
 
     @Override
-    protected Map<String, String> childParameters() {
+    protected Map<String, String> taskTypeParameters() {
         var additionalParameters = new HashMap<String, String>();
-        additionalParameters.put(QUERY, queryAndDocsInputs.getQuery());
+        additionalParameters.put(QUERY, toJson(queryAndDocsInputs.getQuery(), QUERY));
         if (queryAndDocsInputs.getTopN() != null) {
             additionalParameters.put(
                 InferenceAction.Request.TOP_N.getPreferredName(),

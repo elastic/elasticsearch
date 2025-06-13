@@ -26,10 +26,12 @@ public class CompletionParameters extends RequestParameters {
 
     @Override
     public Map<String, String> jsonParameters() {
-        String jsonRep = toJson(inputs, INPUT);
+        String jsonRep;
 
         if (inputs.isEmpty() == false) {
             jsonRep = toJson(inputs.get(0), INPUT);
+        } else {
+            jsonRep = toJson("", INPUT);
         }
 
         return Map.of(INPUT, jsonRep);

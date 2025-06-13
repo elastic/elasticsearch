@@ -1028,25 +1028,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
         // retry state update to ensure that cluster state stays consistent
-        new UpdateStateRetryableAction(
-            logger,
-            threadPool,
-            jobTask,
-            jobTaskState,
-            ActionListener.wrap(persistentTask -> {
-                try {
-                    handler.accept(null);
-                } catch (IOException e1) {
-                    logger.warn("Error while delegating response", e1);
-                }
-            }, e -> {
-                try {
-                    handler.accept(e);
-                } catch (IOException e1) {
-                    logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
-                }
-            })
-        ).run();
+        new UpdateStateRetryableAction(logger, threadPool, jobTask, jobTaskState, ActionListener.wrap(persistentTask -> {
+            try {
+                handler.accept(null);
+            } catch (IOException e1) {
+                logger.warn("Error while delegating response", e1);
+            }
+        }, e -> {
+            try {
+                handler.accept(e);
+            } catch (IOException e1) {
+                logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
+            }
+        })).run();
     }
 
     public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {

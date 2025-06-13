@@ -196,6 +196,9 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         );
     }
 
+    // "Missing" really means _not_ registered in ElasticsearchNodeCommand's xContentRegistry so that it will be read and written
+    // as a generic unknown project custom, see also ElasticsearchNodeCommand.UnknownProjectCustom. Note it is registered in the
+    // full xContentRegistry used by the Elasticsearch node. That is how it got written in the first place.
     private static class TestMissingProjectCustomMetadata extends TestProjectCustomMetadata {
 
         static final String TYPE = "missing_project_custom_metadata";
@@ -220,6 +223,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
     }
 
+    // Similar "Missing" custom but in the cluster scope. See also the comment above for TestMissingProjectCustomMetadata.
     private static class TestMissingClusterCustomMetadata extends TestClusterCustomMetadata {
 
         static final String TYPE = "missing_cluster_custom_metadata";

@@ -1045,7 +1045,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V7(Build.current().isSnapshot()),
+        FORK_V8(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1087,7 +1087,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V2(Build.current().isSnapshot()),
+        SAMPLE_V3(Build.current().isSnapshot()),
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.

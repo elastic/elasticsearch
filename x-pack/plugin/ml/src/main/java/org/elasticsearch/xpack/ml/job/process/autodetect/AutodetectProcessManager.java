@@ -1008,8 +1008,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
         new UpdateStateRetryableAction(
             logger,
             threadPool,
-            TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
-            TimeValue.timeValueSeconds(UpdateStateRetryableAction.RETRY_TIMEOUT_SECONDS),
             jobTask,
             jobTaskState,
             ActionListener.wrap(
@@ -1033,8 +1031,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
         new UpdateStateRetryableAction(
             logger,
             threadPool,
-            TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
-            TimeValue.MAX_VALUE,
             jobTask,
             jobTaskState,
             ActionListener.wrap(persistentTask -> {
@@ -1110,16 +1106,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
         /**
          * @param logger        The logger (use AutodetectProcessManager.logger)
          * @param threadPool    The ThreadPool to schedule retries on
-         * @param initialDelay  How long to wait before the *first* retry
-         * @param timeout       Overall timeout for all retries
          * @param jobTask       The JobTask whose state we’re updating
          * @param jobTaskState  The new state to persist
          */
         UpdateStateRetryableAction(
             Logger logger,
             ThreadPool threadPool,
-            TimeValue initialDelay,
-            TimeValue timeout,
             JobTask jobTask,
             JobTaskState jobTaskState,
             ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> delegateListener
@@ -1127,8 +1119,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
             super(
                 logger,
                 threadPool,
-                initialDelay,
-                timeout,
+                TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
+                TimeValue.timeValueSeconds(UpdateStateRetryableAction.RETRY_TIMEOUT_SECONDS),
                 delegateListener,
                 // executor for retries
                 threadPool.generic()

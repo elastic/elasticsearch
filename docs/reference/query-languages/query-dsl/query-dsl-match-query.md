@@ -11,7 +11,7 @@ Returns documents that match a provided text, number, date or boolean value. The
 
 The `match` query is the standard query for performing a full-text search, including options for fuzzy matching.
 
-`Match` will also work against [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields. 
+`Match` will also work against [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields.
 As `semantic_text` does not support lexical text search, `match` queries against `semantic_text` fields will automatically perform the correct semantic search.
 Because of this, options that specifically target lexical search such as `fuzziness` or `analyzer` will be ignored.
 
@@ -84,11 +84,10 @@ If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite
 `operator`
 :   (Optional, string) Boolean logic used to interpret text in the `query` value. Valid values are:
 
-`OR` (Default)
-:   For example, a `query` value of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
-
-`AND`
-:   For example, a `query` value of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
+  - `OR` (Default)
+  For example, a `query` value of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
+  - `AND`
+  For example, a `query` value of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
 
 
 `minimum_should_match`

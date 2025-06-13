@@ -201,34 +201,44 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                if (diskThresholdEnabled) {
-                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                        fetchIndicesStats();
-                    }
-                } else {
-                    logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty cluster info");
-                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                }
+                maybeFetchIndicesStats(diskThresholdEnabled);
+                maybeFetchNodeStats(diskThresholdEnabled || shardHeapThresholdEnabled);
+                maybeFetchNodesHeapUsage(shardHeapThresholdEnabled);
+            }
+        }
 
-                if (diskThresholdEnabled || shardHeapThresholdEnabled) {
-                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                        fetchNodeStats();
-                    }
-                } else {
-                    logger.trace("skipping collecting node stats from cluster, notifying listeners with empty node stats");
-                    leastAvailableSpaceUsages = Map.of();
-                    mostAvailableSpaceUsages = Map.of();
-                    maxHeapPerNode = Map.of();
+        private void maybeFetchIndicesStats(boolean shouldFetch) {
+            if (shouldFetch) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchIndicesStats();
                 }
+            } else {
+                logger.trace("skipping collecting disk usage info from cluster, notifying listeners with empty indices stats");
+                indicesStatsSummary = IndicesStatsSummary.EMPTY;
+            }
+        }
 
-                if (shardHeapThresholdEnabled) {
-                    try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                        fetchNodesHeapUsage();
-                    }
-                } else {
-                    logger.trace("skipping collecting shard heap usage from cluster, notifying listeners with empty shard heap usage");
-                    shardHeapUsagePerNode = Map.of();
+        private void maybeFetchNodeStats(boolean shouldFetch) {
+            if (shouldFetch) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodeStats();
                 }
+            } else {
+                logger.trace("skipping collecting node stats from cluster, notifying listeners with empty node stats");
+                leastAvailableSpaceUsages = Map.of();
+                mostAvailableSpaceUsages = Map.of();
+                maxHeapPerNode = Map.of();
+            }
+        }
+
+        private void maybeFetchNodesHeapUsage(boolean shouldFetch) {
+            if (shouldFetch) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodesHeapUsage();
+                }
+            } else {
+                logger.trace("skipping collecting shard heap usage from cluster, notifying listeners with empty shard heap usage");
+                shardHeapUsagePerNode = Map.of();
             }
         }
 

@@ -28,8 +28,7 @@ public class RankFeatureDoc extends RankDoc {
     public static final String NAME = "rank_feature_doc";
 
     // TODO: update to support more than 1 fields; and not restrict to string data
-    public String featureData;
-    public List<String> snippets;
+    public List<String> featureData;
     public List<Integer> docIndices;
 
     public RankFeatureDoc(int doc, float score, int shardIndex) {
@@ -38,10 +37,12 @@ public class RankFeatureDoc extends RankDoc {
 
     public RankFeatureDoc(StreamInput in) throws IOException {
         super(in);
-        featureData = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            snippets = in.readOptionalStringCollectionAsList();
+            featureData = in.readOptionalStringCollectionAsList();
             docIndices = in.readOptionalCollectionAsList(StreamInput::readVInt);
+        } else {
+            String featureDataString = in.readOptionalString();
+            featureData = featureDataString == null ? null : List.of(featureDataString);
         }
     }
 
@@ -50,12 +51,8 @@ public class RankFeatureDoc extends RankDoc {
         throw new UnsupportedOperationException("explain is not supported for {" + getClass() + "}");
     }
 
-    public void featureData(String featureData) {
+    public void featureData(List<String> featureData) {
         this.featureData = featureData;
-    }
-
-    public void snippets(List<String> snippets) {
-        this.snippets = snippets;
     }
 
     public void docIndices(List<Integer> docIndices) {
@@ -64,24 +61,23 @@ public class RankFeatureDoc extends RankDoc {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(featureData);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            out.writeOptionalStringCollection(snippets);
+            out.writeOptionalStringCollection(featureData);
             out.writeOptionalCollection(docIndices, StreamOutput::writeVInt);
+        } else {
+            out.writeOptionalString(featureData.get(0));
         }
     }
 
     @Override
     protected boolean doEquals(RankDoc rd) {
         RankFeatureDoc other = (RankFeatureDoc) rd;
-        return Objects.equals(this.featureData, other.featureData)
-            && Objects.equals(this.snippets, other.snippets)
-            && Objects.equals(this.docIndices, other.docIndices);
+        return Objects.equals(this.featureData, other.featureData) && Objects.equals(this.docIndices, other.docIndices);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(featureData, snippets, docIndices);
+        return Objects.hash(featureData, docIndices);
     }
 
     @Override
@@ -91,8 +87,7 @@ public class RankFeatureDoc extends RankDoc {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("featureData", featureData);
-        builder.array("snippets", snippets);
+        builder.array("featureData", featureData);
         builder.array("docIndices", docIndices);
     }
 }

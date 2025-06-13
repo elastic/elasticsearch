@@ -70,7 +70,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
             final float[] scores;
-            if (featureDocs.length > 0 && featureDocs[0].snippets != null) {
+            if (featureDocs.length > 0 && featureDocs[0].featureData != null && featureDocs[0].featureData.size() > 1) {
                 scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
             } else {
                 scores = extractScoresFromRankedDocs(rankedDocs);
@@ -128,10 +128,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             } else {
                 List<String> inferenceInputs = new ArrayList<>();
                 for (RankFeatureDoc featureDoc : featureDocs) {
-                    if (featureDoc.snippets != null && featureDoc.snippets.isEmpty() == false) {
-                        inferenceInputs.addAll(featureDoc.snippets);
-                    } else {
-                        inferenceInputs.add(featureDoc.featureData);
+                    if (featureDoc.featureData != null) {
+                        inferenceInputs.addAll(featureDoc.featureData);
                     }
                 }
                 InferenceAction.Request inferenceRequest = generateRequest(inferenceInputs);

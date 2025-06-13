@@ -19,6 +19,7 @@ import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
@@ -34,9 +35,15 @@ import java.util.Map;
 public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseRankShardContext {
 
     private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
+    private final RerankSnippetInput snippets;
 
     public RerankingRankFeaturePhaseRankShardContext(String field) {
+        this(field, null);
+    }
+
+    public RerankingRankFeaturePhaseRankShardContext(String field, RerankSnippetInput snippets) {
         super(field);
+        this.snippets = snippets;
     }
 
     @Override
@@ -48,18 +55,18 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
                 SearchHit hit = hits.getHits()[i];
                 DocumentField docField = hit.field(field);
-                if (docField != null) {
-                    rankFeatureDocs[i].featureData(docField.getValue().toString());
+                if (docField != null && snippets == null) {
+                    rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
                 }
                 Map<String, HighlightField> highlightFields = hit.getHighlightFields();
                 if (highlightFields != null) {
                     if (highlightFields.containsKey(field)) {
                         List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
                         List<Integer> docIndices = new ArrayList<>();
-                        for (String snippet : snippets) {
+                        for (String s : snippets) {
                             docIndices.add(docIndex);
                         }
-                        rankFeatureDocs[i].snippets(snippets);
+                        rankFeatureDocs[i].featureData(snippets);
                         rankFeatureDocs[i].docIndices(docIndices);
                     }
                 }

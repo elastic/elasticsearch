@@ -184,7 +184,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new RerankingRankFeaturePhaseRankShardContext(field);
+        return new RerankingRankFeaturePhaseRankShardContext(field, snippets);
     }
 
     @Override

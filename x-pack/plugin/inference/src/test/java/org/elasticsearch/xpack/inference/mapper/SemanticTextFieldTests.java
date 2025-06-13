@@ -43,7 +43,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
@@ -136,15 +135,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField doParseInstance(XContentParser parser) throws IOException {
-        return SemanticTextField.parse(
-            parser,
-            new SemanticTextField.ParserContext(
-                useLegacyFormat,
-                NAME,
-                getRandomCompatibleIndexVersion(useLegacyFormat),
-                parser.contentType()
-            )
-        );
+        return SemanticTextField.parse(parser, new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType()));
     }
 
     @Override

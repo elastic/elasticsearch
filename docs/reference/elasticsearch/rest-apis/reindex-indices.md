@@ -8,9 +8,7 @@ applies_to:
 
 # Reindex indices examples
 
-::::{admonition} New API reference
-For the most up-to-date API details, refer to [Document APIs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex).
-::::
+This page provides examples of how to use the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex).
 
 ## Running reindex asynchronously [docs-reindex-task-api]
 

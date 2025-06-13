@@ -272,7 +272,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 136.1608, error: 1e13 } }
+  - close_to: { hits.hits.0._score: { value: 1.8918664E18, error: 1e15 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 

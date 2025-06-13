@@ -33,7 +33,7 @@ public class RestSampleTestCase extends ESRestTestCase {
     public void skipWhenSampleDisabled() throws IOException {
         assumeTrue(
             "Requires SAMPLE capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.SAMPLE_V2.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.SAMPLE_V3.capabilityName()))
         );
     }
 

@@ -529,6 +529,9 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsAbsolutPathAccess
   issue: https://github.com/elastic/elasticsearch/issues/129168
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
+  method: testCaseInsensitiveEquality {KEYWORD}
+  issue: https://github.com/elastic/elasticsearch/issues/129422
 
 # Examples:
 #

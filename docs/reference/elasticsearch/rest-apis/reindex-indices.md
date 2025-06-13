@@ -13,6 +13,7 @@ This page provides examples of how to use the [Reindex API](https://www.elastic.
 You can learn how to:
 
 **Run and control reindexing**
+- [Basic reindexing example](#basic-reindexing-example)
 - [Reindex asynchronously](#docs-reindex-task-api)
 - [Reindex multiple indices sequentially](#docs-reindex-multiple-sequentially)
 - [Reindex from multiple indices in a single request](#docs-reindex-multiple-sources)
@@ -33,6 +34,50 @@ You can learn how to:
 - [Reindex with custom routing](#docs-reindex-routing)
 - [Reindex with an ingest pipeline](#reindex-with-an-ingest-pipeline)
 - [Reindex from remote](#reindex-from-remote)
+
+## Basic reindexing example
+
+Use the Reindex API to copy all documents from one index to another.
+
+```console
+POST _reindex
+{
+  "source": {
+    "index": "my-index-000001"
+  },
+  "dest": {
+    "index": "my-new-index-000001"
+  }
+}
+```
+% TEST[setup:my_index_big]
+
+<!--
+
+```console-result
+{
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "deleted": 0,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": -1.0,
+  "throttled_until_millis": 0,
+  "total": 120,
+  "failures" : [ ]
+}
+```
+% TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
+
+-->
 
 ## Reindex asynchronously [docs-reindex-task-api]
 
@@ -58,6 +103,7 @@ for index in i1 i2 i3 i4 i5; do
   }'
 done
 ```
+% NOTCONSOLE
 
 ## Reindex with throttling [docs-reindex-throttle]
 
@@ -129,6 +175,7 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index_big]
 
 You can verify this works by:
 
@@ -136,6 +183,7 @@ You can verify this works by:
 GET _refresh
 POST my-new-index-000001/_search?size=0&filter_path=hits.total
 ```
+% TEST[continued]
 
 which results in a sensible `total` like this one:
 
@@ -166,12 +214,14 @@ POST _reindex?slices=5&refresh
   }
 }
 ```
+% TEST[setup:my_index_big]
 
 You can also verify this works by:
 
 ```console
 POST my-new-index-000001/_search?size=0&filter_path=hits.total
 ```
+% TEST[continued]
 
 which results in a sensible `total` like this one:
 
@@ -244,6 +294,7 @@ POST _reindex
   }
 }
 ```
+% TEST[s/^/PUT source\n/]
 
 By default the reindex API uses scroll batches of 1000. You can change the batch size with the `size` field in the `source` element:
 
@@ -260,6 +311,7 @@ POST _reindex
   }
 }
 ```
+% TEST[s/^/PUT source\n/]
 
 ## Reindex with an ingest pipeline [reindex-with-an-ingest-pipeline]
 
@@ -277,6 +329,7 @@ POST _reindex
   }
 }
 ```
+% TEST[s/^/PUT source\n/]
 
 ## Reindex selected documents with a query [docs-reindex-select-query]
 
@@ -298,6 +351,7 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index]
 
 ## Reindex a limited number of documents with `max_docs` [docs-reindex-select-max-docs]
 
@@ -316,6 +370,7 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index]
 
 ## Reindex from multiple indices in a single request [docs-reindex-multiple-sources]
 
@@ -333,6 +388,8 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index]
+% TEST[s/^/PUT my-index-000002\/_doc\/post1?refresh\n{"test": "foo"}\n/]
 
 ::::{note}
 The reindex API makes no effort to handle ID collisions so the last document written will "win" but the order isn't usually predictable so it is not a good idea to rely on this behavior. Instead, make sure that IDs are unique using a script.
@@ -355,6 +412,7 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index]
 
 ## Reindex to change the name of a field [docs-reindex-change-name]
 
@@ -385,12 +443,14 @@ POST _reindex
   }
 }
 ```
+% TEST[continued]
 
 Now you can get the new document:
 
 ```console
 GET my-new-index-000001/_doc/1
 ```
+% TEST[continued]
 
 ...which will return:
 
@@ -408,6 +468,7 @@ GET my-new-index-000001/_doc/1
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 ## Reindex daily indices [docs-reindex-daily-indices]
 
@@ -441,6 +502,7 @@ POST _reindex
   }
 }
 ```
+% TEST[continued]
 
 All documents from the previous metricbeat indices can now be found in the `*-1` indices.
 
@@ -448,6 +510,7 @@ All documents from the previous metricbeat indices can now be found in the `*-1`
 GET metricbeat-2016.05.30-1/_doc/1
 GET metricbeat-2016.05.31-1/_doc/1
 ```
+% TEST[continued]
 
 The previous method can also be used in conjunction with [changing a field name](#docs-reindex-change-name) to load only the existing data into the new index and rename any fields if needed.
 
@@ -473,6 +536,7 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index_big]
 
 1. You may need to adjust the `min_score` depending on the relative amount of data extracted from source.
 
@@ -498,6 +562,7 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:my_index]
 
 Just as in `_update_by_query`, you can set `ctx.op` to change the operation that is run on the destination:
 
@@ -543,6 +608,11 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:host]
+% TEST[s/^/PUT my-index-000001\n/]
+% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"username": "user",/"username": "test_admin",/]
+% TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
 The `host` parameter must contain a scheme, host, port (for example, `https://otherhost:9200`), and optional path (for example, `https://otherhost:9200/proxy`).
 The `username` and `password` parameters are optional, and when they are present the reindex API will connect to the remote {{es}} node using basic auth.
@@ -572,6 +642,10 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:host]
+% TEST[s/^/PUT my-index-000001\n/]
+% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
 
 Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the `reindex.remote.whitelist` property.
 It can be set to a comma delimited list of allowed remote `host` and `port` combinations. 
@@ -616,6 +690,10 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:host]
+% TEST[s/^/PUT source\n/]
+% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/\.\.\./"username": "test_admin", "password": "x-pack-test-password"/]
 
 It is also possible to set the socket read timeout on the remote connection with the `socket_timeout` field and the connection timeout with the `connect_timeout` field.
 Both default to 30 seconds.
@@ -643,6 +721,10 @@ POST _reindex
   }
 }
 ```
+% TEST[setup:host]
+% TEST[s/^/PUT source\n/]
+% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/\.\.\.,/"username": "test_admin", "password": "x-pack-test-password",/]
 
 ### Configuring SSL parameters [reindex-ssl]
 

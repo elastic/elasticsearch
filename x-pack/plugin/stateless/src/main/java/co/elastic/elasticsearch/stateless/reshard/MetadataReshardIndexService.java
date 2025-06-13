@@ -317,9 +317,9 @@ public class MetadataReshardIndexService {
     }
 
     public static RoutingTable.Builder reshardUpdateNumberOfShards(
+        final IndexReshardingMetadata reshardingMetadata,
         final ProjectState projectState,
         final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        final int newShardCount,
         final Index index
     ) {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, projectState.routingTable());
@@ -334,6 +334,7 @@ public class MetadataReshardIndexService {
         // Replica count
         int currentNumberOfReplicas = indexRoutingTable.shard(0).size() - 1; // remove the required primary
         int oldShardCount = indexRoutingTable.size();
+        int newShardCount = reshardingMetadata.getSplit().shardCountAfter();
         assert (newShardCount % oldShardCount == 0) : "New shard count must be multiple of old shard count";
         IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(
             routingTableBuilder.getShardRoutingRoleStrategy(),
@@ -353,11 +354,16 @@ public class MetadataReshardIndexService {
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             for (int j = 0; j <= currentNumberOfReplicas; j++) {
                 boolean primary = j == 0;
+                RecoverySource recoverySource = primary
+                    ? new RecoverySource.ReshardSplitRecoverySource(
+                        new ShardId(shardId.getIndex(), reshardingMetadata.getSplit().sourceShard(shardId.getId()))
+                    )
+                    : RecoverySource.PeerRecoverySource.INSTANCE;
+
                 ShardRouting shardRouting = ShardRouting.newUnassigned(
                     shardId,
                     primary,
-                    // TODO: Will add a SPLIT recovery type for primary
-                    primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
+                    recoverySource,
                     new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
                     routingTableBuilder.getShardRoutingRoleStrategy().newEmptyRole(j)
                 );
@@ -409,12 +415,11 @@ public class MetadataReshardIndexService {
 
             final int sourceNumShards = sourceMetadata.getNumberOfShards();
             final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, task.request.getMultiple());
-            final int targetNumShards = reshardingMetadata.shardCountAfter();
             // TODO: We should do this validation in TransportReshardAction as well
-            validateNumTargetShards(targetNumShards, sourceMetadata);
+            validateNumTargetShards(reshardingMetadata.shardCountAfter(), sourceMetadata);
 
             // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
-            final var routingTableBuilder = reshardUpdateNumberOfShards(projectState, shardRoutingRoleStrategy, targetNumShards, index);
+            final var routingTableBuilder = reshardUpdateNumberOfShards(reshardingMetadata, projectState, shardRoutingRoleStrategy, index);
 
             ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
             // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)

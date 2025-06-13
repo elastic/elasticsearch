@@ -123,10 +123,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                 if (indexShard.routingEntry().isSearchable()) {
                     beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
                 } else {
-                    IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
-                    if (IndexReshardingMetadata.isSplitTarget(shardId, reshardingMetadata)) {
+                    if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
                         splitTargetService.startSplitRecovery(
                             indexShard,
+                            indexSettings.getIndexMetadata(),
                             new ThreadedActionListener<>(
                                 threadPool.generic(),
                                 releaseAfterListener.delegateFailureAndWrap(

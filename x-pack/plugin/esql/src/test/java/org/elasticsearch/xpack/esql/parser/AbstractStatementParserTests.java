@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -120,11 +121,11 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataType.KEYWORD);
+        return new Literal(EMPTY, BytesRefs.toBytesRef(s), DataType.KEYWORD);
     }
 
     static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
+        return new Literal(EMPTY, Arrays.asList(strings).stream().map(BytesRefs::toBytesRef).toList(), DataType.KEYWORD);
     }
 
     static MapExpression mapExpression(Map<String, Object> keyValuePairs) {
@@ -133,10 +134,22 @@ abstract class AbstractStatementParserTests extends ESTestCase {
             String key = entry.getKey();
             Object value = entry.getValue();
             DataType type = (value instanceof List<?> l) ? DataType.fromJava(l.get(0)) : DataType.fromJava(value);
-            ees.add(new Literal(EMPTY, key, DataType.KEYWORD));
+            value = stringsToBytesRef(value, type);
+
+            ees.add(new Literal(EMPTY, BytesRefs.toBytesRef(key), DataType.KEYWORD));
             ees.add(new Literal(EMPTY, value, type));
         }
         return new MapExpression(EMPTY, ees);
+    }
+
+    private static Object stringsToBytesRef(Object value, DataType type) {
+        if (value instanceof List<?> l) {
+            return l.stream().map(x -> stringsToBytesRef(x, type)).toList();
+        }
+        if (value instanceof String && (type == DataType.TEXT || type == DataType.KEYWORD)) {
+            value = BytesRefs.toBytesRef(value);
+        }
+        return value;
     }
 
     void expectError(String query, String errorMessage) {

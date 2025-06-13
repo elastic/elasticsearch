@@ -105,17 +105,19 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private void doClose() {
         assert ctx.channel().eventLoop().inEventLoop() : Thread.currentThread().getName();
-        closing = true;
-        try (var ignored = threadContext.restoreExistingContext(requestContext)) {
-            for (var tracer : tracingHandlers) {
-                Releasables.closeExpectNoException(tracer);
+        if (closing == false) {
+            closing = true;
+            try (var ignored = threadContext.restoreExistingContext(requestContext)) {
+                for (var tracer : tracingHandlers) {
+                    Releasables.closeExpectNoException(tracer);
+                }
+                if (handler != null) {
+                    handler.close();
+                }
             }
-            if (handler != null) {
-                handler.close();
+            if (readLastChunk == false) {
+                read();
             }
-        }
-        if (readLastChunk == false) {
-            read();
         }
     }
 }

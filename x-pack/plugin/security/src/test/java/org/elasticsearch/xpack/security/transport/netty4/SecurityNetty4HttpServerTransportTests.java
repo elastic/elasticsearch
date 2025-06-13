@@ -31,11 +31,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.Netty4FullHttpResponse;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
@@ -111,7 +111,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,
@@ -138,7 +138,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,
@@ -165,7 +165,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,
@@ -192,7 +192,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,
@@ -214,7 +214,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,
@@ -237,7 +237,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,
@@ -269,7 +269,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             Tracer.NOOP,

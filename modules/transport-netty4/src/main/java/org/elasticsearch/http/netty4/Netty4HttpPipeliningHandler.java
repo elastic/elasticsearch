@@ -144,13 +144,13 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 assert currentRequestStream != null : "current stream must exists before handling http content";
                 shouldRead = false;
                 currentRequestStream.handleNettyContent((HttpContent) msg);
-                if (msg instanceof LastHttpContent) {
-                    currentRequestStream = null;
-                }
             }
         } finally {
             if (shouldRead) {
                 ctx.channel().eventLoop().execute(ctx::read);
+            }
+            if (msg instanceof LastHttpContent) {
+                currentRequestStream = null;
             }
             activityTracker.stopActivity();
         }
@@ -161,7 +161,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
         assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
-        assert Transports.assertTransportThread();
+        assert ctx.channel().eventLoop().inEventLoop();
         try {
             serverTransport.incomingRequest(pipelinedRequest, channel);
             success = true;

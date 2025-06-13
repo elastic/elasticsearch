@@ -67,12 +67,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -192,9 +192,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 
@@ -262,7 +262,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 networkService,
                 threadPool,
                 xContentRegistry(),
-                new NullDispatcher(),
+                new AggregatingDispatcher(),
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
                 Tracer.NOOP,
@@ -283,7 +283,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     networkService,
                     threadPool,
                     xContentRegistry(),
-                    new NullDispatcher(),
+                    new AggregatingDispatcher(),
                     clusterSettings,
                     new SharedGroupFactory(settings),
                     Tracer.NOOP,
@@ -850,9 +850,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final Settings settings = createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1mb")
             .build();
         final String requestString = randomAlphaOfLength(2 * 1024 * 1024); // request size is twice the limit
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 throw new AssertionError("Request dispatched but shouldn't");
             }
 
@@ -1058,9 +1058,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final SubscribableListener<Void> transportClosedFuture = new SubscribableListener<>();
         final CountDownLatch handlingRequestLatch = new CountDownLatch(1);
 
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,

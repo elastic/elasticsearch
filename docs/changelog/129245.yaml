@@ -1,0 +1,5 @@
+pr: 129245
+summary: Throttle indexing when disk IO throttling is disabled
+area: Engine
+type: enhancement
+issues: []

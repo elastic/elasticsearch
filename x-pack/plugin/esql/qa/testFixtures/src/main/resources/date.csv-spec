@@ -1581,4 +1581,25 @@ x:date                      | y:date
 
 ;
 
+optimizeDateGroupingWithFormatting
+FROM employees 
+| STATS salary = SUM(salary) BY month = DATE_FORMAT("yyyy-MM", birth_date)
+| sort month 
+| limit 10
+;
+
+salary:long    | month:keyword     
+71165          | 1952-02        
+66174          | 1952-04        
+54518          | 1952-05        
+62405          | 1952-06        
+48233          | 1952-07        
+52121          | 1952-08        
+31897          | 1952-11        
+40031          | 1952-12        
+125761         | 1953-01        
+25945          | 1953-02        
+
+;
+
 

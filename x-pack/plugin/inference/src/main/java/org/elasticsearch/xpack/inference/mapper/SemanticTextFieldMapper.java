@@ -333,7 +333,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             var resolvedModelSettings = modelSettings.get();
             if (modelSettings.get() == null) {
-                resolvedModelSettings = getResolvedModelSettings(true);
+                resolvedModelSettings = getResolvedModelSettings(context, true);
             }
 
             if (modelSettings.get() != null) {

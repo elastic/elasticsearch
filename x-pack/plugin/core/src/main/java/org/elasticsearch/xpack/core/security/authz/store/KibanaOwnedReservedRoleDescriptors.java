@@ -568,11 +568,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
                 // Hidden indices for cases analytics
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".internal.cases*")
-                    .privileges("all")
-                    .build()
-            },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".internal.cases*").privileges("all").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

@@ -138,8 +138,8 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         Query expected = new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
-                .add(new Term("field", "c"))
-                .build();
+            .add(new Term("field", "c"))
+            .build();
         assertEquals(expected.toString(), delegate.toString());
     }
 

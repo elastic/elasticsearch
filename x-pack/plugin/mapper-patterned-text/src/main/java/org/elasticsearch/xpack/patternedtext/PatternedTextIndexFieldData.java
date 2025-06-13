@@ -30,7 +30,6 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
-
 public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData> {
 
     private final SortedSetOrdinalsIndexFieldData templateFieldData;

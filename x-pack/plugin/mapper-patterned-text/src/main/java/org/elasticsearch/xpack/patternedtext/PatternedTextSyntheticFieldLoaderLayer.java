@@ -61,7 +61,8 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
     private static class PatternedTextSyntheticFieldLoader implements DocValuesLoader {
         private final PatternedTextDocValues docValues;
         private boolean hasValue = false;
-        PatternedTextSyntheticFieldLoader(PatternedTextDocValues docValues)  {
+
+        PatternedTextSyntheticFieldLoader(PatternedTextDocValues docValues) {
             this.docValues = docValues;
         }
 

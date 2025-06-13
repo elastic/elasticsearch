@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -620,17 +621,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
+            // TODO: should this check be here or in Lookup.java?
+            boolean[] hasRemotes = { false };
             p.forEachUp(UnresolvedRelation.class, r -> {
                 for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
                     if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
-                        throw new ParsingException(
-                            source(target),
-                            "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
-                            r.indexPattern().indexPattern()
-                        );
+                        hasRemotes[0] = true;
                     }
                 }
             });
+            if (hasRemotes[0]) {
+                p.forEachUp(UnaryPlan.class, u -> {
+                    if (u instanceof Aggregate || (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR)) {
+                        throw new ParsingException(
+                            source,
+                            "LOOKUP JOIN with remote indices is not supported after aggregation or local enrich commands"
+                        );
+                    }
+                });
+            }
 
             return new LookupJoin(source, p, right, joinFields);
         };

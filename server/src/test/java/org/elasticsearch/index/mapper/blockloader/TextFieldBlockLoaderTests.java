@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +27,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        System.out.println("field mapping: " + fieldMapping);
         return expectedValue(fieldMapping, value, params, testContext);
     }
 
@@ -80,7 +83,13 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     .map(BytesRef::new)
                     .collect(Collectors.toList());
 
-                // ignored values always come last
+                if (store == false && ignoreAbove.equals(Integer.MAX_VALUE)) {
+                    // using doc_values for synthetic source
+                    indexed = new ArrayList<>(new HashSet<>(indexed));
+                    indexed.sort(BytesRef::compareTo);
+                }
+
+                // ignored   values always come last
                 List<BytesRef> ignored = values.stream()
                     .map(s -> s == null ? nullValue : s)
                     .filter(Objects::nonNull)

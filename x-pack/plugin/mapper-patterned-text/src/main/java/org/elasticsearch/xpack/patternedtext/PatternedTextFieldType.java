@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -86,11 +87,6 @@ public class PatternedTextFieldType extends StringFieldType {
     @Override
     public String familyTypeName() {
         return TextFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
-    public boolean isAggregatable() {
-        return false;
     }
 
     @Override
@@ -240,7 +236,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new PatternedTextBlockLoader(name(), templateFieldName(), argsFieldName());
+        return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
     }
 
     @Override

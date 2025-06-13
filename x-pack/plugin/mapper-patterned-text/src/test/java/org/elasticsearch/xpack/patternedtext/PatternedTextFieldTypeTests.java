@@ -13,8 +13,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -112,12 +110,13 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     public void testFetchDocValue() throws IOException {
         Supplier<Document> documentSupplier = () -> {
             Document doc = new Document();
-            doc.add(new SortedSetDocValuesField("field.template", new BytesRef("value")));
+            doc.add(new SortedSetDocValuesField("field.template", new BytesRef("value %W")));
+            doc.add(new SortedSetDocValuesField("field.args", new BytesRef("1")));
             return doc;
         };
 
         MappedFieldType fieldType = new PatternedTextFieldType("field");
-        assertEquals(List.of("value"), fetchDocValues(fieldType, documentSupplier));
+        assertEquals(List.of("value 1"), fetchDocValues(fieldType, documentSupplier));
     }
 
     private Query unwrapPositionalQuery(Query query) {
@@ -130,13 +129,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
         Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
-        assertEquals(
-            new BooleanQuery.Builder().add(new PhraseQuery("field", "a", "b"), BooleanClause.Occur.SHOULD)
-                .add(new PhraseQuery("field.template", "a", "b"), BooleanClause.Occur.SHOULD)
-                .build()
-                .toString(),
-            delegate.toString()
-        );
+        assertEquals(new PhraseQuery("field", "a", "b").toString(), delegate.toString());
     }
 
     public void testMultiPhraseQuery() throws IOException {
@@ -144,19 +137,9 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
         Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
-        Query expected = new BooleanQuery.Builder().add(
-            new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
+        Query expected = new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
                 .add(new Term("field", "c"))
-                .build(),
-            BooleanClause.Occur.SHOULD
-        )
-            .add(
-                new MultiPhraseQuery.Builder().add(new Term[] { new Term("field.template", "a"), new Term("field.template", "b") })
-                    .add(new Term("field.template", "c"))
-                    .build(),
-                BooleanClause.Occur.SHOULD
-            )
-            .build();
+                .build();
         assertEquals(expected.toString(), delegate.toString());
     }
 
@@ -168,16 +151,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
         MultiPhrasePrefixQuery expected = new MultiPhrasePrefixQuery("field");
         expected.add(new Term[] { new Term("field", "a"), new Term("field", "b") });
         expected.add(new Term("field", "c"));
-        MultiPhrasePrefixQuery expectedTemplate = new MultiPhrasePrefixQuery("field.template");
-        expectedTemplate.add(new Term[] { new Term("field.template", "a"), new Term("field.template", "b") });
-        expectedTemplate.add(new Term("field.template", "c"));
-        assertEquals(
-            new BooleanQuery.Builder().add(expected, BooleanClause.Occur.SHOULD)
-                .add(expectedTemplate, BooleanClause.Occur.SHOULD)
-                .build()
-                .toString(),
-            delegate.toString()
-        );
+        assertEquals(expected.toString(), delegate.toString());
     }
 
     public void testTermIntervals() {

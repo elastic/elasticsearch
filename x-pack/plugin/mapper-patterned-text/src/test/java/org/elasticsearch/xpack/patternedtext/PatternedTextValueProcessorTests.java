@@ -90,4 +90,12 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         );
         assertEquals(text, PatternedTextValueProcessor.merge(parts));
     }
+
+    public void testWithTimestamp1() {
+        String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
+        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
+        assertEquals("[%W] Found %W errors for service [%W]", parts.template());
+        assertThat(parts.args(), Matchers.contains("2020-08-18T00:58:56", "123", "cheddar1"));
+        assertEquals(text, PatternedTextValueProcessor.merge(parts));
+    }
 }

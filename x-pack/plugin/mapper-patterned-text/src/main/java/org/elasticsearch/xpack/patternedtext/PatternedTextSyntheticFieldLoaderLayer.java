@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.patternedtext;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,13 +28,13 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
 
     @Override
     public long valueCount() {
-        return loader != null ? loader.count() : 0;
+        return loader != null && loader.hasValue() ? 1 : 0;
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         var docValues = PatternedTextDocValues.from(leafReader, templateFieldName, argsFieldName);
-        if (docValues == null || docValues.getValueCount() == 0) {
+        if (docValues == null) {
             return null;
         }
         loader = new PatternedTextSyntheticFieldLoader(docValues);
@@ -42,7 +43,7 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
 
     @Override
     public boolean hasValue() {
-        return loader != null && loader.count() > 0;
+        return loader != null && loader.hasValue();
     }
 
     @Override
@@ -57,23 +58,26 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
         return "";
     }
 
-    private record PatternedTextSyntheticFieldLoader(PatternedTextDocValues docValues) implements DocValuesLoader {
+    private static class PatternedTextSyntheticFieldLoader implements DocValuesLoader {
+        private final PatternedTextDocValues docValues;
+        private boolean hasValue = false;
+        PatternedTextSyntheticFieldLoader(PatternedTextDocValues docValues)  {
+            this.docValues = docValues;
+        }
+
+        public boolean hasValue() {
+            assert docValues.docID() != DocIdSetIterator.NO_MORE_DOCS;
+            return hasValue;
+        }
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
-            return docValues.advanceExact(docId);
-        }
-
-        public int count() {
-            return docValues.docValueCount();
+            return hasValue = docValues.advanceExact(docId);
         }
 
         public void write(XContentBuilder b) throws IOException {
-            if (docValues.getValueCount() == 0) {
-                return;
-            }
-            for (int i = 0; i < count(); i++) {
-                b.value(docValues.lookupOrdAsString(docValues.nextOrd()));
+            if (hasValue) {
+                b.value(docValues.binaryValue().utf8ToString());
             }
         }
     }

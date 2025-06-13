@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.patternedtext;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PatternedTextDocValues extends SortedSetDocValues {
+public class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
 
@@ -35,26 +36,13 @@ public class PatternedTextDocValues extends SortedSetDocValues {
         return new PatternedTextDocValues(templateDocValues, argsDocValues);
     }
 
-    @Override
-    public long nextOrd() throws IOException {
-        return templateDocValues.nextOrd();
-    }
-
-    @Override
-    public int docValueCount() {
-        return templateDocValues.docValueCount();
-    }
-
-    @Override
-    public BytesRef lookupOrd(long l) throws IOException {
-        return new BytesRef(lookupOrdAsString(l));
-    }
-
-    String lookupOrdAsString(long l) throws IOException {
-        String template = templateDocValues.lookupOrd(l).utf8ToString();
+    private String getNextStringValue() throws IOException {
+        assert templateDocValues.docValueCount() == 1;
+        String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
         int argsCount = PatternedTextValueProcessor.countArgs(template);
         List<String> args = new ArrayList<>(argsCount);
         if (argsCount > 0) {
+            assert argsDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             PatternedTextValueProcessor.decodeRemainingArgs(args, mergedArgs.utf8ToString());
         }
@@ -62,13 +50,14 @@ public class PatternedTextDocValues extends SortedSetDocValues {
     }
 
     @Override
-    public long getValueCount() {
-        return templateDocValues.getValueCount();
+    public BytesRef binaryValue() throws IOException {
+        return new BytesRef(getNextStringValue());
     }
 
     @Override
     public boolean advanceExact(int i) throws IOException {
         argsDocValues.advanceExact(i);
+        // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
         return templateDocValues.advanceExact(i);
     }
 
@@ -79,12 +68,18 @@ public class PatternedTextDocValues extends SortedSetDocValues {
 
     @Override
     public int nextDoc() throws IOException {
-        return templateDocValues.nextDoc();
+        int templateNext = templateDocValues.nextDoc();
+        int argsNext = argsDocValues.nextDoc();
+        assert templateNext == argsNext;
+        return templateNext;
     }
 
     @Override
     public int advance(int i) throws IOException {
-        return templateDocValues.advance(i);
+        int templateAdvance = templateDocValues.advance(i);
+        int argAdvance = argsDocValues.advance(i);
+        assert templateAdvance == argAdvance;
+        return templateAdvance;
     }
 
     @Override

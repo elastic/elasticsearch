@@ -44,7 +44,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestRequestTests extends ESTestCase {
-    private static final String PARAMETER_KEY = "PARAMETER_KEY";
 
     public void testContentConsumesContent() {
         runConsumesContentTest(RestRequest::content, true);
@@ -124,32 +123,35 @@ public class RestRequestTests extends ESTestCase {
     public void testParseAsIntWithNoParameters() {
         RestRequest restRequest = contentRestRequest("", emptyMap());
         int defaultValue = -1;
+        String parameterKey = randomIdentifier();
 
-        int value = restRequest.paramAsInt(PARAMETER_KEY, defaultValue);
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
         assertEquals(defaultValue, value);
 
-        Integer value2 = restRequest.paramAsInt(PARAMETER_KEY, Integer.valueOf(defaultValue));
+        Integer value2 = restRequest.paramAsInt(parameterKey, Integer.valueOf(defaultValue));
         assertEquals(defaultValue, value2.intValue());
     }
 
     public void testParseAsIntWithIntegerParameter() {
-        RestRequest restRequest = contentRestRequest("", singletonMap(PARAMETER_KEY, "123"));
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
         int defaultValue = -1;
 
-        int value = restRequest.paramAsInt(PARAMETER_KEY, defaultValue);
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
         assertEquals(123, value);
 
-        Integer value2 = restRequest.paramAsInt(PARAMETER_KEY, Integer.valueOf(defaultValue));
+        Integer value2 = restRequest.paramAsInt(parameterKey, Integer.valueOf(defaultValue));
         assertEquals(123, value2.intValue());
     }
 
     public void testParseAsIntWithoutIntegerParameter() {
-        RestRequest restRequest = contentRestRequest("", singletonMap(PARAMETER_KEY, "123T"));
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
         int defaultValue = -1;
 
-        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(PARAMETER_KEY, defaultValue); });
+        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(parameterKey, defaultValue); });
 
-        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(PARAMETER_KEY, Integer.valueOf(defaultValue)); });
+        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(parameterKey, Integer.valueOf(defaultValue)); });
     }
 
     public void testContentOrSourceParam() throws IOException {

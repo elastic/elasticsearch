@@ -182,8 +182,10 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String stringEvaluator(ToIp.LeadingZeros leadingZeros) {
+        if (leadingZeros == null) {
+            return "ParseIpLeadingZerosRejectedEvaluator[string=" + readEvaluator() + "]";
+        }
         return switch (leadingZeros) {
-            case null -> "ParseIpLeadingZerosRejectedEvaluator";
             case REJECT -> "ParseIpLeadingZerosRejectedEvaluator";
             case DECIMAL -> "ParseIpLeadingZerosAreDecimalEvaluator";
             case OCTAL -> "ParseIpLeadingZerosAreOctalEvaluator";

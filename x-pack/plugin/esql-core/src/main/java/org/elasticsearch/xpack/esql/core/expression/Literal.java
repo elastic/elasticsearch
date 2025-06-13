@@ -11,11 +11,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,6 +25,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -46,7 +52,22 @@ public class Literal extends LeafExpression {
     public Literal(Source source, Object value, DataType dataType) {
         super(source);
         this.dataType = dataType;
-        this.value = value;
+        this.value = stringsToBytesRef(dataType, value);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Object stringsToBytesRef(DataType dataType, Object value) {
+        if (value instanceof String s) {
+            return switch (dataType) {
+                case IP -> s; // it's a problem for CIDR_MATCH, see CombineDisjunctions, but it's wrong!
+                case VERSION -> new Version(s).toBytesRef();
+                default -> BytesRefs.toBytesRef(value);
+            };
+        }
+        if (value instanceof List l) {
+            return l.stream().map(x -> stringsToBytesRef(dataType, x)).toList();
+        }
+        return value;
     }
 
     private static Literal readFrom(StreamInput in) throws IOException {
@@ -122,7 +143,20 @@ public class Literal extends LeafExpression {
 
     @Override
     public String toString() {
-        String str = String.valueOf(value);
+        String str;
+        if (dataType == KEYWORD || dataType == TEXT) {
+            str = BytesRefs.toString(value);
+        } else if (dataType == VERSION && value instanceof BytesRef br) {
+            str = new Version(br).toString();
+            // } else if (dataType == IP && value instanceof BytesRef ip) {
+            // str = DocValueFormat.IP.format(ip);
+        } else {
+            str = String.valueOf(value);
+        }
+
+        if (str == null) {
+            str = "null";
+        }
         if (str.length() > 500) {
             return str.substring(0, 500) + "...";
         }

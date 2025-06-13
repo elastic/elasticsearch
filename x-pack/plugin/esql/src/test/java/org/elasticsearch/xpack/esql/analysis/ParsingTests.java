@@ -157,8 +157,8 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testInvalidLimit() {
-        assertEquals("1:13: Invalid value for LIMIT [foo: String], expecting a non negative integer", error("row a = 1 | limit \"foo\""));
-        assertEquals("1:13: Invalid value for LIMIT [1.2: Double], expecting a non negative integer", error("row a = 1 | limit 1.2"));
+        assertEquals("1:13: Invalid value for LIMIT [foo: KEYWORD], expecting a non negative integer", error("row a = 1 | limit \"foo\""));
+        assertEquals("1:13: Invalid value for LIMIT [1.2: DOUBLE], expecting a non negative integer", error("row a = 1 | limit 1.2"));
         assertEquals("1:13: Invalid value for LIMIT [-1], expecting a non negative integer", error("row a = 1 | limit -1"));
     }
 

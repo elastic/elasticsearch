@@ -166,8 +166,14 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
          */
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
+                if (upperValue instanceof BytesRef br) {
+                    upperValue = br.utf8ToString();
+                }
                 if (upperValue instanceof String upperString) {
                     upperValue = asDateTime(upperString);
+                }
+                if (lowerValue instanceof BytesRef br) {
+                    lowerValue = br.utf8ToString();
                 }
                 if (lowerValue instanceof String lowerString) {
                     lowerValue = asDateTime(lowerString);

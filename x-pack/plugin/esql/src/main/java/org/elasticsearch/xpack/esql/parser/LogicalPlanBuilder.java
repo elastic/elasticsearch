@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -172,7 +174,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = ((BytesRef) visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */)).utf8ToString();
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -203,21 +205,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = ((BytesRef) visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */)).utf8ToString();
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
-                if (item.getValue() instanceof String == false) {
+                if (item.getValue() instanceof BytesRef == false) {
                     throw new ParsingException(
                         source(ctx),
                         "Invalid value for dissect append_separator: expected a string, but was [{}]",
                         item.getValue()
                     );
                 }
-                appendSeparator = (String) item.getValue();
+                appendSeparator = BytesRefs.toString(item.getValue());
             }
             Source src = source(ctx);
 
@@ -385,13 +387,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
         if (val instanceof Integer i) {
             if (i < 0) {
-                throw new ParsingException(source, "Invalid value for LIMIT [" + val + "], expecting a non negative integer");
+                throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
             }
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         } else {
             throw new ParsingException(
                 source,
-                "Invalid value for LIMIT [" + val + ": " + val.getClass().getSimpleName() + "], expecting a non negative integer"
+                "Invalid value for LIMIT ["
+                    + BytesRefs.toString(val)
+                    + ": "
+                    + expression(ctx.constant()).dataType()
+                    + "], expecting a non negative integer"
             );
         }
     }

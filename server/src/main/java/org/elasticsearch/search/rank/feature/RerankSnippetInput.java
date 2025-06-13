@@ -15,15 +15,22 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record RerankSnippetInput(Integer numFragments, Integer maxSize) implements Writeable {
+public record RerankSnippetInput(Integer numSnippets) implements Writeable {
+
+    private static final int DEFAULT_NUM_SNIPPETS = 1;
+
+    public RerankSnippetInput {
+        if (numSnippets == null) {
+            numSnippets = DEFAULT_NUM_SNIPPETS;
+        }
+    }
 
     public RerankSnippetInput(StreamInput in) throws IOException {
-        this(in.readOptionalVInt(), in.readOptionalVInt());
+        this(in.readOptionalVInt());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(numFragments);
-        out.writeOptionalVInt(maxSize);
+        out.writeOptionalVInt(numSnippets);
     }
 }

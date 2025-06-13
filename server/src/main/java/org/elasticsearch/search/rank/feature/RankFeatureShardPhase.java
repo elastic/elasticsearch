@@ -63,12 +63,10 @@ public final class RankFeatureShardPhase {
                     HighlightBuilder highlightBuilder = new HighlightBuilder().field(field).preTags("").postTags("");
                     // Force sorting by score to ensure that the first snippet is always the highest score
                     highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                    if (snippets.numFragments() != null) {
-                        highlightBuilder.numOfFragments(snippets.numFragments());
+                    if (snippets.numSnippets() != null) {
+                        highlightBuilder.numOfFragments(snippets.numSnippets());
                     }
-                    if (snippets.maxSize() != null) {
-                        highlightBuilder.fragmentSize(snippets.maxSize());
-                    }
+                    highlightBuilder.fragmentSize(20); // TODO use model limit
                     SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
                     searchContext.highlight(searchHighlightContext);
                 }

@@ -69,7 +69,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
             final float[] scores;
-            if (featureDocs.length > 0 && featureDocs[0].featureData != null && featureDocs[0].featureData.size() > 1) {
+            if (this.snippets != null) {
                 scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
             } else {
                 scores = extractScoresFromRankedDocs(rankedDocs);

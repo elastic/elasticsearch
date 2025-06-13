@@ -49,8 +49,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("allow_rerank_failures");
     public static final ParseField SNIPPETS_FIELD = new ParseField("snippets");
-    public static final ParseField NUM_FRAGMENTS_FIELD = new ParseField("num_fragments");
-    public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
+    public static final ParseField NUM_SNIPPETS_FIELD = new ParseField("num_snippets");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -75,9 +74,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     private static final ConstructingObjectParser<RerankSnippetInput, RetrieverParserContext> SNIPPETS_PARSER =
         new ConstructingObjectParser<>(SNIPPETS_FIELD.getPreferredName(), true, args -> {
-            Integer numFragments = (Integer) args[0];
-            Integer maxSize = (Integer) args[1];
-            return new RerankSnippetInput(numFragments, maxSize);
+            Integer numSnippets = (Integer) args[0];
+            return new RerankSnippetInput(numSnippets);
         });
 
     static {
@@ -92,8 +90,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), SNIPPETS_PARSER, SNIPPETS_FIELD);
-        SNIPPETS_PARSER.declareInt(optionalConstructorArg(), NUM_FRAGMENTS_FIELD);
-        SNIPPETS_PARSER.declareInt(optionalConstructorArg(), MAX_SIZE_FIELD);
+        SNIPPETS_PARSER.declareInt(optionalConstructorArg(), NUM_SNIPPETS_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
@@ -235,11 +232,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         }
         if (snippets != null) {
             builder.startObject(SNIPPETS_FIELD.getPreferredName());
-            if (snippets.numFragments() != null) {
-                builder.field(NUM_FRAGMENTS_FIELD.getPreferredName(), snippets.numFragments());
-            }
-            if (snippets.maxSize() != null) {
-                builder.field(MAX_SIZE_FIELD.getPreferredName(), snippets.maxSize());
+            if (snippets.numSnippets() != null) {
+                builder.field(NUM_SNIPPETS_FIELD.getPreferredName(), snippets.numSnippets());
             }
             builder.endObject();
         }

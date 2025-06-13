@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -67,33 +66,19 @@ public class SplitTargetService {
         this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
     }
 
-    public void startSplitRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+    public void startSplitRecovery(IndexShard indexShard, IndexMetadata indexMetadata, ActionListener<Void> listener) {
         ShardId shardId = indexShard.shardId();
+        IndexReshardingState.Split splitMetadata = indexMetadata.getReshardingMetadata().getSplit();
 
         long targetPrimaryTerm = indexShard.getOperationPrimaryTerm();
 
-        ClusterState state = clusterService.state();
-        final ProjectState projectState = state.projectState(state.metadata().projectFor(shardId.getIndex()).id());
-        final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(shardId.getIndex());
-        final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-        final IndexRoutingTable indexRoutingTable = projectState.routingTable().index(shardId.getIndex());
-
-        if (reshardingMetadata == null) {
-            logger.info("Index metadata version: " + indexMetadata.getVersion());
-            logger.info("Index routing table: " + indexRoutingTable.prettyPrint());
-            logger.info("Cluster state version: " + clusterService.state().version());
-
-            throw new IllegalStateException("Resharding metadata is null.");
-        }
-
-        final DiscoveryNode sourceNode = state.nodes()
-            .get(indexRoutingTable.shard(reshardingMetadata.getSplit().sourceShard(shardId.id())).primaryShard().currentNodeId());
-        long sourcePrimaryTerm = indexMetadata.primaryTerm(reshardingMetadata.getSplit().sourceShard(shardId.id()));
+        final DiscoveryNode sourceNode = indexShard.recoveryState().getSourceNode();
+        long sourcePrimaryTerm = indexMetadata.primaryTerm(splitMetadata.sourceShard(shardId.id()));
 
         Split split = new Split(shardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
         onGoingSplits.put(indexShard, split);
 
-        if (reshardingMetadata.getSplit().targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
+        if (splitMetadata.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
             listener.onResponse(null);
         } else {
             client.execute(TransportReshardSplitAction.TYPE, new TransportReshardSplitAction.SplitRequest(split), listener.map(r -> null));

@@ -80,13 +80,13 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         logger.info("Add another shard");
         final String index = "test";
 
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
         RoutingTable updatedRoutingTable = MetadataReshardIndexService.reshardUpdateNumberOfShards(
+            reshardingMetadata,
             clusterState.projectState(),
             createCustomRoleStrategy(2),
-            2,
             metadata.getProject().index(index).getIndex()
         ).build();
-        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
         ProjectMetadata projectMetadata = MetadataReshardIndexService.metadataUpdateNumberOfShards(
             clusterState.projectState(),
             reshardingMetadata,

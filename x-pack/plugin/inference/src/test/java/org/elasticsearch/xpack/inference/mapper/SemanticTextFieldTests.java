@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
+import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -342,9 +343,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         if (allowNull && randomBoolean()) {
             return null; // Use model defaults
         }
-        return randomBoolean()
-            ? new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10))
-            : new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> NoneChunkingSettings.INSTANCE;
+            case 1 -> new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10));
+            case 2 -> new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
+            default -> throw new IllegalStateException("Illegal state while generating random chunking settings");
+        };
     }
 
     public static ChunkingSettings generateRandomChunkingSettingsOtherThan(ChunkingSettings chunkingSettings) {

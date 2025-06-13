@@ -73,7 +73,6 @@ public record SemanticTextField(
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
-    static final String INDEX_OPTIONS_FIELD = "index_options";
 
     public record InferenceResult(
         String inferenceId,
@@ -140,25 +139,6 @@ public record SemanticTextField(
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
-    }
-
-    static SemanticTextIndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
-
-        if (node == null) {
-            return null;
-        }
-
-        Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
-        if (map.size() != 1) {
-            throw new IllegalArgumentException("Too many index options provided, found [" + map.keySet() + "]");
-        }
-        Map.Entry<String, Object> entry = map.entrySet().iterator().next();
-        SemanticTextIndexOptions.SupportedIndexOptions indexOptions = SemanticTextIndexOptions.SupportedIndexOptions.fromValue(
-            entry.getKey()
-        );
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
     }
 
     @Override
@@ -247,8 +227,7 @@ public record SemanticTextField(
             String inferenceId = (String) args[0];
             MinimalServiceSettings modelSettings = (MinimalServiceSettings) args[1];
             Map<String, Object> chunkingSettings = (Map<String, Object>) args[2];
-            SemanticTextIndexOptions indexOptions = (SemanticTextIndexOptions) args[3];
-            Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[4];
+            Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[3];
             return new InferenceResult(inferenceId, modelSettings, ChunkingSettingsBuilder.fromMap(chunkingSettings, false), chunks);
         }
     );
@@ -281,12 +260,6 @@ public record SemanticTextField(
             (p, c) -> p.map(),
             null,
             new ParseField(CHUNKING_SETTINGS_FIELD)
-        );
-        INFERENCE_RESULT_PARSER.declareObjectOrNull(
-            optionalConstructorArg(),
-            (p, c) -> parseIndexOptionsFromMap(c.fieldName, p.map(), c.indexVersion()),
-            null,
-            new ParseField(INDEX_OPTIONS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.useLegacyFormat()) {

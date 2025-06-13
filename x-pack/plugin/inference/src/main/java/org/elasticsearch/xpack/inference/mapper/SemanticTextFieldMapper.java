@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -107,7 +108,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKING_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
@@ -144,6 +144,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
+
+    static final String INDEX_OPTIONS_FIELD = "index_options";
 
     public static final TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
@@ -205,7 +207,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INDEX_OPTIONS_FIELD,
             true,
             () -> null,
-            (n, c, o) -> SemanticTextField.parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
+            (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
             XContentBuilder::field,
             Objects::toString
@@ -1271,5 +1273,24 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         return true;
+    }
+
+    private static SemanticTextIndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
+
+        if (node == null) {
+            return null;
+        }
+
+        Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
+        if (map.size() != 1) {
+            throw new IllegalArgumentException("Too many index options provided, found [" + map.keySet() + "]");
+        }
+        Map.Entry<String, Object> entry = map.entrySet().iterator().next();
+        SemanticTextIndexOptions.SupportedIndexOptions indexOptions = SemanticTextIndexOptions.SupportedIndexOptions.fromValue(
+            entry.getKey()
+        );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
+        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
     }
 }

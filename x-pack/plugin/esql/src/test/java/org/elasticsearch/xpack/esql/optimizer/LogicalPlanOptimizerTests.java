@@ -6341,7 +6341,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var insensitive = as(filter.condition(), InsensitiveEquals.class);
         var field = as(insensitive.left(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
+        assertThat(field.fieldName().string(), is("first_name"));
         var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
         assertThat(bRef.utf8ToString(), is("VALÜ"));
         as(filter.child(), EsRelation.class);
@@ -7858,7 +7858,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testSampleMerged() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         var query = """
             FROM TEST
@@ -7879,7 +7879,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSamplePushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         for (var command : List.of(
             "ENRICH languages_idx on first_name",
@@ -7904,7 +7904,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSamplePushDown_sort() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         var query = "FROM TEST | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
@@ -7918,7 +7918,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSamplePushDown_where() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         var query = "FROM TEST | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
@@ -7931,7 +7931,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSampleNoPushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
             var query = "FROM TEST | " + command + " | SAMPLE .5";
@@ -7953,7 +7953,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *        \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
      */
     public void testSampleNoPushDownLookupJoin() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         var query = """
             FROM TEST
@@ -7979,7 +7979,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testSampleNoPushDownChangePoint() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
 
         var query = """
             FROM TEST

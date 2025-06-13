@@ -90,6 +90,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -640,6 +641,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
         DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
         IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
+        SearchStatsSettings.RECENT_READ_LOAD_HALF_LIFE_SETTING,
         TransportGetAllocationStatsAction.CACHE_TTL_SETTING
     );
 }

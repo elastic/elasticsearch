@@ -212,7 +212,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private MinimalServiceSettings resolvedModelSettings;
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
@@ -235,14 +234,18 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             super(name);
             this.modelRegistry = modelRegistry;
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
-            this.inferenceFieldBuilder = c -> createInferenceField(
-                c,
-                indexSettings.getIndexVersionCreated(),
-                useLegacyFormat,
-                resolvedModelSettings,
-                bitSetProducer,
-                indexSettings
-            );
+            this.inferenceFieldBuilder = c -> {
+                // Resolve the model setting from the registry if it has not been set yet.
+                var resolvedModelSettings = modelSettings.get() != null ? modelSettings.get() : getResolvedModelSettings(c, false);
+                return createInferenceField(
+                    c,
+                    indexSettings.getIndexVersionCreated(),
+                    useLegacyFormat,
+                    resolvedModelSettings,
+                    bitSetProducer,
+                    indexSettings
+                );
+            };
         }
 
         public Builder setInferenceId(String id) {
@@ -283,26 +286,26 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             inferenceFieldBuilder = c -> mergedInferenceField;
         }
 
-        @Override
-        public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
+        /**
+         * Returns the {@link MinimalServiceSettings} defined in this builder if set;
+         * otherwise, resolves and returns the settings from the registry.
+         */
+        private MinimalServiceSettings getResolvedModelSettings(MapperBuilderContext context, boolean logWarning) {
+            if (context.getMergeReason() == MapperService.MergeReason.MAPPING_RECOVERY) {
+                // the model registry is not available yet
+                return null;
             }
-            if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
-            }
-
-            if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && modelSettings.get() == null) {
-                try {
-                    /*
-                     * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
-                     * Note: We do not set the model in the mapping at this stage. Instead, the model will be added through
-                     * a mapping update during the first ingestion.
-                     * This approach allows mappings to reference inference endpoints that may not yet exist.
-                     * The only requirement is that the referenced inference endpoint must be available at the time of ingestion.
-                     */
-                    resolvedModelSettings = modelRegistry.getMinimalServiceSettings(inferenceId.get());
-                } catch (ResourceNotFoundException exc) {
+            try {
+                /*
+                 * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
+                 * Note: We do not set the model in the mapping at this stage. Instead, the model will be added through
+                 * a mapping update during the first ingestion.
+                 * This approach allows mappings to reference inference endpoints that may not yet exist.
+                 * The only requirement is that the referenced inference endpoint must be available at the time of ingestion.
+                 */
+                return modelRegistry.getMinimalServiceSettings(inferenceId.get());
+            } catch (ResourceNotFoundException exc) {
+                if (logWarning) {
                     /* We allow the inference ID to be unregistered at this point.
                      * This will delay the creation of sub-fields, so indexing and querying for this field won't work
                      * until the corresponding inference endpoint is created.
@@ -315,8 +318,22 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         inferenceId.get()
                     );
                 }
-            } else {
-                resolvedModelSettings = modelSettings.get();
+                return null;
+            }
+        }
+
+        @Override
+        public SemanticTextFieldMapper build(MapperBuilderContext context) {
+            if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
+            }
+            if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
+            }
+
+            var resolvedModelSettings = modelSettings.get();
+            if (modelSettings.get() == null) {
+                resolvedModelSettings = getResolvedModelSettings(true);
             }
 
             if (modelSettings.get() != null) {

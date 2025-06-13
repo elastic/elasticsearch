@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -192,13 +191,13 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     private float[] extractScoresFromRankedSnippets(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
-        int[] docMappings = Arrays.stream(featureDocs).flatMapToInt(f -> f.docIndices.stream().mapToInt(Integer::intValue)).toArray();
-
+        int numSnippets = rankedDocs.size() / featureDocs.length;
         float[] scores = new float[featureDocs.length];
         boolean[] hasScore = new boolean[featureDocs.length];
 
         for (int i = 0; i < rankedDocs.size(); i++) {
-            int docId = docMappings[i];
+            // TODO this naively assumes that we always get the requested number of snippets per ranked document
+            int docId = i / numSnippets;
             float score = rankedDocs.get(i).relevanceScore();
 
             if (hasScore[docId] == false) {

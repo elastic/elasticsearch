@@ -29,7 +29,6 @@ public class RankFeatureDoc extends RankDoc {
 
     // TODO: update to support more than 1 fields; and not restrict to string data
     public List<String> featureData;
-    public List<Integer> docIndices;
 
     public RankFeatureDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
@@ -39,7 +38,6 @@ public class RankFeatureDoc extends RankDoc {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             featureData = in.readOptionalStringCollectionAsList();
-            docIndices = in.readOptionalCollectionAsList(StreamInput::readVInt);
         } else {
             String featureDataString = in.readOptionalString();
             featureData = featureDataString == null ? null : List.of(featureDataString);
@@ -55,15 +53,14 @@ public class RankFeatureDoc extends RankDoc {
         this.featureData = featureData;
     }
 
-    public void docIndices(List<Integer> docIndices) {
-        this.docIndices = docIndices;
+    public void featureData(String featureData) {
+        this.featureData = List.of(featureData);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             out.writeOptionalStringCollection(featureData);
-            out.writeOptionalCollection(docIndices, StreamOutput::writeVInt);
         } else {
             out.writeOptionalString(featureData.get(0));
         }
@@ -72,12 +69,12 @@ public class RankFeatureDoc extends RankDoc {
     @Override
     protected boolean doEquals(RankDoc rd) {
         RankFeatureDoc other = (RankFeatureDoc) rd;
-        return Objects.equals(this.featureData, other.featureData) && Objects.equals(this.docIndices, other.docIndices);
+        return Objects.equals(this.featureData, other.featureData);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(featureData, docIndices);
+        return Objects.hash(featureData);
     }
 
     @Override
@@ -88,6 +85,5 @@ public class RankFeatureDoc extends RankDoc {
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.array("featureData", featureData);
-        builder.array("docIndices", docIndices);
     }
 }

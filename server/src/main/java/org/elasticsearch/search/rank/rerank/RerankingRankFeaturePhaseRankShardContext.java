@@ -22,7 +22,6 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.xcontent.Text;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -50,27 +49,20 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
         try {
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
-            int docIndex = 0;
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
                 SearchHit hit = hits.getHits()[i];
                 DocumentField docField = hit.field(field);
                 if (docField != null && snippets == null) {
-                    rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+                    rankFeatureDocs[i].featureData(docField.getValue().toString());
                 }
                 Map<String, HighlightField> highlightFields = hit.getHighlightFields();
                 if (highlightFields != null) {
                     if (highlightFields.containsKey(field)) {
                         List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
-                        List<Integer> docIndices = new ArrayList<>();
-                        for (String s : snippets) {
-                            docIndices.add(docIndex);
-                        }
                         rankFeatureDocs[i].featureData(snippets);
-                        rankFeatureDocs[i].docIndices(docIndices);
                     }
                 }
-                docIndex++;
             }
             return new RankFeatureShardResult(rankFeatureDocs);
         } catch (Exception ex) {

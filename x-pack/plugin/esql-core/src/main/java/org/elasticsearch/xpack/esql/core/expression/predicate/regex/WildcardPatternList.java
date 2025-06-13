@@ -97,7 +97,7 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
         }
 
         WildcardPatternList other = (WildcardPatternList) obj;
-        return Objects.equals(patternList, other.patternList);
+        return patternList.equals(other.patternList);
     }
 
 }

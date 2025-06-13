@@ -4947,7 +4947,7 @@ public class EsqlBaseParser extends ParserConfig {
     }
   }
   @SuppressWarnings("CheckReturnValue")
-  public static class LogicalLikeListContext extends RegexBooleanExpressionContext {
+  public static class LikeListExpressionContext extends RegexBooleanExpressionContext {
     public ValueExpressionContext valueExpression() {
       return getRuleContext(ValueExpressionContext.class,0);
     }
@@ -4966,18 +4966,18 @@ public class EsqlBaseParser extends ParserConfig {
       return getToken(EsqlBaseParser.COMMA, i);
     }
     @SuppressWarnings("this-escape")
-    public LogicalLikeListContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
+    public LikeListExpressionContext(RegexBooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLogicalLikeList(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLikeListExpression(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitLogicalLikeList(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitLikeListExpression(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitLogicalLikeList(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitLikeListExpression(this);
       else return visitor.visitChildren(this);
     }
   }
@@ -5061,7 +5061,7 @@ public class EsqlBaseParser extends ParserConfig {
         }
         break;
       case 3:
-        _localctx = new LogicalLikeListContext(_localctx);
+        _localctx = new LikeListExpressionContext(_localctx);
         enterOuterAlt(_localctx, 3);
         {
         setState(607);

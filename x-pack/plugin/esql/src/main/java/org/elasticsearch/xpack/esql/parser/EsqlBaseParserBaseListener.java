@@ -913,13 +913,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) { }
+  @Override public void enterLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) { }
+  @Override public void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

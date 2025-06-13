@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -34,26 +32,9 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     );
     public static final String NAME = "LIKELIST";
 
-    @FunctionInfo(returnType = "boolean", description = """
-        Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
-        usually acts on a field placed on the left-hand side of the operator, but it can
-        also act on a constant (literal) expression. The right-hand side of the operator
-        represents the pattern.
-
-        The following wildcard characters are supported:
-
-        * `*` matches zero or more characters.
-        * `?` matches one character.""", detailedDescription = """
-        Matching the exact characters `*` and `.` will require escaping.
-        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
-        it will require further escaping.
-
-        <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
-
-        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
-
-        <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
-        """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
+    /**
+     * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
+     */
     public WildcardLikeList(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
@@ -103,6 +84,10 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         return new WildcardLikeList(source(), newLeft, pattern(), caseInsensitive());
     }
 
+    /**
+     * Returns {@link Translatable#YES} if the field is pushable, otherwise {@link Translatable#NO}.
+     * For now, we only support a single pattern in the list for pushdown.
+     */
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (pattern().patternList().size() != 1) {
@@ -113,6 +98,10 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
 
     }
 
+    /**
+     * Returns a {@link Query} that matches the field against the provided patterns.
+     * For now, we only support a single pattern in the list for pushdown.
+     */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
@@ -120,6 +109,10 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
     }
 
+    /**
+     * Translates the field to a {@link WildcardQuery} using the first pattern in the list.
+     * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
+     */
     private Query translateField(String targetFieldName) {
         if (pattern().patternList().size() != 1) {
             throw new IllegalArgumentException("WildcardLikeList can only be translated when it has a single pattern");

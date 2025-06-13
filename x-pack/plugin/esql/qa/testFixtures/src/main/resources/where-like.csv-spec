@@ -104,9 +104,21 @@ emp_no:integer | first_name:keyword
 10013          | Eberhardt       
 ;
 
+likeListDocExample
+required_capability: like_with_list_of_patterns
+// tag::likeListDocExample[]
+ROW message = "foobar" 
+| WHERE message like ("foo*", "bar?")
+// end::likeListDocExample[]
+;
+
+message:string
+foobar   
+;
+
 likeListThreeArgWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name;
+from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name  | sort emp_no;
 
 emp_no:integer | first_name:keyword
 10003          | Parto
@@ -117,7 +129,7 @@ emp_no:integer | first_name:keyword
 
 likeListMultipleWhere
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | where first_name like ("Eberhard?", "Otm*")| keep emp_no, first_name;
+from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | where first_name like ("Eberhard?", "Otm*")| keep emp_no, first_name  | sort emp_no;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
@@ -194,7 +206,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardNotOtherFilter
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("Eberhardt*", "Ot*", "Part?") and emp_no < 10010 | keep emp_no, first_name;
+from employees | where first_name not like ("Eberhardt*", "Ot*", "Part?") and emp_no < 10010 | keep emp_no, first_name  | sort emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -207,9 +219,32 @@ emp_no:integer | first_name:keyword
 10009          | Sumant   
 ;
 
+likeListBeginningWithWildcard
+required_capability: like_with_list_of_patterns
+from employees | where first_name like ("A*", "B*", "C*") | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10004          | Chirstian
+10006          | Anneke
+10014          | Berni
+10017          | Cristinel
+10023          | Bojan
+10049          | Basil
+10056          | Brendon
+10058          | Berhard
+10059          | Alejandro
+10060          | Breannda
+10062          | Anoosh
+10067          | Claudi
+10068          | Charlene
+10091          | Amabile
+10094          | Arumugam 
+;
+
 notLikeListThreeArgWildcardOtherFirst
 required_capability: like_with_list_of_patterns
-from employees | where emp_no < 10010 and first_name not like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name;
+from employees | where emp_no < 10010 and first_name not like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name  | sort emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -256,7 +291,58 @@ emp_no:integer | first_name:keyword
 
 notLikeListMultipleWhere
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") | where first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")| keep emp_no, first_name;
+from employees | where first_name not like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") | where first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")| keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10008          | Saniya
+10009          | Sumant
+10011          | Mary
+10012          | Patricio
+10020          | Mayuko
+10021          | Ramzi
+10022          | Shahaf
+10024          | Suzette
+10025          | Prasadram
+10026          | Yongqiao
+10040          | Weiyi
+10041          | Uri
+10042          | Magy
+10043          | Yishay
+10044          | Mingsen
+10045          | Moss
+10047          | Zvonko
+10050          | Yinghua
+10053          | Sanjiv
+10054          | Mayumi
+10057          | Ebbe
+10061          | Tse
+10064          | Udi
+10065          | Satosi
+10069          | Margareta
+10070          | Reuven
+10073          | Shir
+10074          | Mokhtar
+10076          | Erez
+10077          | Mona
+10080          | Premal
+10081          | Zhongwei
+10082          | Parviz
+10083          | Vishv
+10084          | Tuval
+10086          | Somnath
+10087          | Xinglin
+10089          | Sudharsan
+10092          | Valdiodio
+10093          | Sailaja
+10097          | Remzi
+10098          | Sreekrishna
+10099          | Valter
+;
+
+notLikeListNotField
+required_capability: like_with_list_of_patterns
+from employees | where not first_name like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") | where first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")| keep emp_no, first_name | sort emp_no;
 
 emp_no:integer | first_name:keyword
 10007          | Tzvetan
@@ -316,7 +402,7 @@ emp_no:integer | first_name:keyword
 
 notLikeListWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("A*","B*", "C*", "D*","E*", "F*", "G*", "H*", "I*", "J*", "K*") | keep emp_no, first_name;
+from employees | where first_name not like ("A*","B*", "C*", "D*","E*", "F*", "G*", "H*", "I*", "J*", "K*") | keep emp_no, first_name  | sort emp_no;
 
 emp_no:integer | first_name:keyword
 10003          | Parto

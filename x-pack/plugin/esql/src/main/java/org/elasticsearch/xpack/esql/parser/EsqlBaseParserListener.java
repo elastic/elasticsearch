@@ -794,17 +794,17 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code logicalLikeList}
+   * Enter a parse tree produced by the {@code likeListExpression}
    * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
    * @param ctx the parse tree
    */
-  void enterLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx);
+  void enterLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
-   * Exit a parse tree produced by the {@code logicalLikeList}
+   * Exit a parse tree produced by the {@code likeListExpression}
    * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
    * @param ctx the parse tree
    */
-  void exitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx);
+  void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

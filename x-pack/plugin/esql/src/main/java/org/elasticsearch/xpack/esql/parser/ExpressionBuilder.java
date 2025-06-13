@@ -739,21 +739,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) {
-        Source source = source(ctx);
-        Expression left = expression(ctx.valueExpression());
-        List<WildcardPattern> wildcardPatterns = ctx.string()
-            .stream()
-            .map(x -> new WildcardPattern(visitString(x).fold(FoldContext.small()).toString()))
-            .toList();
-        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
-        Expression e = wildcardPatterns.size() == 1
-            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
-            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
-        return ctx.NOT() == null ? e : new Not(source, e);
-    }
-
-    @Override
     public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
         Source source = source(ctx);
         Expression left = expression(ctx.valueExpression());
@@ -778,6 +763,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (InvalidArgumentException e) {
             throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
         }
+    }
+
+    @Override
+    public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        List<WildcardPattern> wildcardPatterns = ctx.string()
+            .stream()
+            .map(x -> new WildcardPattern(visitString(x).fold(FoldContext.small()).toString()))
+            .toList();
+        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
+        Expression e = wildcardPatterns.size() == 1
+            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
+            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override

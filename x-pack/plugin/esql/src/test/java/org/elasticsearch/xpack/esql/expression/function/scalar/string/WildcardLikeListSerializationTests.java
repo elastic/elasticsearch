@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.lang.Math.abs;
-
 public class WildcardLikeListSerializationTests extends AbstractExpressionSerializationTests<WildcardLikeList> {
     @Override
     protected WildcardLikeList createTestInstance() {
@@ -32,11 +30,20 @@ public class WildcardLikeListSerializationTests extends AbstractExpressionSerial
     protected WildcardLikeList mutateInstance(WildcardLikeList instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.field();
-        return new WildcardLikeList(source, child, generateRandomPatternList());
+        List<WildcardPattern> patterns = new ArrayList<>(instance.pattern().patternList());
+        int childToModify = randomIntBetween(0, patterns.size() - 1);
+        WildcardPattern pattern = patterns.get(childToModify);
+        if (randomBoolean()) {
+            child = randomValueOtherThan(child, AbstractExpressionSerializationTests::randomChild);
+        } else {
+            pattern = randomValueOtherThan(pattern, () -> new WildcardPattern(randomAlphaOfLength(4)));
+        }
+        patterns.set(childToModify, pattern);
+        return new WildcardLikeList(source, child, new WildcardPatternList(patterns));
     }
 
     private WildcardPatternList generateRandomPatternList() {
-        int numChildren = abs(randomInt() % 10) + 1; // Ensure at least one child
+        int numChildren = randomIntBetween(1, 10); // Ensure at least one child
         List<WildcardPattern> patterns = new ArrayList<>(numChildren);
         for (int i = 0; i < numChildren; i++) {
             WildcardPattern pattern = new WildcardPattern(randomAlphaOfLength(4));

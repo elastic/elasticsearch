@@ -20,7 +20,7 @@ booleanExpression
 regexBooleanExpression
     : valueExpression (NOT)? LIKE string                               #likeExpression
     | valueExpression (NOT)? RLIKE string                                 #rlikeExpression
-    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP  #logicalLikeList
+    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP  #likeListExpression
     ;
 
 matchBooleanExpression

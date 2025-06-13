@@ -22,14 +22,12 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
-import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -97,10 +95,5 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
             : (randomBoolean()
                 ? new WildcardLikeList(source, expression, wildcardPatternList)
                 : new WildcardLikeList(source, expression, wildcardPatternList, false));
-    }
-
-    @AfterClass
-    public static void renderNotLike() throws Exception {
-        renderNegatedOperator(constructorWithFunctionInfo(WildcardLikeList.class), "LIKELIST", d -> d, getTestClass());
     }
 }

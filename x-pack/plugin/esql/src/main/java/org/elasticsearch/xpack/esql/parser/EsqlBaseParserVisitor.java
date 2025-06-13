@@ -482,12 +482,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
   /**
-   * Visit a parse tree produced by the {@code logicalLikeList}
+   * Visit a parse tree produced by the {@code likeListExpression}
    * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx);
+  T visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

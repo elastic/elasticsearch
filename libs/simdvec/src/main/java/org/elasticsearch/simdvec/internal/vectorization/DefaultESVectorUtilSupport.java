@@ -242,19 +242,20 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public static long ipByteBinByteImpl(byte[] q, byte[] d) {
         long ret = 0;
         int size = d.length;
-        for (int n = 0; n < B_QUERY; n++) { // for each stripe of B_QUERY-bit quantization in q...
+        for (int s = 0; s < B_QUERY; s++) { // for each stripe of B_QUERY-bit quantization in q...
             int r = 0;
             long stripeRet = 0;
             // bitwise & the query and data vectors together, 32-bits at a time, and counting up the bits still set
             for (final int upperBound = d.length & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
-                stripeRet += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(q, n * size + r) & (int) BitUtil.VH_NATIVE_INT.get(d, r));
+                stripeRet += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(q, s * size + r) & (int) BitUtil.VH_NATIVE_INT.get(d, r));
             }
-            // handle any tail (Java operations on bytes automatically extend to int, so we need to mask back down again)
+            // handle any tail (Java operations on bytes automatically extend to int, so we need to mask back down again
+            // in case it sign-extends the int)
             for (; r < d.length; r++) {
-                stripeRet += Integer.bitCount((q[n * size + r] & d[r]) & 0xFF);
+                stripeRet += Integer.bitCount((q[s * size + r] & d[r]) & 0xFF);
             }
-            // shift the result of the n'th stripe n to the left and add to the result
-            ret += stripeRet << n;
+            // shift the result of the s'th stripe s to the left and add to the result
+            ret += stripeRet << s;
         }
         return ret;
     }

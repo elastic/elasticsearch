@@ -7997,7 +7997,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testKnnFunctionHasLimitOrKSpecified() {
-        assumeTrue("KNN must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        assumeTrue("KNN must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
 
         var query = """
             FROM test

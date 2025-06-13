@@ -3,7 +3,7 @@
 # top-n query at the shard level 
 
 knnSearch
-required_capability: knn_function
+required_capability: knn_function_v2
 
 // tag::knn-function[]
 from colors metadata _score 
@@ -30,7 +30,7 @@ chartreuse | [127.0, 255.0, 0.0]
 ;
 
 knnSearchWithKOption
-required_capability: knn_function
+required_capability: knn_function_v2
 
 // tag::knn-function-options[]
 from colors metadata _score 
@@ -49,7 +49,7 @@ teal        | [0.0, 128.0, 128.0]
 ;
 
 knnSearchWithSimilarityOption
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score 
 | where knn(rgb_vector, [255,192,203], {"similarity": 40})
@@ -66,7 +66,7 @@ wheat      | [245.0, 222.0, 179.0]
 ;
 
 knnHybridSearch
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score 
 | where match(color, "blue") or knn(rgb_vector, [65,105,225])
@@ -89,7 +89,7 @@ aqua marine | [127.0, 255.0, 212.0]
 ;
 
 knnWithMultipleFunctions
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | where knn(rgb_vector, [128,128,0]) and match(color, "olive") 
@@ -102,7 +102,7 @@ olive            | [128.0, 128.0, 0.0]
 ;
 
 knnAfterKeep
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
@@ -121,7 +121,7 @@ rgb_vector:dense_vector
 ;
 
 knnAfterDrop
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | drop primary
@@ -140,7 +140,7 @@ lime           | [0.0, 255.0, 0.0]
 ;
 
 knnAfterEval
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
@@ -159,7 +159,7 @@ golden rod | true
 ;
 
 knnWithConjunction
-required_capability: knn_function
+required_capability: knn_function_v2
 
 # TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
@@ -180,14 +180,13 @@ yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
-required_capability: knn_function
+required_capability: knn_function_v2
 
 # TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
 | where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [128, 0, 255])) and primary == true 
 | sort _score desc, color asc
 | drop _score, primary, hex_code
-| limit 140
 ;
 
 color:text | rgb_vector:dense_vector
@@ -203,7 +202,7 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithNonPushableConjunction
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
@@ -226,7 +225,7 @@ maroon     | false
 ;
 
 testKnnWithNonPushableDisjunctions
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0], {"similarity": 30}) or length(color) > 10 
@@ -242,7 +241,7 @@ papaya whip
 ;
 
 testKnnWithNonPushableDisjunctionsOnComplexExpressions
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score 
 | where (knn(rgb_vector, [128,128,0], {"similarity": 70}) and length(color) < 10) or (knn(rgb_vector, [128,0,128], {"similarity": 60}) and primary == false) 

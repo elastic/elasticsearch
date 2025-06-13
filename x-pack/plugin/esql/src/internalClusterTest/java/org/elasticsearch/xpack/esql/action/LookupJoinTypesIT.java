@@ -132,12 +132,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
         }
 
-        // Tests for union types; non-exhaustive but includes every valid type
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("multi-typed", TestConfigs::new);
-
-        }
-
         // Tests for mixed-date/time types
         var dateTypes = List.of(DATETIME, DATE_NANOS);
         {
@@ -236,11 +230,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         Set<String> knownTypes = new HashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {
             for (TestConfig config : configs.configs.values()) {
-                String lookupIndexName = lookupIndexName(config.mainType(), config.lookupType());
-                if (knownTypes.contains(lookupIndexName)) {
-                    throw new IllegalArgumentException("Duplicate index name: " + lookupIndexName);
+                if (knownTypes.contains(config.lookupIndexName())) {
+                    throw new IllegalArgumentException("Duplicate index name: " + config.lookupIndexName());
                 }
-                knownTypes.add(lookupIndexName);
+                knownTypes.add(config.lookupIndexName());
             }
         }
     }
@@ -289,9 +282,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
                 continue;
             }
-            String mainField = mainFieldName(config.mainType());
-            String lookupField = lookupFieldName(config.lookupType());
-            String lookupIndex = lookupIndexName(config.mainType(), config.lookupType());
+            String mainField = config.mainFieldName();
+            String lookupField = config.lookupFieldName();
+            String lookupIndex = config.lookupIndexName();
             String query = "FROM "
                 + MAIN_INDEX
                 + " | RENAME "
@@ -303,9 +296,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 + " ON "
                 + lookupField
                 + " | KEEP other";
-
-            validateIndex(MAIN_INDEX, mainField, config.mainType());
-            validateIndex(lookupIndex, lookupField, config.lookupType());
+            config.validateMainIndex();
+            config.validateLookupIndex();
             config.testQuery(query);
         }
     }
@@ -316,7 +308,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         String propertySuffix = "  }\n}\n";
         // The main index will have many fields, one of each type to use in later type specific joins
         String mainFields = propertyPrefix + configs.stream()
-            .map(config -> mainPropertySpec(config.mainType()))
+            .map(TestConfig::mainPropertySpec)
             .distinct()
             .collect(Collectors.joining(",\n    ")) + propertySuffix;
         assertAcked(prepareCreate(MAIN_INDEX).setMapping(mainFields));
@@ -328,8 +320,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         configs.forEach(
             // Each lookup index will get a document with a field to join on, and a results field to get back
             (c) -> assertAcked(
-                prepareCreate(lookupIndexName(c.mainType(), c.lookupType())).setSettings(settings.build())
-                    .setMapping(propertyPrefix + lookupPropertySpec(c.lookupType()) + propertySuffix)
+                prepareCreate(c.lookupIndexName()).setSettings(settings.build())
+                    .setMapping(propertyPrefix + c.lookupPropertySpec() + propertySuffix)
             )
         );
     }
@@ -338,15 +330,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
         int docId = 0;
         for (TestConfig config : configs) {
-            String lookupIndexName = lookupIndexName(config.mainType(), config.lookupType());
             String doc = String.format(Locale.ROOT, """
                 {
                   %s,
                   "other": "value"
                 }
                 """, lookupPropertyFor(config));
-            index(lookupIndexName, "" + (++docId), doc);
-            refresh(lookupIndexName);
+            index(config.lookupIndexName(), "" + (++docId), doc);
+            refresh(config.lookupIndexName());
         }
         List<String> mainProperties = configs.stream().map(this::mainPropertyFor).distinct().collect(Collectors.toList());
         index(MAIN_INDEX, "1", String.format(Locale.ROOT, """
@@ -358,11 +349,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private String lookupPropertyFor(TestConfig config) {
-        return String.format(Locale.ROOT, "\"%s\": %s", lookupFieldName(config.lookupType()), sampleDataTextFor(config.lookupType()));
+        return String.format(Locale.ROOT, "\"%s\": %s", config.lookupFieldName(), sampleDataTextFor(config.lookupType()));
     }
 
     private String mainPropertyFor(TestConfig config) {
-        return String.format(Locale.ROOT, "\"%s\": %s", mainFieldName(config.mainType()), sampleDataTextFor(config.mainType()));
+        return String.format(Locale.ROOT, "\"%s\": %s", config.mainFieldName(), sampleDataTextFor(config.mainType()));
     }
 
     private static String sampleDataTextFor(DataType type) {
@@ -411,11 +402,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void add(TestConfig config) {
-            String lookupIndexName = lookupIndexName(config.mainType(), config.lookupType());
-            if (configs.containsKey(lookupIndexName)) {
-                throw new IllegalArgumentException("Duplicate index name: " + lookupIndexName);
+            if (configs.containsKey(config.lookupIndexName())) {
+                throw new IllegalArgumentException("Duplicate index name: " + config.lookupIndexName());
             }
-            configs.put(lookupIndexName, config);
+            configs.put(config.lookupIndexName(), config);
         }
 
         private void addPasses(DataType mainType, DataType lookupType) {
@@ -466,27 +456,37 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
         DataType lookupType();
 
+        default String lookupIndexName() {
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
+        }
+
+        default String mainFieldName() {
+            return MAIN_INDEX_PREFIX + mainType().esType();
+        }
+
+        default String lookupFieldName() {
+            return LOOKUP_INDEX_PREFIX + lookupType().esType();
+        }
+
+        default String mainPropertySpec() {
+            return propertySpecFor(mainFieldName(), mainType(), "");
+        }
+
+        default String lookupPropertySpec() {
+            return propertySpecFor(lookupFieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }");
+        }
+
+        /** Make sure the left index has the expected fields and types */
+        default void validateMainIndex() {
+            validateIndex(MAIN_INDEX, mainFieldName(), sampleDataFor(mainType()));
+        }
+
+        /** Make sure the lookup index has the expected fields and types */
+        default void validateLookupIndex() {
+            validateIndex(lookupIndexName(), lookupFieldName(), sampleDataFor(lookupType()));
+        }
+
         void testQuery(String query);
-    }
-
-    private static String lookupIndexName(DataType mainType, DataType lookupType) {
-        return LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
-    }
-
-    private static String mainFieldName(DataType mainType) {
-        return MAIN_INDEX_PREFIX + mainType.esType();
-    }
-
-    private static String lookupFieldName(DataType lookupType) {
-        return LOOKUP_INDEX_PREFIX + lookupType.esType();
-    }
-
-    private static String mainPropertySpec(DataType mainType) {
-        return propertySpecFor(mainFieldName(mainType), mainType, "");
-    }
-
-    private static String lookupPropertySpec(DataType lookupType) {
-        return propertySpecFor(lookupFieldName(lookupType), lookupType, ", \"other\": { \"type\" : \"keyword\" }");
     }
 
     private static String propertySpecFor(String fieldName, DataType type, String extra) {
@@ -500,10 +500,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             ) + extra;
         }
         return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.esType().replaceAll("cartesian_", "")) + extra;
-    }
-
-    private static void validateIndex(String indexName, String fieldName, DataType fieldType) {
-        validateIndex(indexName, fieldName, sampleDataFor(fieldType));
     }
 
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {

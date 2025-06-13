@@ -97,11 +97,10 @@ If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite
 `zero_terms_query`
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:
 
-`none` (Default)
-:   No documents are returned if the `analyzer` removes all tokens.
-
-`all`
-:   Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
+  - `none` (Default)
+  No documents are returned if the `analyzer` removes all tokens.
+  - `all`
+  Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
 
 See [Zero terms query](#query-dsl-match-query-zero) for an example.
 

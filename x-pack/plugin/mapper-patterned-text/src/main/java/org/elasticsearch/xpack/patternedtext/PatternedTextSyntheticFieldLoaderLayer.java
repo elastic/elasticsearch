@@ -16,15 +16,16 @@ import java.io.IOException;
 
 class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
+    private final String name;
     private final String templateFieldName;
     private final String argsFieldName;
+    private PatternedTextSyntheticFieldLoader loader;
 
-    PatternedTextSyntheticFieldLoaderLayer(String templateFieldName, String argsFieldName) {
+    PatternedTextSyntheticFieldLoaderLayer(String name, String templateFieldName, String argsFieldName) {
+        this.name = name;
         this.templateFieldName = templateFieldName;
         this.argsFieldName = argsFieldName;
     }
-
-    private PatternedTextSyntheticFieldLoader loader;
 
     @Override
     public long valueCount() {
@@ -55,7 +56,7 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
 
     @Override
     public String fieldName() {
-        return "";
+        return name;
     }
 
     private static class PatternedTextSyntheticFieldLoader implements DocValuesLoader {

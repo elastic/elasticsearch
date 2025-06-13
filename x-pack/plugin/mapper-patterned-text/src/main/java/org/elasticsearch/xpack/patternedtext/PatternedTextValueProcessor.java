@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.patternedtext;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -85,8 +86,8 @@ public class PatternedTextValueProcessor {
         return String.join(SPACE, parts.args);
     }
 
-    static void decodeRemainingArgs(List<String> args, String mergedArgs) {
-        Collections.addAll(args, mergedArgs.split(SPACE));
+    static List<String> decodeRemainingArgs(String mergedArgs) {
+        return Arrays.asList(mergedArgs.split(SPACE));
     }
 
     static int countArgs(String template) {

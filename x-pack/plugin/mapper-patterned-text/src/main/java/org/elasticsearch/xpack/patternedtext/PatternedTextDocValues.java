@@ -40,13 +40,14 @@ public class PatternedTextDocValues extends BinaryDocValues {
         assert templateDocValues.docValueCount() == 1;
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
         int argsCount = PatternedTextValueProcessor.countArgs(template);
-        List<String> args = new ArrayList<>(argsCount);
         if (argsCount > 0) {
             assert argsDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
-            PatternedTextValueProcessor.decodeRemainingArgs(args, mergedArgs.utf8ToString());
+            var args = PatternedTextValueProcessor.decodeRemainingArgs(mergedArgs.utf8ToString());
+            return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args));
+        } else {
+            return template;
         }
-        return PatternedTextValueProcessor.merge(new PatternedTextValueProcessor.Parts(template, args));
     }
 
     @Override

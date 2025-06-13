@@ -69,6 +69,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -1247,11 +1248,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
 
-        if (previous == null || current == null) {
-            return true;
-        }
-
-        if (Objects.equals(previous.type(), current.type()) == false) {
+        SemanticTextIndexOptions.SupportedIndexOptions previousType = (previous != null ? previous.type() : null);
+        SemanticTextIndexOptions.SupportedIndexOptions currentType = (current != null ? current.type() : null);
+        if (Objects.equals(previousType, currentType) == false) {
             conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
         }
 

@@ -301,9 +301,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
-- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
-  method: testUpdatingFileBasedRoleAffectsAllProjects
-  issue: https://github.com/elastic/elasticsearch/issues/126223
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test020PluginsListWithNoPlugins
   issue: https://github.com/elastic/elasticsearch/issues/126232

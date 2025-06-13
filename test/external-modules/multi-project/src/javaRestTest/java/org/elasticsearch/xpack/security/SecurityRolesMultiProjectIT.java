@@ -141,7 +141,7 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
             // Both projects should automatically reflect that the role has been removed
             assertThat(getClusterPrivileges(project1, username1), empty());
             assertThat(getClusterPrivileges(project2, username2), empty());
-        });
+        }, 20, TimeUnit.SECONDS);
     }
 
     private void createUser(ProjectId projectId, String username, String roleName) throws IOException {

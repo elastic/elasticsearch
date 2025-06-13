@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -20,8 +21,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -242,9 +245,32 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        // Pass the query as the description
-        return new CancellableTask(id, type, action, query, parentTaskId, headers);
+    public Task createTask(String localNodeId, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(localNodeId, id)));
+        return new EsqlQueryRequestTask(query, id, type, action, parentTaskId, headers, status);
+    }
+
+    private static class EsqlQueryRequestTask extends CancellableTask {
+        private final Status status;
+
+        EsqlQueryRequestTask(
+            String query,
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            EsqlQueryStatus status
+        ) {
+            // Pass the query as the description
+            super(id, type, action, query, parentTaskId, headers);
+            this.status = status;
+        }
+
+        @Override
+        public Status getStatus() {
+            return status;
+        }
     }
 
     // Setter for tests

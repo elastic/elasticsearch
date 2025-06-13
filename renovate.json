@@ -19,19 +19,5 @@
     "8.19",
     "8.18",
     "8.17"
-  ],
-  "packageRules": [
-    {
-      "groupName": "wolfi (versioned)",
-      "groupSlug": "wolfi-versioned",
-      "description": "Override the `groupSlug` to create a non-special-character branch name",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "/^docker.elastic.co/wolfi/chainguard-base$/",
-        "/^docker.elastic.co/wolfi/chainguard-base-fips$/"
-      ]
-    }
   ]
 }

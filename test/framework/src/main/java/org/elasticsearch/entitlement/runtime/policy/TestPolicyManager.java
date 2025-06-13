@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -22,10 +23,10 @@ public class TestPolicyManager extends PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Path> sourcePaths,
+        Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, sourcePaths, pathLookup);
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
     }
 
     /**

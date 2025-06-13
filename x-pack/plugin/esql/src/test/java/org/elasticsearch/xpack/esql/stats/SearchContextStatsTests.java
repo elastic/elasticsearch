@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,20 +54,39 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         for (int i = 0; i < indexCount; i++) {
             // Start with numeric, millis/nanos, keyword types in the index mapping, more data types can be covered later if necessary.
             // SearchContextStats returns min/max for millis and nanos only currently, null is returned for the other types min and max.
-            MapperService mapperService = mapperHelper.createMapperService("""
-                {
-                    "doc": { "properties": {
-                        "byteField": { "type": "byte" },
-                        "shortField": { "type": "short" },
-                        "intField": { "type": "integer" },
-                        "longField": { "type": "long" },
-                        "floatField": { "type": "float" },
-                        "doubleField": { "type": "double" },
-                        "dateField": { "type": "date" },
-                        "dateNanosField": { "type": "date_nanos" },
-                        "keywordField": { "type": "keyword" }
-                    }}
-                }""");
+            MapperService mapperService;
+            if (i == 0) {
+                mapperService = mapperHelper.createMapperService("""
+                    {
+                        "doc": { "properties": {
+                            "byteField": { "type": "byte" },
+                            "shortField": { "type": "short" },
+                            "intField": { "type": "integer" },
+                            "longField": { "type": "long" },
+                            "floatField": { "type": "float" },
+                            "doubleField": { "type": "double" },
+                            "dateField": { "type": "date" },
+                            "dateNanosField": { "type": "date_nanos" },
+                            "keywordField": { "type": "keyword" },
+                            "maybeMixedField": { "type": "long" }
+                        }}
+                    }""");
+            } else {
+                mapperService = mapperHelper.createMapperService("""
+                    {
+                        "doc": { "properties": {
+                            "byteField": { "type": "byte" },
+                            "shortField": { "type": "short" },
+                            "intField": { "type": "integer" },
+                            "longField": { "type": "long" },
+                            "floatField": { "type": "float" },
+                            "doubleField": { "type": "double" },
+                            "dateField": { "type": "date" },
+                            "dateNanosField": { "type": "date_nanos" },
+                            "maybeMixedField": { "type": "date" }
+                        }}
+                    }""");
+            }
             mapperServices.add(mapperService);
 
             int perIndexDocumentCount = randomIntBetween(1, 5);
@@ -97,7 +117,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                             new DoubleField("doubleField", doubleValues.get(j), Field.Store.NO),
                             new LongField("dateField", millis, Field.Store.NO),
                             new LongField("dateNanosField", nanos, Field.Store.NO),
-                            new StringField("keywordField", keywordValues.get(j), Field.Store.NO)
+                            new StringField("keywordField", keywordValues.get(j), Field.Store.NO),
+                            new LongField("maybeMixedField", millis, Field.Store.NO)
                         )
                     );
                 }
@@ -125,8 +146,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             "keywordField"
         );
         for (String field : fields) {
-            Object min = searchStats.min(field);
-            Object max = searchStats.max(field);
+            Object min = searchStats.min(new FieldAttribute.FieldName(field));
+            Object max = searchStats.max(new FieldAttribute.FieldName(field));
             if (field.startsWith("date") == false) {
                 assertNull(min);
                 assertNull(max);

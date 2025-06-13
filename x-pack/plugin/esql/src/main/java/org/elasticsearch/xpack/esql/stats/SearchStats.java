@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 /**
  * Interface for determining information about fields in the index.
@@ -16,33 +18,33 @@ import org.apache.lucene.util.BytesRef;
 public interface SearchStats {
     SearchStats EMPTY = new EmptySearchStats();
 
-    boolean exists(String field);
+    boolean exists(FieldName field);
 
-    boolean isIndexed(String field);
+    boolean isIndexed(FieldName field);
 
-    boolean hasDocValues(String field);
+    boolean hasDocValues(FieldName field);
 
-    boolean hasExactSubfield(String field);
+    boolean hasExactSubfield(FieldName field);
 
     long count();
 
-    long count(String field);
+    long count(FieldName field);
 
-    long count(String field, BytesRef value);
+    long count(FieldName field, BytesRef value);
 
-    Object min(String field);
+    Object min(FieldName field);
 
-    Object max(String field);
+    Object max(FieldName field);
 
-    boolean isSingleValue(String field);
+    boolean isSingleValue(FieldName field);
 
-    boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value);
+    boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**
      * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
      * NULL if the field is not a constant.
      */
-    default String constantValue(String name) {
+    default String constantValue(FieldAttribute.FieldName name) {
         return null;
     }
 
@@ -52,22 +54,22 @@ public interface SearchStats {
     record EmptySearchStats() implements SearchStats {
 
         @Override
-        public boolean exists(String field) {
+        public boolean exists(FieldName field) {
             return false;
         }
 
         @Override
-        public boolean isIndexed(String field) {
+        public boolean isIndexed(FieldName field) {
             return false;
         }
 
         @Override
-        public boolean hasDocValues(String field) {
+        public boolean hasDocValues(FieldName field) {
             return false;
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
+        public boolean hasExactSubfield(FieldName field) {
             return false;
         }
 
@@ -77,32 +79,32 @@ public interface SearchStats {
         }
 
         @Override
-        public long count(String field) {
+        public long count(FieldName field) {
             return 0;
         }
 
         @Override
-        public long count(String field, BytesRef value) {
+        public long count(FieldName field, BytesRef value) {
             return 0;
         }
 
         @Override
-        public Object min(String field) {
+        public Object min(FieldName field) {
             return null;
         }
 
         @Override
-        public Object max(String field) {
+        public Object max(FieldName field) {
             return null;
         }
 
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldName field) {
             return true;
         }
 
         @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
         }
     }

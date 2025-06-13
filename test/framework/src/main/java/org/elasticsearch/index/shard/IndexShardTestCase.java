@@ -59,6 +59,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -560,7 +561,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 relativeTimeSupplier,
                 null,
                 MapperMetrics.NOOP,
-                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+                new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

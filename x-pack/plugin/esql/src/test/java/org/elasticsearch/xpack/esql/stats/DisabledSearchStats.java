@@ -8,26 +8,27 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 public class DisabledSearchStats implements SearchStats {
 
     @Override
-    public boolean exists(String field) {
+    public boolean exists(FieldName field) {
         return true;
     }
 
     @Override
-    public boolean isIndexed(String field) {
+    public boolean isIndexed(FieldName field) {
         return true;
     }
 
     @Override
-    public boolean hasDocValues(String field) {
+    public boolean hasDocValues(FieldName field) {
         return true;
     }
 
     @Override
-    public boolean hasExactSubfield(String field) {
+    public boolean hasExactSubfield(FieldName field) {
         return true;
     }
 
@@ -37,32 +38,32 @@ public class DisabledSearchStats implements SearchStats {
     }
 
     @Override
-    public long count(String field) {
+    public long count(FieldName field) {
         return -1;
     }
 
     @Override
-    public long count(String field, BytesRef value) {
+    public long count(FieldName field, BytesRef value) {
         return -1;
     }
 
     @Override
-    public Object min(String field) {
+    public Object min(FieldName field) {
         return null;
     }
 
     @Override
-    public Object max(String field) {
+    public Object max(FieldName field) {
         return null;
     }
 
     @Override
-    public boolean isSingleValue(String field) {
+    public boolean isSingleValue(FieldName field) {
         return false;
     }
 
     @Override
-    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
         return false;
     }
 }

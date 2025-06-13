@@ -515,7 +515,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         if (field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
             // Extract min/max from SearchStats
             DataType fieldType = fa.dataType();
-            String fieldName = fa.fieldName();
+            FieldAttribute.FieldName fieldName = fa.fieldName();
             var min = searchStats.min(fieldName);
             var max = searchStats.max(fieldName);
             // If min/max is available create rounding with them

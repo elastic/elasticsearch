@@ -80,26 +80,27 @@ toc:
         - file: rest-apis/compatibility.md
         - file: rest-apis/api-examples.md
           children:
-            - file: rest-apis/refresh-parameter.md
-            - file: rest-apis/optimistic-concurrency-control.md
-            - file: rest-apis/sort-search-results.md
-            - file: rest-apis/paginate-search-results.md
-            - file: rest-apis/retrieve-selected-fields.md
-            - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/collapse-search-results.md
+            - file: rest-apis/create-index-from-source.md
             - file: rest-apis/filter-search-results.md
             - file: rest-apis/highlighting.md
-            - file: rest-apis/retrieve-inner-hits.md
-            - file: rest-apis/search-shard-routing.md
-            - file: rest-apis/searching-with-query-rules.md
+            - file: rest-apis/optimistic-concurrency-control.md
+            - file: rest-apis/paginate-search-results.md
             - file: rest-apis/reciprocal-rank-fusion.md
-            - file: rest-apis/retrievers.md
+            - file: rest-apis/refresh-parameter.md
             - file: rest-apis/reindex-data-stream.md
-            - file: rest-apis/create-index-from-source.md
-            - file: rest-apis/shard-request-cache.md
-            - file: rest-apis/search-suggesters.md
+            - file: rest-apis/retrieve-inner-hits.md
+            - file: rest-apis/retrieve-selected-fields.md
+            - file: rest-apis/retrievers.md
+            - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
             - file: rest-apis/search-rank-eval.md
+            - file: rest-apis/search-shard-routing.md
+            - file: rest-apis/search-suggesters.md
+            - file: rest-apis/sort-search-results.md
+            - file: rest-apis/searching-with-query-rules.md
+            - file: rest-apis/shard-request-cache.md
+            - file: rest-apis/term-vectors-examples.md
   - file: mapping-reference/index.md
     children:
       - file: mapping-reference/document-metadata-fields.md

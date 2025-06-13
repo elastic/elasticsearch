@@ -916,18 +916,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     public void testGetQueryAllowed() throws Exception {
         // This is a bit tricky, since there is no such running query. We just make sure it didn't fail on forbidden privileges.
-        Request request = new Request("GET", "_query/queries/foo:1234");
-        var resp = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), not(equalTo(404)));
+        setUser(GET_QUERY_REQUEST, "user_with_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(GET_QUERY_REQUEST));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), not(equalTo(403)));
     }
 
     public void testGetQueryForbidden() throws Exception {
-        Request request = new Request("GET", "_query/queries/foo:1234");
-        setUser(request, "user_without_monitor_privileges");
-        var resp = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        setUser(GET_QUERY_REQUEST, "user_without_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(GET_QUERY_REQUEST));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(resp.getMessage(), containsString("this action is granted by the cluster privileges [monitor_esql,monitor,manage,all]"));
     }
+
+    private static final Request GET_QUERY_REQUEST = new Request(
+        "GET",
+        "_query/queries/FmJKWHpFRi1OU0l5SU1YcnpuWWhoUWcZWDFuYUJBeW1TY0dKM3otWUs2bDJudzo1Mg=="
+    );
 
     private void createEnrichPolicy() throws Exception {
         createIndex("songs", Settings.EMPTY, """

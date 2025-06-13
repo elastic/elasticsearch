@@ -965,7 +965,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V2(Build.current().isSnapshot());
+        SAMPLE_V3(Build.current().isSnapshot());
 
         private final boolean enabled;
 

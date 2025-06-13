@@ -114,7 +114,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 sparseVectorQueryBuilder.shouldPruneTokens(),
                 sparseVectorQueryBuilder.getTokenPruningConfig()
             ),
-            ScoreMode.Max
+            ScoreMode.Max,
+            queryBuilder.queryName()
         );
     }
 

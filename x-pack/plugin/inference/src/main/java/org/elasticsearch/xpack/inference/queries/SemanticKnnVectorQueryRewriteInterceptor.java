@@ -123,7 +123,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 filteredKnnVectorQueryBuilder,
                 queryVectorBuilder
             ),
-            ScoreMode.Max
+            ScoreMode.Max,
+            filteredKnnVectorQueryBuilder.queryName()
         );
     }
 

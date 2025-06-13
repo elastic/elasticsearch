@@ -27,7 +27,6 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        System.out.println("field mapping: " + fieldMapping);
         return expectedValue(fieldMapping, value, params, testContext);
     }
 

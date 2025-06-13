@@ -1146,7 +1146,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
         @Override
         public boolean shouldRetry(Exception e) {
             // retry everything *except* when the task truly no longer exists
-            // TODO valeriy: is this the only exception we should not retry on?
             return (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) == false;
         }
     }

@@ -1190,4 +1190,38 @@ salary:integer |gender:keyword |emp_no:integer |min_sl:integer |       x:keyword
 73717          |null           |10019          |25324          |null           
 ;
 
+statsBeforeInlinestatsWithTopAndBucket1
+required_capability: inlinestats_v8
+
+FROM books
+| STATS avg_rating = AVG(ratings) BY decade = BUCKET(year, 10)
+| INLINESTATS decades = TOP(decade, 3, "DESC")
+| SORT avg_rating DESC
+| LIMIT 10
+;
+
+avg_rating:double | decade:double |    decades:double
+4.954999923706055 |1960.0         |[2020.0, 2010.0, 2000.0]
+4.387647109873154 |1990.0         |[2020.0, 2010.0, 2000.0]
+4.339166651169459 |2000.0         |[2020.0, 2010.0, 2000.0]
+4.274615342800434 |2010.0         |[2020.0, 2010.0, 2000.0]
+4.063333352406819 |1970.0         |[2020.0, 2010.0, 2000.0]
+3.880000114440918 |2020.0         |[2020.0, 2010.0, 2000.0]
+3.6633334159851074|1980.0         |[2020.0, 2010.0, 2000.0]
+;
+
+statsBeforeInlinestatsWithTopAndBucket2
+required_capability: inlinestats_v8
+
+FROM sample_data
+| STATS total_duration = SUM(event_duration) BY day = BUCKET(@timestamp, 1 HOUR)
+| INLINESTATS days = TOP(day, 2, "ASC")
+| SORT total_duration ASC
+| LIMIT 5
+;
+
+total_duration:long |       day:date         |                     days:date                     
+6215122             |2023-10-23T12:00:00.000Z|[2023-10-23T12:00:00.000Z, 2023-10-23T13:00:00.000Z]
+17016205            |2023-10-23T13:00:00.000Z|[2023-10-23T12:00:00.000Z, 2023-10-23T13:00:00.000Z]
+;
 

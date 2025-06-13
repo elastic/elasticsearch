@@ -28,7 +28,9 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
@@ -171,14 +173,25 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
     }
 
-    static void writeCentroids(float[][] centroids, FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
+    static void writeCentroids(float[][] centroids, List<CentroidPartition> centroidPartitions, FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
         throws IOException {
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         byte[] quantizedScratch = new byte[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
-        // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
+        // FIXME: need to update the read side first to accommodate these new centroids
+//        for (CentroidPartition centroidPartition : centroidPartitions) {
+//            System.arraycopy(centroidPartition.centroid(), 0, centroidScratch, 0, centroidPartition.centroid().length);
+//            OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
+//                centroidScratch,
+//                quantizedScratch,
+//                (byte) 4,
+//                globalCentroid
+//            );
+//            writeQuantizedValue(centroidOutput, quantizedScratch, result);
+//            // FIXME: write the centroid partition index and size for child centroids so we can seek to the chunk of them on read
+//        }
         for (float[] centroid : centroids) {
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
             OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
@@ -215,6 +228,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, true);
     }
+
+    record CentroidPartition(float[] centroid, int index, int size) {}
 
     /**
      * Calculate the centroids for the given field and write them to the given centroid output.
@@ -275,6 +290,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 //            randomOrdering[i] = centroidOrds.length - i;
 //        }
 
+        // sort so we can write centroids together in their partitions and subsequently read up chunks of centroids
 //        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, randomOrdering);
         AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, kMeansResult.layer1);
 //        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, distanceApprox);
@@ -285,6 +301,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // FIXME: since the layer1 has been sorted should be able to act on groups of these when computing the parent centroids
         // the -1 centroids (that have no further partitioning) are their own centroids and we'll essentially compare them the same on search
         // the non -1 centroids have structure and we'll respect that by computing a parent partition centroid and writing it out for comparison prior to comparing any other centroids
+        List<CentroidPartition> centroidPartitions = new ArrayList<>();
         for(int i = 0; i < kMeansResult.layer1.length; i++) {
             // go past all the -1 non-subpartition centroids
             if(kMeansResult.layer1[i] != -1) {
@@ -294,18 +311,21 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             int totalCentroids = 0;
             float[] parentPartitionCentroid = new float[fieldInfo.getVectorDimension()];
             for(int j = i+1; kMeansResult.layer1[j] == label; j++) {
-//                parentPartitionCentroid[] += centroids[?]
+                for(int k = 0; k < parentPartitionCentroid.length; k++) {
+                    parentPartitionCentroid[k] += centroids[i][k];
+                }
                 totalCentroids++;
             }
             for(int j = 0; j < parentPartitionCentroid.length; j++) {
                 parentPartitionCentroid[j] /= totalCentroids;
             }
+            centroidPartitions.add(new CentroidPartition(parentPartitionCentroid, i, totalCentroids));
         }
 
-        // FIXME: write out parent partition centroids as well
+        // FIXME: write out parent partition centroids as well as where the child centroids begin and the total number of them
 
         // write centroids
-        writeCentroids(centroids, fieldInfo, globalCentroid, centroidOutput);
+        writeCentroids(centroids, centroidPartitions, fieldInfo, globalCentroid, centroidOutput);
 
         if (logger.isDebugEnabled()) {
             logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);

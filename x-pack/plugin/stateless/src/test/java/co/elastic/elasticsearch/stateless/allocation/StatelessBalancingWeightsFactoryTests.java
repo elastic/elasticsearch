@@ -63,7 +63,7 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
     private static final Set<DiscoveryNodeRole> INDEXING_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE);
     private static final Set<DiscoveryNodeRole> SEARCH_ROLES = Set.of(DiscoveryNodeRole.SEARCH_ROLE);
 
-    public void testWriteLoadIsIgnoredInSearchTier() {
+    public void testWriteLoadIsSettablePerTier() {
         var clusterSettings = statelessBalancingSettings(Settings.EMPTY);
         var balancerSettings = new BalancerSettings(clusterSettings);
         var allocationService = new ESAllocationTestCase.MockAllocationService(
@@ -78,6 +78,8 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
+        final StatelessTier tierToSetToZero = randomFrom(StatelessTier.values());
+        clusterSettings.applySettings(Settings.builder().put(tierToSetToZero.writeLoadBalanceSetting.getKey(), 0.0).build());
         var clusterState = applyStartedShardsUntilNoChange(
             createStateWithIndices(
                 randomFrom(InitialState.values()),
@@ -92,12 +94,11 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
         );
 
         Map<String, Set<String>> shardsPerNode = getShardsPerNode(clusterState);
-        // The search shards should be evenly distributed
-        assertThat(shardsPerNode.get("search-1"), hasSize(3));
-        assertThat(shardsPerNode.get("search-2"), hasSize(3));
-        // The indexing allocations should be skewed by the forecasted write loads
+        // The tier not accounting for write load should be evenly distributed
+        tierToSetToZero.includedNodes.forEach(nodeId -> assertThat(shardsPerNode.get(nodeId), hasSize(3)));
+        // The tier still accounting for write load should be skewed by the forecasted write loads
         assertThat(
-            Set.of(shardsPerNode.get("indexing-1"), shardsPerNode.get("indexing-2")),
+            tierToSetToZero.other().includedNodes.stream().map(shardsPerNode::get).collect(Collectors.toSet()),
             equalTo(
                 Set.of(
                     Set.of("heavy-index"),
@@ -143,14 +144,24 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
     }
 
     private enum StatelessTier {
-        INDEXING(StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING, Set.of("indexing-1", "indexing-2")),
-        SEARCH(StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING, Set.of("search-1", "search-2"));
+        INDEXING(
+            StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
+            Set.of("indexing-1", "indexing-2")
+        ),
+        SEARCH(
+            StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
+            Set.of("search-1", "search-2")
+        );
 
         private final Setting<?> shardBalanceSetting;
+        private final Setting<?> writeLoadBalanceSetting;
         private final Set<String> includedNodes;
 
-        StatelessTier(Setting<?> shardBalanceSetting, Set<String> includedNodes) {
+        StatelessTier(Setting<?> shardBalanceSetting, Setting<?> writeLoadBalanceSetting, Set<String> includedNodes) {
             this.shardBalanceSetting = shardBalanceSetting;
+            this.writeLoadBalanceSetting = writeLoadBalanceSetting;
             this.includedNodes = includedNodes;
         }
 

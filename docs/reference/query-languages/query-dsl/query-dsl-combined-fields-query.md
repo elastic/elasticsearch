@@ -76,12 +76,10 @@ See [Use synonyms with match query](/reference/query-languages/query-dsl/query-d
 
 `operator`
 :   (Optional, string) Boolean logic used to interpret text in the `query` value. Valid values are:
-
-`or` (Default)
-:   For example, a `query` value of `database systems` is interpreted as `database OR systems`.
-
-`and`
-:   For example, a `query` value of `database systems` is interpreted as `database AND systems`.
+  - `or` (Default)
+  For example, a `query` value of `database systems` is interpreted as `database OR systems`.
+  - `and`
+  For example, a `query` value of `database systems` is interpreted as `database AND systems`.
 
 
 `minimum_should_match`
@@ -90,12 +88,10 @@ See [Use synonyms with match query](/reference/query-languages/query-dsl/query-d
 
 `zero_terms_query`
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:
-
-`none` (Default)
-:   No documents are returned if the `analyzer` removes all tokens.
-
-`all`
-:   Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
+  - `none` (Default)
+  No documents are returned if the `analyzer` removes all tokens.
+  - `all`
+  Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
 
 See [Zero terms query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-match-query-zero) for an example.
 

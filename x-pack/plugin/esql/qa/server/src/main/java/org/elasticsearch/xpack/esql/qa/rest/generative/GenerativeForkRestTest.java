@@ -47,7 +47,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using FORK or RRF already are skipped since we don't support multiple FORKs",
-            testCase.requiredCapabilities.contains(FORK_V7.capabilityName()) || testCase.requiredCapabilities.contains(RRF.capabilityName())
+            testCase.requiredCapabilities.contains(FORK_V8.capabilityName()) || testCase.requiredCapabilities.contains(RRF.capabilityName())
         );
 
         assumeFalse(
@@ -60,6 +60,6 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.capabilityName())
         );
 
-        assumeTrue("Cluster needs to support FORK", hasCapabilities(client(), List.of(FORK_V7.capabilityName())));
+        assumeTrue("Cluster needs to support FORK", hasCapabilities(client(), List.of(FORK_V8.capabilityName())));
     }
 }

@@ -62,6 +62,7 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessIntegTe
                 .put(setting, 0.0)
                 // Zero write load to isolate the effect of shard count
                 .put(StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0)
+                .put(StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0)
         );
 
         // Create some indices

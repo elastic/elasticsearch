@@ -66,59 +66,19 @@ import static org.hamcrest.Matchers.nullValue;
  * types being tested on the left of the pair, and then creates that many other lookup indexes, each with a single document containing
  * exactly two fields: the field to join on, and a field to return.
  * The assertion is that for valid combinations, the return result should exist, and for invalid combinations an exception should be thrown.
- * If no exception is thrown, and no result is returned, our validation rules are not aligned with the internal behaviour (ie. a bug).
- * Since the `LOOKUP JOIN` command requires the match field name to be the same between the main index and the lookup index,
- * we will have field names that correctly represent the type of the field in the main index, but not the type of the field
- * in the lookup index. This can be confusing, but it is important to remember that the field names are not the same as the types.
- * For example, if we are testing the pairs (double, double), (double, float), (float, double) and (float, float),
- * we will create the following indexes:
- * <dl>
- *     <dt>index_double_double</dt>
- *     <dd>Index containing a single document with a field of type 'double' like: <pre>
- *         {
- *             "field_double": 1.0,  // this is mapped as type 'double'
- *             "other": "value"
- *         }
- *     </pre></dd>
- *     <dt>index_double_float</dt>
- *     <dd>Index containing a single document with a field of type 'float' like: <pre>
- *         {
- *             "field_double": 1.0,  // this is mapped as type 'float' (a float with the name of the main index field)
- *             "other": "value"
- *         }
- *     </pre></dd>
- *     <dt>index_float_double</dt>
- *     <dd>Index containing a single document with a field of type 'double' like: <pre>
- *         {
- *             "field_float": 1.0,  // this is mapped as type 'double' (a double with the name of the main index field)
- *             "other": "value"
- *         }
- *     </pre></dd>
- *     <dt>index_float_float</dt>
- *     <dd>Index containing single document with a field of type 'float' like: <pre>
- *         {
- *             "field_float": 1.0,  // this is mapped as type 'float'
- *             "other": "value"
- *         }
- *     </pre></dd>
- *     <dt>index</dt>
- *     <dd>Index containing document like: <pre>
- *         {
- *             "field_double": 1.0,  // this is mapped as type 'double'
- *             "field_float": 1.0    // this is mapped as type 'float'
- *         }
- *     </pre></dd>
- * </dl>
- * Note that the lookup indexes have fields with a name that matches the type in the main index, and not the type actually used in the
- * lookup index. Instead, the mapped type should be the type of the right-hand side of the pair being tested.
- * Then we can run queries like:
- * <pre>
- *     FROM index | LOOKUP JOIN index_double_float ON field_double | KEEP other
- * </pre>
- * And assert that the result exists and is equal to "value".
+ * If no exception is thrown, and no result is returned, our validation rules are not aligned with the internal behaviour (i.e. a bug).
+ * Let's assume we want to test a lookup using a byte field in the main index and integer in the lookup index, then we'll create 2 indices,
+ * named {@code main_index} and {@code lookup_byte_integer} resp.
+ * The main index contains a field called {@code main_byte} and the lookup index has {@code lookup_integer}. To test the pair, we run
+ * {@code FROM main_index | RENAME main_byte AS lookup_integer | LOOKUP JOIN lookup_index ON lookup_integer | KEEP other}
+ * and assert that the result exists and is equal to "value".
  */
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
+    private static final String MAIN_INDEX_PREFIX = "main_";
+    private static final String MAIN_INDEX = MAIN_INDEX_PREFIX + "index";
+    private static final String LOOKUP_INDEX_PREFIX = "lookup_";
+
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
             EsqlPlugin.class,
@@ -270,16 +230,16 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         Set<String> knownTypes = new HashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {
             for (TestConfig config : configs.configs.values()) {
-                if (knownTypes.contains(config.indexName())) {
-                    throw new IllegalArgumentException("Duplicate index name: " + config.indexName());
+                if (knownTypes.contains(config.lookupIndexName())) {
+                    throw new IllegalArgumentException("Duplicate index name: " + config.lookupIndexName());
                 }
-                knownTypes.add(config.indexName());
+                knownTypes.add(config.lookupIndexName());
             }
         }
     }
 
     private static boolean existingIndex(Collection<TestConfigs> existing, DataType mainType, DataType lookupType) {
-        String indexName = "index_" + mainType.esType() + "_" + lookupType.esType();
+        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
         return existing.stream().anyMatch(c -> c.exists(indexName));
     }
 
@@ -322,12 +282,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
                 continue;
             }
-            String query = String.format(
-                Locale.ROOT,
-                "FROM index | LOOKUP JOIN %s ON %s | KEEP other",
-                config.indexName(),
-                config.fieldName()
-            );
+            String mainField = config.mainFieldName();
+            String lookupField = config.lookupFieldName();
+            String lookupIndex = config.lookupIndexName();
+            String query = "FROM "
+                + MAIN_INDEX
+                + " | RENAME "
+                + mainField
+                + " AS "
+                + lookupField
+                + " | LOOKUP JOIN "
+                + lookupIndex
+                + " ON "
+                + lookupField
+                + " | KEEP other";
             config.validateMainIndex();
             config.validateLookupIndex();
             config.testQuery(query);
@@ -343,7 +311,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             .map(TestConfig::mainPropertySpec)
             .distinct()
             .collect(Collectors.joining(",\n    ")) + propertySuffix;
-        assertAcked(prepareCreate("index").setMapping(mainFields));
+        assertAcked(prepareCreate(MAIN_INDEX).setMapping(mainFields));
 
         Settings.Builder settings = Settings.builder()
             .put("index.number_of_shards", 1)
@@ -352,7 +320,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         configs.forEach(
             // Each lookup index will get a document with a field to join on, and a results field to get back
             (c) -> assertAcked(
-                prepareCreate(c.indexName()).setSettings(settings.build())
+                prepareCreate(c.lookupIndexName()).setSettings(settings.build())
                     .setMapping(propertyPrefix + c.lookupPropertySpec() + propertySuffix)
             )
         );
@@ -368,24 +336,24 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                   "other": "value"
                 }
                 """, lookupPropertyFor(config));
-            index(config.indexName(), "" + (++docId), doc);
-            refresh(config.indexName());
+            index(config.lookupIndexName(), "" + (++docId), doc);
+            refresh(config.lookupIndexName());
         }
         List<String> mainProperties = configs.stream().map(this::mainPropertyFor).distinct().collect(Collectors.toList());
-        index("index", "1", String.format(Locale.ROOT, """
+        index(MAIN_INDEX, "1", String.format(Locale.ROOT, """
             {
               %s
             }
             """, String.join(",\n  ", mainProperties)));
-        refresh("index");
+        refresh(MAIN_INDEX);
     }
 
     private String lookupPropertyFor(TestConfig config) {
-        return String.format(Locale.ROOT, "\"%s\": %s", config.fieldName(), sampleDataTextFor(config.lookupType()));
+        return String.format(Locale.ROOT, "\"%s\": %s", config.lookupFieldName(), sampleDataTextFor(config.lookupType()));
     }
 
     private String mainPropertyFor(TestConfig config) {
-        return String.format(Locale.ROOT, "\"%s\": %s", config.fieldName(), sampleDataTextFor(config.mainType()));
+        return String.format(Locale.ROOT, "\"%s\": %s", config.mainFieldName(), sampleDataTextFor(config.mainType()));
     }
 
     private static String sampleDataTextFor(DataType type) {
@@ -434,10 +402,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void add(TestConfig config) {
-            if (configs.containsKey(config.indexName())) {
-                throw new IllegalArgumentException("Duplicate index name: " + config.indexName());
+            if (configs.containsKey(config.lookupIndexName())) {
+                throw new IllegalArgumentException("Duplicate index name: " + config.lookupIndexName());
             }
-            configs.put(config.indexName(), config);
+            configs.put(config.lookupIndexName(), config);
         }
 
         private void addPasses(DataType mainType, DataType lookupType) {
@@ -445,7 +413,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
-            String fieldName = "field_" + mainType.esType();
+            String fieldName = LOOKUP_INDEX_PREFIX + lookupType.esType();
             String errorMessage = String.format(
                 Locale.ROOT,
                 "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
@@ -465,7 +433,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void addFailsUnsupported(DataType mainType, DataType lookupType) {
-            String fieldName = "field_" + mainType.esType();
+            String fieldName = "lookup_" + lookupType.esType();
             String errorMessage = String.format(
                 Locale.ROOT,
                 "JOIN with right field [%s] of type [%s] is not supported",
@@ -488,30 +456,34 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
         DataType lookupType();
 
-        default String indexName() {
-            return "index_" + mainType().esType() + "_" + lookupType().esType();
+        default String lookupIndexName() {
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
         }
 
-        default String fieldName() {
-            return "field_" + mainType().esType();
+        default String mainFieldName() {
+            return MAIN_INDEX_PREFIX + mainType().esType();
+        }
+
+        default String lookupFieldName() {
+            return LOOKUP_INDEX_PREFIX + lookupType().esType();
         }
 
         default String mainPropertySpec() {
-            return propertySpecFor(fieldName(), mainType(), "");
+            return propertySpecFor(mainFieldName(), mainType(), "");
         }
 
         default String lookupPropertySpec() {
-            return propertySpecFor(fieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }");
+            return propertySpecFor(lookupFieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }");
         }
 
         /** Make sure the left index has the expected fields and types */
         default void validateMainIndex() {
-            validateIndex("index", fieldName(), sampleDataFor(mainType()));
+            validateIndex(MAIN_INDEX, mainFieldName(), sampleDataFor(mainType()));
         }
 
         /** Make sure the lookup index has the expected fields and types */
         default void validateLookupIndex() {
-            validateIndex(indexName(), fieldName(), sampleDataFor(lookupType()));
+            validateIndex(lookupIndexName(), lookupFieldName(), sampleDataFor(lookupType()));
         }
 
         void testQuery(String query);

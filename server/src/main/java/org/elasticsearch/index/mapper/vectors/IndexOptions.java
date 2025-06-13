@@ -9,15 +9,9 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ToXContent;
-
-import java.io.IOException;
 
 /**
  * Represents general index options that can be attached to a semantic or vector field.
  */
-public interface IndexOptions extends ToXContent {
-
-    IndexOptions readFrom(StreamInput in) throws IOException;
-}
+public interface IndexOptions extends ToXContent {}

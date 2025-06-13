@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -276,83 +277,42 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private void testLookupJoinTypes(String group) {
-        initIndexes(group);
-        initData(group);
-        for (TestConfig config : testConfigurations.get(group).configs.values()) {
+        TestConfigs configs = testConfigurations.get(group);
+        initIndexes(configs);
+        initData(configs);
+        for (TestConfig config : configs.values()) {
             if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
                 continue;
             }
-            String mainField = config.mainFieldName();
-            String lookupField = config.lookupFieldName();
-            String lookupIndex = config.lookupIndexName();
-            String query = "FROM "
-                + MAIN_INDEX
-                + " | RENAME "
-                + mainField
-                + " AS "
-                + lookupField
-                + " | LOOKUP JOIN "
-                + lookupIndex
-                + " ON "
-                + lookupField
-                + " | KEEP other";
             config.validateMainIndex();
             config.validateLookupIndex();
-            config.testQuery(query);
+
+            config.doTest();
         }
     }
 
-    private void initIndexes(String group) {
-        Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
-        String propertyPrefix = "{\n  \"properties\" : {\n";
-        String propertySuffix = "  }\n}\n";
-        // The main index will have many fields, one of each type to use in later type specific joins
-        String mainFields = propertyPrefix + configs.stream()
-            .map(TestConfig::mainPropertySpec)
-            .distinct()
-            .collect(Collectors.joining(",\n    ")) + propertySuffix;
-        assertAcked(prepareCreate(MAIN_INDEX).setMapping(mainFields));
-
-        Settings.Builder settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.mode", "lookup");
-        configs.forEach(
-            // Each lookup index will get a document with a field to join on, and a results field to get back
-            (c) -> assertAcked(
-                prepareCreate(c.lookupIndexName()).setSettings(settings.build())
-                    .setMapping(propertyPrefix + c.lookupPropertySpec() + propertySuffix)
-            )
-        );
-    }
-
-    private void initData(String group) {
-        Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
-        int docId = 0;
-        for (TestConfig config : configs) {
-            String doc = String.format(Locale.ROOT, """
-                {
-                  %s,
-                  "other": "value"
-                }
-                """, lookupPropertyFor(config));
-            index(config.lookupIndexName(), "" + (++docId), doc);
-            refresh(config.lookupIndexName());
-        }
-        List<String> mainProperties = configs.stream().map(this::mainPropertyFor).distinct().collect(Collectors.toList());
-        index(MAIN_INDEX, "1", String.format(Locale.ROOT, """
-            {
-              %s
+    private void initIndexes(TestConfigs configs) {
+        for (TestMapping mapping : configs.indices()) {
+            CreateIndexRequestBuilder builder = prepareCreate(mapping.indexName).setMapping(mapping.properties);
+            if (mapping.settings != null) {
+                builder = builder.setSettings(mapping.settings);
             }
-            """, String.join(",\n  ", mainProperties)));
-        refresh(MAIN_INDEX);
+            assertAcked(builder);
+        }
     }
 
-    private String lookupPropertyFor(TestConfig config) {
+    private void initData(TestConfigs configs) {
+        for (TestDocument doc : configs.docs()) {
+            index(doc.indexName, doc.id, doc.source);
+            refresh(doc.indexName);
+        }
+    }
+
+    private static String lookupPropertyFor(TestConfig config) {
         return String.format(Locale.ROOT, "\"%s\": %s", config.lookupFieldName(), sampleDataTextFor(config.lookupType()));
     }
 
-    private String mainPropertyFor(TestConfig config) {
+    private static String mainPropertyFor(TestConfig config) {
         return String.format(Locale.ROOT, "\"%s\": %s", config.mainFieldName(), sampleDataTextFor(config.mainType()));
     }
 
@@ -388,6 +348,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         };
     }
 
+    private record TestMapping(String indexName, String properties, Settings settings) {};
+
+    private record TestDocument(String indexName, String id, String source) {};
+
     private static class TestConfigs {
         final String group;
         final Map<String, TestConfig> configs;
@@ -395,6 +359,66 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         TestConfigs(String group) {
             this.group = group;
             this.configs = new LinkedHashMap<>();
+        }
+
+        protected List<TestMapping> indices() {
+            List<TestMapping> results = new ArrayList<>();
+
+            String propertyPrefix = "{\n  \"properties\" : {\n";
+            String propertySuffix = "  }\n}\n";
+            // The main index will have many fields, one of each type to use in later type specific joins
+            String mainFields = propertyPrefix + configs.values()
+                .stream()
+                .map(TestConfig::mainPropertySpec)
+                .distinct()
+                .collect(Collectors.joining(",\n    ")) + propertySuffix;
+
+            results.add(new TestMapping(MAIN_INDEX, mainFields, null));
+
+            Settings.Builder settings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put("index.mode", "lookup");
+            configs.values()
+                .forEach(
+                    // Each lookup index will get a document with a field to join on, and a results field to get back
+                    (c) -> results.add(
+                        new TestMapping(c.lookupIndexName(), propertyPrefix + c.lookupPropertySpec() + propertySuffix, settings.build())
+                    )
+                );
+
+            return results;
+        }
+
+        protected List<TestDocument> docs() {
+            List<TestDocument> results = new ArrayList<>();
+
+            int docId = 0;
+            for (TestConfig config : configs.values()) {
+                String doc = String.format(Locale.ROOT, """
+                    {
+                      %s,
+                      "other": "value"
+                    }
+                    """, lookupPropertyFor(config));
+                results.add(new TestDocument(config.lookupIndexName(), "" + (++docId), doc));
+            }
+            List<String> mainProperties = configs.values()
+                .stream()
+                .map(LookupJoinTypesIT::mainPropertyFor)
+                .distinct()
+                .collect(Collectors.toList());
+            results.add(new TestDocument(MAIN_INDEX, "1", String.format(Locale.ROOT, """
+                {
+                  %s
+                }
+                """, String.join(",\n  ", mainProperties))));
+
+            return results;
+        }
+
+        private Collection<TestConfig> values() {
+            return configs.values();
         }
 
         private boolean exists(String indexName) {
@@ -472,6 +496,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             return propertySpecFor(mainFieldName(), mainType(), "");
         }
 
+        /**
+         * If the main field is supposed to be a union type, this will be the property spec for the second index.
+         */
+        default String secondMainPropertySpecForUnionTypes() {
+            return propertySpecFor(mainFieldName(), mainType(), "");
+        }
+
         default String lookupPropertySpec() {
             return propertySpecFor(lookupFieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }");
         }
@@ -486,7 +517,23 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             validateIndex(lookupIndexName(), lookupFieldName(), sampleDataFor(lookupType()));
         }
 
-        void testQuery(String query);
+        default String testQuery() {
+            String mainField = mainFieldName();
+            String lookupField = lookupFieldName();
+            String lookupIndex = lookupIndexName();
+
+            return String.format(
+                Locale.ROOT,
+                "FROM %s | RENAME %s AS %s | LOOKUP JOIN %s ON %s | KEEP other",
+                MAIN_INDEX,
+                mainField,
+                lookupField,
+                lookupIndex,
+                lookupField
+            );
+        }
+
+        void doTest();
     }
 
     private static String propertySpecFor(String fieldName, DataType type, String extra) {
@@ -516,7 +563,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private record TestConfigPasses(DataType mainType, DataType lookupType, boolean hasResults) implements TestConfig {
         @Override
-        public void testQuery(String query) {
+        public void doTest() {
+            String query = testQuery();
             try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
                 Iterator<Object> results = response.response().column(0).iterator();
                 assertTrue("Expected at least one result for query: " + query, results.hasNext());
@@ -534,7 +582,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         implements
             TestConfig {
         @Override
-        public void testQuery(String query) {
+        public void doTest() {
+            String query = testQuery();
             E e = expectThrows(
                 exception(),
                 "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,

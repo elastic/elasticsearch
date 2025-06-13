@@ -216,6 +216,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 )
             );
         }
+
         return new ChunkedInferenceEmbedding(chunks);
     }
 

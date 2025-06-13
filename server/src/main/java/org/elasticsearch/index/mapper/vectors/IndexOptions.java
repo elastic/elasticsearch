@@ -17,9 +17,7 @@ import java.io.IOException;
 /**
  * Represents general index options that can be attached to a semantic or vector field.
  */
-public abstract class IndexOptions implements ToXContent {
+public interface IndexOptions extends ToXContent {
 
-    public IndexOptions() {}
-
-    public abstract IndexOptions readFrom(StreamInput in) throws IOException;
+    IndexOptions readFrom(StreamInput in) throws IOException;
 }

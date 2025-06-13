@@ -56,6 +56,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -124,7 +125,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
@@ -444,12 +444,22 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 .all()
                 .get(TEST_REQUEST_TIMEOUT);
             byte[] clusterStateBytes = ClusterState.Builder.toBytes(clusterStateResponse.getState());
-            final ClusterState clusterState = ClusterState.Builder.fromBytes(
+            final ClusterState parsedClusterState = ClusterState.Builder.fromBytes(
                 clusterStateBytes,
                 clusterStateResponse.getState().nodes().getLocalNode(),
                 new NamedWriteableRegistry(entries)
             );
-            assertEquals(convertToMap(clusterStateResponse.getState()), convertToMap(clusterState));
+            final var responseMap = XContentTestUtils.convertToMap(clusterStateResponse.getState());
+            final var parsedMap = XContentTestUtils.convertToMap(parsedClusterState);
+            final var diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(responseMap, parsedMap);
+            if (diff != null) {
+                logger.error(
+                    "Cluster state response:\n{}\nParsed cluster state:\n{}",
+                    clusterStateResponse.getState().toString(),
+                    parsedClusterState.toString()
+                );
+                assertNull("cluster state JSON serialization does not match", diff);
+            }
         }
     }
 

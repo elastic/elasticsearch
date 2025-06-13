@@ -582,6 +582,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             templateRequest.setJsonEntity(Strings.format(TSDB_INDEX_TEMPLATE, indexPattern, policyName));
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
+            // Use unfollow-only policy for follower cluster instead of regular ILM policy
+            // Follower clusters should not have their own rollover actions as they are meant
+            // to follow the rollover behavior of the leader index, not initiate their own rollovers
             putUnfollowOnlyPolicy(client(), policyName);
 
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/tsdb_index_auto_follow_pattern");
@@ -596,6 +599,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+
+                // Wait for ILM rollover instead of manual rollover to ensure 'index.lifecycle.indexing_complete' is set
+                // Manual rollover removed as it doesn't properly set lifecycle completion flag
+                // Let ILM naturally trigger rollover when document is indexed
                 index(leaderClient, dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
                 String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);

@@ -1009,7 +1009,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             logger,
             threadPool,
             TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
-            TimeValue.MAX_VALUE,
+            TimeValue.timeValueSeconds(UpdateStateRetryableAction.RETRY_TIMEOUT_SECONDS),
             jobTask,
             jobTaskState,
             ActionListener.wrap(
@@ -1102,7 +1102,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private static class UpdateStateRetryableAction extends RetryableAction<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
-        private static final int MIN_RETRY_SLEEP_MILLIS = 50;
+        private static final int MIN_RETRY_SLEEP_MILLIS = 500;
+        private static final int RETRY_TIMEOUT_SECONDS = 30;
         private final JobTask jobTask;
         private final JobTaskState jobTaskState;
 

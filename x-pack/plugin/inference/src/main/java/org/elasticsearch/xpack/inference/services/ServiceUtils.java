@@ -424,6 +424,35 @@ public final class ServiceUtils {
         return optionalField;
     }
 
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> extractOptionalList(
+        Map<String, Object> map,
+        String settingName,
+        Class<T> type,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var optionalField = ServiceUtils.removeAsType(map, settingName, List.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (optionalField != null) {
+            for (Object o : optionalField) {
+                if (o.getClass().equals(type) == false) {
+                    validationException.addValidationError(ServiceUtils.invalidTypeErrorMsg(settingName, o, "String"));
+                }
+            }
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return (List<T>) optionalField;
+    }
+
     public static Integer extractRequiredPositiveInteger(
         Map<String, Object> map,
         String settingName,

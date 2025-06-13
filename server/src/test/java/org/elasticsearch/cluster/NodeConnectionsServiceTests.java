@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -251,7 +252,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         final AtomicReference<ActionListener<DiscoveryNode>> disconnectListenerRef = new AtomicReference<>();
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 final ActionListener<DiscoveryNode> disconnectListener = disconnectListenerRef.getAndSet(null);
                 if (disconnectListener != null) {
                     disconnectListener.onResponse(node);

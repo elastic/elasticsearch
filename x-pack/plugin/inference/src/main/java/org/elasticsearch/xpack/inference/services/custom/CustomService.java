@@ -26,6 +26,8 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.validation.CustomServiceIntegrationValidator;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -275,5 +277,14 @@ public class CustomService extends SenderService {
                     .build();
             }
         );
+    }
+
+    @Override
+    public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        if (taskType == TaskType.RERANK) {
+            return new CustomServiceIntegrationValidator();
+        }
+
+        return null;
     }
 }

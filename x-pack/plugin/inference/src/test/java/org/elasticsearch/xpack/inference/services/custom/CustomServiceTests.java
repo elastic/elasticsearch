@@ -135,7 +135,7 @@ public class CustomServiceTests extends AbstractServiceTests {
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
     }
 
-    private static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new CustomService(senderFactory, createWithEmptySettings(threadPool));
     }

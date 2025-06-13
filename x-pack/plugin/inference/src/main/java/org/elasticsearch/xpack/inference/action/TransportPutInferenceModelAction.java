@@ -212,7 +212,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             if (skipValidationAndStart) {
                 storeModelListener.onResponse(model);
             } else {
-                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service instanceof ElasticsearchInternalService)
+                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service)
                     .validate(service, model, timeout, storeModelListener);
             }
         });

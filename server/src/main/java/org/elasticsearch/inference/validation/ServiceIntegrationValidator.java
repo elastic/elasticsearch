@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.validation;
+package org.elasticsearch.inference.validation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;

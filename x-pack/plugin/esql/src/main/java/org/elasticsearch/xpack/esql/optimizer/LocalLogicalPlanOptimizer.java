@@ -60,7 +60,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localOperators() {
         var operators = operators(true);
-        var rules = operators(true).rules();
+        var rules = operators.rules();
         List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
 
         // apply updates to existing rules that have different applicability locally

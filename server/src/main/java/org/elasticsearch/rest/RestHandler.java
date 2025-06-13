@@ -40,6 +40,10 @@ public interface RestHandler {
         return true;
     }
 
+    default boolean supportsContentStream() {
+        return false;
+    }
+
     /**
      * Indicates if the RestHandler supports bulk content. A bulk request contains multiple objects
      * delineated by {@link XContent#bulkSeparator()}. If a handler returns true this will affect

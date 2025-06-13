@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
@@ -157,7 +158,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, HasSam
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
         return field.foldable()
-            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
+            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, BytesRefs.toBytesRef(StringUtils.WILDCARD), DataType.KEYWORD)))
             : null;
     }
 

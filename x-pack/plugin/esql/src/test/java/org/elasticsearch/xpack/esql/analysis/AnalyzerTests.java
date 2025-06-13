@@ -2866,7 +2866,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2882,7 +2882,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(qstr.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2898,7 +2898,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(mm.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -4121,7 +4121,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return new Literal(EMPTY, BytesRefs.toBytesRef(value), DataType.KEYWORD);
     }
 
     static Literal literal(int value) {

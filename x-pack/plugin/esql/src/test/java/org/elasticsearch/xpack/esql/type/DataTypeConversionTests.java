@@ -546,7 +546,7 @@ public class DataTypeConversionTests extends ESTestCase {
         Converter ipToString = converterFor(IP, KEYWORD);
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
-        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, BytesRefs.toBytesRef("10.0.0.1"), KEYWORD))));
     }
 
     public void testStringToVersion() {

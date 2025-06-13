@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -52,7 +53,7 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
     }
 
     private Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return new Literal(EMPTY, BytesRefs.toBytesRef(value), DataType.KEYWORD);
     }
 
     private Attribute scoreAttribute() {

@@ -82,6 +82,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
@@ -659,7 +660,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
                 }
-                namedArgs.add(new Literal(source(stringCtx), key, KEYWORD));
+                namedArgs.add(new Literal(source(stringCtx), BytesRefs.toBytesRef(key), KEYWORD));
                 namedArgs.add(l);
                 names.add(key);
             } else {
@@ -940,6 +941,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             } else {
                 return new UnresolvedAttribute(source, value.toString());
             }
+        }
+        if ((type == KEYWORD || type == TEXT) && value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
         }
         return new Literal(source, value, type);
     }

@@ -20,12 +20,12 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -51,19 +51,30 @@ public class Literal extends LeafExpression {
 
     public Literal(Source source, Object value, DataType dataType) {
         super(source);
+        assert noPlainStrings(value, dataType);
         this.dataType = dataType;
         this.value = stringsToBytesRef(dataType, value);
     }
 
+    private boolean noPlainStrings(Object value, DataType dataType) {
+        if (dataType == KEYWORD || dataType == TEXT) {
+            if (value instanceof String) {
+                return false;
+            }
+            if (value instanceof Collection<?> c) {
+                return c.stream().allMatch(x -> noPlainStrings(x, dataType));
+            }
+        }
+        return true;
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static Object stringsToBytesRef(DataType dataType, Object value) {
-        if (value instanceof String s) {
-            return switch (dataType) {
-                case IP -> s; // it's a problem for CIDR_MATCH, see CombineDisjunctions, but it's wrong!
-                case VERSION -> new Version(s).toBytesRef();
-                default -> BytesRefs.toBytesRef(value);
-            };
+        // we should do it for IPs as well, but there is a problem for CIDR_MATCH, see CombineDisjunctions
+        if (value instanceof String s && dataType == VERSION) {
+            return new Version(s).toBytesRef();
         }
+
         if (value instanceof List l) {
             return l.stream().map(x -> stringsToBytesRef(dataType, x)).toList();
         }
@@ -185,7 +196,9 @@ public class Literal extends LeafExpression {
     }
 
     public static Literal of(Expression source, Object value) {
-        return new Literal(source.source(), value, source.dataType());
+        DataType type = source.dataType();
+        value = stringsToBytesRef(type, value);
+        return new Literal(source.source(), value, type);
     }
 
     /**

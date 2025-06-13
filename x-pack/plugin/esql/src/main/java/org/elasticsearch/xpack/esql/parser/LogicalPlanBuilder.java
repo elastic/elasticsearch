@@ -479,7 +479,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
+                new Literal(source(ctx.policyName), BytesRefs.toBytesRef(policyNameString), DataType.KEYWORD),
                 matchField,
                 null,
                 Map.of(),
@@ -561,7 +561,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
+        Literal tableName = new Literal(source, BytesRefs.toBytesRef(visitIndexPattern(List.of(ctx.indexPattern()))), DataType.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -663,7 +663,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
-            var literal = new Literal(source(ctx), "fork" + count++, KEYWORD);
+            var literal = new Literal(source(ctx), BytesRefs.toBytesRef("fork" + count++), KEYWORD);
 
             // align _fork id across all fork branches
             Alias alias = null;
@@ -747,7 +747,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal inferenceId = ctx.inferenceId != null
             ? inferenceId(ctx.inferenceId)
-            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+            : new Literal(source, BytesRefs.toBytesRef(Rerank.DEFAULT_INFERENCE_ID), KEYWORD);
 
         return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }
@@ -766,7 +766,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
-            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+            return new Literal(source(ctx), BytesRefs.toBytesRef(visitIdentifier(ctx.identifier())), KEYWORD);
         }
 
         if (expression(ctx.parameter()) instanceof Literal literalParam) {

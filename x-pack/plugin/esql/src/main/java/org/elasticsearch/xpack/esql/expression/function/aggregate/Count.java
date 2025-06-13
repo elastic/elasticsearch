@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
@@ -176,7 +177,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
+                new Count(s, new Literal(s, BytesRefs.toBytesRef(StringUtils.WILDCARD), DataType.KEYWORD))
             );
         }
 

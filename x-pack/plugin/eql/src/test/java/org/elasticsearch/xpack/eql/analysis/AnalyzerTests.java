@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
@@ -75,7 +76,7 @@ public class AnalyzerTests extends ESTestCase {
         Concat concat = (Concat) check.left();
         List<Expression> arguments = new ArrayList<>(3);
         checkMissingOptional(concat.arguments().get(0));
-        assertEquals(new Literal(Source.EMPTY, " ", DataTypes.KEYWORD), concat.arguments().get(1));
+        assertEquals(new Literal(Source.EMPTY, BytesRefs.toBytesRef(" "), DataTypes.KEYWORD), concat.arguments().get(1));
         checkMissingOptional(concat.arguments().get(2));
     }
 

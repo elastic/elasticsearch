@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -182,7 +183,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
     private static InferencePlan<?> mockInferencePlan(String inferenceId) {
         InferencePlan<?> plan = mock(InferencePlan.class);
-        when(plan.inferenceId()).thenReturn(new Literal(Source.EMPTY, inferenceId, DataType.KEYWORD));
+        when(plan.inferenceId()).thenReturn(new Literal(Source.EMPTY, BytesRefs.toBytesRef(inferenceId), DataType.KEYWORD));
         return plan;
     }
 }

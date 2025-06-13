@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -44,7 +45,7 @@ public class EnrichSerializationTests extends AbstractLogicalPlanSerializationTe
     }
 
     private static Expression randomPolicyName() {
-        return new Literal(randomSource(), randomAlphaOfLength(5), DataType.KEYWORD);
+        return new Literal(randomSource(), BytesRefs.toBytesRef(randomAlphaOfLength(5)), DataType.KEYWORD);
     }
 
     private static EnrichPolicy randomEnrichPolicy() {

@@ -54,7 +54,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
         Configuration cfg = randomLocaleConfig();
-        ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
+        ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, BytesRefs.toBytesRef(testString), DataType.KEYWORD), cfg);
         assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold(FoldContext.small())));
     }
 

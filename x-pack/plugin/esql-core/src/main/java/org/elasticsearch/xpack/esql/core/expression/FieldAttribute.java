@@ -204,8 +204,9 @@ public class FieldAttribute extends TypedAttribute {
             // name starting with `$$`.
             if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
                 lazyFieldName = new FieldName(name());
+            } else {
+                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
             }
-            lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
         }
         return lazyFieldName;
     }

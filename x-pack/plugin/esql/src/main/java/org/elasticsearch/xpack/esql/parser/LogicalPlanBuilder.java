@@ -621,7 +621,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            // TODO: should this check be here or in Lookup.java?
             boolean[] hasRemotes = { false };
             p.forEachUp(UnresolvedRelation.class, r -> {
                 for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
@@ -630,18 +629,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     }
                 }
             });
-            if (hasRemotes[0]) {
-                p.forEachUp(UnaryPlan.class, u -> {
-                    if (u instanceof Aggregate || (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR)) {
-                        throw new ParsingException(
-                            source,
-                            "LOOKUP JOIN with remote indices is not supported after aggregation or local enrich commands"
-                        );
-                    }
-                });
-            }
+            // TODO: should this check be here or in Lookup.java?
+            // if (hasRemotes[0]) {
+            // p.forEachUp(UnaryPlan.class, u -> {
+            // if (u instanceof Aggregate || (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR)) {
+            // throw new ParsingException(
+            // source,
+            // "LOOKUP JOIN with remote indices is not supported after aggregation or local enrich commands"
+            // );
+            // }
+            // });
+            // }
 
-            return new LookupJoin(source, p, right, joinFields);
+            return new LookupJoin(source, p, right, joinFields).setRemote(hasRemotes[0]);
+
         };
     }
 

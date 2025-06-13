@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner.mapper;
 
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -231,6 +232,9 @@ public class Mapper {
         return null;
     }
 
+    // This is a temporary hack for debugging purposes to quick switching
+    private static final FeatureFlag FRAGMENT_EXEC_HACK = new FeatureFlag("fragment_exec_hack");
+
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
@@ -249,9 +253,11 @@ public class Mapper {
                 return new FragmentExec(bp);
             }
 
-            var leftPlan = mapToFragmentExec(bp, left);
-            if (leftPlan != null) {
-                return leftPlan;
+            if (FRAGMENT_EXEC_HACK.isEnabled()) {
+                var leftPlan = mapToFragmentExec(bp, left);
+                if (leftPlan != null) {
+                    return leftPlan;
+                }
             }
 
             PhysicalPlan right = map(bp.right());

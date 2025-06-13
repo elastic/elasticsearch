@@ -15,9 +15,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -142,6 +145,8 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
     private Metadata randomMeta(boolean hasMissingCustoms) {
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.generateClusterUuidIfNeeded();
+        @FixForMultiProject(description = "Pass random project ID when usages are namespaced")
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
         int numDelIndices = randomIntBetween(0, 5);
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         for (int i = 0; i < numDelIndices; i++) {
@@ -152,12 +157,12 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(newInstance(dataStreamName, List.of(backingIndex.getIndex())));
+                projectBuilder.put(newInstance(dataStreamName, List.of(backingIndex.getIndex())));
             }
         }
-        mdBuilder.indexGraveyard(graveyard.build());
+        projectBuilder.indexGraveyard(graveyard.build());
         if (hasMissingCustoms) {
-            mdBuilder.putCustom(
+            projectBuilder.putCustom(
                 TestMissingProjectCustomMetadata.TYPE,
                 new TestMissingProjectCustomMetadata("test missing project custom metadata")
             );
@@ -166,7 +171,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
                 new TestMissingClusterCustomMetadata("test missing cluster custom metadata")
             );
         }
-        return mdBuilder.build();
+        return mdBuilder.put(projectBuilder).build();
     }
 
     @Override

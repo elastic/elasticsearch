@@ -530,7 +530,21 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) { return visitChildren(ctx); }
+  @Override public T visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

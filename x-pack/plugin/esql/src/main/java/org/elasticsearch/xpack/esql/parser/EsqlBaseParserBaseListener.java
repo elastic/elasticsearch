@@ -889,13 +889,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) { }
+  @Override public void enterLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) { }
+  @Override public void exitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalLikeList(EsqlBaseParser.LogicalLikeListContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -88,10 +88,8 @@ If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite
   - `AND`
   For example, a `query` value of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
 
-
 `minimum_should_match`
 :   (Optional, string) Minimum number of clauses that must match for a document to be returned. See the [`minimum_should_match` parameter](/reference/query-languages/query-dsl/query-dsl-minimum-should-match.md) for valid values and more information.
-
 
 `zero_terms_query`
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:

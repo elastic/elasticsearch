@@ -149,6 +149,7 @@ public class SearchContextStats implements SearchStats {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
     }
 
+    @Override
     public long count() {
         var count = new long[] { 0 };
         boolean completed = doWithContexts(r -> {
@@ -322,10 +323,11 @@ public class SearchContextStats implements SearchStats {
         return true;
     }
 
-    public String constantValue(String name) {
+    @Override
+    public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {
-            MappedFieldType f = ctx.getFieldType(name);
+            MappedFieldType f = ctx.getFieldType(name.string());
             if (f == null) {
                 return null;
             }

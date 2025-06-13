@@ -1,0 +1,6 @@
+pr: 129150
+summary: Add `none` chunking strategy to disable automatic chunking for inference
+  endpoints
+area: Machine Learning
+type: feature
+issues: []

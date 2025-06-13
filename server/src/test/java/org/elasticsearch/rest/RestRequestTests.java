@@ -120,38 +120,56 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(emptyMap(), source.get());
     }
 
-    public void testParseAsIntWithNoParameters() {
+    public void testParamAsIntWithNoParameters() {
         RestRequest restRequest = contentRestRequest("", emptyMap());
-        int defaultValue = -1;
+        int defaultValue = randomInt();
         String parameterKey = randomIdentifier();
 
         int value = restRequest.paramAsInt(parameterKey, defaultValue);
         assertEquals(defaultValue, value);
-
-        Integer value2 = restRequest.paramAsInt(parameterKey, Integer.valueOf(defaultValue));
-        assertEquals(defaultValue, value2.intValue());
     }
 
-    public void testParseAsIntWithIntegerParameter() {
+    public void testParamAsIntWithIntegerParameter() {
         String parameterKey = randomIdentifier();
         RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
-        int defaultValue = -1;
+        int defaultValue = randomInt();
 
         int value = restRequest.paramAsInt(parameterKey, defaultValue);
         assertEquals(123, value);
+    }
 
-        Integer value2 = restRequest.paramAsInt(parameterKey, Integer.valueOf(defaultValue));
+    public void testParamAsIntWithoutIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(parameterKey, defaultValue); });
+    }
+
+    public void testParamAsIntegerWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(defaultValue, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
         assertEquals(123, value2.intValue());
     }
 
-    public void testParseAsIntWithoutIntegerParameter() {
+    public void testParamAsIntegerWithoutIntegerParameter() {
         String parameterKey = randomIdentifier();
         RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
-        int defaultValue = -1;
+        int defaultValue = randomInt();
 
-        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(parameterKey, defaultValue); });
-
-        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(parameterKey, Integer.valueOf(defaultValue)); });
+        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInteger(parameterKey, defaultValue); });
     }
 
     public void testContentOrSourceParam() throws IOException {

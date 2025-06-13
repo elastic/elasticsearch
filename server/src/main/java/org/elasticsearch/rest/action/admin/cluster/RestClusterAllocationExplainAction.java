@@ -77,7 +77,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
             );
 
             clusterAllocationExplainRequest.setShard(
-                request.paramAsInt(ClusterAllocationExplainRequest.SHARD_PARAMETER_NAME, clusterAllocationExplainRequest.getShard())
+                request.paramAsInteger(ClusterAllocationExplainRequest.SHARD_PARAMETER_NAME, clusterAllocationExplainRequest.getShard())
             );
 
             clusterAllocationExplainRequest.setPrimary(
@@ -89,7 +89,6 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
             );
         }
 
-        // This checks for optionally provided query parameters
         clusterAllocationExplainRequest.includeYesDecisions(
             request.paramAsBoolean(ClusterAllocationExplainRequest.INCLUDE_YES_DECISIONS_PARAMETER_NAME, false)
         );

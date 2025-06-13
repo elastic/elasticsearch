@@ -478,7 +478,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         }
     }
 
-    public Integer paramAsInt(String key, Integer defaultValue) {
+    public Integer paramAsInteger(String key, Integer defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
             return defaultValue;

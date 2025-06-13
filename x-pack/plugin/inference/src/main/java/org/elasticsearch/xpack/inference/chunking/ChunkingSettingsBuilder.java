@@ -45,6 +45,7 @@ public class ChunkingSettingsBuilder {
             settings.get(ChunkingSettingsOptions.STRATEGY.toString()).toString()
         );
         return switch (chunkingStrategy) {
+            case NONE -> NoneChunkingSettings.INSTANCE;
             case WORD -> WordBoundaryChunkingSettings.fromMap(new HashMap<>(settings));
             case SENTENCE -> SentenceBoundaryChunkingSettings.fromMap(new HashMap<>(settings));
         };

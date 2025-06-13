@@ -181,7 +181,7 @@ class KnnSearcher {
                         resultIds[i] = getResultIds(results[i], storedFields);
                     }
                     logger.info(
-                        "completed %d searches in %d ms: %d QPS CPU time=%dms",
+                        "completed {} searches in {} ms: {} QPS CPU time={}ms",
                         numQueryVectors,
                         elapsed,
                         (1000L * numQueryVectors) / elapsed,

@@ -791,7 +791,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateNonExistentRestRequestUserThrowsAuthenticationException() throws Exception {
         when(firstRealm.token(threadContext)).thenReturn(
-            new UsernamePasswordToken("idonotexist", new SecureString("passwd".toCharArray()))
+                new UsernamePasswordToken("idonotexist", new SecureString("passwd".toCharArray()))
         );
         try {
             authenticateBlocking(restRequest, null);
@@ -2069,23 +2069,23 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(projectIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = AuthenticationTestHelper.builder()
-            .user(user)
-            .realmRef(new RealmRef("realm", "custom", "node"))
-            .build(false);
+                .user(user)
+                .realmRef(new RealmRef("realm", "custom", "node"))
+                .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = AuthenticationTestHelper.builder()
-                .user(new User("creator"))
-                .realmRef(new RealmRef("test", "test", "test"))
-                .build(false);
+                    .user(new User("creator"))
+                    .realmRef(new RealmRef("test", "test", "test"))
+                    .build(false);
             tokenService.createOAuth2Tokens(
-                newTokenBytes.v1(),
-                newTokenBytes.v2(),
-                expected,
-                originatingAuth,
-                Collections.emptyMap(),
-                tokenFuture
+                    newTokenBytes.v1(),
+                    newTokenBytes.v2(),
+                    expected,
+                    originatingAuth,
+                    Collections.emptyMap(),
+                    tokenFuture
             );
         }
         String token = tokenFuture.get().getAccessToken();
@@ -2104,8 +2104,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             threadContext.putHeader("Authorization", "Bearer " + token);
             ElasticsearchSecurityException e = expectThrows(
-                ElasticsearchSecurityException.class,
-                () -> authenticateBlocking("_action", transportRequest, null, null)
+                    ElasticsearchSecurityException.class,
+                    () -> authenticateBlocking("_action", transportRequest, null, null)
             );
             if (requestIdAlreadyPresent) {
                 assertThat(expectAuditRequestId(threadContext), is(reqId.get()));

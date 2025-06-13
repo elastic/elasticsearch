@@ -20,6 +20,9 @@ public class ChunkingSettingsTests extends ESTestCase {
         ChunkingStrategy randomStrategy = randomFrom(ChunkingStrategy.values());
 
         switch (randomStrategy) {
+            case NONE -> {
+                return NoneChunkingSettings.INSTANCE;
+            }
             case WORD -> {
                 var maxChunkSize = randomIntBetween(10, 300);
                 return new WordBoundaryChunkingSettings(maxChunkSize, randomIntBetween(1, maxChunkSize / 2));
@@ -37,15 +40,15 @@ public class ChunkingSettingsTests extends ESTestCase {
         chunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), randomStrategy.toString());
 
         switch (randomStrategy) {
+            case NONE -> {
+            }
             case WORD -> {
                 var maxChunkSize = randomIntBetween(10, 300);
                 chunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), maxChunkSize);
                 chunkingSettingsMap.put(ChunkingSettingsOptions.OVERLAP.toString(), randomIntBetween(1, maxChunkSize / 2));
 
             }
-            case SENTENCE -> {
-                chunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), randomIntBetween(20, 300));
-            }
+            case SENTENCE -> chunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), randomIntBetween(20, 300));
             default -> {
             }
         }

@@ -59,7 +59,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This test suite tests the lookup join functionality in ESQL with various data types.
@@ -144,6 +143,17 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     }
                 }
             }
+        }
+
+        // Union types; non-exhaustive and can be extended
+        {
+            TestConfigs configs = testConfigurations.computeIfAbsent("union-types", TestConfigs::new);
+            configs.addUnionTypePasses(SHORT, INTEGER, INTEGER);
+            configs.addUnionTypePasses(BYTE, DOUBLE, LONG);
+            configs.addUnionTypePasses(DATETIME, DATE_NANOS, DATE_NANOS);
+            configs.addUnionTypePasses(DATE_NANOS, DATETIME, DATETIME);
+            configs.addUnionTypePasses(SCALED_FLOAT, HALF_FLOAT, DOUBLE);
+            configs.addUnionTypePasses(TEXT, KEYWORD, KEYWORD);
         }
 
         // Tests for all unsupported types
@@ -276,6 +286,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         testLookupJoinTypes("others");
     }
 
+    public void testLookupJoinUnionTypes() {
+        testLookupJoinTypes("union-types");
+    }
+
     private void testLookupJoinTypes(String group) {
         TestConfigs configs = testConfigurations.get(group);
         initIndexes(configs);
@@ -298,6 +312,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             if (mapping.settings != null) {
                 builder = builder.setSettings(mapping.settings);
             }
+
             assertAcked(builder);
         }
     }
@@ -309,12 +324,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
-    private static String lookupPropertyFor(TestConfig config) {
-        return String.format(Locale.ROOT, "\"%s\": %s", config.lookupFieldName(), sampleDataTextFor(config.lookupType()));
-    }
-
-    private static String mainPropertyFor(TestConfig config) {
-        return String.format(Locale.ROOT, "\"%s\": %s", config.mainFieldName(), sampleDataTextFor(config.mainType()));
+    private static String propertyFor(String fieldName, DataType type) {
+        return String.format(Locale.ROOT, "\"%s\": %s", fieldName, sampleDataTextFor(type));
     }
 
     private static String sampleDataTextFor(DataType type) {
@@ -425,12 +436,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                       %s,
                       "other": "value"
                     }
-                    """, lookupPropertyFor(config));
+                    """, propertyFor(config.lookupFieldName(), config.lookupType()));
                 results.add(new TestDocument(config.lookupIndexName(), "" + (++docId), doc));
             }
+
             List<String> mainProperties = configs.values()
                 .stream()
-                .map(LookupJoinTypesIT::mainPropertyFor)
+                .map(c -> propertyFor(c.mainFieldName(), c.mainType()))
                 .distinct()
                 .collect(Collectors.toList());
             results.add(new TestDocument(MAIN_INDEX, "1", String.format(Locale.ROOT, """
@@ -438,6 +450,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                   %s
                 }
                 """, String.join(",\n  ", mainProperties))));
+
+            for (TestConfig config : configs.values()) {
+                for (TestMapping addtionalIndex : config.additionalIndexes()) {
+                    String doc = String.format(Locale.ROOT, """
+                        {
+                          %s,
+                          "other": "value"
+                        }
+                        """, propertyFor(config.mainFieldName(), ((TestConfigPassesUnionType) config).otherMainType()));
+                    // Casting to TestConfigPassesUnionType is an ugly hack; better to derive the test data from the TestMapping or from the
+                    // TestConfig.
+                    results.add(new TestDocument(addtionalIndex.indexName, "1", doc));
+                }
+            }
 
             return results;
         }
@@ -459,6 +485,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
         private void addPasses(DataType mainType, DataType lookupType) {
             add(new TestConfigPasses(mainType, lookupType));
+        }
+
+        private void addUnionTypePasses(DataType mainType, DataType otherMainType, DataType lookupType) {
+            add(new TestConfigPassesUnionType(mainType, otherMainType, lookupType));
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
@@ -500,22 +530,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
-    private static class UnionTypeTestConfigs extends TestConfigs {
-        UnionTypeTestConfigs(String group) {
-            super(group);
-        }
-
-        @Override
-        public List<TestMapping> indices() {
-            return super.indices();
-        }
-
-        @Override
-        public List<TestDocument> docs() {
-            return super.docs();
-        }
-    }
-
     interface TestConfig {
         DataType mainType();
 
@@ -529,7 +543,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default TestMapping mainIndex() {
-            return new TestMapping(MAIN_INDEX, List.of(propertySpecFor(mainFieldName(), mainType(), "")), null);
+            return new TestMapping(MAIN_INDEX, List.of(propertySpecFor(mainFieldName(), mainType())), null);
         }
 
         /**
@@ -560,7 +574,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         default TestMapping lookupIndex() {
             return new TestMapping(
                 lookupIndexName(),
-                List.of(propertySpecFor(lookupFieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }")),
+                List.of(propertySpecFor(lookupFieldName(), lookupType()), "\"other\": { \"type\" : \"keyword\" }"),
                 Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.mode", "lookup").build()
             );
         }
@@ -589,7 +603,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         void doTest();
     }
 
-    private static String propertySpecFor(String fieldName, DataType type, String extra) {
+    private static String propertySpecFor(String fieldName, DataType type) {
         if (type == SCALED_FLOAT) {
             return String.format(
                 Locale.ROOT,
@@ -597,9 +611,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 fieldName,
                 type.esType(),
                 SCALING_FACTOR
-            ) + extra;
+            );
         }
-        return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.esType().replaceAll("cartesian_", "")) + extra;
+        return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.esType().replaceAll("cartesian_", ""));
     }
 
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
@@ -622,6 +636,63 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 Iterator<Object> results = response.response().column(0).iterator();
                 assertTrue("Expected at least one result for query: " + query, results.hasNext());
                 Object indexedResult = response.response().column(0).iterator().next();
+                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+            }
+        }
+    }
+
+    private record TestConfigPassesUnionType(DataType mainType, DataType otherMainType, DataType lookupType) implements TestConfig {
+        @Override
+        public String lookupIndexName() {
+            // Override so it doesn't clash with other lookup indices from non-union type tests.
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_union_" + otherMainType().esType() + "_" + lookupType().esType();
+        }
+
+        private String additionalIndexName() {
+            return MAIN_INDEX + "_" + mainFieldName() + "_as_" + otherMainType().typeName();
+        }
+
+        @Override
+        public List<TestMapping> additionalIndexes() {
+            return List.of(new TestMapping(additionalIndexName(), List.of(propertySpecFor(mainFieldName(), otherMainType)), null));
+        }
+
+        @Override
+        public void validateAdditionalIndexes() {
+            validateIndex(additionalIndexName(), mainFieldName(), sampleDataFor(otherMainType));
+        }
+
+        @Override
+        public String testQuery() {
+            String mainField = mainFieldName();
+            String lookupField = lookupFieldName();
+            String lookupIndex = lookupIndexName();
+
+            return String.format(
+                Locale.ROOT,
+                "FROM %s, %s | EVAL %s = %s::%s | LOOKUP JOIN %s ON %s | KEEP other",
+                MAIN_INDEX,
+                additionalIndexName(),
+                lookupField,
+                mainField,
+                lookupType.typeName(),
+                lookupIndex,
+                lookupField
+            );
+        }
+
+        @Override
+        public void doTest() {
+            String query = testQuery();
+            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                Iterator<Object> results = response.response().column(0).iterator();
+
+                assertTrue("Expected at least two results for query, but result was empty: " + query, results.hasNext());
+                Object indexedResult = results.next();
+                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+
+                assertTrue("Expected at least two results for query: " + query, results.hasNext());
+                indexedResult = results.next();
                 assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
             }
         }

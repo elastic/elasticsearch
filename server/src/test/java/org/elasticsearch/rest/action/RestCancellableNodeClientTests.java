@@ -304,7 +304,9 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             if (open.get() == false) {
                 listener.onResponse(null);
                 // Ensure closeLatch is pulled by completing the closeListener with a noop that is ignored if it is already completed.
-                // Note that when the channel is closed we may see multiple addCloseListener() calls, so we do not assert on isDone() here.
+                // Note that when the channel is closed we may see multiple addCloseListener() calls, so we do not assert on isDone() here,
+                // and since closeListener may already be completed we cannot rely on it to complete the current listener, so we first
+                // complete it directly and then pass a noop to closeListener.
                 closeListener.onResponse(ActionListener.assertOnce(ActionListener.noop()));
             } else {
                 assertFalse("close listener already set, only one is allowed!", closeListener.isDone());

@@ -62,14 +62,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<Params>> listener
     ) {
-        @SuppressWarnings("unchecked")
-        final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
-        execute(
-            client,
-            new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
-            StartPersistentTaskAction.INSTANCE,
-            wrappedListener
-        );
+        sendStartRequest(client, taskId, taskName, taskParams, timeout, listener);
     }
 
     /**
@@ -84,10 +77,21 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<Params>> listener
     ) {
+        sendStartRequest(client.projectClient(projectId), taskId, taskName, taskParams, timeout, listener);
+    }
+
+    private <Params extends PersistentTaskParams> void sendStartRequest(
+        final Client client,
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         execute(
-            client.projectClient(projectId),
+            client,
             new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
             StartPersistentTaskAction.INSTANCE,
             wrappedListener
@@ -110,18 +114,7 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        execute(
-            client,
-            new CompletionPersistentTaskAction.Request(
-                Objects.requireNonNull(timeout),
-                taskId,
-                taskAllocationId,
-                taskFailure,
-                localAbortReason
-            ),
-            CompletionPersistentTaskAction.INSTANCE,
-            listener
-        );
+        sendCompletionRequest(client, taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
     }
 
     /**
@@ -141,8 +134,20 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
+        sendCompletionRequest(client.projectClient(projectId), taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
+    }
+
+    private void sendCompletionRequest(
+        final Client client,
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         execute(
-            client.projectClient(projectId),
+            client,
             new CompletionPersistentTaskAction.Request(
                 Objects.requireNonNull(timeout),
                 taskId,
@@ -159,27 +164,33 @@ public class PersistentTasksService {
      * Cancels a locally running task using the Task Manager API. Accepts operation timeout as optional parameter
      */
     void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+        sendCancelRequest(client, taskId, reason, listener);
+    }
+
+    /**
+     * Cancels a locally running project task using the Task Manager API. Accepts operation timeout as optional parameter
+     */
+    void sendCancelRequest(
+        final ProjectId projectId,
+        final long taskId,
+        final String reason,
+        final ActionListener<ListTasksResponse> listener
+    ) {
+        sendCancelRequest(client.projectClient(projectId), taskId, reason, listener);
+    }
+
+    private void sendCancelRequest(
+        final Client client,
+        final long taskId,
+        final String reason,
+        final ActionListener<ListTasksResponse> listener
+    ) {
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
         request.setReason(reason);
         // TODO set timeout?
         try {
             client.admin().cluster().cancelTasks(request, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Cancels a locally running project task using the Task Manager API. Accepts operation timeout as optional parameter
-     */
-    void sendCancelRequest(final ProjectId projectId, final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
-        CancelTasksRequest request = new CancelTasksRequest();
-        request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
-        request.setReason(reason);
-        // TODO set timeout?
-        try {
-            client.projectClient(projectId).admin().cluster().cancelTasks(request, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -199,12 +210,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        execute(
-            client,
-            new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
-            UpdatePersistentTaskStatusAction.INSTANCE,
-            listener
-        );
+        sendUpdateStateRequest(client, taskId, taskAllocationID, taskState, timeout, listener);
     }
 
     /**
@@ -222,8 +228,19 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
+        sendUpdateStateRequest(client.projectClient(projectId), taskId, taskAllocationID, taskState, timeout, listener);
+    }
+
+    private void sendUpdateStateRequest(
+        final Client client,
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         execute(
-            client.projectClient(projectId),
+            client,
             new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
             UpdatePersistentTaskStatusAction.INSTANCE,
             listener
@@ -234,21 +251,30 @@ public class PersistentTasksService {
      * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
      */
     public void sendRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
-        execute(
-            client,
-            new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
-            RemovePersistentTaskAction.INSTANCE,
-            listener
-        );
+        sendRemoveRequest(client, taskId, timeout, listener);
     }
 
     /**
      * Notifies the master node to remove a project level persistent task from the cluster state.
      * Accepts operation timeout as optional parameter
      */
-    public void sendRemoveRequest(final ProjectId projectId, final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
+    public void sendRemoveRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        sendRemoveRequest(client.projectClient(projectId), taskId, timeout, listener);
+    }
+
+    private void sendRemoveRequest(
+        final Client client,
+        final String taskId,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         execute(
-            client.projectClient(projectId),
+            client,
             new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
             RemovePersistentTaskAction.INSTANCE,
             listener

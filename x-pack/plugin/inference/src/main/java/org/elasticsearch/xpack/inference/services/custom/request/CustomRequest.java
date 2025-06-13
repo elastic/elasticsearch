@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -70,8 +69,6 @@ public class CustomRequest implements Request {
         for (var entry : paramsToAdd.entrySet()) {
             if (entry.getValue() instanceof String str) {
                 stringParams.put(entry.getKey(), str);
-            } else if (entry.getValue() instanceof SerializableSecureString serializableSecureString) {
-                stringParams.put(entry.getKey(), serializableSecureString.getSecureString().toString());
             } else if (entry.getValue() instanceof SecureString secureString) {
                 stringParams.put(entry.getKey(), secureString.toString());
             }

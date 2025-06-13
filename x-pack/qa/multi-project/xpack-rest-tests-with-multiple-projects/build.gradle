@@ -46,6 +46,7 @@ tasks.named("yamlRestTest").configure {
     '^esql/190_lookup_join/*',
     '^esql/191_lookup_join_on_datastreams/*',
     '^esql/191_lookup_join_text/*',
+    '^esql/192_lookup_join_on_aliases/*',
     '^health/10_usage/*',
     '^ilm/10_basic/Test Undeletable Policy In Use',
     '^ilm/20_move_to_step/*',

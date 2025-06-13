@@ -31,7 +31,7 @@ public class TestBuildInfoParser {
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("test_build_info", Builder::new);
     private static final ObjectParser<Location, Void> LOCATION_PARSER = new ObjectParser<>("location", Location::new);
     static {
-        LOCATION_PARSER.declareString(Location::representativeClass, new ParseField("representativeClass"));
+        LOCATION_PARSER.declareString(Location::representativeClass, new ParseField("representative_class"));
         LOCATION_PARSER.declareString(Location::module, new ParseField("module"));
 
         PARSER.declareString(Builder::component, new ParseField("component"));
@@ -79,9 +79,11 @@ public class TestBuildInfoParser {
         var xContent = XContentFactory.xContent(XContentType.JSON);
         List<TestBuildInfo> pluginsTestBuildInfos = new ArrayList<>();
         var resources = TestBuildInfoParser.class.getClassLoader().getResources(PLUGIN_TEST_BUILD_INFO_RESOURCES);
-        URL resource;
-        while ((resource = resources.nextElement()) != null) {
-            try (var stream = getStream(resource); var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
+        while (resources.hasMoreElements()) {
+            try (
+                var stream = getStream(resources.nextElement());
+                var parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)
+            ) {
                 pluginsTestBuildInfos.add(fromXContent(parser));
             }
         }

@@ -12,15 +12,23 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -34,8 +42,30 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class InferenceRunnerTests extends ESTestCase {
+    private TestThreadPool threadPool;
+
+    @Before
+    public void setThreadPool() {
+        threadPool = new TestThreadPool(
+            getTestClass().getSimpleName(),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                between(1, 10),
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        terminate(threadPool);
+    }
+
     public void testResolveInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
+        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
         List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
@@ -52,7 +82,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMultipleInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
+        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
         List<InferencePlan<?>> inferencePlans = List.of(
             mockInferencePlan("rerank-plan"),
             mockInferencePlan("rerank-plan"),
@@ -80,7 +110,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMissingInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient());
+        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
         List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("missing-plan"));
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
@@ -100,17 +130,29 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "raw-types" })
-    private static Client mockClient() {
+    private Client mockClient() {
         Client client = mock(Client.class);
         doAnswer(i -> {
-            GetInferenceModelAction.Request request = i.getArgument(1, GetInferenceModelAction.Request.class);
-            ActionListener<ActionResponse> listener = (ActionListener<ActionResponse>) i.getArgument(2, ActionListener.class);
-            ActionResponse response = getInferenceModelResponse(request);
+            Runnable sendResponse = () -> {
+                GetInferenceModelAction.Request request = i.getArgument(1, GetInferenceModelAction.Request.class);
+                ActionListener<ActionResponse> listener = (ActionListener<ActionResponse>) i.getArgument(2, ActionListener.class);
+                ActionResponse response = getInferenceModelResponse(request);
 
-            if (response == null) {
-                listener.onFailure(new ResourceNotFoundException("inference endpoint not found"));
+                if (response == null) {
+                    listener.onFailure(new ResourceNotFoundException("inference endpoint not found"));
+                } else {
+                    listener.onResponse(response);
+                }
+            };
+
+            if (randomBoolean()) {
+                sendResponse.run();
             } else {
-                listener.onResponse(response);
+                threadPool.schedule(
+                    sendResponse,
+                    TimeValue.timeValueNanos(between(1, 1_000)),
+                    threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
+                );
             }
 
             return null;

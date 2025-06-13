@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
@@ -31,7 +30,8 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * This class is part of the planner. Data node level logical optimizations.  At this point we have access to
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
- * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}
+ * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators(boolean)}
+ * and {@link LogicalPlanOptimizer#cleanup()}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
@@ -59,8 +59,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localOperators() {
-        var operators = operators();
-        var rules = operators().rules();
+        var operators = operators(true);
+        var rules = operators(true).rules();
         List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
 
         // apply updates to existing rules that have different applicability locally
@@ -69,10 +69,6 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
                 // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
                 case ReplaceStatsFilteredAggWithEval ignoredReplace -> {
-                }
-                // cannot drop groupings or aggregations from a local plan, as the layout has already been agreed upon
-                case CombineProjections unused -> {
-
                 }
                 default -> newRules.add(r);
             }

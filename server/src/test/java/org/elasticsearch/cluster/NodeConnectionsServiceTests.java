@@ -302,7 +302,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         + reconnectIntervalMillis
                         + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
-                        + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                        + "see [https://www.elastic.co/guide/*] for troubleshooting guidance"
                 )
             );
             mockLog.addExpectation(
@@ -318,7 +318,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         + reconnectIntervalMillis
                         + "ms] ago "
                         + "but did not restart, so the disconnection is unexpected; "
-                        + "see [https://www.elastic.co/docs/*] for troubleshooting guidance"
+                        + "see [https://www.elastic.co/guide/*] for troubleshooting guidance"
                 )
             );
             runTasksUntil(deterministicTaskQueue, deterministicTaskQueue.getCurrentTimeMillis() + reconnectIntervalMillis);

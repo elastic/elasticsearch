@@ -634,10 +634,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public static class SingletonOrdinals extends BlockDocValuesReader {
+    private static class SingletonOrdinals extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
 
-        public SingletonOrdinals(SortedDocValues ordinals) {
+        SingletonOrdinals(SortedDocValues ordinals) {
             this.ordinals = ordinals;
         }
 
@@ -692,10 +692,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public static class Ordinals extends BlockDocValuesReader {
+    private static class Ordinals extends BlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
-        public Ordinals(SortedSetDocValues ordinals) {
+        Ordinals(SortedSetDocValues ordinals) {
             this.ordinals = ordinals;
         }
 

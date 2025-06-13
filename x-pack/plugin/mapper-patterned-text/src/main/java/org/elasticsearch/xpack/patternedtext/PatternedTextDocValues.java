@@ -14,8 +14,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;

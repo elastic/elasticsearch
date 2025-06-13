@@ -47,10 +47,7 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        QueryBuilder semanticQueryBuilder = createSemanticSubQuery(
-            indexInformation.getInferenceIndices(),
-            matchQueryBuilder
-        );
+        QueryBuilder semanticQueryBuilder = createSemanticSubQuery(indexInformation.getInferenceIndices(), matchQueryBuilder);
         boolQueryBuilder.should(semanticQueryBuilder);
         boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
         return boolQueryBuilder;

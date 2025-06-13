@@ -265,17 +265,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.queryVectorSupplier = null;
     }
 
-    public static KnnVectorQueryBuilder from(
-        KnnVectorQueryBuilder queryBuilder
-    ) {
+    public static KnnVectorQueryBuilder from(KnnVectorQueryBuilder queryBuilder) {
         return from(queryBuilder, queryBuilder.getFieldName(), queryBuilder.queryVectorBuilder());
     }
 
-    public static KnnVectorQueryBuilder from(
-        KnnVectorQueryBuilder queryBuilder,
-        String fieldName,
-        QueryVectorBuilder queryVectorBuilder
-    ) {
+    public static KnnVectorQueryBuilder from(KnnVectorQueryBuilder queryBuilder, String fieldName, QueryVectorBuilder queryVectorBuilder) {
         KnnVectorQueryBuilder knnVectorQueryBuilder;
         if (queryBuilder.queryVectorBuilder() != null) {
             knnVectorQueryBuilder = new KnnVectorQueryBuilder(

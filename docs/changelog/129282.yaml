@@ -1,6 +1,6 @@
 pr: 129282
-summary: Fix query rewrite logic to preserve `boosts` and `queryName` for `match`, `knn`, and `sparse_vector` queries on semantic_text fields
+summary: "Fix query rewrite logic to preserve `boosts` and `queryName` for `match`,\
+  \ `knn`, and `sparse_vector` queries on semantic_text fields"
 area: Search
 type: bug
-issues:
-  - 128696
+issues: []

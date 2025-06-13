@@ -210,7 +210,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * The query vector should be {@link #B_QUERY}-bit quantized and striped, so that the first {@code n} bits
      * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
      * bits are the second bits of each of the {@code n} vector dimensions, and so on
-     * (this algorithm is only valid or vectors with dimensions a multiple of 8).
+     * (this algorithm is only valid for vectors with dimensions a multiple of 8).
      * The striping is usually done by {@code BQSpaceUtils.transposeHalfByte}.
      * <p>
      * The data vector should be single-bit quantized.
@@ -232,8 +232,8 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * The final dot product result can be obtained by observing that the sum of each stripe of {@code n} bits
      * can be computed using the bit count of that stripe. Similar to
      * <a href="https://en.wikipedia.org/wiki/Multiplication_algorithm#Long_multiplication">long multiplication</a>,
-     * the result of each stripe of {@code n} bits can be added together by shifting the value {@code n} bits to the left,
-     * then adding to the overall result. Any carry is handled by the add operation.
+     * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
+     * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
      *
      * @param q
      * @param d
@@ -249,7 +249,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             for (final int upperBound = d.length & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
                 stripeRet += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(q, n * size + r) & (int) BitUtil.VH_NATIVE_INT.get(d, r));
             }
-            // handle any remainder (Java operations on bytes automatically extend to int, so we need to mask back down again)
+            // handle any tail (Java operations on bytes automatically extend to int, so we need to mask back down again)
             for (; r < d.length; r++) {
                 stripeRet += Integer.bitCount((q[n * size + r] & d[r]) & 0xFF);
             }

@@ -620,20 +620,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            p.forEachUp(UnresolvedRelation.class, r -> {
-                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
-                    if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
-                        throw new ParsingException(
-                            source(target),
-                            "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
-                            r.indexPattern().indexPattern()
-                        );
-                    }
-                }
-            });
-
+            checkForRemoteClusters(p, source(target), "LOOKUP JOIN");
             return new LookupJoin(source, p, right, joinFields);
         };
+    }
+
+    private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
+        plan.forEachUp(UnresolvedRelation.class, r -> {
+            for (var indexPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
+                if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
+                    throw new ParsingException(
+                        source,
+                        "invalid index pattern [{}], remote clusters are not supported in {}",
+                        r.indexPattern().indexPattern(),
+                        commandName
+                    );
+                }
+            }
+        });
     }
 
     @Override
@@ -644,6 +648,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Fork requires at least two branches");
         }
         return input -> {
+            checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };
@@ -743,7 +748,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ? inferenceId(ctx.inferenceId)
             : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
 
-        return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
+        return p -> {
+            checkForRemoteClusters(p, source, "RERANK");
+            return new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
+        };
     }
 
     @Override
@@ -755,7 +763,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
             : visitQualifiedName(ctx.targetField);
 
-        return p -> new Completion(source, p, inferenceId, prompt, targetField);
+        return p -> {
+            checkForRemoteClusters(p, source, "COMPLETION");
+            return new Completion(source, p, inferenceId, prompt, targetField);
+        };
     }
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {

@@ -89,7 +89,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     indexed.sort(BytesRef::compareTo);
                 }
 
-                // ignored   values always come last
+                // ignored values always come last
                 List<BytesRef> ignored = values.stream()
                     .map(s -> s == null ? nullValue : s)
                     .filter(Objects::nonNull)

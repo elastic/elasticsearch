@@ -186,7 +186,7 @@ alias-repeated-index:
   - match: {values.1: [2, "yellow"]}
 
 ---
-alias-pattern-multiple:
+fails when alias or pattern resolves to multiple:
   - do:
       esql.query:
         body:

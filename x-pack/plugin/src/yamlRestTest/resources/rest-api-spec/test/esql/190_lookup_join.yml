@@ -145,7 +145,7 @@ basic:
   - match: {values.1: [2, "yellow"]}
 
 ---
-non-lookup index:
+fails with non-lookup index:
   - do:
       esql.query:
         body:

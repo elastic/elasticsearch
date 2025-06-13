@@ -21,12 +21,13 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.MultiFieldMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
@@ -1221,7 +1222,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var fieldExtract = as(project.child(), FieldExtractExec.class);
                 var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue)).lenient(true);
+                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue));
                 assertThat("Unexpected match query for data type " + fieldDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
             } catch (ParsingException e) {
                 fail("Error parsing ESQL query: " + esqlQuery + "\n" + e.getMessage());
@@ -1287,8 +1288,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .boost(2.1f)
             .minimumShouldMatch("2")
             .operator(Operator.AND)
-            .prefixLength(3)
-            .lenient(true);
+            .prefixLength(3);
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
@@ -1332,31 +1332,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testMultiMatchOptionsPushDown() {
         String query = """
             from test
-            | where MATCH(first_name, last_name, "Anna", {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
-            "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
-            "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0,
-            "type": "best_fields", "boost": 2.0})
+            | where MATCH(first_name, last_name, "Anna", {"auto_generate_synonyms_phrase_query": "false",
+             "minimum_should_match": 3, "operator": "AND", "boost": 2.0, "zero_terms_query": "none"})
             """;
         var plan = plannerOptimizer.plan(query);
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new MultiMatchQueryBuilder("Anna").fields(Map.of("first_name", 1.0f, "last_name", 1.0f))
-            .slop(10)
+        var expectedQuery = MultiFieldMatchQueryBuilder.create("Anna", "first_name", "last_name")
             .boost(2.0f)
-            .analyzer("auto")
             .autoGenerateSynonymsPhraseQuery(false)
             .operator(Operator.fromString("AND"))
-            .fuzziness(Fuzziness.fromString("auto"))
-            .fuzzyRewrite("constant_score")
-            .fuzzyTranspositions(false)
-            .lenient(false)
-            .type("best_fields")
-            .maxExpansions(10)
-            .minimumShouldMatch("3")
-            .prefixLength(20)
-            .tieBreaker(1.0f);
+            .zeroTermsQuery(ZeroTermsQueryOption.readFromString("none"))
+            .minimumShouldMatch("3");
         assertThat(expectedQuery.toString(), is(planStr.get()));
     }
 
@@ -1960,7 +1949,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
         var stats = as(exchange.child(), EsStatsQueryExec.class);
-        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith");
         assertThat(stats.query().toString(), equalTo(expected.toString()));
     }
 
@@ -1980,7 +1969,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertTrue(filter.condition() instanceof GreaterThan);
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
-        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith");
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 
@@ -2130,7 +2119,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new MatchQueryBuilder(fieldName(), queryString()).lenient(true);
+            return new MatchQueryBuilder(fieldName(), queryString());
         }
 
         @Override
@@ -2146,7 +2135,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new MatchQueryBuilder(fieldName(), queryString()).lenient(true);
+            return new MatchQueryBuilder(fieldName(), queryString());
         }
 
         @Override

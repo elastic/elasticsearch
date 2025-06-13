@@ -353,9 +353,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                         currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).abort();
+                    assertThat(runMergeSemaphore.availablePermits(), is(0));
                     boolean mergeTaskSubmitted = threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                     assertTrue(mergeTaskSubmitted);
-                    assertBusy(() -> { assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask)); });
+                    assertBusy(() -> assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask)));
                     long latestIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                     // all currently running merge tasks must be IO throttled to the latest IO Rate
                     assertBusy(() -> {
@@ -373,7 +374,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     long completedMerges = threadPoolExecutor.getCompletedTaskCount();
                     runMergeSemaphore.release();
                     // await merge to finish
-                    assertBusy(() -> assertThat(threadPoolExecutor.getCompletedTaskCount(), is(completedMerges + 1)));
+                    assertBusy(() -> {
+                        assertThat(threadPoolExecutor.getCompletedTaskCount(), is(completedMerges + 1));
+                        assertThat(runMergeSemaphore.availablePermits(), is(0));
+                    });
                     mergesStillToComplete--;
                 }
             }

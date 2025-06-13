@@ -27,6 +27,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -164,31 +165,32 @@ public class HollowIndexEngine extends ReadOnlyEngine {
 
     @Override
     public RefreshResult refresh(String source) {
-        // The reader is opened at hollowing time once and is never refreshed internally.
-        // We should still call the refresh listeners as some downstream logic depends on refresh listeners being invoked
-        // to populate internal data structures.
-        callRefreshListeners(externalRefreshListeners);
-        callRefreshListeners(internalRefreshListeners);
+        // Acquire the engine reset write lock to avoid shard engine resets to run concurrently while calling the refresh listeners.
+        // We could use the engine reset read lock instead, but since we need refresh listeners to be called by a single thread at a time
+        // using the write lock avoids maintaining a second exclusive lock just for this.
+        final var engineWriteLock = engineConfig.getEngineResetLock().writeLock();
+        if (engineWriteLock.tryLock()) {
+            try {
+                // The reader is opened at hollowing time once and is never refreshed internally.
+                // We should still call the refresh listeners as some downstream logic depends on refresh listeners being invoked
+                // to populate internal data structures.
+                try {
+                    executeListeners(externalRefreshListeners, ReferenceManager.RefreshListener::beforeRefresh);
+                    executeListeners(internalRefreshListeners, ReferenceManager.RefreshListener::beforeRefresh);
+                } finally {
+                    executeListeners(externalRefreshListeners, listener -> listener.afterRefresh(false));
+                    executeListeners(internalRefreshListeners, listener -> listener.afterRefresh(false));
+                }
+            } finally {
+                engineWriteLock.unlock();
+            }
+        }
         return new RefreshResult(false, config().getPrimaryTermSupplier().getAsLong(), getLastCommittedSegmentInfos().getGeneration());
     }
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
         ActionListener.completeWith(listener, () -> refresh(source));
-    }
-
-    private void callRefreshListeners(List<ReferenceManager.RefreshListener> refreshListeners) {
-        if (refreshListeners != null) {
-            for (ReferenceManager.RefreshListener listener : refreshListeners) {
-                try {
-                    // A refresh in a hollow engine is a no-op, thus didRefresh will be always false.
-                    listener.beforeRefresh();
-                    listener.afterRefresh(false);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        }
     }
 
     @Override
@@ -204,5 +206,17 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     @Override
     public long getLastUnsafeSegmentGenerationForGets() {
         return getLastCommittedSegmentInfos().getGeneration();
+    }
+
+    private static <T> void executeListeners(List<T> listeners, CheckedConsumer<T, IOException> consumer) {
+        if (listeners != null) {
+            for (T listener : listeners) {
+                try {
+                    consumer.accept(listener);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
     }
 }

@@ -10,11 +10,35 @@ applies_to:
 
 This page provides examples of how to use the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex).
 
-## Running reindex asynchronously [docs-reindex-task-api]
+You can learn how to:
+
+**Run and control reindexing**
+- [Reindex asynchronously](#docs-reindex-task-api)
+- [Reindex multiple indices sequentially](#docs-reindex-multiple-sequentially)
+- [Reindex from multiple indices in a single request](#docs-reindex-multiple-sources)
+- [Reindex with throttling](#docs-reindex-throttle)
+- [Reindex with rethrottling](#docs-reindex-rethrottle)
+- [Reindex with slicing](#docs-reindex-slice)
+
+**Filter and transform documents**
+- [Reindex selected documents with a query](#docs-reindex-select-query)
+- [Reindex a limited number of documents with `max_docs`](#docs-reindex-select-max-docs)
+- [Reindex selected fields](#docs-reindex-filter-source)
+- [Reindex to change the name of a field](#docs-reindex-change-name)
+- [Modify documents during reindexing](#reindex-scripts)
+- [Extract a random subset of the source](#docs-reindex-api-subset)
+- [Reindex daily indices](#docs-reindex-daily-indices)
+
+**Route or send data elsewhere**
+- [Reindex with custom routing](#docs-reindex-routing)
+- [Reindex with an ingest pipeline](#reindex-with-an-ingest-pipeline)
+- [Reindex from remote](#reindex-from-remote)
+
+## Reindex asynchronously [docs-reindex-task-api]
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` you can use to cancel or get the status of the task. {{es}} creates a record of this task as a document at `_tasks/<task_id>`.
 
-## Reindex from multiple sources [docs-reindex-from-multiple-sources]
+## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 
 If you have many sources to reindex it is generally better to reindex them one at a time rather than using a glob pattern to pick up multiple sources.
 That way you can resume the process if there are any errors by removing the partially completed source and starting over.
@@ -35,7 +59,7 @@ for index in i1 i2 i3 i4 i5; do
 done
 ```
 
-## Throttling [docs-reindex-throttle]
+## Reindex with throttling [docs-reindex-throttle]
 
 Set `requests_per_second` to any positive decimal number (for example, `1.4`, `6`, or `1000`) to throttle the rate at which the reindex API issues batches of index operations.
 Requests are throttled by padding each batch with a wait time.
@@ -50,7 +74,7 @@ wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 
 Since the batch is issued as a single `_bulk` request, large batch sizes cause {{es}} to create many requests and then wait for a while before starting the next set. This is "bursty" instead of "smooth".
 
-## Rethrottling [docs-reindex-rethrottle]
+## Reindex with rethrottling [docs-reindex-rethrottle]
 
 The value of `requests_per_second` can be changed on a running reindex using the `_rethrottle` API. For example:
 
@@ -64,7 +88,7 @@ Just like when setting it on the Reindex API, `requests_per_second` can be eithe
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
 This prevents scroll timeouts.
 
-## Slicing [docs-reindex-slice]
+## Reindex with slicing [docs-reindex-slice]
 
 Reindex supports [sliced scroll](paginate-search-results.md#slice-scroll) to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to break the request down into smaller parts.
@@ -73,7 +97,7 @@ This parallelization can improve efficiency and provide a convenient way to brea
 Reindexing from remote clusters does not support manual or automatic slicing.
 ::::
 
-### Manual slicing [docs-reindex-manual-slice]
+### Reindex with manual slicing [docs-reindex-manual-slice]
 
 Slice a reindex request manually by providing a slice id and total number of slices to each request:
 
@@ -126,7 +150,7 @@ which results in a sensible `total` like this one:
 }
 ```
 
-### Automatic slicing [docs-reindex-automatic-slice]
+### Reindex with automatic slicing [docs-reindex-automatic-slice]
 
 You can also let the reindex API automatically parallelize using [sliced scroll](paginate-search-results.md#slice-scroll) to slice on `_id`.
 Use `slices` to specify the number of slices to use:
@@ -187,7 +211,7 @@ Indexing performance scales linearly across available resources with the number 
 
 Whether query or indexing performance dominates the runtime depends on the documents being reindexed and cluster resources.
 
-## Reindex routing [docs-reindex-routing]
+## Reindex with custom routing [docs-reindex-routing]
 
 By default if the reindex API sees a document with routing then the routing is preserved unless it's changed by the script. You can set `routing` on the `dest` request to change this.
 For example:
@@ -254,7 +278,7 @@ POST _reindex
 }
 ```
 
-## Reindex select documents with a query [docs-reindex-select-query]
+## Reindex selected documents with a query [docs-reindex-select-query]
 
 You can limit the documents by adding a query to the `source`. For example, the following request only copies documents with a `user.id` of `kimchy` into `my-new-index-000001`:
 
@@ -275,7 +299,7 @@ POST _reindex
 }
 ```
 
-### Reindex select documents with `max_docs` [docs-reindex-select-max-docs]
+## Reindex a limited number of documents with `max_docs` [docs-reindex-select-max-docs]
 
 You can limit the number of processed documents by setting `max_docs`.
 For example, this request copies a single document from `my-index-000001` to `my-new-index-000001`:
@@ -293,7 +317,7 @@ POST _reindex
 }
 ```
 
-### Reindex from multiple sources [docs-reindex-multiple-sources]
+## Reindex from multiple indices in a single request [docs-reindex-multiple-sources]
 
 The `index` attribute in `source` can be a list, allowing you to copy from lots of sources in one request.
 This will copy documents from the `my-index-000001` and `my-index-000002` indices:
@@ -314,7 +338,7 @@ POST _reindex
 The reindex API makes no effort to handle ID collisions so the last document written will "win" but the order isn't usually predictable so it is not a good idea to rely on this behavior. Instead, make sure that IDs are unique using a script.
 ::::
 
-### Reindex select fields with a source filter [docs-reindex-filter-source]
+## Reindex selected fields [docs-reindex-filter-source]
 
 You can use source filtering to reindex a subset of the fields in the original documents.
 For example, the following request only reindexes the `user.id` and `_doc` fields of each document:
@@ -332,7 +356,7 @@ POST _reindex
 }
 ```
 
-### Reindex to change the name of a field [docs-reindex-change-name]
+## Reindex to change the name of a field [docs-reindex-change-name]
 
 The reindex API can be used to build a copy of an index with renamed fields.
 Say you create an index containing documents that look like this:
@@ -483,7 +507,7 @@ Just as in `_update_by_query`, you can set `ctx.op` to change the operation that
 `delete`
 :   Set `ctx.op = "delete"` if your script decides that the document must be deleted from the destination. The deletion will be reported in the `deleted` counter in the response body.
 
-Setting `ctx.op` to anything else will return an error, as will setting any other field in `ctx`.
+Setting `ctx.op` to anything other than `noop` or `delete` will result in an error. Similarly, modifying other fields in `ctx` besides `_id`, `_index`, `_version`, and `_routing` will also fail.
 
 Think of the possibilities! Just be careful; you are able to change:
 
@@ -620,7 +644,7 @@ POST _reindex
 }
 ```
 
-## Configuring SSL parameters [reindex-ssl]
+### Configuring SSL parameters [reindex-ssl]
 
 Reindex from remote supports configurable SSL settings.
 These must be specified in the `elasticsearch.yml` file, with the exception of the secure settings, which you add in the {{es}} keystore.

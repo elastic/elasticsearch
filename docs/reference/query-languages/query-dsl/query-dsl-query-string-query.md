@@ -88,10 +88,8 @@ Boost values are relative to the default value of `1.0`. A boost value between `
 
 `default_operator`
 :   (Optional, string) Default boolean logic used to interpret text in the query string if no operators are specified. Valid values are:
-
   - `OR` (Default)
   For example, a query string of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
-
   - `AND`
   For example, a query string of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
 

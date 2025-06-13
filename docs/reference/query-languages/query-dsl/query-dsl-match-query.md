@@ -83,7 +83,6 @@ If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite
 
 `operator`
 :   (Optional, string) Boolean logic used to interpret text in the `query` value. Valid values are:
-
   - `OR` (Default)
   For example, a `query` value of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
   - `AND`
@@ -96,7 +95,6 @@ If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite
 
 `zero_terms_query`
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:
-
   - `none` (Default)
   No documents are returned if the `analyzer` removes all tokens.
   - `all`

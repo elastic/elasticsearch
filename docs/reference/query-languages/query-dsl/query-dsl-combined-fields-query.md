@@ -76,7 +76,6 @@ See [Use synonyms with match query](/reference/query-languages/query-dsl/query-d
 
 `operator`
 :   (Optional, string) Boolean logic used to interpret text in the `query` value. Valid values are:
-
   - `or` (Default)
   For example, a `query` value of `database systems` is interpreted as `database OR systems`.
   - `and`

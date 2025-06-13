@@ -163,4 +163,5 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     public int hashCode() {
         return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
     }
+
 }

@@ -115,7 +115,11 @@ public interface Layout {
                 for (NameId id : set.nameIds) {
                     // Duplicate name ids would mean that have 2 channels that are declared under the same id. That makes no sense - which
                     // channel should subsequent operators use, then, when they want to refer to this id?
-                    assert (layout.containsKey(id) == false) : "Duplicate name ids are not allowed in layouts";
+                    // FIXME: temporry change for debugging
+                    if (layout.containsKey(id)) {
+                        throw new IllegalArgumentException("Duplicate name ids are not allowed in layouts: " + id);
+                    }
+                    assert (layout.containsKey(id) == false) : "Duplicate name ids are not allowed in layouts: " + id;
                     ChannelAndType next = new ChannelAndType(channel, set.type);
                     layout.put(id, next);
                 }

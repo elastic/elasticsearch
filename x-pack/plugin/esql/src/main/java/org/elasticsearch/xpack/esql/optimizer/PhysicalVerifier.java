@@ -13,8 +13,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -35,6 +38,21 @@ public final class PhysicalVerifier {
         var enriches = plan.collectFirstChildren(EnrichExec.class::isInstance);
         if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
             return failures;
+        }
+        // Do the same for remote lookup joins
+        // TODO: figure out why enrich does not need two sides?
+        var joins = plan.collectFirstChildren(LookupJoinExec.class::isInstance);
+        if (joins.isEmpty() == false) {
+            return failures;
+        }
+        var fragment = plan.collectFirstChildren(FragmentExec.class::isInstance);
+        if (fragment.isEmpty() == false) {
+            // LookupJoin gets rewritten as Join by surrogate()
+            FragmentExec f = (FragmentExec) fragment.get(0);
+            var ljoins = f.fragment().collectFirstChildren(Join.class::isInstance);
+            if (ljoins.isEmpty() == false) {
+                return failures;
+            }
         }
 
         plan.forEachDown(p -> {

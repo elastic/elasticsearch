@@ -579,7 +579,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
             throw new ParsingException(
                 source(target),
-                "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
                 rightPattern
             );
         }
@@ -631,7 +631,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
                     throw new ParsingException(
                         source,
-                        "invalid index pattern [{}], remote clusters are not supported in {}",
+                        "invalid index pattern [{}], remote clusters are not supported with {}",
                         r.indexPattern().indexPattern(),
                         commandName
                     );

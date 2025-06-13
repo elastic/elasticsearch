@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
@@ -125,10 +124,7 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
                         ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK
                     );
                 } else {
-                    var newProjectId = randomValueOtherThanMany(
-                        projectsWithProjectGlobalBlock::contains,
-                        ESTestCase::randomUniqueProjectId
-                    );
+                    var newProjectId = randomUniqueProjectId();
                     builder.addProjectGlobalBlock(newProjectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
                 }
                 yield new ClusterBlocksTestWrapper(builder.build());
@@ -195,6 +191,9 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
         builder.addIndexBlock(randomUniqueProjectId(), indexName, block);
         if (randomBoolean()) {
             builder.addIndexBlock(Metadata.DEFAULT_PROJECT_ID, indexName, block);
+        }
+        if (randomBoolean()) {
+            builder.addProjectGlobalBlock(randomUniqueProjectId(), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
         }
         final ClusterBlocks current = builder.build();
 
@@ -300,12 +299,13 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
             if (o == null || getClass() != o.getClass()) return false;
             ClusterBlocksTestWrapper that = (ClusterBlocksTestWrapper) o;
             return clusterBlocks.global().equals(that.clusterBlocks.global())
-                && indicesBlocksAllProjects().equals(that.indicesBlocksAllProjects());
+                && indicesBlocksAllProjects().equals(that.indicesBlocksAllProjects())
+                && projectBlocksAllProjects().equals(that.projectBlocksAllProjects());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterBlocks.global(), indicesBlocksAllProjects());
+            return Objects.hash(clusterBlocks.global(), indicesBlocksAllProjects(), projectBlocksAllProjects());
         }
 
         @Override

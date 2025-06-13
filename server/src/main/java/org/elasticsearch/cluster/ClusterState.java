@@ -940,6 +940,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject().field("id", projectId)),
+            // write project global blocks in one chunk
+            projectBlocks.projectGlobals().isEmpty() ? Collections.emptyIterator() : Iterators.single((builder, params) -> {
+                builder.startObject("project_globals");
+                for (ClusterBlock block : projectBlocks.projectGlobals()) {
+                    block.toXContent(builder, params);
+                }
+                return builder.endObject();
+            }),
             // write index blocks for the project
             projectBlocks.indices().isEmpty()
                 ? Collections.emptyIterator()
@@ -954,14 +962,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                     })),
                     Iterators.single((builder, params) -> builder.endObject())
                 ),
-            // write project global blocks in one chunk
-            projectBlocks.projectGlobals().isEmpty() ? Collections.emptyIterator() : Iterators.single((builder, params) -> {
-                builder.startObject("project_globals");
-                for (ClusterBlock block : projectBlocks.projectGlobals()) {
-                    block.toXContent(builder, params);
-                }
-                return builder.endObject();
-            }),
             Iterators.single((builder, params) -> builder.endObject())
         );
     }

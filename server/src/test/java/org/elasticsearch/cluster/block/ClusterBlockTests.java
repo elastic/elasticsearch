@@ -173,7 +173,7 @@ public class ClusterBlockTests extends ESTestCase {
 
     public void testProjectGlobal() {
         final ProjectId project1 = randomUniqueProjectId();
-        final ProjectId project2 = randomValueOtherThan(project1, ESTestCase::randomUniqueProjectId);
+        final ProjectId project2 = randomUniqueProjectId();
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
         final var project1Index = randomIdentifier();
         final var indexBlock = randomClusterBlock(randomVersion());

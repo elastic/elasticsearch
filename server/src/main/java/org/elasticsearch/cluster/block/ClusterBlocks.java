@@ -73,7 +73,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     public Set<ClusterBlock> global(ProjectId projectId) {
-        return Sets.union(global, projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals());
+        return Sets.union(global, projectBlocks(projectId).projectGlobals());
     }
 
     public boolean noProjectHasAProjectBlock() {
@@ -81,7 +81,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     public Map<String, Set<ClusterBlock>> indices(ProjectId projectId) {
-        return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).indices();
+        return projectBlocks(projectId).indices();
     }
 
     public ProjectBlocks projectBlocks(ProjectId projectId) {
@@ -89,7 +89,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     protected Set<ClusterBlock> projectGlobal(ProjectId projectId) {
-        return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals();
+        return projectBlocks(projectId).projectGlobals();
     }
 
     public Set<ClusterBlock> global(ClusterBlockLevel level) {
@@ -351,8 +351,11 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         for (var projectId : projectBlocksMap.keySet().stream().sorted(Comparator.comparing(ProjectId::id)).toList()) {
             final Map<String, Set<ClusterBlock>> indices = indices(projectId);
             sb.append("   ").append(projectId).append(":\n");
+            if (projectGlobal(projectId).isEmpty() == false) {
+                sb.append("      _project_global_:\n");
+            }
             for (ClusterBlock block : projectGlobal(projectId)) {
-                sb.append("      ").append(block).append("\n");
+                sb.append("         ").append(block).append("\n");
             }
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
                 sb.append("      ").append(entry.getKey()).append(":\n");
@@ -539,9 +542,11 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         static ProjectBlocks readFrom(StreamInput in) throws IOException {
             Map<String, Set<ClusterBlock>> indices = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
-            Set<ClusterBlock> projectGlobal = new HashSet<>();
+            Set<ClusterBlock> projectGlobal;
             if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
                 projectGlobal = ClusterBlocks.readBlockSet(in);
+            } else {
+                projectGlobal = Set.of();
             }
             return new ProjectBlocks(indices, projectGlobal);
         }

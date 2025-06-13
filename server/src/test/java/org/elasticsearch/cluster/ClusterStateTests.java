@@ -206,7 +206,8 @@ public class ClusterStateTests extends ESTestCase {
                   another-index:
                      5,index read-only (api), blocks WRITE,METADATA_WRITE
                WHyuJ0uqBYOPgHX9kYUXlZ:
-                  15,project is under deletion, blocks READ,WRITE,METADATA_READ,METADATA_WRITE
+                  _project_global_:
+                     15,project is under deletion, blocks READ,WRITE,METADATA_READ,METADATA_WRITE
                tb5W0bx765nDVIwqJPw92G:
                   common-index:
                      9,index metadata (api), blocks METADATA_READ,METADATA_WRITE

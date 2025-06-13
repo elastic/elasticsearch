@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -49,6 +50,8 @@ public class RestRemoveIndexBlockAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         removeIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, removeIndexBlockRequest.indicesOptions()));
-        return channel -> client.admin().indices().removeBlock(removeIndexBlockRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .removeBlock(removeIndexBlockRequest, new RestToXContentListener<>(channel));
     }
 }

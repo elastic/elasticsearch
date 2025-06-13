@@ -106,9 +106,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
             All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
-        examples = {
-            @Example(file = "match-phrase-function", tag = "match-phrase-with-field"),
-            @Example(file = "match-phrase-function", tag = "match-phrase-with-named-function-params") },
+        examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field") },
         appliesTo = {
             @FunctionAppliesTo(
                 lifeCycle = FunctionAppliesToLifecycle.COMING,

@@ -14,9 +14,12 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.util.List;
@@ -29,6 +32,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
  */
 public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
+
+    private boolean isRemote = false;
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
@@ -86,6 +91,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
+        if (isRemote) {
+            checkRemoteJoin(this, failures);
+        }
+        // TODO: this is probably not necessary anymore as we check it in analysis stage?
         right().forEachDown(EsRelation.class, esr -> {
             var indexNameWithModes = esr.indexNameWithModes();
             if (indexNameWithModes.size() != 1) {
@@ -112,5 +121,35 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
                 );
             }
         });
+    }
+
+    private static void checkRemoteJoin(LogicalPlan plan, Failures failures) {
+        boolean[] agg = { false };
+        boolean[] enrichCoord = { false };
+
+        plan.forEachUp(UnaryPlan.class, u -> {
+            if (u instanceof Aggregate) {
+                agg[0] = true;
+            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                enrichCoord[0] = true;
+            }
+            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
+                if (agg[0]) {
+                    failures.add(fail(enrich, "LOOKUP JOIN with remote indices can't be executed after STATS"));
+                }
+                if (enrichCoord[0]) {
+                    failures.add(fail(enrich, "LOOKUP JOIN with remote indices can't be executed after ENRICH with coordinator policy"));
+                }
+            }
+        });
+    }
+
+    public boolean isRemote() {
+        return isRemote;
+    }
+
+    public LookupJoin setRemote(boolean remote) {
+        isRemote = remote;
+        return this;
     }
 }

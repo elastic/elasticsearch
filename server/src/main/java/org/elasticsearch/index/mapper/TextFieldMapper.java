@@ -897,9 +897,11 @@ public final class TextFieldMapper extends FieldMapper {
             return Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount());
         }
 
-        private void checkForPositions() {
+        private void checkForPositions(boolean multi) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalArgumentException(
+                    "field:[" + name() + "] was indexed without position data; cannot run " + (multi ? "MultiPhraseQuery" : "PhraseQuery")
+                );
             }
         }
 
@@ -907,7 +909,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            checkForPositions();
+            checkForPositions(false);
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
@@ -942,6 +944,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
+            checkForPositions(true);
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
@@ -962,7 +965,7 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
             if (countTokens(stream) > 1) {
-                checkForPositions();
+                checkForPositions(false);
             }
             return analyzePhrasePrefix(stream, slop, maxExpansions);
         }

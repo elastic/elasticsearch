@@ -277,3 +277,41 @@ setup:
                 query: "inference test"
 
   - match: { hits.total.value: 0 }
+
+---
+"Apply boost and query name":
+  - requires:
+      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      reason: fix boosting and query name for semantic text match queries.
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+                boost: 5.0
+                _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 136.1608, error: 1e13 } }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+

@@ -404,4 +404,36 @@ setup:
 
   - match: { hits.total.value: 4 }
 
+---
+"Apply boost and query name":
+  - requires:
+      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      reason: fix boosting and query name for semantic text knn queries.
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 2
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              boost: 5.0
+              _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 4.7153287, error: 1e13 } }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+
 

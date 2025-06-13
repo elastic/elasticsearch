@@ -166,8 +166,8 @@ public class MlMetricsTests extends ESTestCase {
         assertThat(counts.trainedModelsTargetAllocations(), is(6));
         assertThat(counts.trainedModelsCurrentAllocations(), is(4));
         assertThat(counts.trainedModelsFailedAllocations(), is(1));
-        assertThat(counts.trainedModelsFixedAllocations(), is(3));
-        assertThat(counts.trainedModelsDisabledAdaptiveAllocations(), is(1));
+        assertThat(counts.deploymentsWithFixedAllocations(), is(3));
+        assertThat(counts.deploymentsWithDisabledAdaptiveAllocations(), is(1));
     }
 
     public void testFindNativeMemoryFree() {

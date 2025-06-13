@@ -1,11 +1,8 @@
 ## `SAMPLE` [esql-sample]
 
-::::{warning}
-This functionality is in technical preview and may be
-changed or removed in a future release. Elastic will work to fix any
-issues, but features in technical preview are not subject to the support
-SLA of official GA features.
-::::
+```yaml {applies_to}
+stack: preview 9.1
+```
 
 The `SAMPLE` command samples a fraction of the table rows.
 

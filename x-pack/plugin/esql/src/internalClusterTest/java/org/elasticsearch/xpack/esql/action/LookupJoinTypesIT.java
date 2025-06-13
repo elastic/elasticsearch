@@ -458,7 +458,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void addPasses(DataType mainType, DataType lookupType) {
-            add(new TestConfigPasses(mainType, lookupType, true));
+            add(new TestConfigPasses(mainType, lookupType));
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
@@ -614,7 +614,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
-    private record TestConfigPasses(DataType mainType, DataType lookupType, boolean hasResults) implements TestConfig {
+    private record TestConfigPasses(DataType mainType, DataType lookupType) implements TestConfig {
         @Override
         public void doTest() {
             String query = testQuery();
@@ -622,11 +622,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 Iterator<Object> results = response.response().column(0).iterator();
                 assertTrue("Expected at least one result for query: " + query, results.hasNext());
                 Object indexedResult = response.response().column(0).iterator().next();
-                if (hasResults) {
-                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
-                } else {
-                    assertThat("Expected empty results for query: " + query, indexedResult, is(nullValue()));
-                }
+                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
             }
         }
     }

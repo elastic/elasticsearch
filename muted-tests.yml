@@ -64,9 +64,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start already started transform}
   issue: https://github.com/elastic/elasticsearch/issues/98802
-- class: org.elasticsearch.action.search.SearchPhaseControllerTests
-  method: testProgressListener
-  issue: https://github.com/elastic/elasticsearch/issues/116149
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628

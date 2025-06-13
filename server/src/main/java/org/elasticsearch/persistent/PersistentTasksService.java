@@ -65,6 +65,29 @@ public class PersistentTasksService {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         execute(
+            client,
+            new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
+            StartPersistentTaskAction.INSTANCE,
+            wrappedListener
+        );
+    }
+
+    /**
+     * Notifies the master node to create new project level persistent task and to assign it to a node.
+     * Accepts operation timeout as optional parameter
+     */
+    public <Params extends PersistentTaskParams> void sendStartRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
+        @SuppressWarnings("unchecked")
+        final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
+        execute(
+            client.projectClient(projectId),
             new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
             StartPersistentTaskAction.INSTANCE,
             wrappedListener
@@ -88,6 +111,38 @@ public class PersistentTasksService {
         final ActionListener<PersistentTask<?>> listener
     ) {
         execute(
+            client,
+            new CompletionPersistentTaskAction.Request(
+                Objects.requireNonNull(timeout),
+                taskId,
+                taskAllocationId,
+                taskFailure,
+                localAbortReason
+            ),
+            CompletionPersistentTaskAction.INSTANCE,
+            listener
+        );
+    }
+
+    /**
+     * Notifies the master node about the completion of a project level persistent task.
+     * <p>
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendCompletionRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        execute(
+            client.projectClient(projectId),
             new CompletionPersistentTaskAction.Request(
                 Objects.requireNonNull(timeout),
                 taskId,
@@ -116,6 +171,21 @@ public class PersistentTasksService {
     }
 
     /**
+     * Cancels a locally running project task using the Task Manager API. Accepts operation timeout as optional parameter
+     */
+    void sendCancelRequest(final ProjectId projectId, final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+        CancelTasksRequest request = new CancelTasksRequest();
+        request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
+        request.setReason(reason);
+        // TODO set timeout?
+        try {
+            client.projectClient(projectId).admin().cluster().cancelTasks(request, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Notifies the master node that the state of a persistent task has changed.
      * <p>
      * Persistent task implementers shouldn't call this method directly and use
@@ -130,6 +200,30 @@ public class PersistentTasksService {
         final ActionListener<PersistentTask<?>> listener
     ) {
         execute(
+            client,
+            new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
+            UpdatePersistentTaskStatusAction.INSTANCE,
+            listener
+        );
+    }
+
+    /**
+     * Notifies the master node that the state of a project level persistent task has changed.
+     * <p>
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
+     * Accepts operation timeout as optional parameter
+     */
+    void sendUpdateStateRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        execute(
+            client.projectClient(projectId),
             new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
             UpdatePersistentTaskStatusAction.INSTANCE,
             listener
@@ -141,6 +235,20 @@ public class PersistentTasksService {
      */
     public void sendRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
         execute(
+            client,
+            new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
+            RemovePersistentTaskAction.INSTANCE,
+            listener
+        );
+    }
+
+    /**
+     * Notifies the master node to remove a project level persistent task from the cluster state.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendRemoveRequest(final ProjectId projectId, final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
+        execute(
+            client.projectClient(projectId),
             new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
             RemovePersistentTaskAction.INSTANCE,
             listener
@@ -153,6 +261,7 @@ public class PersistentTasksService {
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse> void execute(
+        final Client client,
         final Req request,
         final ActionType<Resp> action,
         final ActionListener<PersistentTask<?>> listener

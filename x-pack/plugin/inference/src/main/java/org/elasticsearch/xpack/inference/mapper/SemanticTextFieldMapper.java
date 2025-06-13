@@ -1247,9 +1247,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
 
-        SemanticTextIndexOptions.SupportedIndexOptions previousType = (previous != null ? previous.type() : null);
-        SemanticTextIndexOptions.SupportedIndexOptions currentType = (current != null ? current.type() : null);
-        if (Objects.equals(previousType, currentType) == false) {
+        if (previous == null || current == null) {
+            return true;
+        }
+
+        if (Objects.equals(previous.type(), current.type()) == false) {
             conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
         }
 

@@ -286,6 +286,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
             config.validateMainIndex();
             config.validateLookupIndex();
+            config.validateAdditionalIndexes();
 
             config.doTest();
         }
@@ -293,7 +294,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private void initIndexes(TestConfigs configs) {
         for (TestMapping mapping : configs.indices()) {
-            CreateIndexRequestBuilder builder = prepareCreate(mapping.indexName).setMapping(mapping.properties);
+            CreateIndexRequestBuilder builder = prepareCreate(mapping.indexName).setMapping(mapping.propertiesAsJson());
             if (mapping.settings != null) {
                 builder = builder.setSettings(mapping.settings);
             }
@@ -348,7 +349,37 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         };
     }
 
-    private record TestMapping(String indexName, String properties, Settings settings) {};
+    public record TestMapping(String indexName, Collection<String> properties, Settings settings) {
+
+        private static final String PROPERTY_PREFIX = "{\n  \"properties\" : {\n";
+        private static final String PROPERTY_SUFFIX = "  }\n}\n";
+
+        /**
+         * {@link TestMapping#indexName} and {@link TestMapping#settings} should be the same across the collection, otherwise they're
+         * obtained from an arbitrary element.
+         */
+        public static TestMapping mergeProperties(Collection<TestMapping> mappings) {
+            TestMapping lastMapping = null;
+
+            Set<String> properties = new HashSet<>();
+            for (TestMapping mapping : mappings) {
+                properties.addAll(mapping.properties);
+                lastMapping = mapping;
+            }
+            String indexName = lastMapping == null ? null : lastMapping.indexName;
+            Settings settings = lastMapping == null ? null : lastMapping.settings;
+
+            return new TestMapping(indexName, properties, settings);
+        }
+
+        public static String propertiesAsJson(Collection<String> properties) {
+            return PROPERTY_PREFIX + String.join(", ", properties) + PROPERTY_SUFFIX;
+        }
+
+        public String propertiesAsJson() {
+            return propertiesAsJson(properties);
+        }
+    };
 
     private record TestDocument(String indexName, String id, String source) {};
 
@@ -361,36 +392,30 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             this.configs = new LinkedHashMap<>();
         }
 
-        protected List<TestMapping> indices() {
+        public List<TestMapping> indices() {
             List<TestMapping> results = new ArrayList<>();
 
-            String propertyPrefix = "{\n  \"properties\" : {\n";
-            String propertySuffix = "  }\n}\n";
             // The main index will have many fields, one of each type to use in later type specific joins
-            String mainFields = propertyPrefix + configs.values()
-                .stream()
-                .map(TestConfig::mainPropertySpec)
-                .distinct()
-                .collect(Collectors.joining(",\n    ")) + propertySuffix;
+            List<TestMapping> mainIndices = new ArrayList<>();
+            for (TestConfig config : configs.values()) {
+                results.addAll(config.additionalIndexes());
 
-            results.add(new TestMapping(MAIN_INDEX, mainFields, null));
+                mainIndices.add(config.mainIndex());
+            }
+            TestMapping mainIndex = TestMapping.mergeProperties(mainIndices);
 
-            Settings.Builder settings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.mode", "lookup");
+            results.add(mainIndex);
+
             configs.values()
                 .forEach(
                     // Each lookup index will get a document with a field to join on, and a results field to get back
-                    (c) -> results.add(
-                        new TestMapping(c.lookupIndexName(), propertyPrefix + c.lookupPropertySpec() + propertySuffix, settings.build())
-                    )
+                    (c) -> results.add(c.lookupIndex())
                 );
 
             return results;
         }
 
-        protected List<TestDocument> docs() {
+        public List<TestDocument> docs() {
             List<TestDocument> results = new ArrayList<>();
 
             int docId = 0;
@@ -475,41 +500,69 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
+    private static class UnionTypeTestConfigs extends TestConfigs {
+        UnionTypeTestConfigs(String group) {
+            super(group);
+        }
+
+        @Override
+        public List<TestMapping> indices() {
+            return super.indices();
+        }
+
+        @Override
+        public List<TestDocument> docs() {
+            return super.docs();
+        }
+    }
+
     interface TestConfig {
         DataType mainType();
 
         DataType lookupType();
 
-        default String lookupIndexName() {
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
-        }
-
+        /**
+         * The same across main indices (necessary for union types).
+         */
         default String mainFieldName() {
             return MAIN_INDEX_PREFIX + mainType().esType();
+        }
+
+        default TestMapping mainIndex() {
+            return new TestMapping(MAIN_INDEX, List.of(propertySpecFor(mainFieldName(), mainType(), "")), null);
+        }
+
+        /**
+         * Used for union types. Will have the same main field name, but using different types.
+         */
+        default List<TestMapping> additionalIndexes() {
+            return List.of();
+        }
+
+        /** Make sure the lookup index has the expected fields and types */
+        default void validateAdditionalIndexes() {
+            return;
+        }
+
+        /** Make sure the left indices have the expected fields and types */
+        default void validateMainIndex() {
+            validateIndex(MAIN_INDEX, mainFieldName(), sampleDataFor(mainType()));
+        }
+
+        default String lookupIndexName() {
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
         }
 
         default String lookupFieldName() {
             return LOOKUP_INDEX_PREFIX + lookupType().esType();
         }
 
-        default String mainPropertySpec() {
-            return propertySpecFor(mainFieldName(), mainType(), "");
-        }
-
-        /**
-         * If the main field is supposed to be a union type, this will be the property spec for the second index.
-         */
-        default String secondMainPropertySpecForUnionTypes() {
-            return propertySpecFor(mainFieldName(), mainType(), "");
-        }
-
-        default String lookupPropertySpec() {
-            return propertySpecFor(lookupFieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }");
-        }
-
-        /** Make sure the left index has the expected fields and types */
-        default void validateMainIndex() {
-            validateIndex(MAIN_INDEX, mainFieldName(), sampleDataFor(mainType()));
+        default TestMapping lookupIndex() {
+            return new TestMapping(
+                lookupIndexName(),
+                List.of(propertySpecFor(lookupFieldName(), lookupType(), ", \"other\": { \"type\" : \"keyword\" }")),
+                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.mode", "lookup").build()
+            );
         }
 
         /** Make sure the lookup index has the expected fields and types */

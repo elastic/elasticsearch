@@ -2195,13 +2195,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var fieldExtractExec2 = as(topNExec2.child(), FieldExtractExec.class);
         var queryExec = as(fieldExtractExec2.child(), EsQueryExec.class);
         assertNull(queryExec.limit());
-        var expectedQuery = boolQuery()
-            .must(
-                boolQuery()
-                    .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 140, null, null, null))
-                    .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 1f, 2f, 3f }, 140, null, null, null))
-            )
-            .must(matchQuery("text", "blue").lenient(true));
+        var expectedQuery = boolQuery().must(
+            boolQuery().should(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 140, null, null, null))
+                .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 1f, 2f, 3f }, 140, null, null, null))
+        ).must(matchQuery("text", "blue").lenient(true));
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 

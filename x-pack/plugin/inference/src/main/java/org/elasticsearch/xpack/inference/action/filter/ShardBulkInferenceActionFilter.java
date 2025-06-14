@@ -25,7 +25,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -52,6 +54,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -469,17 +472,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * Adds all inference requests associated with their respective inference IDs to the given {@code requestsMap}
          * for the specified {@code item}.
          *
-         * @param item       The bulk request item to process.
-         * @param itemIndex  The position of the item within the original bulk request.
+         * @param item        The bulk request item to process.
+         * @param itemIndex   The position of the item within the original bulk request.
          * @param requestsMap A map storing inference requests, where each key is an inference ID,
          *                    and the value is a list of associated {@link FieldInferenceRequest} objects.
          * @return The total content length of all newly added requests, or {@code 0} if no requests were added.
          */
         private long addFieldInferenceRequests(BulkItemRequest item, int itemIndex, Map<String, List<FieldInferenceRequest>> requestsMap) {
             boolean isUpdateRequest = false;
-            final IndexRequestWithIndexingPressure indexRequest;
+            final IndexRequest indexRequest;
             if (item.request() instanceof IndexRequest ir) {
-                indexRequest = new IndexRequestWithIndexingPressure(ir);
+                indexRequest = ir;
             } else if (item.request() instanceof UpdateRequest updateRequest) {
                 isUpdateRequest = true;
                 if (updateRequest.script() != null) {
@@ -493,13 +496,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     );
                     return 0;
                 }
-                indexRequest = new IndexRequestWithIndexingPressure(updateRequest.doc());
+                indexRequest = updateRequest.doc();
             } else {
                 // ignore delete request
                 return 0;
             }
 
-            final Map<String, Object> docMap = indexRequest.getIndexRequest().sourceAsMap();
+            final Map<String, Object> docMap = indexRequest.sourceAsMap();
             long inputLength = 0;
             for (var entry : fieldInferenceMap.values()) {
                 String field = entry.getName();
@@ -535,10 +538,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                          * This ensures that the field is treated as intentionally cleared,
                          * preventing any unintended carryover of prior inference results.
                          */
-                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
-                            return inputLength;
-                        }
-
                         var slot = ensureResponseAccumulatorSlot(itemIndex);
                         slot.addOrUpdateResponse(
                             new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
@@ -578,10 +577,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
-                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
-                            return inputLength;
-                        }
-
                         if (v.isBlank()) {
                             slot.addOrUpdateResponse(
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
@@ -602,50 +597,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             return inputLength;
-        }
-
-        private static class IndexRequestWithIndexingPressure {
-            private final IndexRequest indexRequest;
-            private boolean indexingPressureIncremented;
-
-            private IndexRequestWithIndexingPressure(IndexRequest indexRequest) {
-                this.indexRequest = indexRequest;
-                this.indexingPressureIncremented = false;
-            }
-
-            private IndexRequest getIndexRequest() {
-                return indexRequest;
-            }
-
-            private boolean isIndexingPressureIncremented() {
-                return indexingPressureIncremented;
-            }
-
-            private void setIndexingPressureIncremented() {
-                this.indexingPressureIncremented = true;
-            }
-        }
-
-        private boolean incrementIndexingPressure(IndexRequestWithIndexingPressure indexRequest, int itemIndex) {
-            boolean success = true;
-            if (indexRequest.isIndexingPressureIncremented() == false) {
-                try {
-                    // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
-                    indexRequest.setIndexingPressureIncremented();
-                } catch (EsRejectedExecutionException e) {
-                    addInferenceResponseFailure(
-                        itemIndex,
-                        new InferenceException(
-                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
-                            e
-                        )
-                    );
-                    success = false;
-                }
-            }
-
-            return success;
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
@@ -723,68 +674,150 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 );
                 inferenceFieldsMap.put(fieldName, result);
             }
-
-            BytesReference originalSource = indexRequest.source();
             if (useLegacyFormat) {
                 var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
                     SemanticTextUtils.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
-                indexRequest.source(newDocMap, indexRequest.getContentType());
+                XContentBuilder builder = XContentFactory.contentBuilder(indexRequest.getContentType());
+                builder.map(newDocMap);
+                var newSource = BytesReference.bytes(builder);
+                if (incrementIndexingPressure(item, indexRequest, newSource.length())) {
+                    indexRequest.source(newSource, indexRequest.getContentType());
+                }
             } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
-                    indexRequest.source(builder);
+                updateSourceWithInferenceFields(item, indexRequest, inferenceFieldsMap);
+            }
+        }
+
+        /**
+         * Updates the {@link IndexRequest}'s source to include additional inference fields.
+         * <p>
+         * If the original source uses an array-backed {@link BytesReference}, this method attempts an in-place update,
+         * reusing the existing array where possible and appending additional bytes only if needed.
+         * <p>
+         * If the original source is not array-backed, the entire source is replaced with the new source that includes
+         * the inference fields. In this case, the full size of the new source is accounted for in indexing pressure.
+         * <p>
+         * Note: We do not subtract the indexing pressure of the original source since its bytes may be pooled and not
+         * reclaimable by the garbage collector during the request lifecycle.
+         *
+         * @param item                The {@link BulkItemRequest} being processed.
+         * @param indexRequest        The {@link IndexRequest} whose source will be updated.
+         * @param inferenceFieldsMap  A map of additional fields to append to the source.
+         * @throws IOException if building the new source fails.
+         */
+        private void updateSourceWithInferenceFields(
+            BulkItemRequest item,
+            IndexRequest indexRequest,
+            Map<String, Object> inferenceFieldsMap
+        ) throws IOException {
+            var originalSource = indexRequest.source();
+            final BytesReference newSource;
+
+            // Build a new source by appending the inference fields to the existing source.
+            try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
+                appendSourceAndInferenceMetadata(builder, originalSource, indexRequest.getContentType(), inferenceFieldsMap);
+                newSource = BytesReference.bytes(builder);
+            }
+
+            // Calculate the additional size to account for in indexing pressure.
+            final int additionalSize = originalSource.hasArray() ? newSource.length() - originalSource.length() : newSource.length();
+
+            // If we exceed the indexing pressure limit, do not proceed with the update.
+            if (incrementIndexingPressure(item, indexRequest, additionalSize) == false) {
+                return;
+            }
+
+            // Apply the updated source to the index request.
+            if (originalSource.hasArray()) {
+                // If the original source is backed by an array, perform in-place update:
+                // - Copy as much of the new source as fits into the original array.
+                System.arraycopy(
+                    newSource.array(),
+                    newSource.arrayOffset(),
+                    originalSource.array(),
+                    originalSource.arrayOffset(),
+                    originalSource.length()
+                );
+
+                int remainingSize = newSource.length() - originalSource.length();
+                if (remainingSize > 0) {
+                    // If there are additional bytes, append them as a new BytesArray segment.
+                    byte[] remainingBytes = new byte[remainingSize];
+                    System.arraycopy(
+                        newSource.array(),
+                        newSource.arrayOffset() + originalSource.length(),
+                        remainingBytes,
+                        0,
+                        remainingSize
+                    );
+                    indexRequest.source(
+                        CompositeBytesReference.of(originalSource, new BytesArray(remainingBytes)),
+                        indexRequest.getContentType()
+                    );
+                } else {
+                    // No additional bytes; just adjust the slice length.
+                    indexRequest.source(originalSource.slice(0, newSource.length()));
+                }
+            } else {
+                // If the original source is not array-backed, replace it entirely.
+                indexRequest.source(newSource, indexRequest.getContentType());
+            }
+        }
+
+        /**
+         * Appends the original source and the new inference metadata field directly to the provided
+         * {@link XContentBuilder}, avoiding the need to materialize the original source as a {@link Map}.
+         */
+        private void appendSourceAndInferenceMetadata(
+            XContentBuilder builder,
+            BytesReference source,
+            XContentType xContentType,
+            Map<String, Object> inferenceFieldsMap
+        ) throws IOException {
+            builder.startObject();
+
+            // append the original source
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)
+            ) {
+                // skip start object
+                parser.nextToken();
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    builder.copyCurrentStructure(parser);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().ramBytesUsed();
 
-            // Add the indexing pressure from the source modifications.
-            // Don't increment operation count because we count one source update as one operation, and we already accounted for those
-            // in addFieldInferenceRequests.
+            // add the inference metadata field
+            builder.field(InferenceMetadataFieldsMapper.NAME);
+            try (XContentParser parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, inferenceFieldsMap)) {
+                builder.copyCurrentStructure(parser);
+            }
+
+            builder.endObject();
+        }
+
+        private boolean incrementIndexingPressure(BulkItemRequest item, IndexRequest indexRequest, int inc) {
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
+                if (inc > 0) {
+                    coordinatingIndexingPressure.increment(1, inc);
+                }
+                return true;
             } catch (EsRejectedExecutionException e) {
-                indexRequest.source(originalSource, indexRequest.getContentType());
+                inferenceStats.bulkRejection().incrementBy(1);
                 item.abort(
                     item.index(),
                     new InferenceException(
-                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        "Unable to insert inference results into document ["
+                            + indexRequest.id()
+                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                         e
                     )
                 );
+                return false;
             }
         }
-    }
-
-    /**
-     * Appends the original source and the new inference metadata field directly to the provided
-     * {@link XContentBuilder}, avoiding the need to materialize the original source as a {@link Map}.
-     */
-    private static void appendSourceAndInferenceMetadata(
-        XContentBuilder builder,
-        BytesReference source,
-        XContentType xContentType,
-        Map<String, Object> inferenceFieldsMap
-    ) throws IOException {
-        builder.startObject();
-
-        // append the original source
-        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            // skip start object
-            parser.nextToken();
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                builder.copyCurrentStructure(parser);
-            }
-        }
-
-        // add the inference metadata field
-        builder.field(InferenceMetadataFieldsMapper.NAME);
-        try (XContentParser parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, inferenceFieldsMap)) {
-            builder.copyCurrentStructure(parser);
-        }
-
-        builder.endObject();
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

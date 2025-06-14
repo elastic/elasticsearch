@@ -291,11 +291,18 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return isStreamedContent() || contentLength() > 0;
+        return contentLength() != 0;
     }
 
+    /**
+     * Returns content length in bytes. If length is unknown, for example,
+     * streamed content with chunked transfer-encoding then returns -1.
+     */
     public int contentLength() {
-        return httpRequest.body().asFull().bytes().length();
+        return switch (httpRequest.body()) {
+            case HttpBody.Full content -> content.bytes().length();
+            case HttpBody.Stream stream -> Math.toIntExact(httpRequest.contentLengthHeader());
+        };
     }
 
     public boolean isFullContent() {
@@ -325,6 +332,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public HttpBody.Stream contentStream() {
+        this.contentConsumed = true;
         return httpRequest.body().asStream();
     }
 

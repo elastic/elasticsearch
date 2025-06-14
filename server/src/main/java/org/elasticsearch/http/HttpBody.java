@@ -113,5 +113,10 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         default void close() {}
     }
 
-    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {}
+    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {
+        @Override
+        public void close() {
+            bytes.close();
+        }
+    }
 }

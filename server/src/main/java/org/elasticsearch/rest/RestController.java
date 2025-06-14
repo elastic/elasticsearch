@@ -389,6 +389,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return Collections.unmodifiableSortedMap(allStats);
     }
 
+    private void maybeAggregateAndDispatchRequest(
+        RestRequest restRequest,
+        RestChannel restChannel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
+        if (handler.supportsContentStream()) {
+            dispatchRequest(restRequest, restChannel, handler, methodHandlers, threadContext);
+        } else {
+            RestContentAggregator.aggregate(restRequest, (aggregatedRequest) -> {
+                try {
+                    dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
+                } catch (Exception e) {
+                    // dispatchRequest already handles exceptions, this time we wont be able to send response
+                    logger.error(() -> "failed to send failure response for uri [" + aggregatedRequest.uri() + "]", e);
+                }
+            });
+        }
+    }
+
     private void dispatchRequest(
         RestRequest request,
         RestChannel channel,
@@ -623,7 +644,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
-                    dispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
+                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }

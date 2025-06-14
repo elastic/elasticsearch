@@ -430,7 +430,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,
+            org.elasticsearch.ingest.IngestFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

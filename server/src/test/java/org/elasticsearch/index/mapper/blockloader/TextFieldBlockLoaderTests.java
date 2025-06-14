@@ -82,7 +82,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     .map(BytesRef::new)
                     .collect(Collectors.toList());
 
-                if (store == false) {
+                if (store == false && ignoreAbove.equals(Integer.MAX_VALUE)) {
                     // using doc_values for synthetic source
                     indexed = new ArrayList<>(new HashSet<>(indexed));
                     indexed.sort(BytesRef::compareTo);

@@ -49,7 +49,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -158,15 +157,6 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     /**
-     * Attempts to retrieve a client by its repository metadata and settings from the cache.
-     * If the client does not exist it will be created.
-     */
-    @FixForMultiProject(description = "can be removed once blobstore is project aware")
-    public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
-        return client(ProjectId.DEFAULT, repositoryMetadata);
-    }
-
-    /**
      * Attempts to retrieve either a cluster or project client from the client manager. Throws if project-id or
      * the client name does not exist. The client maybe initialized lazily.
      * @param projectId The project associated with the client, or null if the client is cluster level
@@ -194,11 +184,6 @@ class S3Service extends AbstractLifecycleComponent {
         } finally {
             Releasables.close(toRelease);
         }
-    }
-
-    @FixForMultiProject(description = "can be removed once blobstore is project aware")
-    S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
-        return settings(ProjectId.DEFAULT, repositoryMetadata);
     }
 
     S3ClientSettings settings(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata) {
@@ -418,11 +403,6 @@ class S3Service extends AbstractLifecycleComponent {
             logger.debug("Using basic key/secret credentials");
             return StaticCredentialsProvider.create(credentials);
         }
-    }
-
-    @FixForMultiProject(description = "can be removed once blobstore is project aware")
-    public void onBlobStoreClose() {
-        onBlobStoreClose(ProjectId.DEFAULT);
     }
 
     /**

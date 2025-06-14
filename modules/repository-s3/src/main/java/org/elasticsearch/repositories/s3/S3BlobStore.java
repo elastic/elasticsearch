@@ -140,7 +140,7 @@ class S3BlobStore implements BlobStore {
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
-        this.addPurposeCustomQueryParameter = service.settings(repositoryMetadata).addPurposeCustomQueryParameter;
+        this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
@@ -263,12 +263,11 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        // TODO: use service.client(ProjectId, RepositoryMetadata), see https://github.com/elastic/elasticsearch/pull/127631
-        return service.client(repositoryMetadata);
+        return service.client(projectId, repositoryMetadata);
     }
 
     final int getMaxRetries() {
-        return service.settings(repositoryMetadata).maxRetries;
+        return service.settings(projectId, repositoryMetadata).maxRetries;
     }
 
     public String bucket() {
@@ -441,7 +440,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.onBlobStoreClose();
+        service.onBlobStoreClose(projectId);
     }
 
     @Override

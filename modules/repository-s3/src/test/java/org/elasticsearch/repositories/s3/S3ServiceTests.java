@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointPr
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
@@ -53,17 +54,17 @@ public class S3ServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
-        final S3ClientSettings clientSettings = s3Service.settings(metadata2);
-        final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
+        final S3ClientSettings clientSettings = s3Service.settings(ProjectId.DEFAULT, metadata2);
+        final S3ClientSettings otherClientSettings = s3Service.settings(ProjectId.DEFAULT, metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonS3Reference reference = s3Service.client(metadata1);
+        final AmazonS3Reference reference = s3Service.client(randomFrom(ProjectId.DEFAULT, null), metadata1);
         reference.close();
-        s3Service.onBlobStoreClose();
-        final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
+        s3Service.onBlobStoreClose(ProjectId.DEFAULT);
+        final AmazonS3Reference referenceReloaded = s3Service.client(randomFrom(ProjectId.DEFAULT, null), metadata1);
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
-        s3Service.onBlobStoreClose();
-        final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
+        s3Service.onBlobStoreClose(ProjectId.DEFAULT);
+        final S3ClientSettings clientSettingsReloaded = s3Service.settings(ProjectId.DEFAULT, metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
         s3Service.close();
     }

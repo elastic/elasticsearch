@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,7 +28,7 @@ public class VerifyingClient extends NoOpClient {
     };
 
     VerifyingClient(ThreadPool threadPool) {
-        super(threadPool);
+        super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
     }
 
     @Override

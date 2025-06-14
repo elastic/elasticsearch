@@ -84,8 +84,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         indexTemplateRegistry.initialize();
 

@@ -32,6 +32,6 @@
   "examples" : [
     "ROW point = TO_GEOPOINT(\"POINT(42.97109629958868 14.7552534006536)\")\n| EVAL x =  ST_X(point), y = ST_Y(point)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

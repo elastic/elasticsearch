@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -117,6 +119,7 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
@@ -1362,6 +1365,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnOptionsPushDown() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
@@ -1473,10 +1478,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         testMultipleFullTextFunctionFilterPushdown(testCase);
         testFullTextFunctionsDisjunctionPushdown(testCase);
         testFullTextFunctionsDisjunctionWithFiltersPushdown(testCase);
-        testFullTextFunctionWithStatsWherePushable(testCase);
-        testFullTextFunctionWithStatsPushableAndNonPushableCondition(testCase);
-        testFullTextFunctionStatsWithNonPushableCondition(testCase);
-        testFullTextFunctionWithStatsBy(testCase);
+        if (testCase.fullTextFunction != Knn.class) {
+            testFullTextFunctionWithStatsWherePushable(testCase);
+            testFullTextFunctionWithStatsPushableAndNonPushableCondition(testCase);
+            testFullTextFunctionStatsWithNonPushableCondition(testCase);
+            testFullTextFunctionWithStatsBy(testCase);
+        }
     }
 
     private void testBasicFullTextFunction(FullTextFunctionTestCase testCase) {
@@ -2051,6 +2058,258 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             source
         ); // date_and_date_nanos is pushed down
         assertThat(expected.toString(), is(esQuery.query().toString()));
+    }
+
+    public void testKnnWithoutExplicitLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
+    }
+
+    public void testKnnWithoutExplicitLimitSorted() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var topNExec = as(plan, TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(config.resultTruncationDefaultSize()));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(config.resultTruncationDefaultSize()));
+    }
+
+    public void testKnnWithExplicitLimitSorted() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var topNExec = as(plan, TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+    }
+
+    public void testKnnWithStatsAndLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | limit 500
+            | stats c = count(*)
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var finalAggExec = as(limitExec.child(), AggregateExec.class);
+        var initialAggExec = as(finalAggExec.child(), AggregateExec.class);
+        var topNExec = as(initialAggExec.child(), TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(500));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var esQueryExec = as(projectExec.child(), EsQueryExec.class);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 500, null, null, null);
+        assertEquals(expectedQuery.toString(), esQueryExec.query().toString());
+    }
+
+    public void testKnnWithoutExplicitLimitSortedAndCommandsInBetween() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where knn(dense_vector, [0, 1, 2])
+            | sort _score desc
+            | keep _score
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var projectExec = as(plan, ProjectExec.class);
+        var topNExec = as(projectExec.child(), TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec2 = as(exchangeExec.child(), ProjectExec.class);
+        var queryExec = as(projectExec2.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+    }
+
+    public void testKnnWithExplicitLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test metadata _score
+            | where (knn(dense_vector, [0, 1, 2]) or knn(dense_vector, [1, 2, 3])) and match(text, "blue")
+            | sort _score desc, text asc
+            | keep text, dense_vector
+            | limit 140
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var projectExec = as(plan, ProjectExec.class);
+        var topNExec = as(projectExec.child(), TopNExec.class);
+        assertThat(topNExec.limit().fold(FoldContext.small()), is(140));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectExec2 = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec2.child(), FieldExtractExec.class);
+        var topNExec2 = as(fieldExtractExec.child(), TopNExec.class);
+        assertThat(topNExec2.limit().fold(FoldContext.small()), is(140));
+        var fieldExtractExec2 = as(topNExec2.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec2.child(), EsQueryExec.class);
+        assertNull(queryExec.limit());
+        var expectedQuery = boolQuery().must(
+            boolQuery().should(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 140, null, null, null))
+                .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 1f, 2f, 3f }, 140, null, null, null))
+        ).must(matchQuery("text", "blue").lenient(true));
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testKnnWithExplicitLimitAndExistingTopK() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], {"k": 10})
+            | limit 50
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(50));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(50));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+    }
+
+    public void testMultipleKnnQueriesLimit() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2]) and (match(text, "example") or knn(dense_vector, [3, 4, 5]))
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var expectedQuery = boolQuery().must(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 10, null, null, null))
+            .must(
+                boolQuery().should(matchQuery("text", "example").lenient(true))
+                    .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 3f, 4f, 5f }, 10, null, null, null))
+            );
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+
+        query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | where (match(text, "example") or knn(dense_vector, [3, 4, 5]))
+            | limit 10
+            """;
+        analyzer = makeAnalyzer("mapping-all-types.json");
+        plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        projectExec = as(exchangeExec.child(), ProjectExec.class);
+        fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        expectedQuery = boolQuery().must(new KnnVectorQueryBuilder("dense_vector", new float[] { 0f, 1f, 2f }, 10, null, null, null))
+            .must(
+                boolQuery().should(matchQuery("text", "example").lenient(true))
+                    .should(new KnnVectorQueryBuilder("dense_vector", new float[] { 3f, 4f, 5f }, 10, null, null, null))
+            );
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testKnnWithCombinedLimits() {
+        assumeTrue("KNN should be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 30
+            | limit 20
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        var exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        var projectExec = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        var knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
+
+        query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | limit 10
+            | limit 20
+            | limit 30
+            """;
+        analyzer = makeAnalyzer("mapping-all-types.json");
+        plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        limitExec = as(plan, LimitExec.class);
+        assertThat(limitExec.limit().fold(FoldContext.small()), is(10));
+        exchangeExec = as(limitExec.child(), ExchangeExec.class);
+        projectExec = as(exchangeExec.child(), ProjectExec.class);
+        fieldExtractExec = as(projectExec.child(), FieldExtractExec.class);
+        queryExec = as(fieldExtractExec.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(FoldContext.small()), is(10));
+        knnQuery = as(queryExec.query(), KnnVectorQueryBuilder.class);
+        assertThat(knnQuery.k(), is(10));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -28,9 +30,11 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 
@@ -45,6 +49,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -55,14 +60,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.expression.function.fulltext.Match.getNameFromFieldAttribute;
 
-public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction {
+public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
     private final Expression field;
     private final Expression options;
+    private Integer limit;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(K_FIELD.getPreferredName(), INTEGER),
@@ -136,13 +141,14 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             optional = true
         ) Expression options
     ) {
-        this(source, field, query, options, null);
+        this(source, field, query, options, null, null);
     }
 
-    private Knn(Source source, Expression field, Expression query, Expression options, QueryBuilder queryBuilder) {
+    private Knn(Source source, Expression field, Expression query, Expression options, QueryBuilder queryBuilder, Integer limit) {
         super(source, query, options == null ? List.of(field, query) : List.of(field, query, options), queryBuilder);
         this.field = field;
         this.options = options;
+        this.limit = limit;
     }
 
     public Expression field() {
@@ -195,13 +201,18 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private Map<String, Object> knnQueryOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of();
+
+        Map<String, Object> knnOptions = new HashMap<>();
+        // Set default k in case limit is specified. Can be overridden by options.
+        if (limit != null) {
+            knnOptions.put(K_FIELD.getPreferredName(), limit);
         }
 
-        Map<String, Object> matchOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchOptions, THIRD, sourceText(), ALLOWED_OPTIONS);
-        return matchOptions;
+        if (options() != null) {
+            populateOptionsMap((MapExpression) options(), knnOptions, THIRD, sourceText(), ALLOWED_OPTIONS);
+        }
+
+        return knnOptions;
     }
 
     @Override
@@ -217,22 +228,12 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             queryAsFloats[i] = queryFolded.get(i).floatValue();
         }
 
-        return new KnnQuery(source(), fieldName, queryAsFloats, queryOptions());
+        return new KnnQuery(source(), fieldName, queryAsFloats, knnQueryOptions());
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), queryBuilder);
-    }
-
-    private Map<String, Object> queryOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of();
-        }
-
-        Map<String, Object> options = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), ALLOWED_OPTIONS);
-        return options;
+        return new Knn(source(), field(), query(), options(), queryBuilder, limit);
     }
 
     @Override
@@ -242,8 +243,58 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             newChildren.get(0),
             newChildren.get(1),
             newChildren.size() > 2 ? newChildren.get(2) : null,
-            queryBuilder()
+            queryBuilder(),
+            limit
         );
+    }
+
+    /**
+     * Sets the maximum limit of results to retrieve from the knn query.
+     * In case both k and limit are set, k will be used instead.
+     *
+     * @param limit maximum number of results to retrieve
+     */
+    public Expression replaceLimit(int limit) {
+        if (this.limit != null && limit == this.limit) {
+            return this;
+        }
+
+        return new Knn(
+            source(),
+            children().get(0),
+            children().get(1),
+            children().size() > 2 ? children().get(2) : null,
+            queryBuilder(),
+            limit
+        );
+    }
+
+    /**
+     * KNN should not be used in aggregations, as it is a top-N query and not a filtering query
+     */
+    @Override
+    protected void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
+        super.checkFullTextFunctionsInAggs(agg, failures);
+        agg.aggregates().forEach(exp -> {
+            exp.forEachDown(FilteredExpression.class, filterExp -> {
+                filterExp.filter().forEachDown(Knn.class, knn -> {
+                    failures.add(fail(knn, notSupportedErroMessage(), knn.functionName(), knn.functionType()));
+                });
+            });
+        });
+    }
+
+    @Override
+    protected String notSupportedErroMessage() {
+        return "[{}] {} is only supported in WHERE commands";
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        // Checks that k is set, either because of limit or options
+        if (limit == null && knnQueryOptions().get(K_FIELD.getPreferredName()) == null) {
+            failures.add(fail(this, "k must be set either through a LIMIT or using the KNN k option", functionName(), functionType()));
+        }
     }
 
     @Override
@@ -262,7 +313,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
 
-        return new Knn(source, field, query, null, queryBuilder);
+        return new Knn(source, field, query, null, queryBuilder, null);
     }
 
     @Override
@@ -281,12 +332,12 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Knn knn = (Knn) o;
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
+            && Objects.equals(limit, knn.limit)
             && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), queryBuilder(), limit);
     }
-
 }

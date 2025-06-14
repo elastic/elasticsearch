@@ -45,6 +45,10 @@ public record ShardHeapUsage(String nodeId, long totalBytes, long estimatedUsage
     }
 
     public double estimatedUsageAsPercentage() {
-        return 100.0 * estimatedUsageBytes / (double) totalBytes;
+        return 100.0 * estimatedUsageAsRatio();
+    }
+
+    public double estimatedUsageAsRatio() {
+        return estimatedUsageBytes / (double) totalBytes;
     }
 }

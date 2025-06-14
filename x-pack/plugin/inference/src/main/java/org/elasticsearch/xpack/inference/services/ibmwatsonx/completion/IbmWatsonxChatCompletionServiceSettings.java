@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
+package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -35,8 +35,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
-public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, IbmWatsonxRateLimitServiceSettings {
-    public static final String NAME = "ibm_watsonx_rerank_service_settings";
+public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObject
+    implements
+        ServiceSettings,
+        IbmWatsonxRateLimitServiceSettings {
+    public static final String NAME = "ibm_watsonx_completion_service_settings";
 
     /**
      * Rate limits are defined at
@@ -45,7 +48,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
-    public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+    public static IbmWatsonxChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -67,7 +70,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
             throw validationException;
         }
 
-        return new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+        return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }
 
     private final URI uri;
@@ -80,7 +83,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     private final RateLimitSettings rateLimitSettings;
 
-    public IbmWatsonxRerankServiceSettings(
+    public IbmWatsonxChatCompletionServiceSettings(
         URI uri,
         String apiVersion,
         String modelId,
@@ -94,7 +97,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public IbmWatsonxRerankServiceSettings(StreamInput in) throws IOException {
+    public IbmWatsonxChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
         this.apiVersion = in.readString();
         this.modelId = in.readString();
@@ -157,7 +160,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
+        return TransportVersions.ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED;
     }
 
     @Override
@@ -175,7 +178,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     public boolean equals(Object object) {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
-        IbmWatsonxRerankServiceSettings that = (IbmWatsonxRerankServiceSettings) object;
+        IbmWatsonxChatCompletionServiceSettings that = (IbmWatsonxChatCompletionServiceSettings) object;
         return Objects.equals(uri, that.uri)
             && Objects.equals(apiVersion, that.apiVersion)
             && Objects.equals(modelId, that.modelId)

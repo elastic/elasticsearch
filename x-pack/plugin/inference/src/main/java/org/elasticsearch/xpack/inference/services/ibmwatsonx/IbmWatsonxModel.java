@@ -7,20 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class IbmWatsonxModel extends Model {
+public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
     private final IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings;
+
+    protected URI uri;
 
     public IbmWatsonxModel(
         ModelConfigurations configurations,
@@ -48,5 +52,15 @@ public abstract class IbmWatsonxModel extends Model {
 
     public IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return Objects.hash(uri);
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return this.rateLimitServiceSettings().rateLimitSettings();
     }
 }

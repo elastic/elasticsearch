@@ -4089,6 +4089,21 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("test*", esRelation.indexPattern());
     }
 
+    public void testGroupingOverridesInStats() {
+        verifyUnsupported("""
+            from test
+            | stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testGroupingOverridesInInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inlinestats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
+    }
+
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {
         assertEquals(expectedName, actualName);
         assertEquals(expectedType, actualType);

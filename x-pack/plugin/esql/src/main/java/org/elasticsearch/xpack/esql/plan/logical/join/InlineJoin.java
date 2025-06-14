@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -60,7 +59,16 @@ public class InlineJoin extends Join {
      * Replaces the stubbed source with the actual source.
      */
     public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
-        return stubbed.transformUp(StubRelation.class, stubRelation -> source);
+        // here we could have used stubbed.transformUp(StubRelation.class, stubRelation -> source)
+        // but transformUp skips changing a node if its tranformed variant it's equal to its original variant.
+        // A StubRelation can contain in its output ReferenceAttributes which do not use NameIds for equality, but only names and
+        // two ReferenceAttributes with the same name are equal and the transformation will not be applied.
+        return stubbed.transformUp(UnaryPlan.class, up -> {
+            if (up.child() instanceof StubRelation) {
+                return up.replaceChild(source);
+            }
+            return up;
+        });
     }
 
     /**
@@ -139,20 +147,12 @@ public class InlineJoin extends Join {
         JoinType joinType = config().type();
         List<Attribute> output;
         if (LEFT.equals(joinType)) {
-            AttributeSet rightFields = AttributeSet.of(config().rightFields());
-            List<Attribute> leftOutputWithoutMatchFields = new ArrayList<>();
-            // at this point "left" part of the join contains all the attributes that represent the input of the join
-            // including any aliasing (evals) of expressions used as grouping attributes (or join "match fields") in the join itself
-            for (Attribute attr : left().output()) {
-                if (rightFields.contains(attr) == false) {
-                    // the aforementioned groupings expressions or aliasing are removed from the left set of attributes
-                    leftOutputWithoutMatchFields.add(attr);
-                }
-            }
-            // the actual output of the join will place the left hand side attributes (excluding any aliasing of the groupings)
-            // as first columns in the output followed by whatever the right hand side of join adds in this order: aggregates first,
-            // followed by groupings (this order should be preserved inside the rightFields() output)
-            output = mergeOutputAttributes(right, leftOutputWithoutMatchFields);
+            List<Attribute> leftOutputWithoutKeys = left.stream().filter(attr -> config().leftFields().contains(attr) == false).toList();
+            List<Attribute> rightWithAppendedKeys = new ArrayList<>(right);
+            rightWithAppendedKeys.removeAll(config().rightFields());
+            rightWithAppendedKeys.addAll(config().leftFields());
+
+            output = mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

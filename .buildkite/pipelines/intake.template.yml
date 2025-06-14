@@ -4,7 +4,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait
@@ -13,7 +13,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part2
@@ -21,7 +21,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part3
@@ -29,7 +29,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part4
@@ -37,7 +37,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part5
@@ -45,7 +45,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - group: bwc-snapshots
@@ -58,7 +58,7 @@ steps:
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -78,7 +78,7 @@ steps:
               - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -89,7 +89,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait

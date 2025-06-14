@@ -9,8 +9,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -350,23 +351,26 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         try (
+            MockLog mockLog = MockLog.capture(TransportService.class);
             Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(
                 transportServiceA,
                 discoveryNode,
                 TestProfiles.LIGHT_PROFILE
             )
         ) {
-            assertThat(
-                ExceptionsHelper.unwrap(
-                    safeAwaitFailure(
-                        TransportSerializationException.class,
-                        DiscoveryNode.class,
-                        listener -> transportServiceA.handshake(connection, timeout, listener)
-                    ),
-                    IllegalArgumentException.class
-                ).getMessage(),
-                containsString("which has an incompatible wire format")
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message",
+                    TransportService.class.getCanonicalName(),
+                    Level.WARN,
+                    "which has an incompatible wire format"
+                )
             );
+
+            DiscoveryNode connectedNode = safeAwait(listener -> transportServiceA.handshake(connection, timeout, listener));
+            assertNotNull(connectedNode);
+
+            mockLog.awaitAllExpectationsMatched();
         }
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }

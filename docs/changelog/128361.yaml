@@ -1,0 +1,6 @@
+pr: 128361
+summary: The follower index should wait until the time series end time passes before unfollowing the leader index.
+area: ILM+SLM
+type: bug
+issues:
+ - 128129

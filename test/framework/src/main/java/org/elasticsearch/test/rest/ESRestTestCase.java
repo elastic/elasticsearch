@@ -2362,7 +2362,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return switch (id) {
             case "logs-default-pipeline", "logs@default-pipeline", "logs@json-message", "logs@json-pipeline" -> true;
-            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline" -> true;
+            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline", "logs-apm@pipeline" -> true;
             case "behavioral_analytics-events-final_pipeline", "ent-search-generic-ingestion", "search-default-ingestion" -> true;
             case "reindex-data-stream-pipeline" -> true;
             default -> false;

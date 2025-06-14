@@ -51,6 +51,20 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 
+    public static Iterable<Object[]> partialResultsDisablingParameters() throws Exception {
+        return updateEsqlQueryDoSections(createParameters(), AbstractEsqlClientYamlIT::modifyEsqlQueryExecutableSection);
+    }
+
+    private static ExecutableSection modifyEsqlQueryExecutableSection(DoSection doSection) {
+        var apiCallSection = doSection.getApiCallSection();
+        if (apiCallSection.getApi().equals("esql.query")) {
+            if (apiCallSection.getParams().containsKey("allow_partial_results") == false) {
+                apiCallSection.addParam("allow_partial_results", "false"); // we want any error to fail the test
+            }
+        }
+        return doSection;
+    }
+
     public static Iterable<Object[]> updateEsqlQueryDoSections(Iterable<Object[]> parameters, Function<DoSection, ExecutableSection> modify)
         throws Exception {
         List<Object[]> result = new ArrayList<>();

@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
-import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -255,13 +255,13 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
         }
     }
 
-    private static class QueuedDispatcher implements HttpServerTransport.Dispatcher {
+    private static class QueuedDispatcher extends AggregatingDispatcher {
         BlockingQueue<ReqCtx> reqQueue = new LinkedBlockingDeque<>();
         BlockingDeque<ErrCtx> errQueue = new LinkedBlockingDeque<>();
 
         @Override
-        public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-            reqQueue.add(new ReqCtx(request, channel, threadContext));
+        public void dispatchAggregatedRequest(RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            reqQueue.add(new ReqCtx(restRequest, restChannel, threadContext));
         }
 
         @Override

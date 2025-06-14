@@ -47,6 +47,8 @@ class MissingReadDetector extends ChannelDuplexHandler {
             if (pendingRead == false) {
                 long now = timer.absoluteTimeInMillis();
                 if (now >= lastRead + interval) {
+                    // if you encounter this warning during test make sure you consume content of RestRequest if it's a stream
+                    // or use AggregatingDispatcher that will consume stream fully and produce RestRequest with full content.
                     logger.warn("chan-id={} haven't read from channel for [{}ms]", ctx.channel().id(), (now - lastRead));
                 }
             }

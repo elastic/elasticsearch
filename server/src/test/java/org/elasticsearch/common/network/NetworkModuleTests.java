@@ -17,11 +17,11 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -299,7 +299,7 @@ public class NetworkModuleTests extends ESTestCase {
             null,
             xContentRegistry(),
             null,
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             (preRequest, threadContext) -> {},
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Tracer.NOOP

@@ -30,6 +30,10 @@ public interface HttpRequest extends HttpPreRequest {
 
     HttpBody body();
 
+    default void setBody(HttpBody body) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
     List<String> strictCookies();
 
     HttpVersion protocolVersion();

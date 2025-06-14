@@ -135,6 +135,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@ESTestCase.WithoutEntitlements
 public class ExceptionSerializationTests extends ESTestCase {
 
     public void testExceptionRegistration() throws IOException, URISyntaxException {
@@ -217,7 +218,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         };
 
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final Path testStartPath = PathUtils.get(
+            ElasticsearchExceptionTests.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+        ).resolve("org").resolve("elasticsearch");
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * These messages are not fixed, and there are not BWC concerns with changing them. It is entirely acceptable to improve the messages in
  * minor releases (but improvements only - not backwards steps).
  */
+@LuceneTestCase.SuppressFileSystems("*")
 public class SSLErrorMessageFileTests extends ESTestCase {
 
     private Environment env;
@@ -118,6 +120,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         checkBlockedKeyManagerResource("[jks] keystore", "keystore.path", null);
     }
 
+    // @TestIssueLogging(value = "org.elasticsearch.entitlement.runtime.policy.PolicyManager:DEBUG", issueUrl = "https://example.com")
     public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
         checkBlockedKeyManagerResource("PEM certificate", "certificate", withKey("cert1a.key"));
     }

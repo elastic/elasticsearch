@@ -223,6 +223,19 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Consumer<Job> createDataExtractor = job -> {
             final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
             if (remoteIndices.isEmpty() == false) {
+                if (remoteClusterClient == false) {
+                    responseHeaderPreservingListener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            Messages.getMessage(
+                                Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                datafeedConfigHolder.get().getId(),
+                                RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                clusterService.getNodeName()
+                            )
+                        )
+                    );
+                }
+
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
                     client,
                     MachineLearningField.ML_API_FEATURE
@@ -235,17 +248,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     ActionListener.wrap(response -> {
                         if (response.isSuccess() == false) {
                             responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                        } else if (remoteClusterClient == false) {
-                            responseHeaderPreservingListener.onFailure(
-                                ExceptionsHelper.badRequestException(
-                                    Messages.getMessage(
-                                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                                        datafeedConfigHolder.get().getId(),
-                                        RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
-                                        clusterService.getNodeName()
-                                    )
-                                )
-                            );
                         } else {
                             final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
                             List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(

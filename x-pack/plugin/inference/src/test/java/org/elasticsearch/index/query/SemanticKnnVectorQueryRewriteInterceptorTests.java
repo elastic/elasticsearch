@@ -64,6 +64,29 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         testRewrittenInferenceQuery(context, original);
     }
 
+    public void testKnnQueryWithVectorBuilderIsInterceptedAndRewrittenWithBoostAndQueryName() throws IOException {
+        float BOOST = 2.0f;
+        String QUERY_NAME = "knn_query";
+
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            FIELD_NAME,
+            new InferenceFieldMetadata(index.getName(), INFERENCE_ID, new String[] { FIELD_NAME }, null)
+        );
+        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
+        QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY);
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        original.boost(BOOST);
+        original.queryName(QUERY_NAME);
+
+        testRewrittenInferenceQuery(context, original);
+        QueryBuilder rewritten = original.rewrite(context);
+        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
+        KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) nestedQueryBuilder.query();
+        assertEquals(BOOST, knnVectorQueryBuilder.boost(), 0.0f);
+        assertEquals(QUERY_NAME, knnVectorQueryBuilder.queryName());
+    }
+
     public void testKnnWithQueryBuilderWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,

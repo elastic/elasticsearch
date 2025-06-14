@@ -23,8 +23,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class InternalRandomSampler extends InternalSingleBucketAggregation {
@@ -103,15 +101,12 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
 
             @Override
             public InternalAggregation get() {
-                InternalAggregations aggs = subAggregatorReducer.get();
-                if (reduceContext.isFinalReduce() && aggs != null) {
+                InternalAggregations aggs;
+                if (reduceContext.isFinalReduce()) {
                     SamplingContext context = buildContext();
-                    final List<InternalAggregation> aaggregationList = aggs.asList();
-                    final List<InternalAggregation> sampledAggregations = new ArrayList<>(aaggregationList.size());
-                    for (InternalAggregation agg : aaggregationList) {
-                        sampledAggregations.add(agg.finalizeSampling(context));
-                    }
-                    aggs = InternalAggregations.from(sampledAggregations);
+                    aggs = InternalAggregations.from(subAggregatorReducer.get(agg -> agg.finalizeSampling(context)));
+                } else {
+                    aggs = subAggregatorReducer.get();
                 }
                 return newAggregation(getName(), docCount, aggs);
             }

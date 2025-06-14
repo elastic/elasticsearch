@@ -56,13 +56,33 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
 
         String ip = "2001:db8::2:1";
+        Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query)), ft.termQuery(ip, MOCK_CONTEXT));
+
+        ip = "192.168.1.7";
+        query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query)), ft.termQuery(ip, MOCK_CONTEXT));
+
+        ip = "2001:db8::2:1";
+        String prefix = ip + "/64";
+        query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64);
+        assertEquals(new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query)), ft.termQuery(prefix, MOCK_CONTEXT));
+
+        ip = "192.168.1.7";
+        prefix = ip + "/16";
+        query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16);
+        assertEquals(new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query)), ft.termQuery(prefix, MOCK_CONTEXT));
+
+        ft = new IpFieldMapper.IpFieldType("field", true, false);
+
+        ip = "2001:db8::2:1";
         assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
 
         ip = "192.168.1.7";
         assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
 
         ip = "2001:db8::2:1";
-        String prefix = ip + "/64";
+        prefix = ip + "/64";
         assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, MOCK_CONTEXT));
 
         ip = "192.168.1.7";

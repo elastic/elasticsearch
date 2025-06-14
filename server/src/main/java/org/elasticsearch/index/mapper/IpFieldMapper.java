@@ -347,7 +347,9 @@ public class IpFieldMapper extends FieldMapper {
                     query = InetAddressPoint.newExactQuery(name(), address);
                 }
             }
-            if (isIndexed()) {
+            if (isIndexed() && hasDocValues()) {
+                return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
+            } else if (isIndexed()) {
                 return query;
             } else {
                 return convertToDocValuesQuery(query);

@@ -40,6 +40,7 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
 
+        Mockito.when(client.projectClient(Mockito.any())).thenReturn(client);
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
     }

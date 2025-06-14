@@ -62,7 +62,7 @@
  *     <li>
  *        {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPeriodicStep(
  *                      java.lang.String,
- *                      org.elasticsearch.cluster.metadata.Metadata,
+ *                      org.elasticsearch.cluster.ProjectState,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                 )}
  *        handles the execution of async {@link org.elasticsearch.xpack.core.ilm.AsyncWaitStep}

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -70,23 +70,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(
-            Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
-            new AsyncWaitStep.Listener() {
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                    conditionMetHolder[0] = conditionMet;
-                    informationContextHolder[0] = informationContext;
-                }
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    exceptionHolder[0] = e;
-                }
-            },
-            MASTER_TIMEOUT
-        );
+            @Override
+            public void onFailure(Exception e) {
+                exceptionHolder[0] = e;
+            }
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -109,23 +105,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(
-            Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
-            new AsyncWaitStep.Listener() {
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                    conditionMetHolder[0] = conditionMet;
-                    informationContextHolder[0] = informationContext;
-                }
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    exceptionHolder[0] = e;
-                }
-            },
-            MASTER_TIMEOUT
-        );
+            @Override
+            public void onFailure(Exception e) {
+                exceptionHolder[0] = e;
+            }
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
@@ -147,23 +139,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(
-            Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
-            new AsyncWaitStep.Listener() {
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                    conditionMetHolder[0] = conditionMet;
-                    informationContextHolder[0] = informationContext;
-                }
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    exceptionHolder[0] = e;
-                }
-            },
-            MASTER_TIMEOUT
-        );
+            @Override
+            public void onFailure(Exception e) {
+                exceptionHolder[0] = e;
+            }
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());

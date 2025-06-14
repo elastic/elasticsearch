@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -124,10 +125,38 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             }
 
             var service = serviceRegistry.getService(unparsedModel.service());
+            Model model;
             if (service.isPresent()) {
-                var model = service.get()
-                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
-                service.get().stop(model, listener);
+                try {
+                    model = service.get()
+                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                } catch (Exception e) {
+                    if (request.isForceDelete()) {
+                        listener.onResponse(true);
+                        return;
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Strings.format(
+                                    "Failed to parse model configuration for inference endpoint [%s]",
+                                    request.getInferenceEndpointId()
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                        return;
+                    }
+                }
+                service.get().stop(model, listener.delegateResponse((l, e) -> {
+                    if (request.isForceDelete()) {
+                        l.onResponse(true);
+                    } else {
+                        l.onFailure(e);
+                    }
+                }));
+            } else if (request.isForceDelete()) {
+                listener.onResponse(true);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(

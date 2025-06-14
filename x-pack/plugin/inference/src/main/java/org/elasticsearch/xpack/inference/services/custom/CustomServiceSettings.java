@@ -278,6 +278,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
         errorParser = new ErrorResponseParser(in);
+        // TODO need a new transport version
         inputTypeTranslator = new InputTypeTranslator(in);
     }
 
@@ -409,6 +410,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
         errorParser.writeTo(out);
+        // TODO need a new transport version
         inputTypeTranslator.writeTo(out);
     }
 

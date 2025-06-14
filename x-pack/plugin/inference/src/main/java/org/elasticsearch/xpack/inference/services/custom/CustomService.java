@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -201,7 +200,16 @@ public class CustomService extends SenderService {
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+        // We will support all values. If one of the values is not included in the translation map, we'll use the default provided instead
+        // if (model instanceof CustomModel customModel) {
+        // var translationKeys = customModel.getServiceSettings().getInputTypeTranslator().getTranslation().keySet();
+        // var supportedInputTypes = translationKeys.isEmpty() ? EnumSet.noneOf(InputType.class) : EnumSet.copyOf(translationKeys);
+        // ServiceUtils.validateInputTypeAgainstAllowlist(inputType, supportedInputTypes, SERVICE_NAME, validationException);
+        // } else {
+        // validationException.addValidationError(
+        // Strings.format("Model of type [%s] is not supported by the %s service", model.getClass().getSimpleName(), NAME)
+        // );
+        // }
     }
 
     @Override
@@ -252,7 +260,8 @@ public class CustomService extends SenderService {
             serviceSettings.getRequestContentString(),
             serviceSettings.getResponseJsonParser(),
             serviceSettings.rateLimitSettings(),
-            serviceSettings.getErrorParser()
+            serviceSettings.getErrorParser(),
+            serviceSettings.getInputTypeTranslator()
         );
     }
 

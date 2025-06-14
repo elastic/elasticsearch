@@ -14,7 +14,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -27,7 +26,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,8 +34,6 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
 
 public class CustomRequest implements Request {
-    private static final String QUERY = "query";
-    private static final String INPUT = "input";
 
     private final URI uri;
     private final ValidatingSubstitutor jsonPlaceholderReplacer;
@@ -54,12 +50,6 @@ public class CustomRequest implements Request {
         var jsonParams = new HashMap<String, String>();
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
         addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
-
-        // if (query != null) {
-        // jsonParams.put(QUERY, toJson(query, QUERY));
-        // }
-
-        // addInputJsonParam(jsonParams, input, model.getTaskType());
 
         jsonParams.putAll(requestParams.jsonParameters());
 
@@ -83,14 +73,6 @@ public class CustomRequest implements Request {
     private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, ?> params) {
         for (var entry : params.entrySet()) {
             jsonStringParams.put(entry.getKey(), toJson(entry.getValue(), entry.getKey()));
-        }
-    }
-
-    private static void addInputJsonParam(Map<String, String> jsonParams, List<String> input, TaskType taskType) {
-        if (taskType == TaskType.COMPLETION && input.isEmpty() == false) {
-            jsonParams.put(INPUT, toJson(input.get(0), INPUT));
-        } else {
-            jsonParams.put(INPUT, toJson(input, INPUT));
         }
     }
 

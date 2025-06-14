@@ -4,7 +4,10 @@
 
 ```esql
 FROM books
-| WHERE MATCH(author, "Faulkner")
+| WHERE MULTI_MATCH(author, description, "Faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
 ```
 
 | book_no:keyword | author:text |
@@ -17,7 +20,7 @@ FROM books
 
 ```esql
 FROM books
-| WHERE MATCH(title, "Hobbit Back Again", {"operator": "AND"})
+| WHERE MULTI_MATCH(title, description, "Hobbit Back Again", {"operator": "AND"})
 | KEEP title;
 ```
 

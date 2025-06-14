@@ -115,24 +115,24 @@ book_no:keyword | title:text                                                    
 ;
 
 testMultiMatchWithScore
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match("Mark", author, title, {"fuzziness": 1})
+| where match(author, title, "Stranger", {"operator": "OR"})
 | keep book_no, title, author, _score;
 ignoreOrder:true
 
 book_no:keyword | title:text                                            | author:text      | _score:double
-2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 1.9662091732025146
+2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 2.8462226390838623
 ;
 
 testMultiMatchWithScore1
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match("Hobbit", description, title, {"type": "best_fields"})
+| where match(description, title, "Hobbit", {"operator": "AND"})
 | sort book_no
 | eval _score = round(_score)
 | keep book_no, _score;
@@ -155,11 +155,11 @@ book_no:keyword | _score:double
 ;
 
 testMultiMatchWithScore2
-required_capability: multi_match_function
+required_capability: multi_match_unified_function
 required_capability: metadata_score
 
 from books metadata _score
-| where multi_match("Hobbit", description, title, {"type": "most_fields"})
+| where match(description, title, "Hobbit", {"operator": "AND"})
 | sort book_no
 | eval _score = round(_score)
 | keep book_no, _score;
@@ -172,7 +172,7 @@ book_no:keyword | _score:double
 2714            | 2.0          
 2936            | 1.0          
 4023            | 2.0          
-4289            | 6.0          
+4289            | 3.0          
 5335            | 2.0          
 5996            | 2.0          
 6405            | 2.0          

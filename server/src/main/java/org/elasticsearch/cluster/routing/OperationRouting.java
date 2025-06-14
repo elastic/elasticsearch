@@ -84,7 +84,7 @@ public class OperationRouting {
         if (isStateless && shards != null) {
             return new ShardIterator(
                 shards.shardId(),
-                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
+                shards.getShardRoutings().stream().filter(ShardRouting::isSearchable).collect(Collectors.toList())
             );
         } else {
             return shards;

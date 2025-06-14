@@ -319,7 +319,7 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
-    public String constantValue(FieldName name) {
+    public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {
             MappedFieldType f = ctx.getFieldType(name.string());

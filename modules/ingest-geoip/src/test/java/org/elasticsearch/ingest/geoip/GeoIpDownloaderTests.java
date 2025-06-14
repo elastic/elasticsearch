@@ -26,6 +26,9 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -85,9 +88,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private MockClient client;
     private GeoIpDownloader geoIpDownloader;
+    private ProjectId projectId;
+    private ProjectResolver projectResolver;
 
     @Before
     public void setup() throws IOException {
+        projectId = randomProjectIdOrDefault();
+        projectResolver = TestProjectResolvers.singleProject(projectId);
         httpClient = mock(HttpClient.class);
         when(httpClient.getBytes(anyString())).thenReturn("[]".getBytes(StandardCharsets.UTF_8));
         clusterService = mock(ClusterService.class);
@@ -107,7 +114,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
                 )
             )
         );
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
         geoIpDownloader = new GeoIpDownloader(
@@ -124,7 +131,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             {
                 GeoIpTaskParams geoIpTaskParams = mock(GeoIpTaskParams.class);
@@ -296,7 +305,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
@@ -347,7 +358,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
@@ -400,7 +413,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
@@ -450,7 +465,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             @Override
             void updateDatabases() throws IOException {
@@ -495,7 +512,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
@@ -525,7 +544,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            () -> true
+            () -> true,
+            projectId,
+            projectResolver
         ) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
@@ -566,7 +587,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
-            atLeastOneGeoipProcessor::get
+            atLeastOneGeoipProcessor::get,
+            projectId,
+            projectResolver
         ) {
             @Override
             void processDatabase(Map<String, Object> databaseInfo) {
@@ -584,10 +607,15 @@ public class GeoIpDownloaderTests extends ESTestCase {
         /*
          * Here we make sure that we bail out before making an httpClient request if there is write block on the .geoip_databases index
          */
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
-        var geoIpIndex = state.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        var geoIpIndex = state.getMetadata()
+            .getProject(projectId)
+            .getIndicesLookup()
+            .get(GeoIpDownloader.DATABASES_INDEX)
+            .getWriteIndex()
+            .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();
@@ -599,7 +627,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
          * Here we make sure that we bail out before making an httpClient request if there are unallocated shards on the .geoip_databases
          * index
          */
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()), true);
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);

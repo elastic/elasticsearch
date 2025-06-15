@@ -306,6 +306,7 @@ public class Driver implements Releasable, Describable {
         return Operator.NOT_BLOCKED;
     }
 
+    // Returns the index of the last operator that was closed, or minIndex - 1 if no operators were closed.
     private int closeEarlyFinishedOperators(int minIndex, int maxIndex) {
         for (int index = maxIndex; index >= minIndex; index--) {
             if (activeOperators.get(index).isFinished()) {

@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| query | fields | options | result |
+| fields | query | options | result |
 | --- | --- | --- | --- |
 | boolean | boolean | named parameters | boolean |
 | boolean | keyword | named parameters | boolean |

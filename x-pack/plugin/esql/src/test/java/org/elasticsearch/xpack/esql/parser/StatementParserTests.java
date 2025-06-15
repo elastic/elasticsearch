@@ -2473,7 +2473,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
         var match = (MatchOperator) filter.condition();
-        var matchField = (UnresolvedAttribute) match.field();
+        var fields = match.fields();
+        assertEquals(1, fields.size());
+        var matchField = (UnresolvedAttribute) fields.getFirst();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
     }
@@ -2517,7 +2519,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement("FROM test | WHERE field::int : \"value\"");
         var filter = as(plan, Filter.class);
         var match = (MatchOperator) filter.condition();
-        var toInteger = (ToInteger) match.field();
+        var fields = match.fields();
+        assertEquals(1, fields.size());
+        ;
+        var toInteger = (ToInteger) fields.getFirst();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
@@ -3216,80 +3221,98 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var fork = as(plan, Fork.class);
         var subPlans = fork.children();
 
-        // first subplan
-        var eval = as(subPlans.get(0), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
-        var limit = as(eval.child(), Limit.class);
-        assertThat(limit.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limit.limit()).value(), equalTo(11));
-        var filter = as(limit.child(), Filter.class);
-        var match = (MatchOperator) filter.condition();
-        var matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("a"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("baz"));
+        {
+            // first subplan
+            var eval = as(subPlans.get(0), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+            var limit = as(eval.child(), Limit.class);
+            assertThat(limit.limit(), instanceOf(Literal.class));
+            assertThat(((Literal) limit.limit()).value(), equalTo(11));
+            var filter = as(limit.child(), Filter.class);
+            var match = (MatchOperator) filter.condition();
+            var fields = match.fields();
+            assertEquals(1, fields.size());
+            var matchField = (UnresolvedAttribute) fields.getFirst();
+            assertThat(matchField.name(), equalTo("a"));
+            assertThat(match.query().fold(FoldContext.small()), equalTo("baz"));
+        }
 
-        // second subplan
-        eval = as(subPlans.get(1), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
-        var orderBy = as(eval.child(), OrderBy.class);
-        assertThat(orderBy.order().size(), equalTo(1));
-        Order order = orderBy.order().get(0);
-        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("b"));
-        filter = as(orderBy.child(), Filter.class);
-        match = (MatchOperator) filter.condition();
-        matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("b"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("bar"));
+        {
+            // second subplan
+            var eval = as(subPlans.get(1), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+            var orderBy = as(eval.child(), OrderBy.class);
+            assertThat(orderBy.order().size(), equalTo(1));
+            Order order = orderBy.order().get(0);
+            assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("b"));
+            var filter = as(orderBy.child(), Filter.class);
+            var match = (MatchOperator) filter.condition();
+            var fields = match.fields();
+            assertEquals(1, fields.size());
+            var matchField = (UnresolvedAttribute) fields.getFirst();
+            assertThat(matchField.name(), equalTo("b"));
+            assertThat(match.query().fold(FoldContext.small()), equalTo("bar"));
+        }
 
-        // third subplan
-        eval = as(subPlans.get(2), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
-        filter = as(eval.child(), Filter.class);
-        match = (MatchOperator) filter.condition();
-        matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("c"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("bat"));
+        {
+            // third subplan
+            var eval = as(subPlans.get(2), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+            var filter = as(eval.child(), Filter.class);
+            var match = (MatchOperator) filter.condition();
+            var fields = match.fields();
+            assertEquals(1, fields.size());
+            var matchField = (UnresolvedAttribute) fields.getFirst();
+            assertThat(matchField.name(), equalTo("c"));
+            assertThat(match.query().fold(FoldContext.small()), equalTo("bat"));
+        }
 
-        // fourth subplan
-        eval = as(subPlans.get(3), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork4"))));
-        orderBy = as(eval.child(), OrderBy.class);
-        assertThat(orderBy.order().size(), equalTo(1));
-        order = orderBy.order().get(0);
-        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("c"));
+        {
+            // fourth subplan
+            var eval = as(subPlans.get(3), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork4"))));
+            var orderBy = as(eval.child(), OrderBy.class);
+            assertThat(orderBy.order().size(), equalTo(1));
+            var order = orderBy.order().get(0);
+            assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("c"));
+        }
 
-        // fifth subplan
-        eval = as(subPlans.get(4), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork5"))));
-        limit = as(eval.child(), Limit.class);
-        assertThat(limit.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        {
+            // fifth subplan
+            var eval = as(subPlans.get(4), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork5"))));
+            var limit = as(eval.child(), Limit.class);
+            assertThat(limit.limit(), instanceOf(Literal.class));
+            assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        }
 
-        // sixth subplan
-        eval = as(subPlans.get(5), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork6"))));
-        eval = as(eval.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("xyz", literalString("abc"))));
+        {
+            // sixth subplan
+            var eval = as(subPlans.get(5), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork6"))));
+            eval = as(eval.child(), Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("xyz", literalString("abc"))));
 
-        Aggregate aggregate = as(eval.child(), Aggregate.class);
-        assertThat(aggregate.aggregates().size(), equalTo(2));
-        var alias = as(aggregate.aggregates().get(0), Alias.class);
-        assertThat(alias.name(), equalTo("x"));
-        assertThat(as(alias.child(), UnresolvedFunction.class).name(), equalTo("MIN"));
+            Aggregate aggregate = as(eval.child(), Aggregate.class);
+            assertThat(aggregate.aggregates().size(), equalTo(2));
+            var alias = as(aggregate.aggregates().get(0), Alias.class);
+            assertThat(alias.name(), equalTo("x"));
+            assertThat(as(alias.child(), UnresolvedFunction.class).name(), equalTo("MIN"));
 
-        alias = as(aggregate.aggregates().get(1), Alias.class);
-        assertThat(alias.name(), equalTo("y"));
-        var filteredExp = as(alias.child(), FilteredExpression.class);
-        assertThat(as(filteredExp.delegate(), UnresolvedFunction.class).name(), equalTo("MAX"));
-        var greaterThan = as(filteredExp.filter(), GreaterThan.class);
-        assertThat(as(greaterThan.left(), UnresolvedAttribute.class).name(), equalTo("d"));
-        assertThat(as(greaterThan.right(), Literal.class).value(), equalTo(1000));
+            alias = as(aggregate.aggregates().get(1), Alias.class);
+            assertThat(alias.name(), equalTo("y"));
+            var filteredExp = as(alias.child(), FilteredExpression.class);
+            assertThat(as(filteredExp.delegate(), UnresolvedFunction.class).name(), equalTo("MAX"));
+            var greaterThan = as(filteredExp.filter(), GreaterThan.class);
+            assertThat(as(greaterThan.left(), UnresolvedAttribute.class).name(), equalTo("d"));
+            assertThat(as(greaterThan.right(), Literal.class).value(), equalTo(1000));
 
-        var dissect = as(aggregate.child(), Dissect.class);
-        assertThat(as(dissect.input(), UnresolvedAttribute.class).name(), equalTo("a"));
-        assertThat(dissect.parser().pattern(), equalTo("%{d} %{e} %{f}"));
+            var dissect = as(aggregate.child(), Dissect.class);
+            assertThat(as(dissect.input(), UnresolvedAttribute.class).name(), equalTo("a"));
+            assertThat(dissect.parser().pattern(), equalTo("%{d} %{e} %{f}"));
+        }
     }
 
     public void testInvalidFork() {

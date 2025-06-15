@@ -87,8 +87,8 @@ public class CohereRerankModel extends CohereModel {
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor _
-     * @param taskSettings _
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for Cohere models.
+     * @param taskSettings     Settings in the request to override the model's defaults
      * @return the rerank action
      */
     @Override

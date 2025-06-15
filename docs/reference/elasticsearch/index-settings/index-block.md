@@ -146,7 +146,7 @@ The API returns following response:
 
 ## Remove index block API [remove-index-block]
 
-Removes an index block from an index. Unlike the add index block API, this operation doesn't require shard-level verification and completes immediately after updating the cluster metadata.
+Removes an index block from an index.
 
 ```console
 DELETE /my-index-000001/_block/write

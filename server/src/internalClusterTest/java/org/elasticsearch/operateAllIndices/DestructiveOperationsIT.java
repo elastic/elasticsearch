@@ -164,12 +164,18 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
 
         // Should succeed, since no wildcards
-        assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "1index").get());
+        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "1index").get());
         // Special "match none" pattern succeeds, since non-destructive
-        assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "*", "-*").get());
+        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareRemoveBlock(WRITE, "i*"));
-        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareRemoveBlock(WRITE, "_all"));
+        expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "i*")
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "_all")
+        );
     }
 
     public void testRemoveIndexBlockDefaultBehaviour() throws Exception {
@@ -182,9 +188,9 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
 
         if (randomBoolean()) {
-            assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "_all").get());
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "_all").get());
         } else {
-            assertAcked(indicesAdmin().prepareRemoveBlock(WRITE, "*").get());
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "*").get());
         }
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();

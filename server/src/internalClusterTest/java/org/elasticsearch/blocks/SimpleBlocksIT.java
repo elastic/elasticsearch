@@ -553,7 +553,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testRemoveBlockToMissingIndex() {
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            indicesAdmin().prepareRemoveBlock(randomAddableBlock(), "test")
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), "test")
         );
         assertThat(e.getMessage(), is("no such index [test]"));
     }
@@ -562,7 +562,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         createIndex("test1");
         final IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            indicesAdmin().prepareRemoveBlock(randomAddableBlock(), "test1", "test2")
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), "test1", "test2")
         );
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
@@ -570,20 +570,23 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testRemoveBlockNoIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            indicesAdmin().prepareRemoveBlock(randomAddableBlock())
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock())
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testRemoveBlockNullIndex() {
-        expectThrows(NullPointerException.class, () -> indicesAdmin().prepareRemoveBlock(randomAddableBlock(), (String[]) null));
+        expectThrows(
+            NullPointerException.class,
+            () -> indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), (String[]) null)
+        );
     }
 
     public void testCannotRemoveReadOnlyAllowDeleteBlock() {
         createIndex("test1");
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            indicesAdmin().prepareRemoveBlock(APIBlock.READ_ONLY_ALLOW_DELETE, "test1")
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, APIBlock.READ_ONLY_ALLOW_DELETE, "test1")
         );
         assertThat(e.getMessage(), containsString("read_only_allow_delete block is for internal use only"));
     }
@@ -612,7 +615,12 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             assertIndexHasBlock(block, indexName);
 
             // Then remove the block
-            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(block, indexName).get();
+            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                block,
+                indexName
+            ).get();
             assertTrue(
                 "Remove block [" + block + "] from index [" + indexName + "] not acknowledged: " + removeResponse,
                 removeResponse.isAcknowledged()
@@ -639,11 +647,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             assertIndexHasBlock(block, indexName);
 
             // Remove the block
-            assertAcked(indicesAdmin().prepareRemoveBlock(block, indexName));
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, indexName));
             assertIndexDoesNotHaveBlock(block, indexName);
 
             // Second remove should be acked too (idempotent behavior)
-            assertAcked(indicesAdmin().prepareRemoveBlock(block, indexName));
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, indexName));
             assertIndexDoesNotHaveBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
@@ -660,7 +668,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
             // Remove from both test1 and test2 (missing), with lenient options
             assertBusy(
-                () -> assertAcked(indicesAdmin().prepareRemoveBlock(block, "test1", "test2").setIndicesOptions(lenientExpandOpen()))
+                () -> assertAcked(
+                    indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, "test1", "test2")
+                        .setIndicesOptions(lenientExpandOpen())
+                )
             );
             assertIndexDoesNotHaveBlock(block, "test1");
         } finally {

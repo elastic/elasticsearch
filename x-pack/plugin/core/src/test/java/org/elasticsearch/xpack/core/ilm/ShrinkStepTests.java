@@ -106,6 +106,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             Settings.Builder builder = Settings.builder();
             builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(LifecycleSettings.LIFECYCLE_SKIP, true)
                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
             if (step.getNumberOfShards() != null) {
                 builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards());

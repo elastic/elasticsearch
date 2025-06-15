@@ -148,6 +148,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    private static final OriginalIndices SKIPPED_INDICES = new OriginalIndices(Strings.EMPTY_ARRAY, IndicesOptions.strictExpandOpen());
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -233,6 +235,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (String index : indices) {
             if (hasBlocks) {
                 blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
+                if (blocks.hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK)) {
+                    res.put(index, SKIPPED_INDICES);
+                    continue;
+                }
             }
 
             String[] aliases = indexNameExpressionResolver.allIndexAliases(projectState.metadata(), index, indicesAndAliases);
@@ -588,7 +594,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {
+    static void adjustSearchType(SearchRequest searchRequest, boolean oneOrZeroValidShards) {
         // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
         if (searchRequest.hasKnnSearch()) {
             searchRequest.searchType(DFS_QUERY_THEN_FETCH);
@@ -603,7 +609,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         // optimize search type for cases where there is only one shard group to search on
-        if (singleShard) {
+        if (oneOrZeroValidShards) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
@@ -1304,7 +1310,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster());
 
-        adjustSearchType(searchRequest, shardIterators.size() == 1);
+        boolean oneOrZeroValidShards = shardIterators.size() == 1 || allOrAllButOneSkipped(shardIterators);
+        adjustSearchType(searchRequest, oneOrZeroValidShards);
 
         final DiscoveryNodes nodes = projectState.cluster().nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
@@ -1335,6 +1342,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             threadPool,
             clusters
         );
+    }
+
+    /**
+     * Determines if all, or all but one, iterators are skipped.
+     * (At this point, iterators may be marked as skipped due to index level blockers).
+     * We expect skipped iteators to be unlikely, so returning fast after we see more
+     * than one "not skipped" is an intended optimization.
+     *
+     * @param searchShardIterators all the shard iterators derived from indices being searched
+     * @return true if all of them are already skipped, or only one is not skipped
+     */
+    private boolean allOrAllButOneSkipped(List<SearchShardIterator> searchShardIterators) {
+        int notSkippedCount = 0;
+
+        for (SearchShardIterator searchShardIterator : searchShardIterators) {
+            if (searchShardIterator.skip() == false) {
+                notSkippedCount++;
+                if (notSkippedCount > 1) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
@@ -1889,7 +1920,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final ShardId shardId = shardRouting.shardId();
             OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;
-            list[i++] = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices);
+            list[i++] = new SearchShardIterator(
+                clusterAlias,
+                shardId,
+                shardRouting.getShardRoutings(),
+                finalIndices,
+                finalIndices == SKIPPED_INDICES
+            );
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);

@@ -421,6 +421,40 @@ GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 ```
 
+### Index Component Selectors [api-component-selectors]
+
+Some APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path parameter also support *selector syntax*.
+
+Some indices and data streams are made of multiple components besides their default data. These other components store additional data which can be queried separately like a regular index. Some APIs may operate on subsets of these index components which can be specified by using a selector suffix.
+
+There are currently two selector suffixes supported by {{es}} APIs:
+
+`::data`
+:   (Indices, data streams) This selector references the default component present on all indices and data streams which holds the regular data contained therein.
+
+`::failures`
+:   (Data streams only) This component references data stored in a data stream's [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md). This component is only present on data streams.
+
+As an example, [search]({{es-apis}}group/endpoint-search), [field capabilities]({{es-apis}}operation/operation-field-caps), and [index stats]({{es-apis}}operation/operation-indices-stats) APIs can all report results from a different component rather than from the default data.
+
+Selectors are applied to an index pattern at the end and can be combined with other index pattern syntax like [date math](#api-date-math-index-names) and wildcards.
+
+```console
+# Search for regular data on a data stream
+GET my-data-stream/_search
+# Search for failure data on a data stream
+GET my-data-stream::failures/_search
+
+# Syntax can be combined with other index pattern syntax (wildcards, multi-target, date math, cross cluster search, etc)
+GET logs-*::failures/_search
+GET logs-*::data,logs-*::failures/_count
+GET remote-cluster:logs-*-*::failures/_search
+GET *::data,*::failures,-logs-rdbms-*::failures/_stats
+GET <logs-{now/d}>::failures/_search
+```
+
+
+
 ## Parameters [api-conventions-parameters]
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the convention of using underscore casing.

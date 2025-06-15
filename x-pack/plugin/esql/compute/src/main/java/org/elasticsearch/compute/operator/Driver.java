@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -184,8 +185,7 @@ public class Driver implements Releasable, Describable {
                 assert driverContext.assertBeginRunLoop();
                 isBlocked = runSingleLoopIteration();
             } catch (DriverEarlyTerminationException unused) {
-                int lastFinished = closeEarlyFinishedOperators(0, activeOperators.size() - 1);
-                activeOperators = new ArrayList<>(activeOperators.subList(lastFinished + 1, activeOperators.size()));
+                closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
                 assert isFinished() : "not finished after early termination";
             } finally {
                 assert driverContext.assertEndRunLoop();
@@ -252,10 +252,13 @@ public class Driver implements Releasable, Describable {
         driverContext.checkForEarlyTermination();
         boolean movedPage = false;
 
-        int lastClosed = -1;
-        for (int i = 0; i < activeOperators.size() - 1; i++) {
-            Operator op = activeOperators.get(i);
-            Operator nextOp = activeOperators.get(i + 1);
+        ListIterator<Operator> iterator = activeOperators.listIterator();
+        while (iterator.hasNext()) {
+            Operator op = iterator.next();
+            if (iterator.hasNext() == false) {
+                break;
+            }
+            Operator nextOp = activeOperators.get(iterator.nextIndex());
 
             // skip blocked operator
             if (op.isBlocked().listener().isDone() == false) {
@@ -264,6 +267,7 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 driverContext.checkForEarlyTermination();
+                assert nextOp.isFinished() == false : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
@@ -285,15 +289,15 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished()) {
                 driverContext.checkForEarlyTermination();
-                closeEarlyFinishedOperators(lastClosed + 1, i);
-                lastClosed = i;
+                var originalIndex = iterator.previousIndex();
+                var index = closeEarlyFinishedOperators(iterator);
+                if (index >= 0) {
+                    iterator = new ArrayList<>(activeOperators).listIterator(originalIndex - index);
+                }
             }
         }
 
-        lastClosed = closeEarlyFinishedOperators(lastClosed + 1, activeOperators.size() - 1);
-        if (lastClosed >= 0) {
-            activeOperators = new ArrayList<>(activeOperators.subList(lastClosed + 1, activeOperators.size()));
-        }
+        closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
             return oneOf(
@@ -306,33 +310,33 @@ public class Driver implements Releasable, Describable {
         return Operator.NOT_BLOCKED;
     }
 
-    // Returns the index of the last operator that was closed, or minIndex - 1 if no operators were closed.
-    private int closeEarlyFinishedOperators(int minIndex, int maxIndex) {
-        for (int index = maxIndex; index >= minIndex; index--) {
-            if (activeOperators.get(index).isFinished()) {
+    // Returns the index of the last operator that was closed, -1 if no operator was closed.
+    private int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
+        var iterator = activeOperators.listIterator(operators.nextIndex());
+        while (iterator.hasPrevious()) {
+            if (iterator.previous().isFinished()) {
+                var index = iterator.nextIndex();
+                iterator.next();
                 /*
-                 * Remove this operator and all unclosed source operators in the
-                 * most paranoid possible way. Closing operators shouldn't throw,
-                 * but if it does, this will make sure we don't try to close any
-                 * that succeed twice.
-                 */
-                List<Operator> operatorsToClose = this.activeOperators.subList(minIndex, index + 1);
-                Iterator<Operator> itr = operatorsToClose.iterator();
-                while (itr.hasNext()) {
-                    Operator op = itr.next();
+                * Remove this operator and all unclosed source operators in the
+                * most paranoid possible way. Closing operators shouldn't throw,
+                * but if it does, this will make sure we don't try to close any
+                * that succeed twice.
+                */
+                while (iterator.hasPrevious()) {
+                    Operator op = iterator.previous();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     op.close();
+                    iterator.remove();
                 }
-
                 // Finish the next operator.
-                if (index + 1 < activeOperators.size()) {
-                    Operator newRootOperator = activeOperators.get(index + 1);
-                    newRootOperator.finish();
+                if (iterator.hasNext()) {
+                    iterator.next().finish();
                 }
                 return index;
             }
         }
-        return minIndex - 1;
+        return -1;
     }
 
     public void cancel(String reason) {

@@ -163,11 +163,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Add blocks first
         assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
 
-        // Should succeed, since no wildcards
-        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "1index").get());
-        // Special "match none" pattern succeeds, since non-destructive
-        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "*", "-*").get());
-
+        // Test rejected wildcard patterns (while blocks still exist)
         expectThrows(
             IllegalArgumentException.class,
             indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "i*")
@@ -176,6 +172,10 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             IllegalArgumentException.class,
             indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "_all")
         );
+
+        // Test successful requests (exact names and non-destructive patterns)
+        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "1index").get());
+        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "*", "-*").get());
     }
 
     public void testRemoveIndexBlockDefaultBehaviour() throws Exception {

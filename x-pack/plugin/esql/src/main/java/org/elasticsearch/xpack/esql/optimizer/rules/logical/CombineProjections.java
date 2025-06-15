@@ -27,12 +27,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
-    // don't drop groupings or aggregations from a local plan, as the layout has already been agreed upon
-    private final boolean local;
 
-    public CombineProjections(boolean local) {
+    public CombineProjections() {
         super(OptimizerRules.TransformDirection.UP);
-        this.local = local;
     }
 
     @Override
@@ -51,7 +48,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             }
             // check if the projection eliminates certain aggregates
             // but be mindful of aliases to existing aggregates that we don't want to duplicate to avoid redundant work
-            if (local == false && child instanceof Aggregate a) {
+            if (child instanceof Aggregate a) {
                 var aggs = a.aggregates();
                 var newAggs = projectAggregations(project.projections(), aggs);
                 // project can be fully removed
@@ -64,7 +61,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         }
 
         // Agg with underlying Project (group by on sub-queries)
-        if (local == false && plan instanceof Aggregate a) {
+        if (plan instanceof Aggregate a) {
             if (child instanceof Project p) {
                 var groupings = a.groupings();
                 List<NamedExpression> groupingAttrs = new ArrayList<>(a.groupings().size());

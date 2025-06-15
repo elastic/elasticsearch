@@ -250,7 +250,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             case "refresh_needed":
                 assert false : "refresh_needed is always false";
             case "segments":
-            case "segments_stats":
+            case SEGMENTS_STATS_SOURCE:
             case "completion_stats":
             case FIELD_RANGE_SEARCH_SOURCE: // special case for field_range - we use the cached point values reader
             case CAN_MATCH_SEARCH_SOURCE: // special case for can_match phase - we use the cached point values reader

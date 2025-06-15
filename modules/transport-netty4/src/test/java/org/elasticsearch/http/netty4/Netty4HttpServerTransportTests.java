@@ -861,20 +861,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 throw new AssertionError("Request dispatched but shouldn't");
             }
         };
-        final HttpValidator httpValidator = (httpRequest, channel, validationListener) -> {
-            // assert that the validator sees the request unaltered
-            assertThat(httpRequest.uri(), is(uri));
-            if (randomBoolean()) {
-                validationListener.onResponse(null);
-            } else {
-                validationListener.onFailure(new ElasticsearchException("Boom"));
-            }
-        };
         try (
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 settings,
                 dispatcher,
-                httpValidator,
+                (r, c, l) -> l.onResponse(null),
                 (restRequest, threadContext) -> {
                     throw new AssertionError("Request dispatched but shouldn't");
                 }

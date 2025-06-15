@@ -88,7 +88,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
-        inferenceStats = new InferenceStats(mock(), mock());
+        inferenceStats = new InferenceStats(mock(), mock(), mock());
         streamingTaskManager = mock();
 
         action = createAction(

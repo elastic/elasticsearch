@@ -460,11 +460,8 @@ public class EsqlSession {
                     result.fieldNames,
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
-                        if (configuration.allowPartialResults() == false && indexResolution.getUnavailableShards().isEmpty() == false) {
-                            l.onFailure(indexResolution.getUnavailableShards().iterator().next());
-                        } else {
-                            l.onResponse(result.withIndexResolution(indexResolution));
-                        }
+                        executionInfo.setResolutionFailures(indexResolution.failures());
+                        l.onResponse(result.withIndexResolution(indexResolution));
                     })
                 );
             }

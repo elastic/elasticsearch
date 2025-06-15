@@ -1,0 +1,5 @@
+pr: 129302
+summary: Move HTTP content aggregation from Netty into `RestController`
+area: Network
+type: enhancement
+issues: []

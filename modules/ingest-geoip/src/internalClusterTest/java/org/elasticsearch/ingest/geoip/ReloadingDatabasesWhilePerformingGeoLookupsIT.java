@@ -195,7 +195,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
 
     private static DatabaseNodeService createRegistry(Path geoIpConfigDir, Path geoIpTmpDir, ClusterService clusterService)
         throws IOException {
-        GeoIpCache cache = new GeoIpCache(0);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(0);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
         DatabaseNodeService databaseNodeService = new DatabaseNodeService(

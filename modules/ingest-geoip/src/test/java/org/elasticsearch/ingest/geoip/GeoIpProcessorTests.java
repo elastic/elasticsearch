@@ -489,7 +489,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         final Path path = tmpDir.resolve(last == -1 ? databaseName : databaseName.substring(last + 1));
         copyDatabase(databaseName, path);
 
-        final GeoIpCache cache = new GeoIpCache(1000);
+        final GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
         return new DatabaseReaderLazyLoader(cache, path, null) {
             @Override
             protected void doShutdown() throws IOException {

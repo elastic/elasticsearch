@@ -121,7 +121,7 @@ public class TransportRemoveIndexBlockAction extends TransportMasterNodeAction<R
 
         final var projectId = projectResolver.getProjectId();
         removeBlocksQueue.submitTask(
-            "remove-index-block-[" + request.getBlock().name() + "]-" + Arrays.toString(concreteIndices),
+            "remove-index-block-[" + request.getBlock().toString() + "]-" + Arrays.toString(concreteIndices),
             new AckedClusterStateUpdateTask(request, listener) {
                 private List<RemoveIndexBlockResponse.RemoveBlockResult> results;
 

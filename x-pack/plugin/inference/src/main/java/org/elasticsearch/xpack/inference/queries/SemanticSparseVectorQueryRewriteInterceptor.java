@@ -103,7 +103,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(sparseVectorQueryBuilder.getFieldName()),
-            new SparseVectorQueryBuilder(
+            SparseVectorQueryBuilder.from(
+                queryBuilder,
                 SemanticTextField.getEmbeddingsFieldName(sparseVectorQueryBuilder.getFieldName()),
                 sparseVectorQueryBuilder.getQueryVectors(),
                 (sparseVectorQueryBuilder.getInferenceId() == null && sparseVectorQueryBuilder.getQuery() != null)
@@ -113,7 +114,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 sparseVectorQueryBuilder.shouldPruneTokens(),
                 sparseVectorQueryBuilder.getTokenPruningConfig()
             ),
-            ScoreMode.Max
+            ScoreMode.Max,
+            queryBuilder.queryName()
         );
     }
 

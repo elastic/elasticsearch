@@ -109,6 +109,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
     }
 
+    public static SemanticQueryBuilder from(QueryBuilder queryBuilder, String fieldName, String query, Boolean lenient) {
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(fieldName, query, lenient);
+        semanticQueryBuilder.boost(queryBuilder.boost());
+        semanticQueryBuilder.queryName(queryBuilder.queryName());
+        return semanticQueryBuilder;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (inferenceResultsSupplier != null) {

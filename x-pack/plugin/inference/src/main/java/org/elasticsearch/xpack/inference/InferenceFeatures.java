@@ -36,6 +36,9 @@ public class InferenceFeatures implements FeatureSpecification {
         "test_rule_retriever.with_indices_that_dont_return_rank_docs"
     );
     private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
+    private static final NodeFeature SEMANTIC_TEXT_QUERY_REWRITE_BOOST_AND_QUERY_NAME_FIX = new NodeFeature(
+        "semantic_text.query_rewrite.boost_and_query_name_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -62,7 +65,8 @@ public class InferenceFeatures implements FeatureSpecification {
             TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS,
             SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG,
             SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER,
-            SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS
+            SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS,
+            SEMANTIC_TEXT_QUERY_REWRITE_BOOST_AND_QUERY_NAME_FIX
         );
     }
 }

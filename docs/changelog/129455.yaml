@@ -1,0 +1,6 @@
+pr: 129455
+summary: Use ILM skip setting in shrink action
+area: ILM+SLM
+type: bug
+issues:
+ - 109206

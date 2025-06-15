@@ -15,11 +15,14 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -71,6 +74,21 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
+        /**
+         * Reference counter for the shard this row belongs to, used for rows containing a {@link DocVector} to ensure that the shard
+         * context before we build the final result.
+         */
+        @Nullable
+        RefCounted shardRefCounter;
+
+        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
+            if (this.shardRefCounter != null) {
+                this.shardRefCounter.decRef();
+            }
+            this.shardRefCounter = shardRefCounter;
+            this.shardRefCounter.mustIncRef();
+        }
+
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
             boolean success = false;
             try {
@@ -92,7 +110,15 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
+            clearRefCounters();
             Releasables.closeExpectNoException(keys, values, bytesOrder);
+        }
+
+        public void clearRefCounters() {
+            if (shardRefCounter != null) {
+                shardRefCounter.decRef();
+            }
+            shardRefCounter = null;
         }
     }
 
@@ -174,7 +200,7 @@ public class TopNOperator implements Operator, Accountable {
          */
         void row(int position, Row destination) {
             writeKey(position, destination);
-            writeValues(position, destination.values);
+            writeValues(position, destination);
         }
 
         private void writeKey(int position, Row row) {
@@ -187,9 +213,12 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        private void writeValues(int position, BreakingBytesRefBuilder values) {
+        private void writeValues(int position, Row destination) {
             for (ValueExtractor e : valueExtractors) {
-                e.writeValue(values, position);
+                if (e instanceof ValueExtractorForDoc fd) {
+                    destination.setShardRefCountersAndShard(fd.vector().shardRefCounters().get(fd.vector().shards().getInt(position)));
+                }
+                e.writeValue(destination.values, position);
             }
         }
     }
@@ -376,6 +405,7 @@ public class TopNOperator implements Operator, Accountable {
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
+                    spare.clearRefCounters();
                 }
                 rowFiller.row(i, spare);
 
@@ -456,6 +486,10 @@ public class TopNOperator implements Operator, Accountable {
 
                 BytesRef values = row.values.bytesRefView();
                 for (ResultBuilder builder : builders) {
+                    if (builder instanceof ResultBuilderForDoc fd) {
+                        assert row.shardRefCounter != null : "shardRefCounter must be set for ResultBuilderForDoc";
+                        fd.setNextRefCounted(row.shardRefCounter);
+                    }
                     builder.decodeValue(values);
                 }
                 if (values.length != 0) {
@@ -463,7 +497,6 @@ public class TopNOperator implements Operator, Accountable {
                 }
 
                 list.set(i, null);
-                row.close();
 
                 p++;
                 if (p == size) {
@@ -481,6 +514,8 @@ public class TopNOperator implements Operator, Accountable {
                     Releasables.closeExpectNoException(builders);
                     builders = null;
                 }
+                // It's important to close the row only after we build the new block, so we don't pre-release any shard counter.
+                row.close();
             }
             assert builders == null;
             success = true;

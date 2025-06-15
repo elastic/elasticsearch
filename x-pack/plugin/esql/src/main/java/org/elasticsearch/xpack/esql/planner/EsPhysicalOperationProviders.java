@@ -31,7 +31,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -92,12 +94,38 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * Context of each shard we're operating against.
      */
-    public interface ShardContext extends org.elasticsearch.compute.lucene.ShardContext {
+    public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
+        private final AbstractRefCounted refCounted = new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                ShardContext.this.close();
+            }
+        };
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
 
         /**
          * Convert a {@link QueryBuilder} into a real {@link Query lucene query}.
          */
-        Query toQuery(QueryBuilder queryBuilder);
+        public abstract Query toQuery(QueryBuilder queryBuilder);
 
         /**
          * Tuning parameter for deciding when to use the "merge" stored field loader.
@@ -107,7 +135,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * A value of {@code .2} means we'll use the sequential reader even if we only
          * need one in ten documents.
          */
-        double storedFieldsSequentialProportion();
+        public abstract double storedFieldsSequentialProportion();
     }
 
     private final List<ShardContext> shardContexts;
@@ -180,7 +208,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
-            super(ctx.index, ctx.ctx, ctx.aliasFilter);
+            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
         }
 
@@ -349,18 +377,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    public static class DefaultShardContext implements ShardContext {
+    public static class DefaultShardContext extends ShardContext {
         private final int index;
+        private final Releasable releasable;
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
 
-        public DefaultShardContext(int index, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+        public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
+            this.releasable = releasable;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
-            this.shardIdentifier = ctx.getFullyQualifiedIndex().getName() + ":" + ctx.getShardId();
+            this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
         }
 
         @Override
@@ -472,6 +502,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
+        }
+
+        @Override
+        public void close() {
+            releasable.close();
         }
     }
 

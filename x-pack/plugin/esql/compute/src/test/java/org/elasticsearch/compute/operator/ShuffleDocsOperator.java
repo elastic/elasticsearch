@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public class ShuffleDocsOperator extends AbstractPageMappingOperator {
             }
         }
         Block[] blocks = new Block[page.getBlockCount()];
-        blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
+        blocks[0] = new DocVector(ShardRefCounted.ALWAYS_REFERENCED, shards, segments, docs, false).asBlock();
         for (int i = 1; i < blocks.length; i++) {
             blocks[i] = page.getBlock(i);
         }

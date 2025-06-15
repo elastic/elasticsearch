@@ -1,5 +1,5 @@
 pr: 129455
-summary: Use ILM skip setting in shrink action
+summary: Prevent ILM from processing shrunken index before its execution state is copied over
 area: ILM+SLM
 type: bug
 issues:

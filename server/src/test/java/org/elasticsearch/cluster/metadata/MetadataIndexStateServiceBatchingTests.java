@@ -286,7 +286,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
                 .stream()
                 .filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()))
                 .count(),
-            oneOf(0L, 1L, 2L, 3L)  // Allow intermediate states during batched processing
+            oneOf(0L, 3L)
         );
     }
 

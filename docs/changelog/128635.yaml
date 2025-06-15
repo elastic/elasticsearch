@@ -1,0 +1,6 @@
+pr: 128635
+summary: Add `state` query param to Get snapshots API
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 97446

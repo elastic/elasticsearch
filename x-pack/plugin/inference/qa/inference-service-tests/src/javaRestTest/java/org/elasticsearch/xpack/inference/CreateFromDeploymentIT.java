@@ -75,7 +75,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var deploymentStats = stats.get(0).get("deployment_stats");
         assertNotNull(stats.toString(), deploymentStats);
 
-        stopMlNodeDeployment(deploymentId);
+        forceStopMlNodeDeployment(deploymentId);
     }
 
     public void testAttachWithModelId() throws IOException {
@@ -146,7 +146,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
-        stopMlNodeDeployment(deploymentId);
+        forceStopMlNodeDeployment(deploymentId);
     }
 
     public void testModelIdDoesNotMatch() throws IOException {
@@ -229,6 +229,29 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
     }
 
+    public void testStoppingDeploymentAttachedToInferenceEndpoint() throws IOException {
+        var modelId = "try_stop_attach_to_deployment";
+        var deploymentId = "test_stop_attach_to_deployment";
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+        var response = startMlNodeDeploymemnt(modelId, deploymentId);
+        assertStatusOkOrCreated(response);
+
+        var inferenceId = "test_stop_inference_on_existing_deployment";
+        putModel(inferenceId, endpointConfig(deploymentId), TaskType.SPARSE_EMBEDDING);
+
+        var stopShouldNotSucceed = expectThrows(ResponseException.class, () -> stopMlNodeDeployment(deploymentId));
+        assertThat(
+            stopShouldNotSucceed.getMessage(),
+            containsString(
+                Strings.format("Cannot stop deployment [%s] as it is used by inference endpoint [%s]", deploymentId, inferenceId)
+            )
+        );
+
+        // Force stop will stop the deployment
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
     private String endpointConfig(String deploymentId) {
         return Strings.format("""
             {
@@ -292,6 +315,12 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
     }
 
     protected void stopMlNodeDeployment(String deploymentId) throws IOException {
+        String endpoint = "/_ml/trained_models/" + deploymentId + "/deployment/_stop";
+        Request request = new Request("POST", endpoint);
+        client().performRequest(request);
+    }
+
+    protected void forceStopMlNodeDeployment(String deploymentId) throws IOException {
         String endpoint = "/_ml/trained_models/" + deploymentId + "/deployment/_stop";
         Request request = new Request("POST", endpoint);
         request.addParameter("force", "true");

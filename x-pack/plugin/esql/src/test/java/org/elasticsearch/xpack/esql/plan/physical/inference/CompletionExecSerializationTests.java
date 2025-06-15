@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -41,11 +42,11 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
     }
 
     private Literal randomInferenceId() {
-        return new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD);
+        return new Literal(Source.EMPTY, BytesRefs.toBytesRef(randomIdentifier()), DataType.KEYWORD);
     }
 
     private Expression randomPrompt() {
-        return randomBoolean() ? new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD) : randomAttribute();
+        return randomBoolean() ? new Literal(Source.EMPTY, BytesRefs.toBytesRef(randomIdentifier()), DataType.KEYWORD) : randomAttribute();
     }
 
     private Attribute randomAttribute() {

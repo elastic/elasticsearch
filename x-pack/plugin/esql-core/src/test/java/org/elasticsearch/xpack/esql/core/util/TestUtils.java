@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,6 +23,8 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public final class TestUtils {
     private TestUtils() {}
@@ -38,6 +41,10 @@ public final class TestUtils {
     public static Literal of(Source source, Object value) {
         if (value instanceof Literal) {
             return (Literal) value;
+        }
+        DataType type = DataType.fromJava(value);
+        if (value instanceof String && (type == TEXT || type == KEYWORD)) {
+            value = BytesRefs.toBytesRef(value);
         }
         return new Literal(source, value, DataType.fromJava(value));
     }
@@ -58,12 +65,16 @@ public final class TestUtils {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
-    /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */
+    /**
+     * Similar to {@link String#strip()}, but removes the WS throughout the entire string.
+     */
     public static String stripThrough(String input) {
         return WS_PATTERN.matcher(input).replaceAll(StringUtils.EMPTY);
     }
 
-    /** Returns the input string, but with parts of it having the letter casing changed. */
+    /**
+     * Returns the input string, but with parts of it having the letter casing changed.
+     */
     public static String randomCasing(String input) {
         StringBuilder sb = new StringBuilder(input.length());
         for (int i = 0, inputLen = input.length(), step = (int) Math.sqrt(inputLen); i < inputLen; i += step) {

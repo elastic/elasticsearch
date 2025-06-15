@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -87,7 +88,10 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD))
+                            List.of(
+                                new Literal(Source.EMPTY, "slop", INTEGER),
+                                new Literal(Source.EMPTY, BytesRefs.toBytesRef(randomAlphaOfLength(10)), KEYWORD)
+                            )
                         ),
                         UNSUPPORTED,
                         "options"

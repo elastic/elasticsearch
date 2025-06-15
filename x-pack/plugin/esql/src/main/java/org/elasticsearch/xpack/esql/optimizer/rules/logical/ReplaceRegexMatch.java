@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
@@ -43,7 +44,7 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         } else {
             String match = pattern.exactMatch();
             if (match != null) {
-                Literal literal = new Literal(regexMatch.source(), match, DataType.KEYWORD);
+                Literal literal = new Literal(regexMatch.source(), BytesRefs.toBytesRef(match), DataType.KEYWORD);
                 e = regexToEquals(regexMatch, literal);
             }
         }

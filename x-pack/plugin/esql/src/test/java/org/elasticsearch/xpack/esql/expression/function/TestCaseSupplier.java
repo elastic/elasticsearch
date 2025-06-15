@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -820,7 +821,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#INTEGER}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#intCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#intCases}.
      * </p>
      */
     public static List<TypedDataSupplier> intCases(int min, int max, boolean includeZero) {
@@ -850,7 +851,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#LONG}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#longCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#longCases}.
      * </p>
      */
     public static List<TypedDataSupplier> longCases(long min, long max, boolean includeZero) {
@@ -881,7 +882,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#UNSIGNED_LONG}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
      * </p>
      */
     public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
@@ -927,7 +928,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#DOUBLE}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#doubleCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#doubleCases}.
      * </p>
      */
     public static List<TypedDataSupplier> doubleCases(double min, double max, boolean includeZero) {
@@ -997,7 +998,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#BOOLEAN}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#booleanCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#booleanCases}.
      * </p>
      */
     public static List<TypedDataSupplier> booleanCases() {
@@ -1010,7 +1011,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#DATETIME}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
      * </p>
      */
     public static List<TypedDataSupplier> dateCases() {
@@ -1020,7 +1021,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#DATETIME}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
      * </p>
      * Helper function for if you want to specify your min and max range as dates instead of longs.
      */
@@ -1031,7 +1032,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#DATETIME}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
      * </p>
      */
     public static List<TypedDataSupplier> dateCases(long min, long max) {
@@ -1067,7 +1068,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     *
      * @return randomized valid date formats
      */
     public static List<TypedDataSupplier> dateFormatCases() {
@@ -1081,7 +1081,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Generate cases for {@link DataType#DATE_NANOS}.
-     *
      */
     public static List<TypedDataSupplier> dateNanosCases() {
         return dateNanosCases(Instant.EPOCH, DateUtils.MAX_NANOSECOND_INSTANT);
@@ -1089,7 +1088,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Generate cases for {@link DataType#DATE_NANOS}.
-     *
      */
     public static List<TypedDataSupplier> dateNanosCases(Instant minValue, Instant maxValue) {
         // maximum nanosecond date in ES is 2262-04-11T23:47:16.854775807Z
@@ -1206,7 +1204,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#GEO_POINT}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#geoPointCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#geoPointCases}.
      * </p>
      */
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
@@ -1218,7 +1216,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#CARTESIAN_POINT}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#cartesianPointCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#cartesianPointCases}.
      * </p>
      */
     public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
@@ -1254,7 +1252,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for {@link DataType#IP}.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ipCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#ipCases}.
      * </p>
      */
     public static List<TypedDataSupplier> ipCases() {
@@ -1272,7 +1270,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Generate cases for String DataTypes.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
      * </p>
      */
     public static List<TypedDataSupplier> stringCases(DataType type) {
@@ -1304,7 +1302,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     /**
      * Supplier test case data for {@link Version} fields.
      * <p>
-     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
      * </p>
      */
     public static List<TypedDataSupplier> versionCases(String prefix) {
@@ -1456,6 +1454,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Build a test case for type errors.
+         *
          * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
          */
         @Deprecated
@@ -1702,7 +1701,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         /**
          * Build a new {@link TestCase} that can't build an evaluator.
          * <p>
-         *     Useful for special cases that can't be executed, but should still be considered.
+         * Useful for special cases that can't be executed, but should still be considered.
          * </p>
          */
         public TestCase withoutEvaluator() {
@@ -1765,11 +1764,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final boolean mapExpression;
 
         /**
-         * @param data value to test against
-         * @param type type of the value, for building expressions
-         * @param name a name for the value, used for generating test case names
+         * @param data         value to test against
+         * @param type         type of the value, for building expressions
+         * @param name         a name for the value, used for generating test case names
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
-         * @param multiRow if true, data is expected to be a List of values, one per row
+         * @param multiRow     if true, data is expected to be a List of values, one per row
          */
         private TypedData(Object data, DataType type, String name, boolean forceLiteral, boolean multiRow) {
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
@@ -1798,6 +1797,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Build a value, guessing the type via reflection.
+         *
          * @param data value to test against
          * @param name a name for the value, used for generating test case names
          */
@@ -1807,6 +1807,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Create a TypedData object for field to be aggregated.
+         *
          * @param data values to test against, one per row
          * @param type type of the value, for building expressions
          * @param name a name for the value, used for generating test case names
@@ -1886,9 +1887,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), values.get(0), type);
+                return new Literal(Source.synthetic(name), stringToBytesRef(values.get(0), type), type);
             }
-            return new Literal(Source.synthetic(name), data, type);
+            return new Literal(Source.synthetic(name), stringToBytesRef(data, type), type);
+        }
+
+        private Object stringToBytesRef(Object o, DataType type) {
+            if ((type == DataType.KEYWORD || type == DataType.TEXT) && o instanceof String s) {
+                return BytesRefs.toBytesRef(s);
+            }
+            return o;
         }
 
         /**

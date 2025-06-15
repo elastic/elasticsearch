@@ -553,7 +553,7 @@ FROM EVAL SORT LIMIT with documents_found:
       reason: "named or positional parameters for field names"
 
   - do:
-      catch: "/Invalid value for LIMIT \\[foo: String\\], expecting a non negative integer/"
+      catch: "/Invalid value for LIMIT \\[foo: KEYWORD\\], expecting a non negative integer/"
       esql.query:
         body:
           query: 'from test | limit ?l'

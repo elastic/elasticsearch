@@ -11,11 +11,13 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -80,6 +82,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
@@ -105,15 +108,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * eg. EVAL x = sin(sin(sin(sin(sin(sin(sin(sin(sin(....sin(x)....)
      * ANTLR parser is recursive, so the only way to prevent a StackOverflow is to detect how
      * deep we are in the expression parsing and abort the query execution after a threshold
-     *
+     * <p>
      * This value is defined empirically, but the actual stack limit is highly
      * dependent on the JVM and on the JIT.
-     *
+     * <p>
      * A value of 500 proved to be right below the stack limit, but it still triggered
      * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
      * Even though we didn't manage to reproduce the problem in real conditions, we decided
      * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
-     *
      */
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
@@ -252,7 +254,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquote(source), DataType.KEYWORD);
+        return new Literal(source, BytesRefs.toBytesRef(unquote(source)), DataType.KEYWORD);
     }
 
     @Override
@@ -331,7 +333,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                             src,
                             "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
                             ctx.getText(),
-                            lit.value()
+                            lit
                         );
                     }
                 } else if (exp instanceof UnresolvedNamePattern up) {
@@ -621,7 +623,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
-                args = singletonList(new Literal(source(ctx), "*", DataType.KEYWORD));
+                args = singletonList(new Literal(source(ctx), BytesRefs.toBytesRef("*"), DataType.KEYWORD));
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
@@ -658,7 +660,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
                 }
-                namedArgs.add(new Literal(source(stringCtx), key, KEYWORD));
+                namedArgs.add(new Literal(source(stringCtx), BytesRefs.toBytesRef(key), KEYWORD));
                 namedArgs.add(l);
                 names.add(key);
             } else {
@@ -749,7 +751,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     yield new WildcardLike(
                         source,
                         left,
-                        new WildcardPattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
+                        new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small() /* TODO remove me */)).utf8ToString())
                     );
                 } catch (InvalidArgumentException e) {
                     throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
@@ -758,7 +760,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.RLIKE -> new RLike(
                 source,
                 left,
-                new RLikePattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
+                new RLikePattern(((BytesRef) pattern.fold(FoldContext.small() /* TODO remove me */)).utf8ToString())
             );
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
@@ -940,6 +942,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 return new UnresolvedAttribute(source, value.toString());
             }
         }
+        if ((type == KEYWORD || type == TEXT) && value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
+        }
         return new Literal(source, value, type);
     }
 
@@ -995,7 +1000,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 source(ctx),
                 invalidParam,
                 ctx.getText(),
-                lit.value() != null ? " with value [" + lit.value() + "] declared as a constant" : " is null or undefined"
+                lit.value() != null ? " with value [" + lit + "] declared as a constant" : " is null or undefined"
             );
             case UnresolvedNamePattern up -> throw new ParsingException(
                 source(ctx),
@@ -1033,9 +1038,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     /**
-      * Double parameter markers represent identifiers, e.g. field or function names. An {@code UnresolvedAttribute}
-      * is returned regardless how the param is specified in the request.
-      */
+     * Double parameter markers represent identifiers, e.g. field or function names. An {@code UnresolvedAttribute}
+     * is returned regardless how the param is specified in the request.
+     */
     private Expression visitDoubleParam(EsqlBaseParser.DoubleParameterContext ctx, QueryParam param) {
         if (param.classification() == PATTERN) {
             context.params.addParsingError(

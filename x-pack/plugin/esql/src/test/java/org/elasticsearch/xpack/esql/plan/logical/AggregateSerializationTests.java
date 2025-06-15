@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -51,7 +52,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
                     randomSource(),
                     FieldAttributeTests.createFieldAttribute(1, true),
                     new Literal(randomSource(), between(1, 5), DataType.INTEGER),
-                    new Literal(randomSource(), randomFrom("ASC", "DESC"), DataType.KEYWORD)
+                    new Literal(randomSource(), BytesRefs.toBytesRef(randomFrom("ASC", "DESC")), DataType.KEYWORD)
                 );
                 case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
                 case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));

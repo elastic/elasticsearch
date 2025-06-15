@@ -31,7 +31,8 @@
               "doc_values": false
             },
             "path_match": [
-              "*event.original"
+              "*event.original",
+              "*gen_ai.agent.description"
             ]
           }
         },
@@ -235,17 +236,6 @@
               "*gen_ai.request.frequency_penalty",
               "*gen_ai.request.presence_penalty",
               "*gen_ai.request.top_p"
-            ]
-          }
-        },
-        {
-          "ecs_gen_ai_text": {
-            "mapping": {
-              "type": "text"
-            },
-            "path_match": [
-              "*gen_ai.request.model",
-              "*gen_ai.agent.description"
             ]
           }
         },

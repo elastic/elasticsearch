@@ -532,7 +532,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     }
 
     private static void blockWritePool(ThreadPool threadPool, CountDownLatch finishLatch) {
-        final var threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
+        final var threadCount = threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
         final var blockingTask = new AbstractRunnable() {
             @Override
@@ -552,13 +552,13 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(blockingTask);
+            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
     }
 
     private static void fillWriteQueue(ThreadPool threadPool) {
-        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE).getQueueSize().singles());
+        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getQueueSize().singles());
         final var queueFilled = new AtomicBoolean(false);
         final var queueFillingTask = new AbstractRunnable() {
             @Override
@@ -577,7 +577,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < queueSize; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(queueFillingTask);
+            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(queueFillingTask);
         }
         queueFilled.set(true);
     }

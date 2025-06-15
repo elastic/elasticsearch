@@ -410,9 +410,9 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(mixed), indicesLookup, systemIndices));
     }
 
-    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+    private void blockWriteCoordinationThreadPool(CountDownLatch blockingLatch) {
         assertThat(blockingLatch.getCount(), greaterThan(0L));
-        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
         // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
         expectThrows(EsRejectedExecutionException.class, () -> {
             // noinspection InfiniteLoopStatement
@@ -427,7 +427,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         final var blockingLatch = new CountDownLatch(1);
         try {
-            blockWriteThreadPool(blockingLatch);
+            blockWriteCoordinationThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
@@ -442,7 +442,7 @@ public class TransportBulkActionTests extends ESTestCase {
         bulkAction.failIndexCreationException = randomBoolean() ? new ResourceAlreadyExistsException("index already exists") : null;
         final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
+            bulkAction.beforeIndexCreation = () -> blockWriteCoordinationThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);

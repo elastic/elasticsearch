@@ -151,6 +151,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressWarnings("HiddenField")
+@ESTestCase.WithoutEntitlements
 public abstract class EngineTestCase extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);

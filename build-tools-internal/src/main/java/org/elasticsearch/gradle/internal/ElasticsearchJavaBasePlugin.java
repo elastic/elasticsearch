@@ -72,6 +72,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         configureCompile(project);
         configureInputNormalization(project);
         configureNativeLibraryPath(project);
+        configureEntitlements(project);
 
         // convenience access to common versions used in dependencies
         project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
@@ -193,6 +194,52 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
             test.dependsOn(nativeConfigFiles);
             systemProperties.systemProperty("es.nativelibs.path", libraryPath);
+        });
+    }
+
+    private static void configureEntitlements(Project project) {
+        String agentProject = ":libs:entitlement:agent";
+        Configuration agentJarConfig = project.getConfigurations().create("entitlementAgentJar");
+        agentJarConfig.defaultDependencies(deps -> {
+            deps.add(project.getDependencies().project(Map.of("path", agentProject, "configuration", "default")));
+        });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection agentFiles = agentJarConfig;
+
+        String bridgeProject = ":libs:entitlement:bridge";
+        Configuration bridgeJarConfig = project.getConfigurations().create("entitlementBridgeJar");
+        bridgeJarConfig.defaultDependencies(deps -> {
+            deps.add(project.getDependencies().project(Map.of("path", bridgeProject, "configuration", "default")));
+        });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection bridgeFiles = bridgeJarConfig;
+
+        // project.getGradle().allprojects(subproject -> {
+        // subproject.getPluginManager().withPlugin("java", plugin -> {
+        // subproject.getDependencies().add("testRuntimeOnly", project.project(bridgeProject));
+        // });
+        // });
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+
+            // Agent
+            var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
+            test.dependsOn(agentFiles);
+            systemProperties.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+            systemProperties.systemProperty("jdk.attach.allowAttachSelf", true);
+
+            // Bridge
+            String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+            test.dependsOn(bridgeFiles);
+            // Tests may not be modular, but the JDK still is
+            // System.out.println("PATDOYLE: --patch-module=java.base=" + bridgeFiles.getAsPath());
+            // System.out.println("--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+            // + modulesContainingEntitlementInstrumentation);
+            // test.jvmArgs("--patch-module=java.base=" + bridgeFiles.getAsPath());
+            test.jvmArgs(
+                "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED," + modulesContainingEntitlementInstrumentation
+            );
         });
     }
 

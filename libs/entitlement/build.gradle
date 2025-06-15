@@ -36,3 +36,16 @@ dependencies {
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+project.getTasks().withType(Test.class).configureEach(test -> {
+  // This is an exception to our usual rule about which tests have entitlements enabled.
+  // For most subprojects, we enable entitlements for tests if and only if the
+  // test-build-info plugin is applied, because those are precisely the subprojects
+  // that need entitlement enforcement in production, so their tests should also have enforcement.
+  // This subproject's tests are different: they are keenly aware of entitlements,
+  // and can configure entitlements however they need on a case-by-case basis
+  // in a manner that would be unduly burdensome for all our other tests.
+  if (List.of("test", "internalClusterTest").contains(test.getName())) {
+    test.systemProperty("es.entitlement.enableForTests", "true");
+  }
+});

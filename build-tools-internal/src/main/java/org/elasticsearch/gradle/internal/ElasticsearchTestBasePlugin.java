@@ -32,11 +32,13 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -173,6 +175,30 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+            if (mainSourceSet != null && testSourceSet != null) {
+                FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
+                FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
+                FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
+                // Configuration compileOnly = project.getConfigurations()
+                // .findByName(RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+                // if (compileOnly != null) {
+                // testOnlyFiles = testOnlyFiles.minus(compileOnly);
+                // }
+                nonInputProperties.systemProperty("es.entitlement.testOnlyPath", () -> {
+                    String asPath = testOnlyFiles.getAsPath();
+                    String[] pathEntries = asPath.split(File.pathSeparator);
+                    Arrays.sort(pathEntries); // For readability during troubleshooting. Consumers don't care about order.
+                    // System.err.println(
+                    // "PATDOYLE - for " + project.getName() + " " + test.getName() + " using testOnlyPath:\n" + String.join("\n",
+                    // pathEntries)
+                    // );
+                    return asPath;
+                });
+            }
+
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("es.").get());
 
@@ -211,13 +237,12 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
                 if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
                     // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-                    FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                     // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
                     Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
-                    FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+                    FileCollection mainRuntime = requireNonNull(mainSourceSet).getRuntimeClasspath();
+                    FileCollection testRuntime = requireNonNull(testSourceSet).getRuntimeClasspath();
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
             });
@@ -241,7 +266,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders()
                 .add(
                     () -> List.of(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--patch-module=java.base="
+                            + patchedFileCollection.getSingleFile()
+                            + "/java.base"
+                            + File.pathSeparator
+                            + "/Users/prdoyle/IdeaProjects/elasticsearch/libs/entitlement/bridge/build/distributions/elasticsearch-entitlement-bridge-9.1.0-SNAPSHOT.jar",
                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                     )
                 );

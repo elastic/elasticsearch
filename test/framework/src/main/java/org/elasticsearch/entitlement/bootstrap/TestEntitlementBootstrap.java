@@ -12,13 +12,14 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,50 +30,66 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
+    private static TestPolicyManager policyManager;
+
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap() throws IOException {
-        TestPathLookup pathLookup = new TestPathLookup();
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            pathLookup,
-            Set.of(),
-            createPolicyManager(pathLookup)
-        );
+    public static void bootstrap(@Nullable Path tempDir, @Nullable Path configDir) throws IOException {
+        if (isEnabledForTest() == false) {
+            return;
+        }
+        TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
+        policyManager = createPolicyManager(tempDir, configDir);
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
-    private record TestPathLookup() implements PathLookup {
-        @Override
-        public Path pidFile() {
-            return null;
+    private static <T> List<T> zeroOrOne(T item) {
+        if (item == null) {
+            return List.of();
+        } else {
+            return List.of(item);
         }
-
-        @Override
-        public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
-            return Stream.empty();
-        }
-
-        @Override
-        public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
-            return Stream.empty();
-        }
-
     }
 
-    private static PolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
+    public static boolean isEnabledForTest() {
+        return Boolean.getBoolean("es.entitlement.enableForTests");
+    }
 
+    public static void setActive(boolean newValue) {
+        policyManager.setActive(newValue);
+    }
+
+    public static void setTriviallyAllowingTestCode(boolean newValue) {
+        policyManager.setTriviallyAllowingTestCode(newValue);
+    }
+
+    public static void reset() {
+        if (policyManager != null) {
+            policyManager.reset();
+        }
+    }
+
+    private static TestPolicyManager createPolicyManager(Path tempDir, Path configDir) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
         var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo);
@@ -84,6 +101,19 @@ public class TestEntitlementBootstrap {
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
 
+        String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");
+        Set<String> testOnlyClassPath;
+        if (testOnlyPathProperty == null) {
+            testOnlyClassPath = Set.of();
+        } else {
+            testOnlyClassPath = Arrays.stream(testOnlyPathProperty.split(":")).collect(Collectors.toCollection(TreeSet::new));
+        }
+
+        // Any plugin can read any file on the test-only classpath, so toss those into the source paths
+        Collection<Path> testOnlyPaths = testOnlyClassPath.stream().map(Path::of).toList();
+        Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> testOnlyPaths));
+
+        PathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         return new TestPolicyManager(
@@ -91,12 +121,11 @@ public class TestEntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            Map.of(),
-            pathLookup
+            pluginSourcePaths,
+            pathLookup,
+            testOnlyClassPath
         );
     }
-
-    private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {
         Map<String, Policy> policies = new HashMap<>();
@@ -136,5 +165,7 @@ public class TestEntitlementBootstrap {
     private static InputStream getStream(URL resource) throws IOException {
         return resource.openStream();
     }
+
+    private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 
 }

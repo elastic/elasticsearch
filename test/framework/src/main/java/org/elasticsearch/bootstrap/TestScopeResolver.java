@@ -16,10 +16,13 @@ import org.elasticsearch.logging.Logger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
+
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
 
 public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
 
@@ -32,6 +35,12 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
         var location = callerCodeSource.getLocation().toString();
         var scope = scopeMap.get(location);
         if (scope == null) {
+            if (callerClass.getPackageName().startsWith("org.bouncycastle")) {
+                scope = new PolicyManager.PolicyScope(PLUGIN, "security", ALL_UNNAMED);
+                logger.debug("Assuming bouncycastle is part of the security plugin");
+            }
+        }
+        if (scope == null) {
             logger.warn("Cannot identify a scope for class [{}], location [{}]", callerClass.getName(), location);
             return PolicyManager.PolicyScope.unknown(location);
         }
@@ -43,7 +52,7 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
         List<TestBuildInfo> pluginsBuildInfo
     ) {
 
-        Map<String, PolicyManager.PolicyScope> scopeMap = new HashMap<>();
+        Map<String, PolicyManager.PolicyScope> scopeMap = new TreeMap<>(); // Sorted to make it easier to read during debugging
         for (var pluginBuildInfo : pluginsBuildInfo) {
             for (var location : pluginBuildInfo.locations()) {
                 var codeSource = TestScopeResolver.class.getClassLoader().getResource(location.representativeClass());
@@ -64,7 +73,8 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
         for (var location : serverBuildInfo.locations()) {
             var classUrl = TestScopeResolver.class.getClassLoader().getResource(location.representativeClass());
             if (classUrl == null) {
-                throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]");
+                logger.warn("Representative class is unavailable; proceeding without {}", location);
+                continue;
             }
             try {
                 scopeMap.put(getCodeSource(classUrl, location.representativeClass()), PolicyManager.PolicyScope.server(location.module()));

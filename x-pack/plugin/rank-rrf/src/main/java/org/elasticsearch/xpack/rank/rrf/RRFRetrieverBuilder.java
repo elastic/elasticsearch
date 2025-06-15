@@ -53,7 +53,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         false,
         args -> {
             List<RetrieverBuilder> childRetrievers = (List<RetrieverBuilder>) args[0];
-            List<RetrieverSource> innerRetrievers = childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList();
+            List<RetrieverSource> innerRetrievers = childRetrievers.stream().map(RetrieverSource::from).toList();
             int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
             int rankConstant = args[2] == null ? DEFAULT_RANK_CONSTANT : (int) args[2];
             return new RRFRetrieverBuilder(innerRetrievers, rankWindowSize, rankConstant);

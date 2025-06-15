@@ -395,7 +395,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         {
             ProjectMetadata.Builder newProjectBuilder = ProjectMetadata.builder(project);
 
-            String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            String firstBackingIndex = dataStream.getIndices().getFirst().getName();
             IndexMetadata indexMetadata = project.index(firstBackingIndex);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
             indexMetaBuilder.settings(
@@ -419,7 +419,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
             assertThat(
                 ((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0],
-                is(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+                DataStreamTestHelper.backingIndexEqualTo(dataStreamName, 2)
             );
         }
 
@@ -427,7 +427,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             // a lack of downsample status (i.e. the default `UNKNOWN`) must not prevent retention
             ProjectMetadata.Builder newProjectBuilder = ProjectMetadata.builder(project);
 
-            String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            String firstBackingIndex = dataStream.getIndices().getFirst().getName();
             IndexMetadata indexMetadata = project.index(firstBackingIndex);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
             indexMetaBuilder.settings(
@@ -442,12 +442,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
             assertThat(
                 ((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0],
-                is(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+                DataStreamTestHelper.backingIndexEqualTo(dataStreamName, 2)
             );
             assertThat(clientSeenRequests.get(2), instanceOf(DeleteIndexRequest.class));
             assertThat(
                 ((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0],
-                is(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                DataStreamTestHelper.backingIndexEqualTo(dataStreamName, 1)
             );
         }
     }
@@ -1196,8 +1196,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         nodesBuilder.masterNodeId(nodeId);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).nodes(nodesBuilder).build();
         setState(clusterService, state);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        Index firstGenIndex = clusterService.state().metadata().getProject(projectId).index(firstGenIndexName).getIndex();
+        Index firstGenIndex = dataStream.getIndices().getFirst();
+        String firstGenIndexName = firstGenIndex.getName();
         Set<Index> affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state().projectState(projectId),
             dataStream,
@@ -1343,7 +1343,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
         // we are the master node
         nodesBuilder.masterNodeId(nodeId);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndexName = dataStream.getIndices().getFirst().getName();
 
         // mark the first generation as read-only already
         IndexMetadata indexMetadata = builder.get(firstGenIndexName);
@@ -1553,7 +1553,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(projectId, dataStreamName, SUCCESS);
         final var project = state.metadata().getProject(projectId);
         DataStream dataStream = project.dataStreams().get(dataStreamName);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndexName = dataStream.getIndices().getFirst().getName();
         TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
@@ -1592,7 +1592,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = downsampleSetup(projectId, dataStreamName, UNKNOWN);
         final var project = state.metadata().getProject(projectId);
         DataStream dataStream = project.dataStreams().get(dataStreamName);
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndexName = dataStream.getIndices().getFirst().getName();
         TimeValue dataRetention = dataStream.getDataLifecycle().dataRetention();
 
         // Executing the method to be tested:
@@ -1626,7 +1626,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder.put(dataStream);
 
         // Update the first backing index so that is appears to have been downsampled:
-        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndexName = dataStream.getIndices().getFirst().getName();
         var imd = builder.get(firstGenIndexName);
         var imdBuilder = new IndexMetadata.Builder(imd);
         imdBuilder.settings(Settings.builder().put(imd.getSettings()).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), status).build());

@@ -199,20 +199,17 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             List.of()
         );
 
-        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
+        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1) - 1;
 
         Index indexToDelete = before.metadata()
             .getProject(projectId)
-            .index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete))
+            .index(before.metadata().getProject(projectId).dataStreams().get(dataStreamName).getIndices().get(numIndexToDelete))
             .getIndex();
         ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
 
         assertThat(after.metadata().getProject(projectId).indices().get(indexToDelete.getName()), nullValue());
         assertThat(after.metadata().getProject(projectId).indices().size(), equalTo(numBackingIndices - 1));
-        assertThat(
-            after.metadata().getProject(projectId).indices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
-            nullValue()
-        );
+        assertThat(after.metadata().getProject(projectId).indices().get(indexToDelete.getName()), nullValue());
     }
 
     public void testDeleteFailureIndexForDataStream() {
@@ -268,9 +265,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         Set<Index> indicesToDelete = new HashSet<>();
         for (int k : indexNumbersToDelete) {
-            indicesToDelete.add(
-                before.metadata().getProject(projectId).index(DataStream.getDefaultBackingIndexName(dataStreamName, k)).getIndex()
-            );
+            final var index = before.metadata().getProject(projectId).dataStreams().get(dataStreamName).getIndices().get(k - 1);
+            indicesToDelete.add(index);
         }
         ClusterState after = MetadataDeleteIndexService.deleteIndices(before, indicesToDelete, Settings.EMPTY);
 
@@ -296,7 +292,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         Index indexToDelete = before.metadata()
             .getProject(projectId)
-            .index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices))
+            .index(before.metadata().getProject(projectId).dataStreams().get(dataStreamName).getWriteIndex())
             .getIndex();
         Exception e = expectThrows(
             IllegalArgumentException.class,

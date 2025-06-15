@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -42,10 +43,11 @@ public class GetDataStreamsResponseTests extends ESTestCase {
         // configured for them) and the remainder without any ILM policy configured
         String dataStreamName = "logs";
 
-        Index firstGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
-        Index secondGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
-        Index writeIndex = new Index(getDefaultBackingIndexName(dataStreamName, 3), UUIDs.base64UUID());
-        Index failureStoreIndex = new Index(getDefaultFailureStoreName(dataStreamName, 1, System.currentTimeMillis()), UUIDs.base64UUID());
+        Instant now = Instant.now();
+        Index firstGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), UUIDs.base64UUID());
+        Index secondGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 2, now.toEpochMilli()), UUIDs.base64UUID());
+        Index writeIndex = new Index(getDefaultBackingIndexName(dataStreamName, 3, now.toEpochMilli()), UUIDs.base64UUID());
+        Index failureStoreIndex = new Index(getDefaultFailureStoreName(dataStreamName, 1, now.toEpochMilli()), UUIDs.base64UUID());
         List<Index> indices = List.of(firstGenerationIndex, secondGenerationIndex, writeIndex);
         List<Index> failureStores = List.of(failureStoreIndex);
         {

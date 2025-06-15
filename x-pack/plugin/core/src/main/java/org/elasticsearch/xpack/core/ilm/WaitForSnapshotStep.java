@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -54,8 +54,8 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.getProject().index(index);
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexMetadata indexMetadata = state.metadata().index(index);
         if (indexMetadata == null) {
             listener.onFailure(error(NO_INDEX_METADATA_MESSAGE, index.getName()));
             return;
@@ -68,7 +68,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
             return;
         }
 
-        SnapshotLifecycleMetadata snapMeta = metadata.getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
             listener.onFailure(error(POLICY_NOT_FOUND_MESSAGE, policy));
             return;
@@ -108,7 +108,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
             .snapshots(new String[] { snapshotName })
             .includeIndexNames(true)
             .verbose(false);
-        getClient().admin().cluster().getSnapshots(request, ActionListener.wrap(response -> {
+        getClient(state.projectId()).admin().cluster().getSnapshots(request, ActionListener.wrap(response -> {
             if (response.getSnapshots().size() != 1) {
                 listener.onFailure(error(UNEXPECTED_SNAPSHOT_STATE_MESSAGE, repositoryName, snapshotName, response.getSnapshots().size()));
             } else {

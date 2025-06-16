@@ -553,6 +553,9 @@ tests:
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testCanViewExplainOnUnmanagedIndex
   issue: https://github.com/elastic/elasticsearch/issues/129480
+- class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
+  method: testWaitsUntilResourcesAreCreated
+  issue: https://github.com/elastic/elasticsearch/issues/129486
 
 # Examples:
 #

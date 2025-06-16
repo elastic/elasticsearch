@@ -453,6 +453,24 @@ emp_no:integer | first_name:keyword
 10099          | Valter
 ;
 
+likeListWithUpperTurnedInsensitive
+required_capability: like_with_list_of_patterns
+FROM employees | WHERE TO_UPPER(first_name) LIKE ("GEOR*") | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy     
+;
+
+likeListWithUpperTurnedInsensitiveMult
+required_capability: like_with_list_of_patterns
+FROM employees | WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WE*")  | keep emp_no, first_name | sort emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10040          | Weiyi
+10055          | Georgy    
+;
 
 likeAll
 from employees | where first_name like "*" and emp_no > 10028 | sort emp_no | keep emp_no, first_name | limit 2;

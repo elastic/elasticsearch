@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,8 +27,7 @@ import static org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
  * Allows escaping based on a regular char
  *
  */
-public class WildcardPatternList extends AbstractStringPattern implements NamedWriteable {
-    public static final Entry ENTRY = new Entry(WildcardPatternList.class, "WildcardPatternList", WildcardPatternList::new);
+public class WildcardPatternList extends AbstractStringPattern implements Writeable {
     public static final String NAME = "WildcardPatternList";
     private final List<WildcardPattern> patternList;
 
@@ -45,13 +44,8 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
         out.writeCollection(patternList, (o, pattern) -> pattern.writeTo(o));
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
     public static WildcardPatternList readFrom(StreamInput in) throws IOException {
-        return new WildcardPatternList(in.readCollectionAsList(WildcardPattern::readFrom));
+        return new WildcardPatternList(in);
     }
 
     public List<WildcardPattern> patternList() {

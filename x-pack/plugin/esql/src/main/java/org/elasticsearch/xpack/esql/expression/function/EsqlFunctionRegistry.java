@@ -418,9 +418,6 @@ public class EsqlFunctionRegistry {
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             new FunctionDefinition[] { def(IpPrefix.class, IpPrefix::new, "ip_prefix") },
-            // likelist
-            // new FunctionDefinition[] { def(WildcardLikeList.class, WildcardLikeList::new, "like_list") },
-
             // conversion functions
             new FunctionDefinition[] {
                 def(FromBase64.class, FromBase64::new, "from_base64"),

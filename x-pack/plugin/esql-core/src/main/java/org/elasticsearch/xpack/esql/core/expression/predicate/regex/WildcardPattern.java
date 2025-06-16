@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
@@ -27,7 +28,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardT
  * Allows escaping based on a regular char
  *
  */
-public class WildcardPattern extends AbstractStringPattern {
+public class WildcardPattern extends AbstractStringPattern implements Writeable {
 
     private final String wildcard;
     private final String regex;
@@ -40,6 +41,11 @@ public class WildcardPattern extends AbstractStringPattern {
 
     public WildcardPattern(StreamInput in) throws IOException {
         this(in.readString());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(wildcard);
     }
 
     public String pattern() {
@@ -95,11 +101,4 @@ public class WildcardPattern extends AbstractStringPattern {
         return Objects.equals(wildcard, other.wildcard);
     }
 
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(wildcard);
-    }
-
-    public static WildcardPattern readFrom(StreamInput out) throws IOException {
-        return new WildcardPattern(out);
-    }
 }

@@ -30,7 +30,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         "WildcardLikeList",
         WildcardLikeList::new
     );
-    public static final String NAME = "LIKELIST";
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
@@ -66,7 +65,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
 
     @Override
     public String name() {
-        return NAME;
+        return ENTRY.name;
     }
 
     @Override

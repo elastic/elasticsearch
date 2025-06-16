@@ -179,6 +179,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.of(
                     List.of(
                         new SnapshotDeletionsInProgress.Entry(
+                            randomProjectIdOrDefault(),
                             "repo1",
                             Collections.singletonList(new SnapshotId("snap1", UUIDs.randomBase64UUID())),
                             randomNonNegativeLong(),

@@ -67,7 +67,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
             Set<String> lookupFieldNames = new HashSet<>(Expressions.names(join.rightOutputFields()));
             List<NamedExpression> finalProjections = new ArrayList<>(newProjections.size());
             AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
-            AttributeSet leftOutput = updatedJoin.left().outputSet();
+            AttributeSet leftOutput = project.child().outputSet();
 
             for (NamedExpression proj : newProjections) {
                 // TODO: add assert to Project that ensures Alias to attr or pure attr.

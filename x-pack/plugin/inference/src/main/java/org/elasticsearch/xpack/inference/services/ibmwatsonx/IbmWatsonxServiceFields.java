@@ -11,7 +11,7 @@ public class IbmWatsonxServiceFields {
 
     /**
      * Taken from <a href="https://cloud.ibm.com/apidocs/watsonx-ai#text-embeddings">
-     *     Introduction to IBM watsonx.ai as a Service</a>
+     *     Introduction to IBM Watsonx.ai as a Service</a>
      */
     static final int EMBEDDING_MAX_BATCH_SIZE = 1000;
     public static final String API_VERSION = "api_version";

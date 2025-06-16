@@ -779,7 +779,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             Model model1 = TestModel.createRandomInstance(taskType);
             Model model2 = TestModel.createRandomInstance(taskType);
             ChunkingSettings chunkingSettings = null; // Some chunking settings configs can produce different Lucene docs counts
-            SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(taskType);
+            SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(taskType, IndexVersion.current());
             XContentBuilder mapping = mapping(b -> {
                 addSemanticTextMapping(
                     b,
@@ -1054,7 +1054,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         TaskType taskType = TaskType.SPARSE_EMBEDDING;
         Model model = TestModel.createRandomInstance(taskType);
         ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
-        SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(taskType);
+        SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(taskType, IndexVersion.current());
         SemanticTextField randomSemanticText = randomSemanticText(
             useLegacyFormat,
             "field",
@@ -1185,8 +1185,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, null, null);
     }
 
-    private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions() {
-        return new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions());
+    private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions(IndexVersion indexVersion) {
+        return new SemanticTextIndexOptions(
+            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+            defaultDenseVectorIndexOptions(),
+            indexVersion
+        );
     }
 
     private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
@@ -1196,16 +1200,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
     }
 
-    private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
+    private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions(IndexVersion indexVersion) {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultBbqHnswDenseVectorIndexOptions()
+            defaultBbqHnswDenseVectorIndexOptions(),
+            indexVersion
         );
     }
 
     public void testDefaultIndexOptions() throws IOException {
 
         // We default to BBQ for eligible dense vectors
+        var indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ,
+            IndexVersion.current()
+        );
         var mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "semantic_text");
             b.field("inference_id", "another_inference_id");
@@ -1215,8 +1225,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
-        assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions());
+        }), useLegacyFormat, indexVersion, indexVersion);
+        assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions(indexVersion));
 
         // Element types that are incompatible with BBQ will continue to use dense_vector defaults
         mapperService = createMapperService(fieldMapping(b -> {
@@ -1228,7 +1238,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "byte");
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
+        }), useLegacyFormat, indexVersion, indexVersion);
         assertSemanticTextField(mapperService, "field", true, null, null);
 
         // A dim count of 10 is too small to support BBQ, so we continue to use dense_vector defaults
@@ -1241,13 +1251,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
+        }), useLegacyFormat, indexVersion, indexVersion);
         assertSemanticTextField(
             mapperService,
             "field",
             true,
             null,
-            new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions())
+            new SemanticTextIndexOptions(
+                SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                defaultDenseVectorIndexOptions(),
+                indexVersion
+            )
         );
 
         // If we explicitly set index options, we respect those over the defaults
@@ -1267,7 +1281,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("ef_construction", 100);
             b.endObject();
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ);
+        }), useLegacyFormat, indexVersion, indexVersion);
         assertSemanticTextField(
             mapperService,
             "field",
@@ -1275,28 +1289,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(25, 100, null, null),
+                indexVersion
             )
         );
 
         // Previous index versions do not set BBQ index options
-        mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "semantic_text");
-            b.field("inference_id", "another_inference_id");
-            b.startObject("model_settings");
-            b.field("task_type", "text_embedding");
-            b.field("dimensions", 100);
-            b.field("similarity", "cosine");
-            b.field("element_type", "float");
-            b.endObject();
-        }),
-            useLegacyFormat,
+        indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
             IndexVersions.INFERENCE_METADATA_FIELDS,
             IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
         );
-        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
+        mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "text_embedding");
+            b.field("dimensions", 100);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+        }), useLegacyFormat, indexVersion, indexVersion);
+        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions(indexVersion));
 
         // 8.x index versions that use backported default BBQ set default BBQ index options as expected
+        indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X,
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+        );
         mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "semantic_text");
             b.field("inference_id", "another_inference_id");
@@ -1306,10 +1327,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
-        assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions());
+        }), useLegacyFormat, indexVersion, indexVersion);
+        assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions(indexVersion));
 
         // Previous 8.x index versions do not set BBQ index options
+        indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X
+        );
         mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "semantic_text");
             b.field("inference_id", "another_inference_id");
@@ -1319,17 +1345,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }),
-            useLegacyFormat,
-            IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X)
-        );
-        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
+        }), useLegacyFormat, indexVersion, indexVersion);
+        assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions(indexVersion));
     }
 
     public void testSpecifiedDenseVectorIndexOptions() throws IOException {
 
         // Specifying index options will override default index option settings
+        var indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
+            IndexVersion.current()
+        );
         var mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "semantic_text");
             b.field("inference_id", "another_inference_id");
@@ -1347,7 +1374,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("confidence_interval", 0.4);
             b.endObject();
             b.endObject();
-        }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
+        }), useLegacyFormat, indexVersion, indexVersion);
         assertSemanticTextField(
             mapperService,
             "field",
@@ -1355,7 +1382,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, 0.4f, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, 0.4f, null),
+                indexVersion
             )
         );
 
@@ -1374,7 +1402,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("type", "int4_hnsw");
             b.endObject();
             b.endObject();
-        }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
+        }), useLegacyFormat, indexVersion, indexVersion);
         assertSemanticTextField(
             mapperService,
             "field",
@@ -1382,7 +1410,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             new SemanticTextIndexOptions(
                 SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, 0f, null)
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, 0f, null),
+                indexVersion
             )
         );
 
@@ -1440,15 +1469,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {
         TaskType taskType = randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING);
-        return randomSemanticTextIndexOptions(taskType);
+        return randomSemanticTextIndexOptions(taskType, IndexVersion.current());
     }
 
-    public static SemanticTextIndexOptions randomSemanticTextIndexOptions(TaskType taskType) {
+    public static SemanticTextIndexOptions randomSemanticTextIndexOptions(TaskType taskType, IndexVersion indexVersion) {
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return randomBoolean()
                 ? null
-                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, randomIndexOptionsAll());
+                : new SemanticTextIndexOptions(
+                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                    randomIndexOptionsAll(),
+                    indexVersion
+                );
         }
 
         return null;

@@ -426,23 +426,22 @@ public class EsqlSession {
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
         Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
-        StringBuilder patternWithRemotes = new StringBuilder(localPattern);
-        if (executionInfo.getClusters().isEmpty() == false) {
-            // Get the list of active clusters for the lookup index
-            Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
-            // Create a pattern with all active remote clusters
-            clusters.forEach(cluster -> {
-                String clusterAlias = cluster.getClusterAlias();
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-                    // Skip the local cluster, as it is already included in the localPattern
-                    return;
-                }
-                patternWithRemotes.append(",").append(clusterAlias).append(":").append(localPattern);
-            });
+
+        String patternWithRemotes;
+
+        if (executionInfo.getClusters().isEmpty()) {
+            patternWithRemotes = localPattern;
+        } else {
+            patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
+                .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
+                .collect(Collectors.joining(", "));
+        }
+        if (patternWithRemotes.isEmpty()) {
+            return;
         }
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            patternWithRemotes.toString(),
+            patternWithRemotes,
             fieldNames,
             null,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))

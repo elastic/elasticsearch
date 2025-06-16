@@ -179,7 +179,12 @@ public class Setting<T> implements ToXContentObject {
          * All other settings will be rejected when used on a PUT request
          * and filtered out on a GET
          */
-        ServerlessPublic
+        ServerlessPublic,
+
+        /**
+         * Project-level file-level setting. Not an index setting.
+         */
+        ProjectScope
     }
 
     private final Key key;

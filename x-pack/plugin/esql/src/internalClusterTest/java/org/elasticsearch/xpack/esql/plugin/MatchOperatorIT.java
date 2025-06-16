@@ -354,7 +354,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE and STATS commands"));
     }
 
     public void testMatchWithNonTextField() {

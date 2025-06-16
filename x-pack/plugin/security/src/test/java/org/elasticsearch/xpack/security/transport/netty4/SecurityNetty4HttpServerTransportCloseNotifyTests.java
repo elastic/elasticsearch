@@ -251,7 +251,7 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
             server.dispatcher.reqQueue.forEach(r -> r.request.getHttpRequest().release());
             server.netty.stop();
             server.threadPool.shutdownNow();
-            safeAwait(client.netty.config().group().shutdownGracefully());
+            safeAwait(client.netty.config().group().shutdownGracefully(0, 0, TimeUnit.SECONDS));
         }
     }
 

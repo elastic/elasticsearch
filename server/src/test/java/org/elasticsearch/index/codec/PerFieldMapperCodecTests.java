@@ -94,8 +94,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
 
-        Class<? extends PostingsFormat> expectedPostingsFormat = PerFieldFormatSupplier.USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
-            && timeSeries == false ? Lucene101PostingsFormat.class : ES812PostingsFormat.class;
+        Class<? extends PostingsFormat> expectedPostingsFormat = timeSeries ? ES812PostingsFormat.class : Lucene101PostingsFormat.class;
         assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(expectedPostingsFormat));
     }
 
@@ -110,10 +109,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        Class<? extends PostingsFormat> expectedPostingsFormat = PerFieldFormatSupplier.USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
-            ? Lucene101PostingsFormat.class
-            : ES812PostingsFormat.class;
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(expectedPostingsFormat));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene101PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {

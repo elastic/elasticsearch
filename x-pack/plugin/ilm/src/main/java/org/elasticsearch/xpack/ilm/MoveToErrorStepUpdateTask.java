@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -32,7 +33,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
     private final String policy;
     private final Step.StepKey currentStepKey;
     private final BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction;
-    private final Consumer<ClusterState> stateChangeConsumer;
+    private final Consumer<ProjectState> stateChangeConsumer;
     private final LongSupplier nowSupplier;
     private final Exception cause;
 
@@ -43,7 +44,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
         Exception cause,
         LongSupplier nowSupplier,
         BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
-        Consumer<ClusterState> stateChangeConsumer
+        Consumer<ProjectState> stateChangeConsumer
     ) {
         super(index, currentStepKey);
         this.index = index;
@@ -56,25 +57,27 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
     }
 
     @Override
-    protected ClusterState doExecute(ClusterState currentState) throws Exception {
-        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
+    protected ClusterState doExecute(ProjectState currentState) throws Exception {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            return currentState;
+            return currentState.cluster();
         }
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
-            return IndexLifecycleTransition.moveClusterStateToErrorStep(index, currentState, cause, nowSupplier, stepLookupFunction);
+            return currentState.updatedState(
+                IndexLifecycleTransition.moveIndexToErrorStep(index, currentState.metadata(), cause, nowSupplier, stepLookupFunction)
+            );
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
-            return currentState;
+            return currentState.cluster();
         }
     }
 
     @Override
-    public void onClusterStateProcessed(ClusterState newState) {
+    public void onClusterStateProcessed(ProjectState newState) {
         stateChangeConsumer.accept(newState);
     }
 

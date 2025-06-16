@@ -168,16 +168,13 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 
 #### Checkstyle
 
-If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
-check the Elasticsearch code. However, the Checkstyle configuration file does
-not work by default with the IntelliJ plugin, so instead an IDE-specific config
-file is generated automatically after IntelliJ finishes syncing. You can
-manually generate the file with `./gradlew configureIdeCheckstyle` in case
-it is removed due to a `./gradlew clean` or other action.
+IntelliJ should automatically configure checkstyle. It does so by running
+`configureIdeCheckstyle` on import. That makes `.idea/checkstyle-idea.xml`
+configuration file. IntelliJ points checkstyle at that.
 
-IntelliJ should be automatically configured to use the generated rules after
-import via the `.idea/checkstyle-idea.xml` configuration file. No further
-action is required.
+Things like `./gradlew clean` or `git clean -xdf` can nuke the file. You can
+regenerate it by running `./gradlew -Didea.active=true configureIdeCheckstyle`,
+but generally shouldn't have to.
 
 #### Formatting
 
@@ -413,7 +410,8 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> [!NOTE]
+> If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 

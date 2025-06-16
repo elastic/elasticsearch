@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -364,6 +365,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -556,6 +558,8 @@ public class MachineLearning extends Plugin
         License.OperationMode.PLATINUM
     );
 
+    private static final FeatureFlag NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG = new FeatureFlag("new_ml_memory_computation");
+
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {
@@ -739,6 +743,33 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * The time that has to pass after scaling up, before scaling down is allowed.
+     * Note that the ML autoscaling has its own cooldown time to release the hardware.
+     */
+    public static final Setting<TimeValue> SCALE_UP_COOLDOWN_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_up_cooldown_time",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The time interval without any requests that has to pass, before scaling down
+     * to zero allocations (in case min_allocations = 0). After this time interval
+     * without requests, the number of allocations is set to zero. When this time
+     * interval hasn't passed, the minimum number of allocations will always be
+     * larger than zero.
+     */
+    public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
+        TimeValue.timeValueHours(24),
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Each model deployment results in one or more entries in the cluster state
      * for the model allocations. In order to prevent the cluster state from
      * potentially growing uncontrollably we impose a limit on the number of
@@ -813,7 +844,9 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
-            DUMMY_ENTITY_PROCESSORS
+            DUMMY_ENTITY_PROCESSORS,
+            SCALE_UP_COOLDOWN_TIME,
+            SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME
         );
     }
 
@@ -844,7 +877,12 @@ public class MachineLearning extends Plugin
                 machineMemoryAttrName,
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
-            addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+
+            long jvmSize = Runtime.getRuntime().maxMemory();
+            if (NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
+                jvmSize = JvmInfo.jvmInfo().getMem().getTotalMax().getBytes();
+            }
+            addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(jvmSize));
             addMlNodeAttribute(
                 additionalSettings,
                 deprecatedAllocatedProcessorsAttrName,
@@ -921,6 +959,9 @@ public class MachineLearning extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
         TelemetryProvider telemetryProvider = services.telemetryProvider();
 
+        // Initialize WritableIndexExpander
+        WritableIndexExpander.initialize(clusterService, indexNameExpressionResolver);
+
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
@@ -937,7 +978,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             machineLearningExtension.get().useIlm(),
-            xContentRegistry
+            xContentRegistry,
+            services.projectResolver()
         );
         registry.initialize();
 
@@ -1295,7 +1337,8 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            machineLearningExtension.get().isNlpEnabled()
+            machineLearningExtension.get().isNlpEnabled(),
+            settings
         );
 
         MlInitializationService mlInitializationService = new MlInitializationService(

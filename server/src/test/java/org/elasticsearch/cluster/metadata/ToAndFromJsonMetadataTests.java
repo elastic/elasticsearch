@@ -281,6 +281,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "index-graveyard" : {
                       "tombstones" : [ ]
                     },
+                    "settings" : { },
                     "reserved_state" : { }
                   }
                 ],

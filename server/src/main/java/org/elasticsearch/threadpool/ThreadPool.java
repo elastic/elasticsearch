@@ -31,7 +31,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
@@ -154,6 +153,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_UTILIZATION = ".threads.utilization.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".queue.latency.histogram";
 
     public enum ThreadPoolType {
         FIXED("fixed"),
@@ -379,14 +379,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             }
 
             if (threadPoolExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
-                instruments.add(
-                    meterRegistry.registerDoubleGauge(
-                        prefix + THREAD_POOL_METRIC_NAME_UTILIZATION,
-                        "fraction of maximum thread time utilized for " + name,
-                        "fraction",
-                        () -> new DoubleWithAttributes(timeTrackingExecutor.pollUtilization(), at)
-                    )
-                );
+                instruments.addAll(timeTrackingExecutor.setupMetrics(meterRegistry, name));
             }
         }
         return instruments;
@@ -689,7 +682,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 
-    static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
+    public static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
         final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
         return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize);
     }

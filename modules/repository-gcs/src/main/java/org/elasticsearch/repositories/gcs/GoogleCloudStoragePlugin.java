@@ -57,7 +57,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,
-            metadata -> new GoogleCloudStorageRepository(
+            (projectId, metadata) -> new GoogleCloudStorageRepository(
+                projectId,
                 metadata,
                 namedXContentRegistry,
                 this.storageService,

@@ -92,7 +92,7 @@ $$$rank-vectors-element-type$$$
 `element_type`
 :   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
 
-::::{dropdown} Valid values for `element_type`
+::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
 
@@ -110,11 +110,6 @@ $$$rank-vectors-element-type$$$
 
 
 ## Synthetic `_source` [rank-vectors-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `rank_vectors` fields support [synthetic `_source`](mapping-source-field.md#synthetic-source) .
 

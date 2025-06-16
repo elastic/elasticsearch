@@ -11,8 +11,16 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 public interface ESVectorUtilSupport {
 
+    /**
+     * The number of bits in bit-quantized query vectors
+     */
     short B_QUERY = 4;
 
+    /**
+     * Compute dot product between {@code q} and {@code d}
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code BQSpaceUtils.transposeHalfByte})
+     * @param d data vector, 1-bit quantized
+     */
     long ipByteBinByte(byte[] q, byte[] d);
 
     int ipByteBit(byte[] q, byte[] d);
@@ -20,4 +28,15 @@ public interface ESVectorUtilSupport {
     float ipFloatBit(float[] q, byte[] d);
 
     float ipFloatByte(float[] q, byte[] d);
+
+    float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda);
+
+    void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts);
+
+    void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
+
+    void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
+
+    float soarResidual(float[] v1, float[] centroid, float[] originalResidual);
+
 }

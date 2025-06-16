@@ -154,42 +154,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
-    public void testDataNodeDoesNotLogStackTraceWhenErrorTraceTrue() throws IOException, InterruptedException {
-        setupIndexWithDocs();
-
-        Request searchRequest = new Request("POST", "/_async_search");
-        searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "simple_query_string" : {
-                        "query": "foo",
-                        "fields": ["field"]
-                    }
-                }
-            }
-            """);
-        searchRequest.addParameter("error_trace", "true");
-        searchRequest.addParameter("keep_on_completion", "true");
-        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
-
-        String errorTriggeringIndex = "test2";
-        int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
-        try (var mockLog = MockLog.capture(SearchService.class)) {
-            ErrorTraceHelper.addUnseenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
-
-            Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
-            String asyncExecutionId = (String) responseEntity.get("id");
-            Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
-            request.addParameter("error_trace", "true");
-            while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
-                responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
-            }
-
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
-    public void testDataNodeLogsStackTraceWhenErrorTraceFalseOrEmpty() throws IOException, InterruptedException {
+    public void testDataNodeLogsStackTrace() throws IOException, InterruptedException {
         setupIndexWithDocs();
 
         // error_trace defaults to false so we can test both cases with some randomization
@@ -206,9 +171,15 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                 }
             }
             """);
-        if (defineErrorTraceFalse) {
+
+        // No matter the value of error_trace (empty, true, or false) we should see stack traces logged
+        int errorTraceValue = randomIntBetween(0, 2);
+        if (errorTraceValue == 0) {
+            searchRequest.addParameter("error_trace", "true");
+        } else if (errorTraceValue == 1) {
             searchRequest.addParameter("error_trace", "false");
-        }
+        } // else empty
+
         searchRequest.addParameter("keep_on_completion", "true");
         searchRequest.addParameter("wait_for_completion_timeout", "0ms");
 
@@ -220,9 +191,14 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             Map<String, Object> responseEntity = performRequestAndGetResponseEntityAfterDelay(searchRequest, TimeValue.ZERO);
             String asyncExecutionId = (String) responseEntity.get("id");
             Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
-            if (defineErrorTraceFalse) {
+
+            // Use the same value of error_trace as the search request
+            if (errorTraceValue == 0) {
+                request.addParameter("error_trace", "true");
+            } else if (errorTraceValue == 1) {
                 request.addParameter("error_trace", "false");
-            }
+            } // else empty
+
             while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
                 responseEntity = performRequestAndGetResponseEntityAfterDelay(request, TimeValue.timeValueSeconds(1L));
             }

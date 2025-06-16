@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 

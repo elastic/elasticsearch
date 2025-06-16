@@ -10,7 +10,7 @@ mapped_pages:
 A `single-value` metrics aggregation that keeps track and returns the maximum value among the numeric values extracted from the aggregated documents.
 
 ::::{note}
-The `min` and `max` aggregation operate on the `double` representation of the data. As a consequence, the result may be approximate when running on longs whose absolute value is greater than `2`^`53`^.
+The `min` and `max` aggregation operate on the `double` representation of the data. As a consequence, the result may be approximate when running on longs whose absolute value is greater than `2^53`.
 ::::
 
 

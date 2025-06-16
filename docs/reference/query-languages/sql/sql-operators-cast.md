@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-operators-cast.html
 ---
 
-# Cast Operators [sql-operators-cast]
+# Cast operators [sql-operators-cast]
 
 ## `Cast (::)` [sql-operators-cast-cast]
 

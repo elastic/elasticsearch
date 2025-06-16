@@ -21,10 +21,13 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -282,11 +285,18 @@ public class ValuesAggregatorBenchmark {
         int blockLength = blockLength(groups);
         return switch (dataType) {
             case BYTES_REF -> {
-                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(blockLength)) {
-                    for (int i = 0; i < blockLength; i++) {
-                        builder.appendBytesRef(KEYWORDS[i % KEYWORDS.length]);
+                try (
+                    BytesRefVector.Builder dict = blockFactory.newBytesRefVectorBuilder(blockLength);
+                    IntVector.Builder ords = blockFactory.newIntVectorBuilder(blockLength)
+                ) {
+                    final int dictLength = Math.min(blockLength, KEYWORDS.length);
+                    for (int i = 0; i < dictLength; i++) {
+                        dict.appendBytesRef(KEYWORDS[i]);
                     }
-                    yield builder.build();
+                    for (int i = 0; i < blockLength; i++) {
+                        ords.appendInt(i % dictLength);
+                    }
+                    yield new OrdinalBytesRefVector(ords.build(), dict.build()).asBlock();
                 }
             }
             case INT -> {

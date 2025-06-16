@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.multiproject.MultiProjectRestTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -25,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStatsMultiProjectIT extends MultiProjectRestTestCase {
@@ -39,6 +41,7 @@ public class ClusterStatsMultiProjectIT extends MultiProjectRestTestCase {
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .user("admin", PASSWORD)
+        .module("ingest-common")
         .build();
 
     @Override
@@ -70,12 +73,14 @@ public class ClusterStatsMultiProjectIT extends MultiProjectRestTestCase {
 
         createIndex(projectId3, "idx");
 
+        createPipeline(projectId1, "my-pipeline");
+
         for (int i = 0; i < 5; i++) {
-            createDocument(projectId1, "i1", "{ \"proj\":1, \"id\":" + i + ", \"b1\":true, \"b2\":false }");
+            createDocument(projectId1, "i1", "{ \"proj\":1, \"id\":" + i + ", \"b1\":true, \"b2\":false }", "my-pipeline");
         }
         refreshIndex(projectId1, "i1");
         for (int i = 0; i < 3; i++) {
-            createDocument(projectId3, "idx", "{ \"proj\":3, \"date\":\"2020-02-20T20:20:20\" }");
+            createDocument(projectId3, "idx", "{ \"proj\":3, \"date\":\"2020-02-20T20:20:20\" }", null);
         }
         refreshIndex(projectId3, "idx");
 
@@ -83,7 +88,11 @@ public class ClusterStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(response.evaluate("status"), equalTo("green"));
         assertThat(response.evaluate("indices.count"), equalTo(3 + 2 + 1));
         assertThat(response.evaluate("indices.docs.count"), equalTo(5 + 3));
-        assertThat(response.evaluate("indices.mappings.total_field_count"), equalTo(4 + 2));
+        // We expect:
+        // - 4 fields (2 long and 2 boolean) from the input for project 1, index i1
+        // - 1 long field from the pipeline for project 1, index i1
+        // - 2 fields (1 long and 1 date) for project 3, index idx
+        assertThat(response.evaluate("indices.mappings.total_field_count"), equalTo(4 + 1 + 2));
 
         final List<Map<String, Object>> fieldTypes = response.evaluate("indices.mappings.field_types");
         assertThat(fieldTypes.size(), equalTo(3));
@@ -98,8 +107,13 @@ public class ClusterStatsMultiProjectIT extends MultiProjectRestTestCase {
         assertThat(fieldTypes.get(1).get("index_count"), equalTo(1));
 
         assertThat(fieldTypes.get(2).get("name"), equalTo("long"));
-        assertThat(fieldTypes.get(2).get("count"), equalTo(3));
+        assertThat(fieldTypes.get(2).get("count"), equalTo(2 + 1 + 1));
         assertThat(fieldTypes.get(2).get("index_count"), equalTo(2));
+
+        assertThat(response.evaluate("nodes.ingest.number_of_pipelines"), equalTo(1));
+        Map<String, Object> ingestStats = response.evaluate("nodes.ingest.processor_stats");
+        assertThat(ingestStats.keySet(), containsInAnyOrder("set"));
+        assertThat(ObjectPath.evaluate(ingestStats, "set.count"), equalTo(5));
     }
 
     private void createIndex(String projectId, String indexName) throws IOException {
@@ -109,8 +123,26 @@ public class ClusterStatsMultiProjectIT extends MultiProjectRestTestCase {
         }, indexName, null, null, null);
     }
 
-    private void createDocument(String projectId, String indexName, String body) throws IOException {
-        Request request = new Request("POST", "/" + indexName + "/_doc");
+    private void createPipeline(String projectId, String pipelineId) throws IOException {
+        Request createPipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        setRequestProjectId(createPipelineRequest, projectId);
+        createPipelineRequest.setJsonEntity("""
+            {
+              "processors": [
+                {
+                  "set": {
+                    "field": "foo",
+                    "value": 999
+                  }
+                }
+              ]
+            }
+            """);
+        client().performRequest(createPipelineRequest);
+    }
+
+    private void createDocument(String projectId, String indexName, String body, @Nullable String pipelineId) throws IOException {
+        Request request = new Request("POST", "/" + indexName + "/_doc" + (pipelineId != null ? "?pipeline=" + pipelineId : ""));
         request.setJsonEntity(body);
         setRequestProjectId(request, projectId);
         client().performRequest(request);

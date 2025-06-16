@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -111,7 +110,7 @@ public class SearchApplicationTests extends ESTestCase {
               "updated_at_millis": 12345
             }""";
         SearchApplication app = SearchApplication.fromXContentBytes("my_search_app", new BytesArray(content), XContentType.JSON);
-        SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
+        SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON);
         assertNotSame(app, updatedApp);
         assertThat(updatedApp.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
         assertThat(updatedApp.analyticsCollectionName(), equalTo("my_search_app_analytics"));

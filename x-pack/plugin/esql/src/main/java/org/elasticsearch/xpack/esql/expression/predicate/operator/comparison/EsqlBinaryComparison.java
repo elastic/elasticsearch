@@ -328,16 +328,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right().foldable()) {
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
-                return true;
+                return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
-                return this instanceof Equals || this instanceof NotEquals;
+                return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
             }
         }
-        return false;
+        return Translatable.NO;
     }
 
     /**

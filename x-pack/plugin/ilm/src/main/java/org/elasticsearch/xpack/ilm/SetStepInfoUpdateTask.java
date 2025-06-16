@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
@@ -45,20 +46,20 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     }
 
     @Override
-    protected ClusterState doExecute(ClusterState currentState) throws IOException {
-        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
+    protected ClusterState doExecute(ProjectState currentState) throws IOException {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            return currentState;
+            return currentState.cluster();
         }
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(lifecycleState))) {
-            return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
+            return currentState.updatedState(IndexLifecycleTransition.addStepInfoToProject(index, currentState.metadata(), stepInfo));
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
-            return currentState;
+            return currentState.cluster();
         }
     }
 

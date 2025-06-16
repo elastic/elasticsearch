@@ -10,7 +10,7 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logsdb.datageneration.matchers.source.SourceMatcher;
+import org.elasticsearch.datageneration.matchers.source.SourceMatcher;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;

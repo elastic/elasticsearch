@@ -1,6 +1,0 @@
-pr: 126783
-summary: Fix shard size of initializing restored shard
-area: Allocation
-type: bug
-issues:
- - 105331

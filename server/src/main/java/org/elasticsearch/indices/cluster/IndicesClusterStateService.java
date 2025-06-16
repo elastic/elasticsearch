@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -97,11 +98,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.FAILURE;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.REOPENED;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
@@ -400,7 +401,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = project.get().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
-                indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
+                final var projectId = project.get().id();
+                indicesService.deleteUnassignedIndex(
+                    "deleted index in project [" + projectId + "] was not assigned to local node",
+                    metadata,
+                    state.metadata().projects().get(projectId)
+                );
             } else {
                 // The previous cluster state's metadata also does not contain the index,
                 // which is what happens on node startup when an index was deleted while the
@@ -475,7 +481,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata indexMetadata = project.map(proj -> proj.index(index)).orElse(null);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
-            AllocatedIndices.IndexRemovalReason reason = null;
+            IndexRemovalReason reason = null;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
@@ -694,6 +700,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
+                    return;
+                }
+            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
+                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
+                if (sourceNode == null) {
+                    logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
                     return;
                 }
             } else {
@@ -983,6 +996,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
+    private static DiscoveryNode findSourceNodeForReshardSplitRecovery(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        ShardId sourceShardId
+    ) {
+        ShardRouting sourceShardRouting = routingTable.shardRoutingTable(sourceShardId).primaryShard();
+
+        if (sourceShardRouting.active() == false) {
+            assert false : sourceShardRouting;
+            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting);
+            return null;
+        }
+
+        DiscoveryNode sourceNode = nodes.get(sourceShardRouting.currentNodeId());
+        if (sourceNode == null) {
+            assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
+            logger.trace(
+                "can't find reshard split source node because source shard {} is assigned to an unknown node.",
+                sourceShardRouting
+            );
+            return null;
+        }
+        return sourceNode;
+    }
+
     private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}
 
     private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
@@ -1257,8 +1295,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
          * but does not deal with in-memory structures. For those call {@link #removeIndex}
+         *
+         * @param reason the reason why this index should be deleted
+         * @param oldIndexMetadata the index metadata of the index that should be deleted
+         * @param currentProject the <i>current</i> project metadata which is used to verify that the index does not exist in the project
+         *                       anymore - can be null in case the whole project got deleted while there were still indices in it
          */
-        void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
+        void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index
@@ -1325,47 +1368,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
             ShardLockObtainFailedException;
-
-        enum IndexRemovalReason {
-            /**
-             * Shard of this index were previously assigned to this node but all shards have been relocated.
-             * The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            NO_LONGER_ASSIGNED,
-
-            /**
-             * The index is deleted. Persistent parts of the index  like the shards files, state and transaction logs are removed once
-             * all resources are released.
-             */
-            DELETED,
-
-            /**
-             * The index has been closed. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            CLOSED,
-
-            /**
-             * Something around index management has failed and the index should be removed.
-             * Persistent parts of the index like the shards files, state and transaction logs are kept around in the
-             * case of a disaster recovery.
-             */
-            FAILURE,
-
-            /**
-             * The index has been reopened. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            REOPENED,
-
-            /**
-             * The index is closed as part of the node shutdown process. The index should be removed and all associated resources released.
-             * Persistent parts of the index like the shards files, state and transaction logs should be kept around in the case the node
-             * restarts.
-             */
-            SHUTDOWN,
-        }
     }
 
     static class ShardCloseExecutor implements Executor {

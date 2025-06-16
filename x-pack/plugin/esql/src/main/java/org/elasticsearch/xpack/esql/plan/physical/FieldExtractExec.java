@@ -33,14 +33,14 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         FieldExtractExec::new
     );
 
-    private final List<Attribute> attributesToExtract;
-    private final @Nullable Attribute sourceAttribute;
+    protected final List<Attribute> attributesToExtract;
+    protected final @Nullable Attribute sourceAttribute;
 
     /**
      * The default for {@link #fieldExtractPreference} if the plan doesn't require
      * a preference.
      */
-    private final MappedFieldType.FieldExtractPreference defaultPreference;
+    protected final MappedFieldType.FieldExtractPreference defaultPreference;
 
     /**
      * Attributes that may be extracted as doc values even if that makes them
@@ -51,7 +51,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      *     This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> docValuesAttributes;
+    protected final Set<Attribute> docValuesAttributes;
 
     /**
      * Attributes of a shape whose extent can be extracted directly from the doc-values encoded geometry.
@@ -59,7 +59,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      *     This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> boundsAttributes;
+    protected final Set<Attribute> boundsAttributes;
 
     private List<Attribute> lazyOutput;
 
@@ -72,7 +72,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of());
     }
 
-    private FieldExtractExec(
+    protected FieldExtractExec(
         Source source,
         PhysicalPlan child,
         List<Attribute> attributesToExtract,
@@ -128,7 +128,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    protected NodeInfo<FieldExtractExec> info() {
+    protected NodeInfo<? extends FieldExtractExec> info() {
         return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, defaultPreference);
     }
 

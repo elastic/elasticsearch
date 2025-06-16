@@ -14,7 +14,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.19.2"
+  id "com.gradle.develocity" version "4.0.1"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -70,8 +70,8 @@ List projects = [
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:wolfi-docker-aarch64-export',
   'distribution:docker:wolfi-docker-export',
-  'distribution:docker:fips-docker-export',
-  'distribution:docker:fips-docker-aarch64-export',
+  'distribution:docker:cloud-ess-fips-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-aarch64-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
@@ -155,6 +155,7 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
@@ -171,3 +172,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include 'qa:vector'

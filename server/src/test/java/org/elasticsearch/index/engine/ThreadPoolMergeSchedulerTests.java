@@ -17,6 +17,7 @@ import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -53,15 +55,31 @@ import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
+    private NodeEnvironment nodeEnvironment;
+
+    @After
+    public void closeNodeEnv() {
+        if (nodeEnvironment != null) {
+            nodeEnvironment.close();
+            nodeEnvironment = null;
+        }
+    }
+
     public void testMergesExecuteInSizeOrder() throws IOException {
         DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
+        Settings settings = Settings.builder()
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
-            .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool());
+            .getThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settings, nodeEnvironment);
         try (
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             List<OneMerge> executedMergesList = new ArrayList<>();
@@ -103,7 +121,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService
+            threadPoolMergeExecutorService,
+            merge -> 0
         );
         // more merge tasks than merge threads
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
@@ -136,10 +155,14 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
             IndexSettingsModule.newIndexSettings("index", mergeSchedulerSettings),
-            threadPoolMergeExecutorService
+            threadPoolMergeExecutorService,
+            merge -> 0
         );
         // sort backlogged merges by size
-        PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(16, Comparator.comparingLong(MergeTask::estimatedMergeSize));
+        PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
+            16,
+            Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
+        );
         // more merge tasks than merge threads
         int mergeCount = mergeExecutorThreadCount + randomIntBetween(2, 10);
         for (int i = 0; i < mergeCount; i++) {
@@ -173,7 +196,15 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
     }
 
-    public void testIndexingThrottlingWhenSubmittingMerges() {
+    public void testIndexingThrottlingWhenSubmittingMergesWithDiskIOThrottlingEnabled() {
+        testIndexingThrottlingWhenSubmittingMerges(true);
+    }
+
+    public void testIndexingThrottlingWhenSubmittingMergesWithDiskIOThrottlingDisabled() {
+        testIndexingThrottlingWhenSubmittingMerges(false);
+    }
+
+    private void testIndexingThrottlingWhenSubmittingMerges(boolean withDiskIOThrottlingEnabled) {
         final int maxThreadCount = randomIntBetween(1, 5);
         // settings validation requires maxMergeCount >= maxThreadCount
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
@@ -186,6 +217,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         Settings mergeSchedulerSettings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount)
             .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount)
+            .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), withDiskIOThrottlingEnabled)
             .build();
         TestThreadPoolMergeScheduler threadPoolMergeScheduler = new TestThreadPoolMergeScheduler(
             new ShardId("index", "_na_", 1),
@@ -201,12 +233,12 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         while (submittedMerges < mergesToSubmit - 1) {
             isUsingMaxTargetIORate.set(randomBoolean());
             if (submittedMergeTasks.isEmpty() == false && randomBoolean()) {
-                // maybe schedule one submitted merge
+                // maybe schedule one of the submitted merges (but still it's not run)
                 MergeTask mergeTask = randomFrom(submittedMergeTasks);
                 submittedMergeTasks.remove(mergeTask);
                 mergeTask.schedule();
             } else {
-                // submit one merge
+                // submit one new merge
                 MergeSource mergeSource = mock(MergeSource.class);
                 OneMerge oneMerge = mock(OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
@@ -214,7 +246,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 submittedMerges++;
-                if (isUsingMaxTargetIORate.get() && submittedMerges > maxMergeCount) {
+                if ((isUsingMaxTargetIORate.get() || withDiskIOThrottlingEnabled == false) && submittedMerges > maxMergeCount) {
                     expectIndexThrottling = true;
                 } else if (submittedMerges <= maxMergeCount) {
                     expectIndexThrottling = false;
@@ -223,15 +255,20 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             // assert IO throttle state
             assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(expectIndexThrottling));
         }
-        // submit one last merge when IO throttling is at max value
-        isUsingMaxTargetIORate.set(true);
+        if (withDiskIOThrottlingEnabled) {
+            // submit one last merge when IO throttling is at max value
+            isUsingMaxTargetIORate.set(true);
+        } else {
+            // but if disk IO throttling is not enabled, indexing throttling should still be triggered
+            isUsingMaxTargetIORate.set(randomBoolean());
+        }
         MergeSource mergeSource = mock(MergeSource.class);
         OneMerge oneMerge = mock(OneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
         when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
         when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
         threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
-        // assert index throttling because IO throttling is at max value
+        // assert indexing throttling state because IO throttling is at max value OR disk IO throttling is disabled
         assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(true));
     }
 
@@ -338,16 +375,20 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
-                .getThreadPoolMergeExecutorService(testThreadPool);
+                .getThreadPoolMergeExecutorService(testThreadPool, settings, nodeEnvironment);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             try (
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
-                    threadPoolMergeExecutorService
+                    threadPoolMergeExecutorService,
+                    merge -> 0
                 )
             ) {
                 MergeSource mergeSource = mock(MergeSource.class);
@@ -410,17 +451,21 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeSchedulerMaxThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
-                .getThreadPoolMergeExecutorService(testThreadPool);
+                .getThreadPoolMergeExecutorService(testThreadPool, settings, nodeEnvironment);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
             try (
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
-                    threadPoolMergeExecutorService
+                    threadPoolMergeExecutorService,
+                    merge -> 0
                 )
             ) {
                 // at least 1 extra merge than there are concurrently allowed
@@ -455,7 +500,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         // also check the same for the thread-pool executor
                         assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
                         // queued merge tasks do not include backlogged merges
-                        assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
                         // also check thread-pool stats for the same
                         // there are active thread-pool threads waiting for the backlogged merge tasks to be re-enqueued
                         int activeMergeThreads = Math.min(mergeCount - finalCompletedMergesCount, mergeExecutorThreadCount);
@@ -476,7 +521,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                         // also check thread-pool executor for the same
                         assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(finalRemainingMergesCount));
                         // no more backlogged merges
-                        assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                        assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
                         // also check thread-pool stats for the same
                         assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergesCount));
                         assertThat(threadPoolExecutor.getQueue().size(), is(0));
@@ -495,16 +540,20 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeSchedulerMaxThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorServiceTests
-                .getThreadPoolMergeExecutorService(testThreadPool);
+                .getThreadPoolMergeExecutorService(testThreadPool, settings, nodeEnvironment);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             try (
                 ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                     new ShardId("index", "_na_", 1),
                     IndexSettingsModule.newIndexSettings("index", settings),
-                    threadPoolMergeExecutorService
+                    threadPoolMergeExecutorService,
+                    merge -> 0
                 )
             ) {
                 CountDownLatch mergeDoneLatch = new CountDownLatch(1);
@@ -576,7 +625,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -605,7 +655,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
@@ -621,7 +672,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             // merge submitted upon closing
@@ -637,7 +689,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
                 indexSettings,
-                threadPoolMergeExecutorService
+                threadPoolMergeExecutorService,
+                merge -> 0
             )
         ) {
             // merge submitted upon closing
@@ -650,6 +703,31 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             // merge tasks should be auto IO throttled
             assertTrue(submittedMergeTaskCaptor.getValue().supportsIOThrottling());
         }
+    }
+
+    public void testMergeSchedulerAbortsMergeWhenShouldSkipMergeIsTrue() {
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
+        // build a scheduler that always returns true for shouldSkipMerge
+        ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+            new ShardId("index", "_na_", 1),
+            IndexSettingsModule.newIndexSettings("index", Settings.builder().build()),
+            threadPoolMergeExecutorService,
+            merge -> 0
+        ) {
+            @Override
+            protected boolean shouldSkipMerge() {
+                return true;
+            }
+        };
+        MergeSource mergeSource = mock(MergeSource.class);
+        OneMerge oneMerge = mock(OneMerge.class);
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+        when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+        when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+        MergeTask mergeTask = threadPoolMergeScheduler.newMergeTask(mergeSource, oneMerge, randomFrom(MergeTrigger.values()));
+        // verify that calling schedule on the merge task indicates the merge should be aborted
+        Schedule schedule = threadPoolMergeScheduler.schedule(mergeTask);
+        assertThat(schedule, is(Schedule.ABORT));
     }
 
     private static MergeInfo getNewMergeInfo(long estimatedMergeBytes) {
@@ -668,7 +746,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, merge -> 0);
         }
 
         @Override

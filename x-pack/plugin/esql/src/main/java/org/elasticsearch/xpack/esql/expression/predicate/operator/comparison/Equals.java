@@ -128,11 +128,11 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
             if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
-                    return true;
+                    return Translatable.YES_BUT_RECHECK_NEGATED;
                 }
             }
         }

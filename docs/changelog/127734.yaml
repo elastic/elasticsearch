@@ -1,0 +1,5 @@
+pr: 127734
+summary: Run coordinating `can_match` in field-caps
+area: ES|QL
+type: enhancement
+issues: []

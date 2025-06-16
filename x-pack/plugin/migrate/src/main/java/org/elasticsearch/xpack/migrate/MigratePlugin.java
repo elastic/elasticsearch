@@ -89,7 +89,8 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.projectResolver()
         );
         registry.initialize();
         return List.of(registry);

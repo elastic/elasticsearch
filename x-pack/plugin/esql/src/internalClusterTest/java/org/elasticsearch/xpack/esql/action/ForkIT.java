@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
@@ -17,19 +19,21 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ForkIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
         assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-        createAndPopulateIndex();
+        createAndPopulateIndices();
     }
 
     public void testSimple() {
@@ -585,6 +589,170 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithStatsAfterFork() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | STATS c = count(*)
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertColumnTypes(resp.columns(), List.of("long"));
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(7L));
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithStatsWithWhereAfterFork() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | STATS c = count(*) WHERE _fork == "fork1"
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertColumnTypes(resp.columns(), List.of("long"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of(2L));
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithConditionOnForkField() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL b = 2 )
+                       ( WHERE content:"dog" | EVAL c = 3 )
+                | WHERE _fork == "fork2"
+                | KEEP _fork, id, content, a, b, c
+                | SORT _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "a", "b", "c"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "fork2", 5, "There is also a white cat", null, 2, null }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithFilteringOnConstantColumn() {
+        var query = """
+                FROM test
+                | FORK ( WHERE content:"fox" | EVAL a = 1)
+                       ( WHERE content:"cat" | EVAL a = 2 )
+                       ( WHERE content:"dog" | EVAL a = 3 )
+                | WHERE a == 3
+                | KEEP _fork, id, content, a
+                | SORT id
+                | LIMIT 3
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content", "a"));
+
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork3", 2, "This is a brown dog", 3),
+                List.of("fork3", 3, "This dog is really brown", 3),
+                List.of("fork3", 4, "The dog is brown but this document is very very long", 3)
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithLookUpJoinBeforeFork() {
+        var query = """
+                FROM test
+                | LOOKUP JOIN test-lookup ON id
+                | FORK (WHERE id == 2 OR id == 3)
+                       (WHERE id == 1 OR id == 2)
+                | SORT _fork, id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id", "animal", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("This is a brown dog", 2, "dog", "fork1"),
+                List.of("This dog is really brown", 3, "dog", "fork1"),
+                List.of("This is a brown fox", 1, "fox", "fork2"),
+                List.of("This is a brown dog", 2, "dog", "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithLookUpAfterFork() {
+        var query = """
+                FROM test
+                | FORK (WHERE id == 2 OR id == 3)
+                       (WHERE id == 1 OR id == 2)
+                | LOOKUP JOIN test-lookup ON id
+                | SORT _fork, id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id", "_fork", "animal"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("This is a brown dog", 2, "fork1", "dog"),
+                List.of("This dog is really brown", 3, "fork1", "dog"),
+                List.of("This is a brown fox", 1, "fork2", "fox"),
+                List.of("This is a brown dog", 2, "fork2", "dog")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithUnionTypesBeforeFork() {
+        var query = """
+                FROM test,test-other
+                | EVAL x = id::keyword
+                | EVAL id = id::keyword
+                | EVAL content = content::keyword
+                | FORK (WHERE x == "2")
+                       (WHERE x == "1")
+                | SORT _fork, x, content
+                | KEEP content, id, x, _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id", "x", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("This is a brown dog", "2", "2", "fork1"),
+                List.of("This is a brown dog", "2", "2", "fork1"),
+                List.of("This is a brown fox", "1", "1", "fork2"),
+                List.of("This is a brown fox", "1", "1", "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithUnionTypesInBranches() {
+        var query = """
+                FROM test,test-other
+                | EVAL content = content::keyword
+                | FORK (EVAL x = id::keyword |  WHERE x == "2" | EVAL id = x::integer)
+                       (EVAL x = "a" | WHERE id::keyword == "1" | EVAL id = id::integer)
+                | SORT _fork, x
+                | KEEP content, id, x, _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id", "x", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("This is a brown dog", 2, "2", "fork1"),
+                List.of("This is a brown dog", 2, "2", "fork1"),
+                List.of("This is a brown fox", 1, "a", "fork2"),
+                List.of("This is a brown fox", 1, "a", "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test
@@ -685,13 +853,40 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         assertTrue(e.getMessage().contains("Fork requires at least two branches"));
     }
 
-    private void createAndPopulateIndex() {
+    public void testProfile() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" | SORT id )
+               ( WHERE content:"dog" | SORT id )
+            | SORT _fork, id
+            | KEEP _fork, id, content
+            """;
+
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+
+        request.pragmas(randomPragmas());
+        request.query(query);
+        request.profile(true);
+
+        try (var resp = run(request)) {
+            EsqlQueryResponse.Profile profile = resp.profile();
+            assertNotNull(profile);
+
+            assertEquals(
+                Set.of("data", "main.final", "node_reduce", "subplan-0.final", "subplan-1.final"),
+                profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet())
+            );
+        }
+    }
+
+    private void createAndPopulateIndices() {
         var indexName = "test";
         var client = client().admin().indices();
-        var CreateRequest = client.prepareCreate(indexName)
+        var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping("id", "type=integer", "content", "type=text");
-        assertAcked(CreateRequest);
+        assertAcked(createRequest);
         client().prepareBulk()
             .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
             .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
@@ -699,6 +894,37 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
             .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
             .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        var lookupIndex = "test-lookup";
+        createRequest = client.prepareCreate(lookupIndex)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+            .setMapping("id", "type=integer", "animal", "type=keyword");
+        assertAcked(createRequest);
+
+        client().prepareBulk()
+            .add(new IndexRequest(lookupIndex).id("1").source("id", 1, "animal", "fox"))
+            .add(new IndexRequest(lookupIndex).id("2").source("id", 2, "animal", "dog"))
+            .add(new IndexRequest(lookupIndex).id("3").source("id", 3, "animal", "dog"))
+            .add(new IndexRequest(lookupIndex).id("4").source("id", 4, "animal", "dog"))
+            .add(new IndexRequest(lookupIndex).id("5").source("id", 5, "animal", "cat"))
+            .add(new IndexRequest(lookupIndex).id("6").source("id", 6, "animal", List.of("fox", "dog")))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(lookupIndex);
+
+        var otherTestIndex = "test-other";
+
+        createRequest = client.prepareCreate(otherTestIndex)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .setMapping("id", "type=keyword", "content", "type=keyword");
+        assertAcked(createRequest);
+        client().prepareBulk()
+            .add(new IndexRequest(otherTestIndex).id("1").source("id", "1", "content", "This is a brown fox"))
+            .add(new IndexRequest(otherTestIndex).id("2").source("id", "2", "content", "This is a brown dog"))
+            .add(new IndexRequest(otherTestIndex).id("3").source("id", "3", "content", "This dog is really brown"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);

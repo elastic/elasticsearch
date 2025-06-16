@@ -58,6 +58,10 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
         return patternList;
     }
 
+    /**
+     * Creates an automaton that matches any of the patterns in the list.
+     * We create a single automaton that is the union of all individual automata to improve performance
+     */
     @Override
     public Automaton createAutomaton(boolean ignoreCase) {
         List<Automaton> automatonList = patternList.stream().map(x -> x.createAutomaton(ignoreCase)).toList();
@@ -65,11 +69,19 @@ public class WildcardPatternList extends AbstractStringPattern implements NamedW
         return Operations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
+    /**
+     * Returns a Java regex that matches any of the patterns in the list.
+     * The patterns are joined with the '|' operator to create a single regex.
+     */
     @Override
     public String asJavaRegex() {
         return patternList.stream().map(WildcardPattern::asJavaRegex).collect(Collectors.joining("|"));
     }
 
+    /**
+     * Returns a string that matches any of the patterns in the list.
+     * The patterns are joined with the '|' operator to create a single wildcard string.
+     */
     @Override
     public String pattern() {
         if (patternList.isEmpty()) {

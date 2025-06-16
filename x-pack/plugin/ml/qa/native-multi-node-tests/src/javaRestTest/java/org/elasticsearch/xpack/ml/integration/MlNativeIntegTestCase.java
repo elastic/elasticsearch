@@ -437,7 +437,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             );
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
 
-            //
+            // Retrieve the cluster state from a random node, and serialize and deserialize it.
             final ClusterStateResponse clusterStateResponse = client().admin()
                 .cluster()
                 .prepareState(TEST_REQUEST_TIMEOUT)

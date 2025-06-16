@@ -398,7 +398,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     useLegacyFormat
                 )
             );
-            assertThat(e.getMessage(), containsString("Invalid task_type in model_settings"));
+            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
         }
     }
 

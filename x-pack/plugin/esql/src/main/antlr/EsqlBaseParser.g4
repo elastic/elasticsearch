@@ -298,6 +298,9 @@ forkSubQueryProcessingCommand
     | statsCommand
     | sortCommand
     | dissectCommand
+    | changePointCommand
+    | completionCommand
+    | grokCommand
     ;
 
 rrfCommand

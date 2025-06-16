@@ -149,7 +149,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
                     nowWayBackInThePastSupplier,
                     indexLifecycleService.getPolicyRegistry(),
                     state -> {}
-                ).execute(currentState);
+                ).execute(currentState.projectState());
             }
 
             @Override

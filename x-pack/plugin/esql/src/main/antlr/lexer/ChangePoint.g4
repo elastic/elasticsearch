@@ -13,6 +13,7 @@ CHANGE_POINT : 'change_point' -> pushMode(CHANGE_POINT_MODE);
 
 mode CHANGE_POINT_MODE;
 CHANGE_POINT_PIPE : PIPE -> type(PIPE), popMode;
+CHANGE_POINT_RP : RP -> type(RP), popMode, popMode;
 CHANGE_POINT_ON : ON -> type(ON);
 CHANGE_POINT_AS : AS -> type(AS);
 CHANGE_POINT_DOT: DOT -> type(DOT);

@@ -273,6 +273,25 @@ fork2         | 10087          | 5                     | null
 fork3         | 10081          | 2                     | French
 ;
 
+forkBranchWithLookupJoin
+required_capability: fork_v8
+
+FROM employees
+| EVAL language_code = languages
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | LOOKUP JOIN languages_lookup ON language_code)
+       (WHERE emp_no == 10081 OR emp_no == 10087 | LOOKUP JOIN languages_lookup ON language_code)
+       (WHERE emp_no == 10081 | EVAL language_name = "Klingon" | LOOKUP JOIN languages_lookup ON language_code)
+| KEEP _fork, emp_no, language_code, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_code:integer | language_name:keyword
+fork1         | 10048          | 3                     | Spanish
+fork1         | 10081          | 2                     | French
+fork2         | 10081          | 2                     | French
+fork2         | 10087          | 5                     | null
+fork3         | 10081          | 2                     | French
+;
 
 forkBeforeStats
 required_capability: fork_v8
@@ -722,17 +741,18 @@ required_capability: fork_v8
 FROM employees
 | KEEP emp_no, salary
 | FORK (EVAL salary=CASE(emp_no==10042, 1000000, salary)
-        | CHANGE_POINT salary ON emp_no
-        | STATS COUNT() by type)
-       (WHERE emp_no == 10081 OR emp_no == 10087)
-| SORT _fork, type, emp_no
+        | CHANGE_POINT salary ON emp_no)
+       (EVAL salary=CASE(emp_no==10087, 1000000, salary)
+        | CHANGE_POINT salary ON emp_no)
+| STATS COUNT() by type, _fork
+| SORT _fork, type
 ;
 
-COUNT():long | type:keyword | _fork:keyword | emp_no:integer | salary:long
-1            | spike        | fork1         | null           | null
-99           | null         | fork1         | null           | null
-null         | null         | fork2         | 10081          | 50128
-null         | null         | fork2         | 10087          | 32272
+COUNT():long | type:keyword | _fork:keyword
+1            | spike        | fork1
+99           | null         | fork1
+1            | spike        | fork2
+99           | null         | fork2
 ;
 
 forkAfterChangePoint

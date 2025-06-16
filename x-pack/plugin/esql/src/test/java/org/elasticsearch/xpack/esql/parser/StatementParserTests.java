@@ -3301,7 +3301,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
         expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
 
-        expectError("FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)", "line 1:20: mismatched input 'FORK'");
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
     }

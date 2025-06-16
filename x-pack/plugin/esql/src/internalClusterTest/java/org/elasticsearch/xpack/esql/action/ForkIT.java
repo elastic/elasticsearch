@@ -900,6 +900,16 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         assertTrue(e.getMessage().contains("Fork requires at least two branches"));
     }
 
+    public void testForkWithinFork() {
+        var query = """
+            FROM test
+            | FORK ( FORK (WHERE true) (WHERE true) )
+                   ( FORK (WHERE true) (WHERE true) )
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Only a single FORK command is allowed, but found multiple"));
+    }
+
     public void testProfile() {
         var query = """
             FROM test

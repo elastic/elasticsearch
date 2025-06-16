@@ -101,9 +101,21 @@ public class SparseVectorFieldMapper extends FieldMapper {
             () -> null,
             (n, c, o) -> parseIndexOptions(c, o),
             m -> toType(m).fieldType().indexOptions,
-            XContentBuilder::field,
+            this::serializeIndexOptions,
+            // XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
+
+        private void serializeIndexOptions(XContentBuilder builder, String name, IndexOptions value) throws IOException {
+            if (value instanceof IndexOptions serializeIndexOptions) {
+                if (IndexOptions.isDefaultOptions(serializeIndexOptions)) {
+                    // do not emit anything if it's the default options
+                    return;
+                }
+            }
+
+            builder.field(name, value);
+        }
 
         private final MappingParserContext mappingParserContext;
 
@@ -539,6 +551,15 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
             this.prune = prune;
             this.pruningConfig = pruningConfig;
+        }
+
+        public static boolean isDefaultOptions(IndexOptions indexOptions) {
+            if (indexOptions == null || indexOptions.prune == null || indexOptions.prune == false || indexOptions.pruningConfig == null) {
+                return false;
+            }
+
+            return (indexOptions.pruningConfig.getTokensFreqRatioThreshold() == TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD
+                && indexOptions.pruningConfig.getTokensWeightThreshold() == TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
         }
 
         public Boolean getPrune() {

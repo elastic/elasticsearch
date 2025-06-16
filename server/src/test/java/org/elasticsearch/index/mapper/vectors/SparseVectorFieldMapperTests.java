@@ -87,10 +87,48 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.field("prune", true);
             b.startObject("pruning_config");
             {
-                b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+                b.field("tokens_freq_ratio_threshold", 3.0f);
+                b.field("tokens_weight_threshold", 0.5f);
+            }
+            b.endObject();
+        }
+        b.endObject();
+    }
+
+    protected void serializedMappingWithSomeIndexOptions(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        {
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            {
+                b.field("tokens_freq_ratio_threshold", 3.0f);
                 b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
             }
             b.endObject();
+        }
+        b.endObject();
+    }
+
+    protected void minimalMappingWithSomeExplicitIndexOptions(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        {
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            {
+                b.field("tokens_freq_ratio_threshold", 3.0f);
+            }
+            b.endObject();
+        }
+        b.endObject();
+    }
+
+    protected void mappingWithIndexOptionsOnlyPruneTrue(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        {
+            b.field("prune", true);
         }
         b.endObject();
     }
@@ -133,7 +171,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMappingWithExplicitIndexOptions)), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
@@ -159,7 +197,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testMappingWithoutIndexOptionsUsesDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMappingWithExplicitIndexOptions)), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         IndexVersion preIndexOptionsVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -169,6 +207,20 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         DocumentMapper previousMapper = createDocumentMapper(preIndexOptionsVersion, fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), previousMapper.mappingSource().toString());
     }
+
+    public void testMappingWithExplicitIndexOptions() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMappingWithExplicitIndexOptions));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMappingWithExplicitIndexOptions)), mapper.mappingSource().toString());
+
+        mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsPruneFalse));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsPruneFalse)), mapper.mappingSource().toString());
+
+        mapper = createDocumentMapper(fieldMapping(this::minimalMappingWithSomeExplicitIndexOptions));
+        assertEquals(Strings.toString(fieldMapping(this::serializedMappingWithSomeIndexOptions)), mapper.mappingSource().toString());
+
+        mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsOnlyPruneTrue));
+        assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsOnlyPruneTrue)), mapper.mappingSource().toString());
+   }
 
     public void testDotInFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));

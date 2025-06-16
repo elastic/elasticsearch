@@ -199,7 +199,7 @@ public class PersistentTasksService {
         request.setReason(reason);
         // TODO set timeout?
         try {
-            getClusterOrProjectClient(projectId).admin().cluster().cancelTasks(request, listener);
+            getDefaultOrProjectClient(projectId).admin().cluster().cancelTasks(request, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -302,7 +302,7 @@ public class PersistentTasksService {
         final ActionListener<PersistentTask<?>> listener
     ) {
         try {
-            getClusterOrProjectClient(projectId).execute(action, request, listener.map(PersistentTaskResponse::getTask));
+            getDefaultOrProjectClient(projectId).execute(action, request, listener.map(PersistentTaskResponse::getTask));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -428,7 +428,7 @@ public class PersistentTasksService {
         }
     }
 
-    private Client getClusterOrProjectClient(@Nullable ProjectId projectId) {
+    private Client getDefaultOrProjectClient(@Nullable ProjectId projectId) {
         return projectId == null ? client : client.projectClient(projectId);
     }
 }

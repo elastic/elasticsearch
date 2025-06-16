@@ -547,6 +547,15 @@ tests:
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testCanManageIndexWithNoPermissions
   issue: https://github.com/elastic/elasticsearch/issues/129471
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanManageIndexAndPolicyDifferentUsers
+  issue: https://github.com/elastic/elasticsearch/issues/129479
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanViewExplainOnUnmanagedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/129480
+- class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
+  method: testWaitsUntilResourcesAreCreated
+  issue: https://github.com/elastic/elasticsearch/issues/129486
 
 # Examples:
 #

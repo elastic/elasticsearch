@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeTo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-abstract class PositionToXContent {
+public abstract class PositionToXContent {
     protected final Block block;
 
     PositionToXContent(Block block) {

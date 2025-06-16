@@ -70,6 +70,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -420,6 +421,22 @@ public class TransportBulkActionTests extends ESTestCase {
                 executor.execute(() -> safeAwait(blockingLatch));
             }
         });
+    }
+
+    public void testDispatchesToWriteCoordinationThreadPoolOnce() {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+            .findAny()
+            .get();
+        assertThat(stats.completed(), equalTo(0L));
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        future.actionGet();
+        stats = threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION)).findAny().get();
+        assertThat(stats.completed(), equalTo(1L));
     }
 
     public void testRejectCoordination() {

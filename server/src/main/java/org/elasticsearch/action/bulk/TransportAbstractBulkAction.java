@@ -353,17 +353,24 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a coordination thread. Otherwise it is fine to perform
                         // coordination steps on the write thread
-                        if (originalThread == Thread.currentThread()) {
-                            runnable.run();
-                        } else {
-                            executor.execute(runnable);
-                        }
+                        runOrDispatch(executor, originalThread, runnable);
                     }
                 }
             },
             // Use the appropriate write executor for actual ingest processing
             isOnlySystem ? systemWriteExecutor : writeExecutor
         );
+    }
+
+    /**
+     * If the work is still on the original thread run the ActionRunnable synchronously. Otherwise, dispatch to the provided executor.
+     */
+    protected static void runOrDispatch(Executor executor, Thread originalThread, ActionRunnable<BulkResponse> bulkRunnable) {
+        if (originalThread == Thread.currentThread()) {
+            bulkRunnable.run();
+        } else {
+            executor.execute(bulkRunnable);
+        }
     }
 
     /**

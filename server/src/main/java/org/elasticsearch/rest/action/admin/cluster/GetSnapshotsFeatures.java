@@ -15,7 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 public class GetSnapshotsFeatures implements FeatureSpecification {
-    public static final NodeFeature GET_SNAPSHOTS_STATE_PARAMETER = new NodeFeature("get.snapshots.state_parameter");
+    public static final NodeFeature GET_SNAPSHOTS_STATE_PARAMETER = new NodeFeature("snapshots.get.state_parameter");
 
     @Override
     public Set<NodeFeature> getFeatures() {

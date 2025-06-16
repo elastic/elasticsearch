@@ -233,7 +233,7 @@ public class Mapper {
     }
 
     // This is a temporary hack for debugging purposes to quick switching
-    private static final FeatureFlag FRAGMENT_EXEC_HACK = new FeatureFlag("fragment_exec_hack");
+    private static final boolean FRAGMENT_EXEC_HACK_ENABLED = System.getProperty("esql.fragment_exec.hack", "true").equals("true");
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof Join join) {
@@ -253,7 +253,7 @@ public class Mapper {
                 return new FragmentExec(bp);
             }
 
-            if (FRAGMENT_EXEC_HACK.isEnabled()) {
+            if (FRAGMENT_EXEC_HACK_ENABLED) {
                 var leftPlan = mapToFragmentExec(bp, left);
                 if (leftPlan != null) {
                     return leftPlan;

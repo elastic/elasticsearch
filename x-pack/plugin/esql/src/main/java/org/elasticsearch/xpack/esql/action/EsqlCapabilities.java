@@ -783,6 +783,16 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support for RERANK command
+         */
+        RERANK(Build.current().isSnapshot()),
+
+        /**
+         * Support for COMPLETION command
+         */
+        COMPLETION,
+
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,

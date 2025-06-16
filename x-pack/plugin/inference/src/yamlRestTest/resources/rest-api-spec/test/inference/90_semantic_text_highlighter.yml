@@ -83,7 +83,7 @@ setup:
         refresh: true
 
 ---
-"Highlighting empty index":
+"Highlighting empty field":
   - do:
       search:
         index: test-dense-index

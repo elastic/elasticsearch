@@ -1234,13 +1234,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
 
-        SemanticTextIndexOptions.SupportedIndexOptions previousType = previous != null ? previous.type() : null;
-        SemanticTextIndexOptions.SupportedIndexOptions currentType = current != null ? current.type() : null;
-        if (Objects.equals(previousType, currentType) == false) {
-            conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
+        if (previous == null || current == null) {
+            return true;
         }
 
-        if (previousType == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+        if (previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
             DenseVectorFieldMapper.DenseVectorIndexOptions previousDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) previous
                 .indexOptions();
             DenseVectorFieldMapper.DenseVectorIndexOptions currentDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) current

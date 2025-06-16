@@ -32,6 +32,8 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  */
 public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
+    private static final String SYNTHETIC_SOURCE_FEATURE = "gte_v8.12.0";
+
     private static final String BULK1 = """
                     {"index": {"_id": "1"}}
                     {"embedding": [1, 1, 1, 1]}
@@ -87,7 +89,8 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
             String indexName = "test_index";
             if (isOldCluster()) {
                 Request createIndex = new Request("PUT", "/" + indexName);
-                boolean useSyntheticSource = randomBoolean() && getOldClusterTestVersion().after(Version.V_8_12_0.toString());
+                boolean useSyntheticSource = randomBoolean() && oldClusterHasFeature(SYNTHETIC_SOURCE_FEATURE);
+
                 boolean useIndexSetting = SourceFieldMapper.onOrAfterDeprecateModeVersion(getOldClusterIndexVersion());
                 XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
                 if (useSyntheticSource) {

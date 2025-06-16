@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -53,12 +52,15 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -95,13 +97,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         SHARED_CACHE_RANGE_SIZE_SETTING,
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
         getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<Integer> SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING = Setting.intSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "concurrent_evictions",
-        5,
-        1,
         Setting.Property.NodeScope
     );
 
@@ -338,7 +333,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final Runnable evictIncrementer;
 
     private final LongSupplier relativeTimeInNanosSupplier;
-    private final ThrottledTaskRunner asyncEvictionsRunner;
+    private final ExecutorService asyncEvictionsExecutor;
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
@@ -399,11 +394,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
-        this.asyncEvictionsRunner = new ThrottledTaskRunner(
-            "shared_blob_cache_evictions",
-            SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
-            threadPool.generic()
-        );
+        this.asyncEvictionsExecutor = threadPool.generic();
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -1590,6 +1581,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final DecayAndNewEpochTask decayAndNewEpochTask;
 
         private final AtomicLong epoch = new AtomicLong();
+        private final Queue<Predicate<KeyType>> evictionQueue = new ConcurrentLinkedQueue<>();
+        private final AtomicBoolean evictionRunnerActive = new AtomicBoolean(false);
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings) {
@@ -1671,22 +1664,18 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         @Override
         public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
-            asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    try (releasable) {
-                        forceEvict(cacheKeyPredicate);
-                    }
-                }
+            evictionQueue.add(cacheKeyPredicate);
+            startRunnerIfIdle();
+        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // should be impossible, GENERIC pool doesn't reject anything
-                    final String message = "unexpected failure evicting from shared blob cache";
-                    logger.error(message, e);
-                    assert false : new AssertionError(message, e);
-                }
-            });
+        private void startRunnerIfIdle() {
+            if (evictionRunnerActive.compareAndSet(false, true)) {
+                asyncEvictionsExecutor.submit(() -> {
+                    while (evictionQueue.isEmpty() == false || evictionRunnerActive.compareAndSet(true, false) == false) {
+                        forceEvict(evictionQueue.poll());
+                    }
+                });
+            }
         }
 
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {

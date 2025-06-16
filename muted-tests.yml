@@ -532,6 +532,42 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testCaseInsensitiveEquality {KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/129422
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {knn-function.KnnSearchWithKOption ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129447
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/129453
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithDatastreams
+  issue: https://github.com/elastic/elasticsearch/issues/129457
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/129296
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanManageIndexWithNoPermissions
+  issue: https://github.com/elastic/elasticsearch/issues/129471
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanManageIndexAndPolicyDifferentUsers
+  issue: https://github.com/elastic/elasticsearch/issues/129479
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanViewExplainOnUnmanagedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/129480
+- class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
+  method: testWaitsUntilResourcesAreCreated
+  issue: https://github.com/elastic/elasticsearch/issues/129486
+- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
+  method: testMoveToRolloverStep
+  issue: https://github.com/elastic/elasticsearch/issues/129489
+- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
+  method: testMoveToAllocateStep
+  issue: https://github.com/elastic/elasticsearch/issues/129490
+- class: org.elasticsearch.xpack.ilm.actions.ShrinkActionIT
+  method: testShrinkDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/129491
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/129481
 
 # Examples:
 #

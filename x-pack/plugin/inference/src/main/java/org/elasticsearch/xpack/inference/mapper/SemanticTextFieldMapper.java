@@ -1195,8 +1195,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
         // options
-        if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
-            || indexVersionCreated.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+        if (indexVersionDefaultsToBbqHnsw(indexVersionCreated)) {
 
             DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswIndexOptions = defaultBbqHnswDenseVectorIndexOptions();
             return defaultBbqHnswIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)
@@ -1207,11 +1206,24 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return null;
     }
 
+    static boolean indexVersionDefaultsToBbqHnsw(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
+            || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+    }
+
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+    }
+
+    static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions(IndexVersion indexVersion) {
+        return new SemanticTextIndexOptions(
+            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+            defaultBbqHnswDenseVectorIndexOptions(),
+            indexVersion
+        );
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
@@ -1230,9 +1242,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
 
-        if (previous == null || current == null) {
-            return true;
-        }
+        if (previous == null
+            && current.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR
+            && indexVersionDefaultsToBbqHnsw(current.indexVersion())) {
+            return canMergeIndexOptions(defaultBbqHnswSemanticTextIndexOptions(current.indexVersion()), current, conflicts);
+        } else if (current == null
+            && previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR
+            && indexVersionDefaultsToBbqHnsw(previous.indexVersion())) {
+                return canMergeIndexOptions(previous, defaultBbqHnswSemanticTextIndexOptions(previous.indexVersion()), conflicts);
+            }
 
         if (previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
             DenseVectorFieldMapper.DenseVectorIndexOptions previousDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) previous
@@ -1265,6 +1283,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
+        return new SemanticTextIndexOptions(
+            indexOptions,
+            indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion),
+            indexVersion
+        );
     }
 }

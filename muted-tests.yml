@@ -224,12 +224,6 @@ tests:
   - class: org.elasticsearch.discovery.ClusterDisruptionIT
     method: testAckedIndexing
     issue: https://github.com/elastic/elasticsearch/issues/117024
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {lookup-join.LookupJoinOnTimeSeriesIndex ASYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/129078
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {lookup-join.LookupJoinOnTimeSeriesIndex SYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/129078
 
   # Examples:
   #

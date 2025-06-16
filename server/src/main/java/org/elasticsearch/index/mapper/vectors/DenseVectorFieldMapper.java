@@ -2354,6 +2354,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
 
+            if (dims == null) {
+                // No data has been indexed yet
+                return BlockLoader.CONSTANT_NULLS;
+            }
+
             if (indexed) {
                 return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims);
             }

@@ -477,7 +477,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         }
                         """, propertyFor(config.mainFieldName(), ((TestConfigPassesUnionType) config).otherMainType()));
                     // TODO: Casting to TestConfigPassesUnionType is an ugly hack; better to derive the test data from the TestMapping or
-                    //  from the TestConfig.
+                    // from the TestConfig.
                     results.add(new TestDocument(additionalIndex.indexName, "1", doc));
                 }
             }

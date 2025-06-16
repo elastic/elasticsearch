@@ -1,8 +1,13 @@
 name: "Docs preview comment"
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   preview-links:

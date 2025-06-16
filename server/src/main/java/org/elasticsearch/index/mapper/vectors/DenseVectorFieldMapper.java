@@ -1477,7 +1477,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
                 if (earlyExitNode == null) {
-                    earlyExitNode = true;
+                    earlyExitNode = DEFAULT_EARLY_EXIT;
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
@@ -1586,7 +1586,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
                 if (earlyExitNode == null) {
-                    earlyExitNode = true;
+                    earlyExitNode = DEFAULT_EARLY_EXIT;
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);

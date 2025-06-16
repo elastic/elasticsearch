@@ -1,0 +1,11 @@
+pr: 129464
+summary: Deprecate `indices.merge.scheduler.use_thread_pool` setting
+area: Engine
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate `indices.merge.scheduler.use_thread_pool` setting
+  area: Engine
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

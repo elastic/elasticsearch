@@ -436,7 +436,9 @@ public class TransportBulkActionTests extends ESTestCase {
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
         future.actionGet();
         stats = threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION)).findAny().get();
-        assertThat(stats.completed(), equalTo(1L));
+        // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the index
+        // is created.
+        assertThat(stats.completed(), equalTo(2L));
     }
 
     public void testRejectCoordination() {

@@ -385,26 +385,19 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, Exception> indicesExceptions = new ConcurrentHashMap<>();
         Map<String, Exception> dataStreamExceptions = new ConcurrentHashMap<>();
         Map<String, Exception> failureStoreExceptions = new ConcurrentHashMap<>();
-
-        Thread originalThread = Thread.currentThread();
-        Runnable executeBulkRunnable = () -> {
-            ActionRunnable<BulkResponse> bulkRunnable = new ActionRunnable<>(listener) {
-                @Override
-                protected void doRun() {
-                    failRequestsWhenPrerequisiteActionFailed(
-                        indicesExceptions,
-                        dataStreamExceptions,
-                        failureStoreExceptions,
-                        bulkRequest,
-                        responses
-                    );
-                    executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses);
-                }
-            };
-            // If we performed some async action and ended up on a different thread dispatch back to the coordination thread pool.
-            // Otherwise, just run the action since we are on the same thread.
-            runOrDispatch(executor, originalThread, bulkRunnable);
-        };
+        Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                failRequestsWhenPrerequisiteActionFailed(
+                    indicesExceptions,
+                    dataStreamExceptions,
+                    failureStoreExceptions,
+                    bulkRequest,
+                    responses
+                );
+                executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses);
+            }
+        });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             createIndices(indicesToAutoCreate, refs, indicesExceptions);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, refs, dataStreamExceptions);

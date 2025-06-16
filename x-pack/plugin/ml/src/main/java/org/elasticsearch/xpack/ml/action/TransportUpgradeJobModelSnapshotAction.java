@@ -158,7 +158,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         // Start job task
         ActionListener<Boolean> configIndexMappingUpdaterListener = ActionListener.wrap(_unused -> {
             logger.info("[{}] [{}] sending start upgrade request", params.getJobId(), params.getSnapshotId());
-            persistentTasksService.sendClusterStartRequest(
+            persistentTasksService.sendStartRequest(
                 MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
                 params,
@@ -290,7 +290,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         Exception exception,
         ActionListener<Response> listener
     ) {
-        persistentTasksService.sendClusterRemoveRequest(
+        persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
             MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(t -> listener.onFailure(exception), e -> {

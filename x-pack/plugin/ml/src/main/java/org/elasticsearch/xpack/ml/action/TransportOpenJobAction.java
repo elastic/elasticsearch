@@ -159,7 +159,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Start job task
             ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
-                mem -> persistentTasksService.sendClusterStartRequest(
+                mem -> persistentTasksService.sendStartRequest(
                     MlTasks.jobTaskId(jobParams.getJobId()),
                     MlTasks.JOB_TASK_NAME,
                     jobParams,
@@ -322,7 +322,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendClusterRemoveRequest(
+        persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
             MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
             new ActionListener<>() {

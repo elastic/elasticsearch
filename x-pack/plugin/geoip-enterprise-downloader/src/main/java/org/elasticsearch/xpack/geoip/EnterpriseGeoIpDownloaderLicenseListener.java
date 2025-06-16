@@ -113,7 +113,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
 
     private void ensureTaskStarted() {
         assert licenseIsValid : "Task should never be started without valid license";
-        persistentTasksService.sendClusterStartRequest(
+        persistentTasksService.sendStartRequest(
             ENTERPRISE_GEOIP_DOWNLOADER,
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTaskParams(),
@@ -137,10 +137,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
                 }
             }
         );
-        persistentTasksService.sendClusterRemoveRequest(
-            ENTERPRISE_GEOIP_DOWNLOADER,
-            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            listener
-        );
+        persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, listener);
     }
 }

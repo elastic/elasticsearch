@@ -206,7 +206,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 startContext.config.getVersion(),
                 startContext.config.isAllowLazyStart()
             );
-            persistentTasksService.sendClusterStartRequest(
+            persistentTasksService.sendStartRequest(
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
@@ -601,7 +601,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendClusterRemoveRequest(
+        persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
             MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
             new ActionListener<>() {

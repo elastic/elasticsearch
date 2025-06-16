@@ -88,7 +88,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             .toList();
 
         if (featuresToMigrate.isEmpty() == false) {
-            persistentTasksService.sendClusterStartRequest(
+            persistentTasksService.sendStartRequest(
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),

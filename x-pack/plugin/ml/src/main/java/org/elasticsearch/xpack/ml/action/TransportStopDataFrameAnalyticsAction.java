@@ -261,7 +261,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         for (String analyticsId : nonStoppedAnalytics) {
             PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
             if (analyticsTask != null) {
-                persistentTasksService.sendClusterRemoveRequest(
+                persistentTasksService.sendRemoveRequest(
                     analyticsTask.getId(),
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(removedTask -> {
@@ -334,7 +334,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
                 // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
-                persistentTasksService.sendClusterRemoveRequest(
+                persistentTasksService.sendRemoveRequest(
                     task.getId(),
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.noop()

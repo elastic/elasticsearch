@@ -319,7 +319,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         PersistentTasksService persistentTasksService
     ) {
         assertNoAuthorizationHeader(job.getHeaders());
-        persistentTasksService.sendClusterStartRequest(
+        persistentTasksService.sendStartRequest(
             job.getConfig().getId(),
             RollupField.TASK_NAME,
             job,

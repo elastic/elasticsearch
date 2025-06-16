@@ -367,7 +367,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     private void startTask(Runnable onFailure) {
-        persistentTasksService.sendClusterStartRequest(
+        persistentTasksService.sendStartRequest(
             GEOIP_DOWNLOADER,
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
@@ -393,7 +393,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        persistentTasksService.sendClusterRemoveRequest(
+        persistentTasksService.sendRemoveRequest(
             GEOIP_DOWNLOADER,
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.runAfter(listener, () -> {

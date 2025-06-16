@@ -339,7 +339,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
             ActionListener.wrap(
-                unused -> persistentTasksService.sendClusterStartRequest(
+                unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
@@ -406,7 +406,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendClusterRemoveRequest(
+        persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
             MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
             new ActionListener<>() {

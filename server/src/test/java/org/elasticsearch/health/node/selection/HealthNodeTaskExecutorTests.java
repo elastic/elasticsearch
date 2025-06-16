@@ -99,7 +99,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         // Ensure that if the task is gone, it will be recreated.
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
         assertBusy(
-            () -> verify(persistentTasksService, times(2)).sendClusterStartRequest(
+            () -> verify(persistentTasksService, times(2)).sendStartRequest(
                 eq("health-node"),
                 eq("health-node"),
                 eq(new HealthNodeTaskParams()),
@@ -112,7 +112,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     public void testSkippingTaskCreationIfItExists() {
         HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
-        verify(persistentTasksService, never()).sendClusterStartRequest(
+        verify(persistentTasksService, never()).sendStartRequest(
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),

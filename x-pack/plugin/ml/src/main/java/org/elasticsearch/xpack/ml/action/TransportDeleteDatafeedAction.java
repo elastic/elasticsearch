@@ -101,7 +101,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendClusterRemoveRequest(
+            persistentTasksService.sendRemoveRequest(
                 datafeedTask.getId(),
                 MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                 new ActionListener<>() {

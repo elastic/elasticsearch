@@ -42,7 +42,7 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
          * the task manager). The running task is removed from the task manager in ReindexDataStreamTask::onCancelled, which is called as
          * as result of this.
          */
-        persistentTasksService.sendClusterRemoveRequest(persistentTaskId, TimeValue.MAX_VALUE, new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(persistentTaskId, TimeValue.MAX_VALUE, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                 listener.onResponse(AcknowledgedResponse.TRUE);

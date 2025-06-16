@@ -205,7 +205,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                 // if the job has no running code then graceful/forceful are basically the same.)
                                                 // The listener here can be a no-op, as waitForJobClosed() already waits for
                                                 // these persistent tasks to disappear.
-                                                persistentTasksService.sendClusterRemoveRequest(
+                                                persistentTasksService.sendRemoveRequest(
                                                     jobTask.getId(),
                                                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                                                     ActionListener.wrap(
@@ -518,7 +518,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                persistentTasksService.sendClusterRemoveRequest(
+                persistentTasksService.sendRemoveRequest(
                     jobTask.getId(),
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     new ActionListener<>() {
@@ -591,7 +591,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         ActionListener<CloseJobAction.Response> intermediateListener = listener.delegateFailureAndWrap((delegate, response) -> {
             for (String jobId : movedJobs) {
                 PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
-                persistentTasksService.sendClusterRemoveRequest(
+                persistentTasksService.sendRemoveRequest(
                     jobTask.getId(),
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(r -> logger.trace("[{}] removed persistent task for relocated job", jobId), e -> {

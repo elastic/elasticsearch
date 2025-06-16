@@ -172,7 +172,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             PersistentTasksCustomMetadata.PersistentTask<?> existingTask = TransformTask.getTransformTask(transformTask.getId(), state);
             if (existingTask == null) {
                 // Create the allocated task and wait for it to be started
-                persistentTasksService.sendClusterStartRequest(
+                persistentTasksService.sendStartRequest(
                     transformTask.getId(),
                     TransformTaskParams.NAME,
                     transformTask,
@@ -304,7 +304,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendClusterRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the

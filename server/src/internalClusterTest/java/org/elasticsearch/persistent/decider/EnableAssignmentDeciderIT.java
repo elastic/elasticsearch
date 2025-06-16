@@ -48,7 +48,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfTasks);
         for (int i = 0; i < numberOfTasks; i++) {
             PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
-            service.sendClusterStartRequest(
+            service.sendStartRequest(
                 "task_" + i,
                 TestPersistentTasksExecutor.NAME,
                 new TestParams(randomAlphaOfLength(10)),

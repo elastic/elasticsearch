@@ -116,7 +116,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     }
 
     private void startTask(ActionListener<AcknowledgedResponse> listener, String persistentTaskId, ReindexDataStreamTaskParams params) {
-        persistentTasksService.sendClusterStartRequest(
+        persistentTasksService.sendStartRequest(
             persistentTaskId,
             ReindexDataStreamTask.TASK_NAME,
             params,

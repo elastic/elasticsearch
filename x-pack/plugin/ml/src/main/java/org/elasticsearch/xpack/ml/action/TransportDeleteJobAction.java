@@ -292,7 +292,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendClusterRemoveRequest(
+            persistentTasksService.sendRemoveRequest(
                 jobTask.getId(),
                 MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                 listener.safeMap(task -> true)

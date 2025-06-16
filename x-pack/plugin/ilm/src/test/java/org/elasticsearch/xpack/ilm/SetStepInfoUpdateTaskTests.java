@@ -59,7 +59,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(currentStepKey);
 
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(state);
         LifecycleExecutionState lifecycleState = newState.metadata()
             .getProject(state.projectId())
@@ -93,7 +93,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(notCurrentStepKey);
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(state);
         assertThat(newState, sameInstance(state.cluster()));
     }
@@ -103,7 +103,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(state);
         assertThat(newState, sameInstance(state.cluster()));
     }
@@ -115,7 +115,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
         setStateToKey(currentStepKey);
 
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(state.projectId(), index, policy, currentStepKey, stepInfo);
 
         try (var mockLog = MockLog.capture(SetStepInfoUpdateTask.class)) {
             mockLog.addExpectation(

@@ -146,6 +146,13 @@ basic:
 
 ---
 fails with non-lookup index:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [update_lookup_join_error_messages]
+      reason: "checks updated error messages"
   - do:
       esql.query:
         body:

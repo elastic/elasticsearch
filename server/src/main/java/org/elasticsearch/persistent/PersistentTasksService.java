@@ -62,6 +62,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<Params>> listener
     ) {
+        assert PersistentTasksExecutorRegistry.isClusterScopedTask(taskName) : taskName + " is not a cluster scoped task";
         sendStartRequest(null, taskId, taskName, taskParams, timeout, listener);
     }
 
@@ -77,6 +78,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<Params>> listener
     ) {
+        assert PersistentTasksExecutorRegistry.isClusterScopedTask(taskName) == false : taskName + " is not a project scoped task";
         sendStartRequest(Objects.requireNonNull(projectId), taskId, taskName, taskParams, timeout, listener);
     }
 

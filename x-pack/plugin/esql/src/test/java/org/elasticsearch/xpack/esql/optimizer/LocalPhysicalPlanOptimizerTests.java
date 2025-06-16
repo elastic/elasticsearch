@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -129,6 +132,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
@@ -2051,6 +2056,44 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             source
         ); // date_and_date_nanos is pushed down
         assertThat(expected.toString(), is(esQuery.query().toString()));
+    }
+
+    public void testTopNAggregate() {
+        var stats = EsqlTestUtils.statsForExistingField("first_name", "last_name");
+        var plan = plannerOptimizer.plan("""
+            from test
+            | stats x = count(first_name) by first_name, last_name
+            | sort x DESC, first_name NULLS LAST
+            | LIMIT 5
+            """, stats);
+
+        var aggregate1 = as(plan, TopNAggregateExec.class);
+        var exchange = as(aggregate1.child(), ExchangeExec.class);
+        var aggregate2 = as(exchange.child(), TopNAggregateExec.class);
+
+        var extract = as(aggregate2.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), equalTo(List.of("first_name", "last_name")));
+        var esQuery = as(extract.child(), EsQueryExec.class);
+
+        assertThat(aggregate1.groupings(), hasSize(2));
+        assertThat(aggregate1.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST + KEYWORD_EST));
+        assertThat(aggregate1.order(), hasSize(2));
+        var order1 = aggregate1.order().get(0);
+        assertThat(name(order1.child()), equalTo("x"));
+        assertThat(order1.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order1.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        var order2 = aggregate1.order().get(1);
+        assertThat(name(order2.child()), equalTo("first_name"));
+        assertThat(order2.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order2.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(aggregate1.limit().fold(FoldContext.small()), equalTo(5));
+
+        // Check that both agg nodes are identical
+        assertThat(aggregate1.aggregates(), equalTo(aggregate2.aggregates()));
+        assertThat(aggregate1.groupings(), equalTo(aggregate2.groupings()));
+        assertThat(aggregate1.estimatedRowSize(), equalTo(aggregate2.estimatedRowSize()));
+        assertThat(aggregate1.order(), equalTo(aggregate2.order()));
+        assertThat(aggregate1.limit(), equalTo(aggregate2.limit()));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

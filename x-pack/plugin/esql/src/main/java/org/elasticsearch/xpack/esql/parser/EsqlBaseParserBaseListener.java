@@ -421,6 +421,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRerankField(EsqlBaseParser.RerankFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRerankField(EsqlBaseParser.RerankFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterFromCommand(EsqlBaseParser.FromCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1172,6 +1196,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
 
   /**
    * {@inheritDoc}

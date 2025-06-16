@@ -45,7 +45,6 @@ import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.document.NumericField;
 import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -353,19 +352,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 float v = parseToFloat(value);
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(v))) == false) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
                 if (isIndexed) {
-                    if (hasDocValues) {
-                        return new IndexOrDocValuesQuery(
-                            HalfFloatPoint.newExactQuery(field, v),
-                            SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v))
-                        );
-                    }
                     return HalfFloatPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
@@ -549,15 +542,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 float v = parseToFloat(value);
                 if (Float.isFinite(v) == false) {
                     return new MatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
-                if (isIndexed && hasDocValues) {
-                    return FloatField.newExactQuery(field, v);
-                } else if (isIndexed) {
+                if (isIndexed) {
                     return FloatPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
@@ -724,15 +715,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 double v = objectToDouble(value);
                 if (Double.isFinite(v) == false) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
 
-                if (isIndexed && hasDocValues) {
-                    return DoubleField.newExactQuery(field, v);
-                } else if (isIndexed) {
+                if (isIndexed) {
                     return DoublePoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
@@ -886,12 +875,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 if (isOutOfRange(value)) {
                     return new MatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
 
-                return INTEGER.termQuery(field, value, isIndexed, hasDocValues);
+                return INTEGER.termQuery(field, value, isIndexed);
             }
 
             @Override
@@ -1010,11 +999,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 if (isOutOfRange(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] is out of range");
                 }
-                return INTEGER.termQuery(field, value, isIndexed, hasDocValues);
+                return INTEGER.termQuery(field, value, isIndexed);
             }
 
             @Override
@@ -1136,7 +1125,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -1147,9 +1136,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 int v = parse(value, true);
 
-                if (isIndexed && hasDocValues) {
-                    return NumericField.newExactIntQuery(field, v);
-                } else if (isIndexed) {
+                if (isIndexed) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
@@ -1322,7 +1309,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues) {
+            public Query termQuery(String field, Object value, boolean isIndexed) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
@@ -1331,9 +1318,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 long v = parse(value, true);
-                if (isIndexed && hasDocValues) {
-                    return NumericField.newExactLongQuery(field, v);
-                } else if (isIndexed) {
+                if (isIndexed) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
@@ -1517,7 +1502,7 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
 
-        public abstract Query termQuery(String field, Object value, boolean isIndexed, boolean hasDocValues);
+        public abstract Query termQuery(String field, Object value, boolean isIndexed);
 
         public abstract Query termsQuery(String field, Collection<?> values);
 
@@ -1908,11 +1893,11 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, true);
+            this(name, type, true);
         }
 
-        public NumberFieldType(String name, NumberType type, boolean isIndexed, boolean hasDocValues) {
-            this(name, type, isIndexed, false, hasDocValues, true, null, Collections.emptyMap(), null, false, null, null, false);
+        public NumberFieldType(String name, NumberType type, boolean isIndexed) {
+            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null, null, false);
         }
 
         @Override
@@ -1951,7 +1936,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed(), hasDocValues());
+            return type.termQuery(name(), value, isIndexed());
         }
 
         @Override

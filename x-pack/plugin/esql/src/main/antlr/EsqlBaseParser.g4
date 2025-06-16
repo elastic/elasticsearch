@@ -53,9 +53,11 @@ processingCommand
     | mvExpandCommand
     | joinCommand
     | changePointCommand
+    | completionCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -132,6 +134,14 @@ fields
 
 field
     : (qualifiedName ASSIGN)? booleanExpression
+    ;
+
+rerankFields
+    : rerankField (COMMA rerankField)*
+    ;
+
+rerankField
+    : qualifiedName (ASSIGN booleanExpression)?
     ;
 
 fromCommand
@@ -366,4 +376,12 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceId=identifierOrParameter)?
+    ;
+
+completionCommand
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;

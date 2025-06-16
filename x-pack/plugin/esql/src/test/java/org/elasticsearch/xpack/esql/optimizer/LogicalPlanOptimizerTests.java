@@ -6846,6 +6846,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit3 = asLimit(eval.child(), 1000, false);
     }
 
+    // TODO: move to own test class
+    /**
+     * Expects
+     *
+     * TODO
+     */
+    public void testMultipleLookupProject() {
+        // TODO a test case where pushing down past the RENAME would shadow
+        // analogous to
+        // Project[[x{f}#1, y{f}#2 as z, $$y{r}#3 as y]]
+        // \_Eval[[2 * x{f}#1 as $$y]]
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        String query = """
+            FROM test
+            | KEEP languages, emp_no
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name AS foo
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DROP foo
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // TODO: here
+        assert false;
+    }
+
     //
     //
     //

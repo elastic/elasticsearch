@@ -351,17 +351,21 @@ German                | null      | fork2
 Spanish               | null      | fork2
 ;
 
-forkBranchWithDrop-Ignore
+forkBranchWithDrop
 required_capability: fork_v8
 
 FROM languages
-| FORK ( DROP language_code | WHERE language_name == "English" | EVAL x = 1 )
+| FORK ( EVAL x = 1 | DROP language_code | WHERE language_name == "English" | DROP x )
        ( WHERE language_name != "English" )
 | SORT _fork, language_name
+| KEEP language_name, language_code, _fork
 ;
 
-language_name:keyword | language_code:integer | x:integer  | _fork:keyword
-a | 1 | 2
+language_name:keyword | language_code:integer | _fork:keyword
+English               | null                  | fork1
+French                | 2                     | fork2
+German                | 4                     | fork2
+Spanish               | 3                     | fork2
 ;
 
 
@@ -381,6 +385,22 @@ French                | fork1
 English               | fork2
 ;
 
+forkBranchWithKeep
+required_capability: fork_v8
+
+FROM languages
+| FORK ( WHERE language_name == "English" | KEEP language_name, language_code )
+       ( WHERE language_name != "English" )
+| SORT _fork, language_name
+;
+
+language_name:keyword | language_code:integer | _fork:keyword
+English               | 1                     | fork1
+French                | 2                     | fork2
+German                | 4                     | fork2
+Spanish               | 3                     | fork2
+;
+
 forkBeforeRename
 required_capability: fork_v8
 
@@ -397,18 +417,38 @@ code:integer | language_name:keyword | _fork:keyword
 1            | English               | fork2
 ;
 
-forkBranchWithRenameAs-Ignore
+forkBranchWithRenameAs
 required_capability: fork_v8
 
 FROM languages
 | FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
        (WHERE language_code == 1 | RENAME language_code AS x)
 | SORT _fork, language_name
+| KEEP code, language_name, x, _fork
 ;
 
-language_name:keyword | x:integer | code:integer | _fork:keyword
-1 | 2 | 3 | 4
+code:integer | language_name:keyword | x:integer | _fork:keyword
+1            | English               | null      | fork1
+2            | French                | null      | fork1
+null         | English               | 1         | fork2
 ;
+
+forkBranchWithRenameEquals
+required_capability: fork_v8
+
+FROM languages
+| FORK (RENAME code = language_code | WHERE code == 1 OR code == 2)
+       (WHERE language_code == 1 | RENAME x = language_code)
+| SORT _fork, language_name
+| KEEP code, language_name, x, _fork
+;
+
+code:integer | language_name:keyword | x:integer | _fork:keyword
+1            | English               | null      | fork1
+2            | French                | null      | fork1
+null         | English               | 1         | fork2
+;
+
 
 forkAfterRename
 required_capability: fork_v8
@@ -502,19 +542,24 @@ Japan                     | Tokyo               | null                          
 Japan                     | Tokyo               | null                                    | fork2
 ;
     
-forkBranchWithEnrich-Ignore
+forkBranchWithEnrich
 required_capability: fork_v8
 
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
 | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
 | FORK (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
-       (WHERE city.country.name == "Japan")
+       (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
 | SORT _fork, city.name
 ;
 
 city.country.name:keyword | city.name:keyword   | city.country.continent.planet.name:text | _fork:keyword
-Netherlands               | Amsterdam           | null | a
+Netherlands               | Amsterdam           | null                                    | fork1
+United States of America  | South San Francisco | San Francisco Int'l                     | fork1
+Japan                     | Tokyo               | null                                    | fork1
+Netherlands               | Amsterdam           | null                                    | fork2
+United States of America  | South San Francisco | San Francisco Int'l                     | fork2
+Japan                     | Tokyo               | null                                    | fork2
 ;
 
 forkBeforeEnrich
@@ -556,7 +601,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-forkBranchWithMvExpand-Ignore
+forkBranchWithMvExpand
 required_capability: fork_v8
 
 FROM employees
@@ -566,8 +611,12 @@ FROM employees
 | SORT _fork, emp_no, job_positions
 ;
 
-emp_no:integer |  job_positions:keyword | _fork:keyword
-1 | 2 | 3
+emp_no:integer | job_positions:keyword          | _fork:keyword
+10048          | Internship                     | fork1
+10081          | Accountant                     | fork1
+10081          | Internship                     | fork1
+10081          | [Accountant, Internship]       | fork2
+10087          | [Internship, Junior Developer] | fork2
 ;
 
 forkAfterMvExpand

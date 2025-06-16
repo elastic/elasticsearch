@@ -14,6 +14,7 @@ ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
 
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
+ENRICH_RP : RP -> type(RP), popMode, popMode;
 ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
 ENRICH_ON : ON -> type(ON), pushMode(ENRICH_FIELD_MODE);
@@ -49,6 +50,7 @@ ENRICH_WS
 // submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+ENRICH_FIELD_RP : RP -> type(RP), popMode, popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
 ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
 ENRICH_FIELD_DOT: DOT -> type(DOT);
@@ -82,6 +84,7 @@ ENRICH_FIELD_WS
 
 mode SETTING_MODE;
 SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
+SETTING_RP : RP -> type(RP), popMode, popMode, popMode;
 
 SETTING_COLON : COLON -> type(COLON);
 

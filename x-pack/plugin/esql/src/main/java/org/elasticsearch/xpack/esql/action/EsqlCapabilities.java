@@ -783,6 +783,16 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support for RERANK command
+         */
+        RERANK(Build.current().isSnapshot()),
+
+        /**
+         * Support for COMPLETION command
+         */
+        COMPLETION,
+
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
@@ -926,6 +936,11 @@ public class EsqlCapabilities {
          * Enable support for index aliases in lookup joins
          */
         ENABLE_LOOKUP_JOIN_ON_ALIASES,
+
+        /**
+         * Lookup error messages were updated to make them a bit easier to understand.
+         */
+        UPDATE_LOOKUP_JOIN_ERROR_MESSAGES,
 
         /**
          * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.

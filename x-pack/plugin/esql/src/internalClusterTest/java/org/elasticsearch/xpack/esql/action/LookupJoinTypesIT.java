@@ -495,7 +495,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
         private void add(TestConfig config) {
             if (configs.containsKey(config.lookupIndexName())) {
-                throw new IllegalArgumentException("Duplicate index name: " + config.lookupIndexName());
+                throw new IllegalArgumentException("Duplicate lookup index name: " + config.lookupIndexName());
             }
             configs.put(config.lookupIndexName(), config);
         }

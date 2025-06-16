@@ -311,7 +311,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
             config.validateMainIndex();
             config.validateLookupIndex();
-            config.validateAdditionalMainIndexes();
+            config.validateAdditionalMainIndex();
 
             config.doTest();
         }
@@ -576,7 +576,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         /** Make sure the additional indexes have the expected fields and types */
-        default void validateAdditionalMainIndexes() {
+        default void validateAdditionalMainIndex() {
             return;
         }
 
@@ -681,7 +681,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         @Override
-        public void validateAdditionalMainIndexes() {
+        public void validateAdditionalMainIndex() {
             validateIndex(additionalIndexName(), mainFieldName(), sampleDataFor(otherMainType));
         }
 

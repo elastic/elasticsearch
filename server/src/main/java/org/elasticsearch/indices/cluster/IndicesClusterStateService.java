@@ -268,6 +268,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
+        long startTime = System.nanoTime();
         final var previousShardsClosedListener = lastClusterStateShardsClosedListener;
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
@@ -277,6 +278,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
+        }
+        long nanos = System.nanoTime() - startTime;
+        if (nanos > 10_000_000) {
+            logger.info("SUPD Took {}", TimeValue.timeValueNanos(nanos));
         }
     }
 

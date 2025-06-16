@@ -77,7 +77,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<Params>> listener
     ) {
-        sendStartRequest(projectId, taskId, taskName, taskParams, timeout, listener);
+        sendStartRequest(Objects.requireNonNull(projectId), taskId, taskName, taskParams, timeout, listener);
     }
 
     private <Params extends PersistentTaskParams> void sendStartRequest(
@@ -91,7 +91,7 @@ public class PersistentTasksService {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         execute(
-            getClusterOrClientClient(projectId),
+            projectId,
             new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
             StartPersistentTaskAction.INSTANCE,
             wrappedListener
@@ -134,7 +134,7 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        sendCompletionRequest(projectId, taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
+        sendCompletionRequest(Objects.requireNonNull(projectId), taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
     }
 
     private void sendCompletionRequest(
@@ -147,7 +147,7 @@ public class PersistentTasksService {
         final ActionListener<PersistentTask<?>> listener
     ) {
         execute(
-            getClusterOrClientClient(projectId),
+            projectId,
             new CompletionPersistentTaskAction.Request(
                 Objects.requireNonNull(timeout),
                 taskId,
@@ -176,7 +176,7 @@ public class PersistentTasksService {
         final String reason,
         final ActionListener<ListTasksResponse> listener
     ) {
-        sendCancelRequest(projectId, taskId, reason, listener);
+        sendCancelRequest(Objects.requireNonNull(projectId), taskId, reason, listener);
     }
 
     private void sendCancelRequest(
@@ -190,7 +190,7 @@ public class PersistentTasksService {
         request.setReason(reason);
         // TODO set timeout?
         try {
-            getClusterOrClientClient(projectId).admin().cluster().cancelTasks(request, listener);
+            getClusterOrProjectClient(projectId).admin().cluster().cancelTasks(request, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -228,7 +228,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        sendUpdateStateRequest(projectId, taskId, taskAllocationID, taskState, timeout, listener);
+        sendUpdateStateRequest(Objects.requireNonNull(projectId), taskId, taskAllocationID, taskState, timeout, listener);
     }
 
     private void sendUpdateStateRequest(
@@ -240,7 +240,7 @@ public class PersistentTasksService {
         final ActionListener<PersistentTask<?>> listener
     ) {
         execute(
-            getClusterOrClientClient(projectId),
+            projectId,
             new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
             UpdatePersistentTaskStatusAction.INSTANCE,
             listener
@@ -264,7 +264,7 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        sendRemoveRequest(projectId, taskId, timeout, listener);
+        sendRemoveRequest(Objects.requireNonNull(projectId), taskId, timeout, listener);
     }
 
     private void sendRemoveRequest(
@@ -274,7 +274,7 @@ public class PersistentTasksService {
         final ActionListener<PersistentTask<?>> listener
     ) {
         execute(
-            getClusterOrClientClient(projectId),
+            projectId,
             new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
             RemovePersistentTaskAction.INSTANCE,
             listener
@@ -287,13 +287,13 @@ public class PersistentTasksService {
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse> void execute(
-        final Client client,
+        @Nullable final ProjectId projectId,
         final Req request,
         final ActionType<Resp> action,
         final ActionListener<PersistentTask<?>> listener
     ) {
         try {
-            client.execute(action, request, listener.map(PersistentTaskResponse::getTask));
+            getClusterOrProjectClient(projectId).execute(action, request, listener.map(PersistentTaskResponse::getTask));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -419,7 +419,7 @@ public class PersistentTasksService {
         }
     }
 
-    private Client getClusterOrClientClient(@Nullable ProjectId projectId) {
+    private Client getClusterOrProjectClient(@Nullable ProjectId projectId) {
         return projectId == null ? client : client.projectClient(projectId);
     }
 }

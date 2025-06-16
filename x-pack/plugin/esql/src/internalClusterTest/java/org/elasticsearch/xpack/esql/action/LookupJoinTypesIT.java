@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -76,6 +79,10 @@ import static org.hamcrest.Matchers.is;
  * E.g. the field {@code main_byte} will occur another time in the index {@code main_byte_as_short} when we're testing a byte-short union
  * type.
  */
+// TODO: This suite creates a lot of indices. It should be sufficient to just create 1 main index with 1 field per relevant type and 1
+// lookup index with 1 field per relevant type; only union types require additional main indices so we can have the same field mapped to
+// different types.
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
     private static final String MAIN_INDEX_PREFIX = "main_";
@@ -322,10 +329,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private void initData(TestConfigs configs) {
-        for (TestDocument doc : configs.docs()) {
-            index(doc.indexName, doc.id, doc.source);
-            refresh(doc.indexName);
+        List<TestDocument> docs = configs.docs();
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(docs.size());
+
+        for (TestDocument doc : docs) {
+            var indexRequest = client().prepareIndex().setIndex(doc.indexName()).setId(doc.id).setSource(doc.source, XContentType.JSON);
+            indexRequests.add(indexRequest);
         }
+        indexRandom(true, indexRequests);
     }
 
     private static String propertyFor(String fieldName, DataType type) {

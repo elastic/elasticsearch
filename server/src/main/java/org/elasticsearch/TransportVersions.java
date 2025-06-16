@@ -297,6 +297,7 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = def(9_095_0_00);
     public static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = def(9_096_0_00);
     public static final TransportVersion NONE_CHUNKING_STRATEGY = def(9_097_0_00);
+    public static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = def(9_098_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

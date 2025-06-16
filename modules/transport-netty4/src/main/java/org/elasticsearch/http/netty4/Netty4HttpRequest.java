@@ -13,7 +13,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
@@ -93,9 +92,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public void setBody(HttpBody body) {
-        var fullBody = body.asFull();
-        var contentLength = fullBody.bytes().length();
-        HttpUtil.setContentLength(nettyRequest, contentLength);
+        this.content = body.asFull();
     }
 
     @Override

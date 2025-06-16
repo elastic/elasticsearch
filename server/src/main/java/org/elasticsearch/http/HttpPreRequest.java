@@ -65,22 +65,4 @@ public interface HttpPreRequest {
         return null;
     }
 
-    /**
-     * Returns value of content length header. If content is chunked-encoded and length is not present
-     * then returns -1, unknown length. Requests that has no content are free to drop content length header
-     * and can be assumed as zero length.
-     */
-    default long contentLengthHeader() {
-        var lenstr = header("Content-Length");
-        if (lenstr == null) {
-            var encoding = header("Transfer-Encoding");
-            if (encoding != null && encoding.equals("chunked")) {
-                return -1;
-            } else {
-                return 0;
-            }
-        } else {
-            return Long.parseLong(lenstr);
-        }
-    }
 }

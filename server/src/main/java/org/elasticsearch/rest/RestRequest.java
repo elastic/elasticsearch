@@ -291,7 +291,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() != 0;
+        return isStreamedContent() || contentLength() > 0;
     }
 
     /**
@@ -301,7 +301,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public int contentLength() {
         return switch (httpRequest.body()) {
             case HttpBody.Full content -> content.bytes().length();
-            case HttpBody.Stream stream -> Math.toIntExact(httpRequest.contentLengthHeader());
+            case HttpBody.Stream stream -> 0;
         };
     }
 

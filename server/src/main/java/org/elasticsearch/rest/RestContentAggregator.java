@@ -32,15 +32,9 @@ public class RestContentAggregator {
         switch (httpRequest.body()) {
             case HttpBody.Full full -> resultConsumer.accept(restRequest);
             case HttpBody.Stream stream -> {
-                if (httpRequest.contentLengthHeader() == 0) {
-                    stream.close();
-                    replaceBody(restRequest, ReleasableBytesReference.empty());
-                    resultConsumer.accept(restRequest);
-                } else {
-                    final var aggregationHandler = new AggregationChunkHandler(restRequest, resultConsumer);
-                    stream.setHandler(aggregationHandler);
-                    stream.next();
-                }
+                final var aggregationHandler = new AggregationChunkHandler(restRequest, resultConsumer);
+                stream.setHandler(aggregationHandler);
+                stream.next();
             }
         }
     }
@@ -73,14 +67,15 @@ public class RestContentAggregator {
             } else {
                 if (chunks == null) {
                     replaceBody(restRequest, chunk);
-                    resultConsumer.accept(restRequest);
                 } else {
                     chunks.add(chunk);
                     var comp = CompositeBytesReference.of(chunks.toArray(new ReleasableBytesReference[0]));
                     var relComp = new ReleasableBytesReference(comp, Releasables.wrap(chunks));
                     replaceBody(restRequest, relComp);
-                    resultConsumer.accept(restRequest);
                 }
+                chunks = null;
+                closing = true;
+                resultConsumer.accept(restRequest);
             }
         }
 

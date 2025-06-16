@@ -48,8 +48,10 @@ public class RestContentAggregatorTests extends ESTestCase {
         var stream = new FakeHttpBodyStream();
         var request = newRestRequest(0);
         request.getHttpRequest().setBody(stream);
-        aggregate(request, (aggregated) -> assertEquals(ReleasableBytesReference.empty(), aggregated.content()));
-        assertTrue(stream.isClosed());
+        var aggregatedRef = new AtomicReference<RestRequest>();
+        aggregate(request, aggregatedRef::set);
+        stream.sendNext(ReleasableBytesReference.empty(), true);
+        assertEquals(0, aggregatedRef.get().contentLength());
     }
 
     public void testAggregateRandomSize() {

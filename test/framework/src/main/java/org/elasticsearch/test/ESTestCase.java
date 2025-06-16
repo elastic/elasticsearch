@@ -1001,12 +1001,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public ReleasableBytesReference randomReleasableBytesReference(int length) {
-        return new ReleasableBytesReference(randomBytesReference(length), new AbstractRefCounted() {
+        return new ReleasableBytesReference(randomBytesReference(length), LeakTracker.wrap(new AbstractRefCounted() {
             @Override
-            protected void closeInternal() {
-                LeakTracker.wrap(AbstractRefCounted.of(() -> {}));
-            }
-        });
+            protected void closeInternal() {}
+        }));
     }
 
     public static short randomShort() {

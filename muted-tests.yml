@@ -556,6 +556,9 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
+- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
+  method: testMoveToRolloverStep
+  issue: https://github.com/elastic/elasticsearch/issues/129489
 
 # Examples:
 #

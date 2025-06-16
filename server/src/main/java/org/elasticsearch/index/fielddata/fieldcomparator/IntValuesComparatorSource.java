@@ -15,10 +15,14 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.IntComparator;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
@@ -62,6 +66,39 @@ public class IntValuesComparatorSource extends LongValuesComparatorSource {
         };
     }
 
-    // TODO: add newBucketedSort based on integer values
+    @Override
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
+        return new BucketedSort.ForInts(bigArrays, sortOrder, format, bucketSize, extra) {
+            private final int iMissingValue = (Integer) missingObject(missingValue, sortOrder == SortOrder.DESC);
+
+            @Override
+            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                return new Leaf(ctx) {
+                    private final NumericDocValues docValues = getNumericDocValues(ctx, iMissingValue);
+                    private int docValue;
+
+                    @Override
+                    protected boolean advanceExact(int doc) throws IOException {
+                        if (docValues.advanceExact(doc)) {
+                            docValue = (int) docValues.longValue();
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    protected int docValue() {
+                        return docValue;
+                    }
+                };
+            }
+        };
+    }
 
 }

@@ -28,7 +28,10 @@ service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
-the embedding generation, indexing, and query to use.
+the embedding generation, indexing, and query to use. 
+Newly created indices with `semantic_text` fields using dense embeddings will be
+[quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
+to `bbq_hnsw` automatically.
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:
@@ -114,15 +117,16 @@ If specified, these will override the chunking settings set in the {{infer-cap}}
 endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
+To completely disable chunking, use the `none` chunking strategy.
 
     **Valid values for `chunking_settings`**:
 
     `type`
-    :   Indicates the type of chunking strategy to use. Valid values are `word` or
+    :   Indicates the type of chunking strategy to use. Valid values are `none`, `word` or
     `sentence`. Required.
 
     `max_chunk_size`
-    :   The maximum number of works in a chunk. Required.
+    :   The maximum number of words in a chunk. Required for `word` and `sentence` strategies.
 
     `overlap`
     :   The number of overlapping words allowed in chunks. This cannot be defined as
@@ -132,6 +136,12 @@ until they are reindexed.
     `sentence_overlap`
     :   The number of overlapping sentences allowed in chunks. Valid values are `0`
     or `1`. Required for `sentence` type chunking settings
+
+::::{warning}
+If the input exceeds the maximum token limit of the underlying model,  some services (such as OpenAI) may return an 
+error. In contrast, the `elastic` and `elasticsearch` services  will automatically truncate the input to fit within the 
+model's limit.
+::::
 
 ## {{infer-cap}} endpoint validation [infer-endpoint-validation]
 
@@ -163,10 +173,49 @@ For more details on chunking and how to configure chunking settings,
 see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
 in the Inference API documentation.
 
+You can pre-chunk the input by sending it to Elasticsearch as an array of strings.
+Example:
+
+```console
+PUT test-index
+{
+  "mappings": {
+    "properties": {
+      "my_semantic_field": {
+        "type": "semantic_text",
+        "chunking_settings": {
+          "strategy": "none"    <1>
+        }
+      }
+    }
+  }
+}
+```
+
+1. Disable chunking on `my_semantic_field`.
+
+```console
+PUT test-index/_doc/1
+{
+    "my_semantic_field": ["my first chunk", "my second chunk", ...]    <1>
+    ...
+}
+```
+
+1. The text is pre-chunked and provided as an array of strings.
+   Each element in the array represents a single chunk that will be sent directly to the inference service without further chunking.
+
+**Important considerations**:
+
+* When providing pre-chunked input, ensure that you set the chunking strategy to `none` to avoid additional processing.
+* Each chunk should be sized carefully, staying within the token limit of the inference service and the underlying model.
+* If a chunk exceeds the model's token limit, the behavior depends on the service:
+  * Some services (such as OpenAI) will return an error.
+  * Others (such as `elastic` and `elasticsearch`) will automatically truncate the input.
+
 Refer
 to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
-to learn more about semantic search using `semantic_text` and the `semantic`
-query.
+to learn more about semantic search using `semantic_text`.
 
 ## Extracting Relevant Fragments from Semantic Text [semantic-text-highlighting]
 
@@ -246,10 +295,15 @@ is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 
-For indices containing `semantic_text` fields, updates that use scripts have the following behavior:
+For indices containing `semantic_text` fields, updates that use scripts have the
+following behavior:
 
-* Are supported through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
-* Are not supported through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1) and will fail. Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
+* Are supported through
+  the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
+* Are not supported through
+  the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1)
+  and will fail. Even if the script targets non-`semantic_text` fields, the
+  update will fail when the index contains a `semantic_text` field.
 
 ## `copy_to` and multi-fields support [copy-to-support]
 
@@ -311,4 +365,5 @@ PUT test-index
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [Dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or Cross-Cluster Replication (CCR).
+* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
+  Cross-Cluster Replication (CCR).

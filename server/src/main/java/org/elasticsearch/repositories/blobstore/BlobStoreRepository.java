@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -2406,12 +2407,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
             throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
         }
+        final var project = currentState.metadata().getDefaultProject();
         return ClusterState.builder(currentState)
-            .metadata(
-                Metadata.builder(currentState.getMetadata())
-                    .putDefaultProjectCustom(
+            .putProjectMetadata(
+                ProjectMetadata.builder(project)
+                    .putCustom(
                         RepositoriesMetadata.TYPE,
-                        RepositoriesMetadata.get(currentState)
+                        RepositoriesMetadata.get(project)
                             .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
                     )
             )
@@ -2591,7 +2593,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata state = RepositoriesMetadata.get(currentState);
+                    final var project = currentState.metadata().getDefaultProject();
+                    final RepositoriesMetadata state = RepositoriesMetadata.get(project);
                     final RepositoryMetadata repoState = state.repository(metadata.name());
                     if (repoState.generation() != corruptedGeneration) {
                         throw new IllegalStateException(
@@ -2603,8 +2606,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         );
                     }
                     return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(currentState.metadata())
+                        .putProjectMetadata(
+                            ProjectMetadata.builder(project)
                                 .putCustom(
                                     RepositoriesMetadata.TYPE,
                                     state.withUpdatedGeneration(
@@ -2613,7 +2616,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         repoState.pendingGeneration()
                                     )
                                 )
-                                .build()
                         )
                         .build();
                 }
@@ -2785,12 +2787,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "] must be larger than latest known generation ["
                         + latestKnownRepoGen.get()
                         + "]";
+                final var project = currentState.metadata().getDefaultProject();
                 return ClusterState.builder(currentState)
-                    .metadata(
-                        Metadata.builder(currentState.getMetadata())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(project)
                             .putCustom(
                                 RepositoriesMetadata.TYPE,
-                                RepositoriesMetadata.get(currentState).withUpdatedGeneration(repoName, safeGeneration, newGen)
+                                RepositoriesMetadata.get(project).withUpdatedGeneration(repoName, safeGeneration, newGen)
                             )
                             .build()
                     )
@@ -2925,16 +2928,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 + "]"
                         );
                     }
-                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(currentState)
+                    final var project = currentState.metadata().getDefaultProject();
+                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(project)
                         .withUpdatedGeneration(metadata.name(), newGen, newGen);
                     final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
                         ? withGenerations
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
                     final ClusterState newClusterState = stateFilter.apply(
                         ClusterState.builder(currentState)
-                            .metadata(
-                                Metadata.builder(currentState.getMetadata()).putDefaultProjectCustom(RepositoriesMetadata.TYPE, withUuid)
-                            )
+                            .putProjectMetadata(ProjectMetadata.builder(project).putCustom(RepositoriesMetadata.TYPE, withUuid))
                             .build()
                     );
                     return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);

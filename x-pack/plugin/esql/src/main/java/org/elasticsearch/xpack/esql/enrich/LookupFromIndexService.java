@@ -153,7 +153,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId = new ShardId(in);
 
             String indexPattern;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
                 indexPattern = in.readString();
             } else {
                 indexPattern = shardId.getIndexName();
@@ -198,10 +199,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
-                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
+                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
             }
 
             out.writeString(inputDataType.typeName());

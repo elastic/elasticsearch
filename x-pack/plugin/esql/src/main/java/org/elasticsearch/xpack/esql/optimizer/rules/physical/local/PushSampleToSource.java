@@ -33,9 +33,6 @@ public class PushSampleToSource extends PhysicalOptimizerRules.ParameterizedOpti
             }
 
             var sampleQuery = new RandomSamplingQueryBuilder((double) Foldables.valueOf(ctx.foldCtx(), sample.probability()));
-            if (sample.seed() != null) {
-                sampleQuery.seed((int) Foldables.valueOf(ctx.foldCtx(), sample.seed()));
-            }
 
             fullQuery.filter(sampleQuery);
 

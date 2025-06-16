@@ -20,12 +20,15 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
 import org.junit.Before;
@@ -178,6 +181,78 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
             assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForRerankAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "index": 0,
+                            "relevance_score": 0.94
+                        },
+                        {
+                            "index": 1,
+                            "relevance_score": 0.21
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = "my-model-id";
+            var topN = 3;
+            var query = "query";
+            var documents = List.of("document 1", "document 2", "document 3");
+
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    RankedDocsResultsTests.buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.94f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.21f))
+                        )
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+
+            assertThat(requestMap.size(), is(4));
+
+            assertThat(requestMap.get("documents"), instanceOf(List.class));
+            List<String> requestDocuments = (List<String>) requestMap.get("documents");
+            assertThat(requestDocuments.get(0), equalTo(documents.get(0)));
+            assertThat(requestDocuments.get(1), equalTo(documents.get(1)));
+            assertThat(requestDocuments.get(2), equalTo(documents.get(2)));
+
+            assertThat(requestMap.get("top_n"), equalTo(topN));
+
+            assertThat(requestMap.get("query"), equalTo(query));
+
+            assertThat(requestMap.get("model"), equalTo(modelId));
         }
     }
 

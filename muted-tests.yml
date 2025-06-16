@@ -5,8 +5,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
-- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -498,12 +496,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test073RunEsAsDifferentUserAndGroupWithoutBindMounting
   issue: https://github.com/elastic/elasticsearch/issues/128996
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.LookupJoinOnTimeSeriesIndex ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129078
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.LookupJoinOnTimeSeriesIndex SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129082
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=upgraded_cluster/70_ilm/Test Lifecycle Still There And Indices Are Still Managed}
   issue: https://github.com/elastic/elasticsearch/issues/129097
@@ -513,6 +505,45 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test081SymlinksAreFollowedWithEnvironmentVariableFiles
   issue: https://github.com/elastic/elasticsearch/issues/128867
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
+  issue: https://github.com/elastic/elasticsearch/issues/129149
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/129148
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.EnrichLookupStatsBug ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129228
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.EnrichLookupStatsBug SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129229
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {lookup-join.MultipleBatches*
+  issue: https://github.com/elastic/elasticsearch/issues/129210
+- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
+  method: testScaleDuringSplitOrClone
+  issue: https://github.com/elastic/elasticsearch/issues/129335
+- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
+  method: testWindowsMixedCaseAccess
+  issue: https://github.com/elastic/elasticsearch/issues/129167
+- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
+  method: testWindowsAbsolutPathAccess
+  issue: https://github.com/elastic/elasticsearch/issues/129168
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
+  method: testCaseInsensitiveEquality {KEYWORD}
+  issue: https://github.com/elastic/elasticsearch/issues/129422
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {knn-function.KnnSearchWithKOption ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129447
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/129453
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithDatastreams
+  issue: https://github.com/elastic/elasticsearch/issues/129457
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/129296
 
 # Examples:
 #

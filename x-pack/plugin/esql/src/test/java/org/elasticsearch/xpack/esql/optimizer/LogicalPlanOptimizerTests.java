@@ -6850,7 +6850,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      *
-     * TODO
+     * Project[[languages{f}#16, emp_no{f}#13, languages{f}#16 AS language_code#6, language_name{f}#27]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#26]]
+     *     |_Limit[1000[INTEGER],true]
+     *     | \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#24]]
+     *     |   |_Limit[1000[INTEGER],false]
+     *     |   | \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     *     |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#24]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
      */
     public void testMultipleLookupProject() {
         // TODO a test case where pushing down past the RENAME would shadow

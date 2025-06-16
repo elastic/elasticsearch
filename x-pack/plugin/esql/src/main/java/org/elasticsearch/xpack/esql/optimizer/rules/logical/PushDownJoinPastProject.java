@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -64,46 +65,42 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
             // used in the original Project; any such conflict needs to be resolved by copying the attribute under a temporary name via an
             // Eval - and using the attribute from said Eval in the new downstream Project.
             Set<String> lookupFieldNames = new HashSet<>(Expressions.names(join.rightOutputFields()));
-            PushDownUtils.AttributeReplacement replacement = PushDownUtils.renameAttributesInExpressions(lookupFieldNames, newProjections);
+            List<NamedExpression> finalProjections = new ArrayList<>(newProjections.size());
+            AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
+            AttributeSet leftOutput = updatedJoin.left().outputSet();
 
-            List<Expression> conflictFreeProjections = replacement.rewrittenExpressions();
-            List<Alias> evalAliases = new ArrayList<>(replacement.replacedAttributes().values());
+            for (NamedExpression proj : newProjections) {
+                // TODO: add assert to Project that ensures Alias to attr or pure attr.
+                Attribute coreAttr = (Attribute) (proj instanceof Alias as ? as.child() : proj);
+                // Only fields from the left need to be protected from conflicts - because fields from the right shadow them.
+                if (leftOutput.contains(coreAttr) == false || lookupFieldNames.contains(coreAttr.name()) == false) {
+                    finalProjections.add(proj);
+                } else {
+                    // Conflict - the core attribute will be shadowed by the `LOOKUP JOIN` and we need to alias it in an upstream Eval.
+                    Alias renaming = aliasesForReplacedAttributesBuilder.computeIfAbsent(coreAttr, a -> {
+                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
+                        return new Alias(a.source(), tempName, a, null, true);
+                    });
 
-            if (evalAliases.isEmpty()) {
+                    Attribute renamedAttribute = renaming.toAttribute();
+                    Alias renamedBack;
+                    if (proj instanceof Alias as) {
+                        renamedBack = new Alias(as.source(), as.name(), renamedAttribute, as.id(), as.synthetic());
+                    } else {
+                        // no alias - that means proj == coreAttr
+                        renamedBack = new Alias(coreAttr.source(), coreAttr.name(), renamedAttribute, coreAttr.id(), coreAttr.synthetic());
+                    }
+                    finalProjections.add(renamedBack);
+                }
+            }
+
+            if (aliasesForReplacedAttributesBuilder.isEmpty()) {
                 // No name conflicts, so no eval needed.
                 return new Project(project.source(), updatedJoin.replaceLeft(project.child()), newProjections);
             }
 
-            // The conflict free projections replaced any shadowed attributes by temporary attributes that we'll create in an Eval.
-            // That's good if the replaced attribute was in an Alias; if the projection was a mere attribute to begin with, we need to
-            // alias it back to the name/id that's expected in the original output.
-            List<NamedExpression> finalProjections = new ArrayList<>(conflictFreeProjections.size());
-            for (int i = 0; i < newProjections.size(); i++) {
-                Expression conflictFreeProj = conflictFreeProjections.get(i);
-                if (conflictFreeProj instanceof Alias as) {
-                    // Already aliased - keep it, it's fine if the child was rewritten.
-                    finalProjections.add(as);
-                } else if (conflictFreeProj instanceof Attribute conflictFreeAttr) {
-                    Attribute expectedOutputAttr = (Attribute) newProjections.get(i);
-                    if (expectedOutputAttr.semanticEquals(conflictFreeAttr)) {
-                        // no conflict, wasn't rewritten
-                        finalProjections.add(expectedOutputAttr);
-                    } else {
-                        Alias renameBack = new Alias(
-                            expectedOutputAttr.source(),
-                            expectedOutputAttr.name(),
-                            conflictFreeAttr,
-                            expectedOutputAttr.id(),
-                            expectedOutputAttr.synthetic()
-                        );
-                        finalProjections.add(renameBack);
-                    }
-                } else {
-                    throw new IllegalStateException("Resolving a list of projections must yield a list of projections again");
-                }
-            }
-
-            Eval eval = new Eval(project.source(), project.child(), evalAliases);
+            List<Alias> renamesForEval = new ArrayList<>(aliasesForReplacedAttributesBuilder.build().values());
+            Eval eval = new Eval(project.source(), project.child(), renamesForEval);
             Join finalJoin = new Join(join.source(), eval, updatedJoin.right(), updatedJoin.config());
 
             return new Project(project.source(), finalJoin, finalProjections);

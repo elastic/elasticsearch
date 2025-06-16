@@ -1183,6 +1183,11 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_ALIASES,
 
         /**
+         * Lookup error messages were updated to make them a bit easier to understand.
+         */
+        UPDATE_LOOKUP_JOIN_ERROR_MESSAGES,
+
+        /**
          * Allows RLIKE to correctly handle the "empty language" flag, `#`.
          */
         RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,

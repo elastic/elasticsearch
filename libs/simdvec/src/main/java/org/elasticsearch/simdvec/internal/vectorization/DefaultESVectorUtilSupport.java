@@ -205,7 +205,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     /**
-     * Returns the inner product between the query vector {@code q}, and the data vector {@code d}.
+     * Returns the inner product (aka dot product) between the query vector {@code q}, and the data vector {@code d}.
      * <p>
      * The query vector should be {@link #B_QUERY}-bit quantized and striped, so that the first {@code n} bits
      * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
@@ -235,9 +235,9 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
      * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
      *
-     * @param q
-     * @param d
-     * @return
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code BQSpaceUtils.transposeHalfByte})
+     * @param d data vector, 1-bit quantized
+     * @return  inner product result
      */
     public static long ipByteBinByteImpl(byte[] q, byte[] d) {
         long ret = 0;
@@ -249,8 +249,8 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             for (final int upperBound = d.length & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
                 stripeRet += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(q, s * size + r) & (int) BitUtil.VH_NATIVE_INT.get(d, r));
             }
-            // handle any tail (Java operations on bytes automatically extend to int, so we need to mask back down again
-            // in case it sign-extends the int)
+            // handle any tail
+            // Java operations on bytes automatically extend to int, so we need to mask back down again in case it sign-extends the int
             for (; r < d.length; r++) {
                 stripeRet += Integer.bitCount((q[s * size + r] & d[r]) & 0xFF);
             }

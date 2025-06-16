@@ -600,9 +600,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
 
-                // Wait for ILM rollover instead of manual rollover to ensure 'index.lifecycle.indexing_complete' is set
-                // Manual rollover removed as it doesn't properly set lifecycle completion flag
-                // Let ILM naturally trigger rollover when document is indexed
+                // Index a document on the leader index, this should trigger an ILM rollover.
+                // This will ensure that 'index.lifecycle.indexing_complete' is set.
                 index(leaderClient, dataStream, "", "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
                 String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);

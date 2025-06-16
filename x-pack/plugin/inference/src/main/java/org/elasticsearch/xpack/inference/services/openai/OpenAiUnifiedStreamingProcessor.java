@@ -97,7 +97,14 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             return Stream.empty();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
+        return parse(parserConfig, event.data());
+    }
+
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parse(
+        XContentParserConfiguration parserConfig,
+        String data
+    ) throws IOException {
+        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();

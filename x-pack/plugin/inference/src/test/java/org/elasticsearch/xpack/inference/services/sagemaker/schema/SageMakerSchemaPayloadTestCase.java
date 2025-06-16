@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -66,7 +67,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
         validationException.throwIfValidationErrorsExist();
     }
 
-    public final void testApiTaskSettings() throws IOException {
+    public void testApiTaskSettings() throws IOException {
         var validationException = new ValidationException();
         var expectedApiTaskSettings = randomApiTaskSettings();
         var actualApiTaskSettings = payload.apiTaskSettings(toMap(expectedApiTaskSettings), validationException);
@@ -157,5 +158,9 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
 
     protected static void assertJsonSdkBytes(SdkBytes sdkBytes, String expectedValue) throws IOException {
         assertThat(sdkBytes.asUtf8String(), equalTo(XContentHelper.stripWhitespace(expectedValue)));
+    }
+
+    protected static InvokeEndpointResponse invokeEndpointResponse(String responseJson) {
+        return InvokeEndpointResponse.builder().body(SdkBytes.fromUtf8String(responseJson)).build();
     }
 }

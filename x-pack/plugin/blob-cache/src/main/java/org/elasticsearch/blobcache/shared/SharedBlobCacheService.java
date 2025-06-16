@@ -60,7 +60,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -1582,7 +1581,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         private final AtomicLong epoch = new AtomicLong();
         private final Queue<Predicate<KeyType>> evictionQueue = new ConcurrentLinkedQueue<>();
-        private final AtomicBoolean evictionRunnerActive = new AtomicBoolean(false);
+        private final AtomicInteger evictionRunnerActive = new AtomicInteger(0);
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings) {
@@ -1669,10 +1668,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private void startRunnerIfIdle() {
-            if (evictionRunnerActive.compareAndSet(false, true)) {
+            if (evictionRunnerActive.getAndIncrement() == 0) {
                 asyncEvictionsExecutor.submit(() -> {
-                    while (evictionQueue.isEmpty() == false || evictionRunnerActive.compareAndSet(true, false) == false) {
+                    int evictionRunnerValue = -1;
+                    while (evictionQueue.isEmpty() == false || evictionRunnerActive.compareAndSet(evictionRunnerValue, 0) == false) {
                         forceEvict(evictionQueue.poll());
+                        evictionRunnerValue = evictionRunnerActive.get();
                     }
                 });
             }

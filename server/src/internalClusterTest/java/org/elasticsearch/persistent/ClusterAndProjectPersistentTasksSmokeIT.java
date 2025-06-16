@@ -59,7 +59,7 @@ public class ClusterAndProjectPersistentTasksSmokeIT extends ESIntegTestCase {
         final PersistentTask<TestEmptyProjectParams> projectTask;
         {
             final PlainActionFuture<PersistentTask<TestEmptyProjectParams>> future = new PlainActionFuture<>();
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendClusterStartRequest(
                 randomUUID(),
                 TestProjectPersistentTasksExecutor.NAME,
                 TestEmptyProjectParams.INSTANCE,
@@ -73,7 +73,7 @@ public class ClusterAndProjectPersistentTasksSmokeIT extends ESIntegTestCase {
         final PersistentTask<TestEmptyClusterParams> clusterTask;
         {
             final PlainActionFuture<PersistentTask<TestEmptyClusterParams>> future = new PlainActionFuture<>();
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendClusterStartRequest(
                 randomUUID(),
                 TestClusterPersistentTasksExecutor.NAME,
                 TestEmptyClusterParams.INSTANCE,
@@ -108,7 +108,7 @@ public class ClusterAndProjectPersistentTasksSmokeIT extends ESIntegTestCase {
         if (randomBoolean()) {
             // Remove project task first
             final PlainActionFuture<PersistentTask<?>> future1 = new PlainActionFuture<>();
-            persistentTasksService.sendRemoveRequest(projectTask.getId(), TEST_REQUEST_TIMEOUT, future1);
+            persistentTasksService.sendClusterRemoveRequest(projectTask.getId(), TEST_REQUEST_TIMEOUT, future1);
             safeGet(future1);
 
             assertBusy(() -> {
@@ -128,12 +128,12 @@ public class ClusterAndProjectPersistentTasksSmokeIT extends ESIntegTestCase {
             assertClusterStateHasTaskSize(clusterService, null, 1);
 
             final PlainActionFuture<PersistentTask<?>> future2 = new PlainActionFuture<>();
-            persistentTasksService.sendRemoveRequest(clusterTask.getId(), TEST_REQUEST_TIMEOUT, future2);
+            persistentTasksService.sendClusterRemoveRequest(clusterTask.getId(), TEST_REQUEST_TIMEOUT, future2);
             safeGet(future2);
         } else {
             // Remove cluster task first
             final PlainActionFuture<PersistentTask<?>> future1 = new PlainActionFuture<>();
-            persistentTasksService.sendRemoveRequest(clusterTask.getId(), TEST_REQUEST_TIMEOUT, future1);
+            persistentTasksService.sendClusterRemoveRequest(clusterTask.getId(), TEST_REQUEST_TIMEOUT, future1);
             safeGet(future1);
 
             assertBusy(() -> {
@@ -153,7 +153,7 @@ public class ClusterAndProjectPersistentTasksSmokeIT extends ESIntegTestCase {
             assertClusterStateHasTaskSize(clusterService, null, 0);
 
             final PlainActionFuture<PersistentTask<?>> future2 = new PlainActionFuture<>();
-            persistentTasksService.sendRemoveRequest(projectTask.getId(), TEST_REQUEST_TIMEOUT, future2);
+            persistentTasksService.sendClusterRemoveRequest(projectTask.getId(), TEST_REQUEST_TIMEOUT, future2);
             safeGet(future2);
         }
 

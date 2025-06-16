@@ -1347,7 +1347,7 @@ public class Security extends Plugin
     private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
         nodeLocalMigrationRetryCount.incrementAndGet();
         persistentTasksService.get()
-            .sendStartRequest(
+            .sendClusterStartRequest(
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams.TASK_NAME,
                 new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),

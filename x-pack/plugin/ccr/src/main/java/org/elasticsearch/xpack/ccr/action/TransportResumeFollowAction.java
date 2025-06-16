@@ -204,7 +204,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 followIndexMetadata,
                 filteredHeaders
             );
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendClusterStartRequest(
                 taskId,
                 ShardFollowTask.NAME,
                 shardFollowTask,

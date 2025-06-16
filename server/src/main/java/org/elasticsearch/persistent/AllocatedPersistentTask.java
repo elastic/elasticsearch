@@ -65,7 +65,7 @@ public class AllocatedPersistentTask extends CancellableTask {
         final PersistentTaskState state,
         final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
     ) {
-        persistentTasksService.sendUpdateStateRequest(
+        persistentTasksService.sendClusterUpdateStateRequest(
             persistentTaskId,
             allocationId,
             state,
@@ -202,7 +202,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                 this.failure = failure;
                 if (prevState == State.STARTED) {
                     logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
-                    persistentTasksService.sendCompletionRequest(
+                    persistentTasksService.sendClusterCompletionRequest(
                         getPersistentTaskId(),
                         getAllocationId(),
                         failure,

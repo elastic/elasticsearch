@@ -251,7 +251,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 // if the datafeed has no running code then graceful/forceful are the same.)
                 // The listener here doesn't need to call the final listener, as waitForDatafeedStopped()
                 // already waits for these persistent tasks to disappear.
-                persistentTasksService.sendRemoveRequest(
+                persistentTasksService.sendClusterRemoveRequest(
                     datafeedTask.getId(),
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(
@@ -278,7 +278,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             response -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, response, ActionListener.wrap(finished -> {
                 for (String datafeedId : movedDatafeeds) {
                     PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-                    persistentTasksService.sendRemoveRequest(
+                    persistentTasksService.sendClusterRemoveRequest(
                         datafeedTask.getId(),
                         MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                         ActionListener.wrap(r -> auditDatafeedStopped(datafeedTask), e -> {
@@ -384,7 +384,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         for (String datafeedId : notStoppedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
-                persistentTasksService.sendRemoveRequest(
+                persistentTasksService.sendClusterRemoveRequest(
                     datafeedTask.getId(),
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(persistentTask -> {

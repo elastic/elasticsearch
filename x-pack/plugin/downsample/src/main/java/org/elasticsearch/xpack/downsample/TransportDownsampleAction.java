@@ -557,7 +557,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     listener.onFailure(e);
                 }
             };
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendClusterStartRequest(
                 persistentTaskId,
                 DownsampleShardTask.TASK_NAME,
                 params,

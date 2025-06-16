@@ -329,7 +329,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         PersistentTask<Params> taskInProgress,
         Exception originalException
     ) {
-        persistentTasksService.sendCompletionRequest(
+        persistentTasksService.sendClusterCompletionRequest(
             taskInProgress.getId(),
             taskInProgress.getAllocationId(),
             originalException,
@@ -370,7 +370,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
             String reason = "task has been removed, cancelling locally";
-            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<>() {
+            persistentTasksService.sendClusterCancelRequest(task.getId(), reason, new ActionListener<>() {
                 @Override
                 public void onResponse(ListTasksResponse cancelTasksResponse) {
                     logger.trace(

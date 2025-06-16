@@ -91,7 +91,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
     public void testPersistentActionFailure() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             new TestParams("Blah"),
@@ -128,7 +128,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         String taskId = UUIDs.base64UUID();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             taskId,
             TestPersistentTasksExecutor.NAME,
             new TestParams("Blah"),
@@ -153,7 +153,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             logger.info("Simulating errant completion notification");
             // try sending completion request with incorrect allocation id
             PlainActionFuture<PersistentTask<?>> failedCompletionNotificationFuture = new PlainActionFuture<>();
-            persistentTasksService.sendCompletionRequest(
+            persistentTasksService.sendClusterCompletionRequest(
                 taskId,
                 Long.MAX_VALUE,
                 null,
@@ -182,7 +182,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         TestParams testParams = new TestParams("Blah");
         testParams.setExecutorNodeAttr("test");
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             testParams,
@@ -212,7 +212,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
-        persistentTasksService.sendRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, removeFuture);
+        persistentTasksService.sendClusterRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, removeFuture);
         assertEquals(removeFuture.get().getId(), taskId);
     }
 
@@ -229,7 +229,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         TestParams testParams = new TestParams("Blah");
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             testParams,
@@ -250,14 +250,14 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
-        persistentTasksService.sendRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, removeFuture);
+        persistentTasksService.sendClusterRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, removeFuture);
         assertEquals(removeFuture.get().getId(), taskId);
     }
 
     public void testPersistentActionStatusUpdate() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             new TestParams("Blah"),
@@ -310,7 +310,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertFutureThrows(future1, IllegalStateException.class, "timed out after 10ms");
 
         PlainActionFuture<PersistentTask<?>> failedUpdateFuture = new PlainActionFuture<>();
-        persistentTasksService.sendUpdateStateRequest(taskId, -2, new State("should fail"), TEST_REQUEST_TIMEOUT, failedUpdateFuture);
+        persistentTasksService.sendClusterUpdateStateRequest(taskId, -2, new State("should fail"), TEST_REQUEST_TIMEOUT, failedUpdateFuture);
         assertFutureThrows(
             failedUpdateFuture,
             ResourceNotFoundException.class,
@@ -335,7 +335,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         String taskId = UUIDs.base64UUID();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             taskId,
             TestPersistentTasksExecutor.NAME,
             new TestParams("Blah"),
@@ -345,7 +345,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         future.get();
 
         PlainActionFuture<PersistentTask<TestParams>> future2 = new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             taskId,
             TestPersistentTasksExecutor.NAME,
             new TestParams("Blah"),
@@ -387,7 +387,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         TestParams testParams = new TestParams("Blah");
         testParams.setExecutorNodeAttr("test");
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             testParams,
@@ -450,7 +450,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             new TestParams("Blah"),

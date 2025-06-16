@@ -264,13 +264,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+            void sendClusterCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
 
             @Override
-            public void sendCompletionRequest(
+            public void sendClusterCompletionRequest(
                 final String taskId,
                 final long taskAllocationId,
                 final Exception taskFailure,
@@ -356,12 +356,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+            void sendClusterCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 fail("Shouldn't be called during local abort");
             }
 
             @Override
-            public void sendCompletionRequest(
+            public void sendClusterCompletionRequest(
                 final String taskId,
                 final long taskAllocationId,
                 final Exception taskFailure,
@@ -471,7 +471,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, mockClient) {
             @Override
-            public void sendCompletionRequest(
+            public void sendClusterCompletionRequest(
                 String taskId,
                 long taskAllocationId,
                 Exception taskFailure,

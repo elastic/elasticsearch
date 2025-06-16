@@ -183,7 +183,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendClusterStartRequest(
                 "task_id",
                 "task_name",
                 new TestTaskParams(),

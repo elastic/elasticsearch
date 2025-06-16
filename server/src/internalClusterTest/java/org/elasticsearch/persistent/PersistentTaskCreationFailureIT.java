@@ -111,7 +111,7 @@ public class PersistentTaskCreationFailureIT extends ESIntegTestCase {
 
         safeAwait(
             l -> internalCluster().getInstance(PersistentTasksService.class)
-                .sendStartRequest(
+                .sendClusterStartRequest(
                     UUIDs.base64UUID(),
                     FailingCreationPersistentTaskExecutor.TASK_NAME,
                     new FailingCreationTaskParams(),

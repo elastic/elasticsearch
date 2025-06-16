@@ -46,7 +46,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams>> startPersistentTaskFuture =
             new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             UUIDs.base64UUID(),
             FailingInitializationPersistentTaskExecutor.TASK_NAME,
             new FailingInitializationTaskParams(),

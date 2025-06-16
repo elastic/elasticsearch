@@ -348,7 +348,7 @@ public class TransformTaskTests extends ESTestCase {
         assertTrue(listenerCalled.get());
         // verify shutdown has been called
         verify(taskManager, times(1)).unregister(any());
-        verify(persistentTasksService, times(1)).sendCompletionRequest(
+        verify(persistentTasksService, times(1)).sendClusterCompletionRequest(
             eq("task-id"),
             eq(42L),
             isNull(),

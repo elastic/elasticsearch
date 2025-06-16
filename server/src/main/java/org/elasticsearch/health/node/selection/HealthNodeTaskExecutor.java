@@ -150,7 +150,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     void startTask(ClusterChangedEvent event) {
         // Wait until master is stable before starting health task
         if (event.localNodeMaster() && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendClusterStartRequest(
                 TASK_NAME,
                 TASK_NAME,
                 new HealthNodeTaskParams(),

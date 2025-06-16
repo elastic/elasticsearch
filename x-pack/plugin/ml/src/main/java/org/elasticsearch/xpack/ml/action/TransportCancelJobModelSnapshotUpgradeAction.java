@@ -106,7 +106,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfTasks);
 
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : upgradeTasksToCancel) {
-            persistentTasksService.sendRemoveRequest(
+            persistentTasksService.sendClusterRemoveRequest(
                 task.getId(),
                 MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                 new ActionListener<>() {

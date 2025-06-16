@@ -173,7 +173,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     private void startEnterpriseGeoIpDownloaderTask() {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendClusterStartRequest(
             ENTERPRISE_GEOIP_DOWNLOADER,
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams(),

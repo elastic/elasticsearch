@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -292,8 +293,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
 
         validateSimilarity(context, fields);
 
-        Analyzer sharedAnalyzer = null;
-        List<MultiFieldMatchQueryBuilder.FieldAndBoost> fieldsAndBoosts = new ArrayList<>();
+        Map<Analyzer, List<FieldAndBoost>> groups = new HashMap<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
@@ -308,37 +308,39 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
             }
 
             float boost = entry.getValue() == null ? 1.0f : entry.getValue();
-            fieldsAndBoosts.add(new MultiFieldMatchQueryBuilder.FieldAndBoost(fieldType, boost));
 
-            // TODO: group by analyzer.
             Analyzer analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
-            if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
-                throw new IllegalArgumentException("All fields in [" + NAME + "] query must have the same search analyzer");
+            if (groups.containsKey(analyzer) == false) {
+                groups.put(analyzer, new ArrayList<>());
             }
-            sharedAnalyzer = analyzer;
+            groups.get(analyzer).add(new FieldAndBoost(fieldType, boost));
         }
 
-        assert fieldsAndBoosts.isEmpty() == false;
-        String placeholderFieldName = fieldsAndBoosts.get(0).fieldType.name();
-        boolean canGenerateSynonymsPhraseQuery = autoGenerateSynonymsPhraseQuery;
-        for (MultiFieldMatchQueryBuilder.FieldAndBoost fieldAndBoost : fieldsAndBoosts) {
-            TextSearchInfo textSearchInfo = fieldAndBoost.fieldType.getTextSearchInfo();
-            canGenerateSynonymsPhraseQuery &= textSearchInfo.hasPositions();
+        // TODO: For now assume we have one group.
+        assert groups.size() == 1;
+
+        List<Query> queries = new ArrayList<>();
+        for (Map.Entry<Analyzer, List<FieldAndBoost>> group : groups.entrySet()) {
+            var fieldsAndBoosts = group.getValue();
+
+            String placeholderFieldName = fieldsAndBoosts.get(0).fieldType.name();
+            boolean canGenerateSynonymsPhraseQuery = autoGenerateSynonymsPhraseQuery;
+            for (FieldAndBoost fieldAndBoost : fieldsAndBoosts) {
+                TextSearchInfo textSearchInfo = fieldAndBoost.fieldType.getTextSearchInfo();
+                canGenerateSynonymsPhraseQuery &= textSearchInfo.hasPositions();
+            }
+
+            var builder = new CombinedFieldsBuilder(fieldsAndBoosts, group.getKey(), canGenerateSynonymsPhraseQuery, context);
+            Query query = builder.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
+
+            query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
+            if (query == null) {
+                query = zeroTermsQuery.asQuery();
+            }
         }
 
-        MultiFieldMatchQueryBuilder.CombinedFieldsBuilder builder = new MultiFieldMatchQueryBuilder.CombinedFieldsBuilder(
-            fieldsAndBoosts,
-            sharedAnalyzer,
-            canGenerateSynonymsPhraseQuery,
-            context
-        );
-        Query query = builder.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
-
-        query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-        if (query == null) {
-            query = zeroTermsQuery.asQuery();
-        }
-        return query;
+        // TODO: combine queries.
+        return queries.getFirst();
     }
 
     private static void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
@@ -367,11 +369,11 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
     }
 
     private static class CombinedFieldsBuilder extends QueryBuilder {
-        private final List<MultiFieldMatchQueryBuilder.FieldAndBoost> fields;
+        private final List<FieldAndBoost> fields;
         private final SearchExecutionContext context;
 
         CombinedFieldsBuilder(
-            List<MultiFieldMatchQueryBuilder.FieldAndBoost> fields,
+            List<FieldAndBoost> fields,
             Analyzer analyzer,
             boolean autoGenerateSynonymsPhraseQuery,
             SearchExecutionContext context
@@ -411,7 +413,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
                 BytesRef bytes = termAndBoost.term();
                 query.addTerm(bytes);
             }
-            for (MultiFieldMatchQueryBuilder.FieldAndBoost fieldAndBoost : fields) {
+            for (FieldAndBoost fieldAndBoost : fields) {
                 MappedFieldType fieldType = fieldAndBoost.fieldType;
                 float fieldBoost = fieldAndBoost.boost;
                 query.addField(fieldType.name(), fieldBoost);
@@ -428,7 +430,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (MultiFieldMatchQueryBuilder.FieldAndBoost fieldAndBoost : fields) {
+            for (FieldAndBoost fieldAndBoost : fields) {
                 Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldAndBoost.boost != 1f) {
                     query = new BoostQuery(query, fieldAndBoost.boost);

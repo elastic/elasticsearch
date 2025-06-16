@@ -3637,7 +3637,8 @@ public class AnalyzerTests extends ESTestCase {
                 """
                     FROM books METADATA _score
                     | WHERE title:"food"
-                    | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH inferenceId=`reranking-inference-id`
+                    | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year
+                      WITH inferenceId=`reranking-inference-id`
                     """,
                 "mapping-books.json"
             );

@@ -303,7 +303,7 @@ public class CustomRequestTests extends ESTestCase {
             TaskType.RERANK,
             serviceSettings,
             new CustomTaskSettings(Map.of()),
-            new CustomSecretSettings(Map.of("api_key", new SerializableSecureString("my-secret-key")))
+            new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
         var request = new CustomRequest(

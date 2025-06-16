@@ -687,9 +687,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "headers": {
                     "key": "value"
                 },
-                "request": {
-                    "content": "string"
-                },
+                "request": "string",
                 "response": {
                     "json_parser": {
                         "text_embeddings": "$.result.embeddings[*].embedding"

@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardT
  * Similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
  * and '*' wildcard for multiple characters (same as regex ".*")
  * <p>
- * Allows escaping based on a regular char
+ * Allows escaping based on a regular char.
  *
  */
 public class WildcardPattern extends AbstractStringPattern implements Writeable {

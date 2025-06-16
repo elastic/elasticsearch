@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  * similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
  * and '*' wildcard for multiple characters (same as regex ".*")
  * <p>
- * Allows escaping based on a regular char
+ * Allows escaping based on a regular char.
  *
  */
 public class WildcardPatternList extends AbstractStringPattern implements Writeable {
@@ -40,10 +40,6 @@ public class WildcardPatternList extends AbstractStringPattern implements Writea
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(patternList, (o, pattern) -> pattern.writeTo(o));
-    }
-
-    public static WildcardPatternList readFrom(StreamInput in) throws IOException {
-        return new WildcardPatternList(in);
     }
 
     public List<WildcardPattern> patternList() {

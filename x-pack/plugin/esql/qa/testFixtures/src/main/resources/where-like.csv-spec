@@ -83,14 +83,18 @@ emp_no:integer | first_name:keyword
 
 likeListEmptyArgWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("") | keep emp_no, first_name;
+FROM employees 
+| WHERE first_name like ("") 
+| KEEP emp_no, first_name;
 
 emp_no:integer | first_name:keyword    
 ;
 
 likeListSingleArgWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhardt*") | keep emp_no, first_name;
+FROM employees 
+| WHERE first_name like ("Eberhardt*") 
+| KEEP emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt      
@@ -98,7 +102,9 @@ emp_no:integer | first_name:keyword
 
 likeListTwoArgWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhardt*", "testString*") | keep emp_no, first_name;
+FROM employees 
+| WHERE first_name like ("Eberhardt*", "testString*") 
+| KEEP emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt       
@@ -118,7 +124,10 @@ foobar
 
 likeListThreeArgWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name  | sort emp_no;
+FROM employees 
+| WHERE first_name like ("Eberhardt*", "Ot*", "Part?") 
+| KEEP emp_no, first_name  
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10003          | Parto
@@ -129,7 +138,11 @@ emp_no:integer | first_name:keyword
 
 likeListMultipleWhere
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhardt*", "Ot*", "Part?") | where first_name like ("Eberhard?", "Otm*")| keep emp_no, first_name  | sort emp_no;
+FROM employees 
+| WHERE first_name like ("Eberhardt*", "Ot*", "Part?") 
+| WHERE first_name like ("Eberhard?", "Otm*")
+| KEEP emp_no, first_name
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
@@ -138,7 +151,11 @@ emp_no:integer | first_name:keyword
 
 likeListAllWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("*") | keep emp_no, first_name | sort emp_no | limit 2;
+FROM employees 
+| WHERE first_name like ("*") 
+| KEEP emp_no, first_name 
+| SORT emp_no 
+| LIMIT 2;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -147,7 +164,9 @@ emp_no:integer | first_name:keyword
 
 likeListOverlappingPatterns
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eber*", "Eberhardt") | keep emp_no, first_name;
+FROM employees 
+| WHERE first_name like ("Eber*", "Eberhardt") 
+| KEEP emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
@@ -155,14 +174,19 @@ emp_no:integer | first_name:keyword
 
 likeListCaseSensitive
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("eberhardt", "EBERHARDT") | keep emp_no, first_name;
+FROM employees 
+| WHERE first_name like ("eberhardt", "EBERHARDT") 
+| KEEP emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 ;
 
 likeListSpecialCharacters
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("*ar*", "?eor*") | keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE first_name like ("*ar*", "?eor*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -182,14 +206,19 @@ emp_no:integer | first_name:keyword
 
 likeListEscapedWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("Eberhar\\*") | keep emp_no, first_name;
+FROM employees 
+| WHERE first_name like ("Eberhar\\*") 
+| KEEP emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 ;
 
 likeListNineOrMoreLetters
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("?????????*") | keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE first_name like ("?????????*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10004          | Chirstian
@@ -206,7 +235,10 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardNotOtherFilter
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("Eberhardt*", "Ot*", "Part?") and emp_no < 10010 | keep emp_no, first_name  | sort emp_no;
+FROM employees 
+| WHERE first_name not like ("Eberhardt*", "Ot*", "Part?") and emp_no < 10010 
+| KEEP emp_no, first_name
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -221,7 +253,10 @@ emp_no:integer | first_name:keyword
 
 likeListBeginningWithWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name like ("A*", "B*", "C*") | keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE first_name like ("A*", "B*", "C*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10002          | Bezalel
@@ -244,7 +279,10 @@ emp_no:integer | first_name:keyword
 
 notLikeListThreeArgWildcardOtherFirst
 required_capability: like_with_list_of_patterns
-from employees | where emp_no < 10010 and first_name not like ("Eberhardt*", "Ot*", "Part?") | keep emp_no, first_name  | sort emp_no;
+FROM employees 
+| WHERE emp_no < 10010 and first_name not like ("Eberhardt*", "Ot*", "Part?") 
+| KEEP emp_no, first_name  
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -259,7 +297,10 @@ emp_no:integer | first_name:keyword
 
 notLikeFiveOrLessLetters
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("??????*") | keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE first_name not like ("??????*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10003          | Parto
@@ -291,7 +332,11 @@ emp_no:integer | first_name:keyword
 
 notLikeListMultipleWhere
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") | where first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")| keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE first_name not like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") 
+| WHERE first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10007          | Tzvetan
@@ -342,7 +387,11 @@ emp_no:integer | first_name:keyword
 
 notLikeListNotField
 required_capability: like_with_list_of_patterns
-from employees | where not first_name like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") | where first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")| keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE not first_name like ("Eberhardt*", "Ot*", "Part?", "A*", "B*", "C*", "D*") 
+| WHERE first_name not like ("Eberhard?", "Otm*", "F*", "G*", "H*", "I*", "J*", "K*", "L*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10007          | Tzvetan
@@ -393,7 +442,11 @@ emp_no:integer | first_name:keyword
 
 notLikeListAllWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("*") | keep emp_no, first_name | sort emp_no | limit 2;
+FROM employees 
+| WHERE first_name not like ("*") 
+| KEEP emp_no, first_name 
+| SORT emp_no 
+| LIMIT 2;
 
 emp_no:integer | first_name:keyword
 10030          | null
@@ -402,7 +455,10 @@ emp_no:integer | first_name:keyword
 
 notLikeListWildcard
 required_capability: like_with_list_of_patterns
-from employees | where first_name not like ("A*","B*", "C*", "D*","E*", "F*", "G*", "H*", "I*", "J*", "K*") | keep emp_no, first_name  | sort emp_no;
+FROM employees 
+| WHERE first_name not like ("A*","B*", "C*", "D*","E*", "F*", "G*", "H*", "I*", "J*", "K*") 
+| KEEP emp_no, first_name  
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10003          | Parto
@@ -455,7 +511,10 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperTurnedInsensitive
 required_capability: like_with_list_of_patterns
-FROM employees | WHERE TO_UPPER(first_name) LIKE ("GEOR*") | keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("GEOR*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -464,7 +523,10 @@ emp_no:integer | first_name:keyword
 
 likeListWithUpperTurnedInsensitiveMult
 required_capability: like_with_list_of_patterns
-FROM employees | WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WE*")  | keep emp_no, first_name | sort emp_no;
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WE*")  
+| KEEP emp_no, first_name 
+| SORT emp_no;
 
 emp_no:integer | first_name:keyword
 10001          | Georgi

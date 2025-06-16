@@ -50,7 +50,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            WildcardPatternList.readFrom(in),
+            new WildcardPatternList(in),
             deserializeCaseInsensitivity(in)
         );
     }

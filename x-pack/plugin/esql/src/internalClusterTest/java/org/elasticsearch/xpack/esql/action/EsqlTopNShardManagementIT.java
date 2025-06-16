@@ -53,14 +53,10 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
     public void setupMockService() {
         searchContexts.clear();
         for (SearchService service : internalCluster().getInstances(SearchService.class)) {
-            var mockSearchService = (MockSearchService) service;
-            mockSearchService.setOnPutContext(ctx -> System.out.println("Putting search context: " + ctx.id()));
-            mockSearchService.setOnCreateSearchContext(ctx -> {
-                System.out.println("Creating search context: " + ctx.id());
+            ((MockSearchService) service).setOnCreateSearchContext(ctx -> {
                 searchContexts.add(ctx);
                 scriptPermits.release();
             });
-            mockSearchService.setOnRemoveContext(ctx -> System.out.println("Removing search context: " + ctx.id()));
         }
     }
 

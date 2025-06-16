@@ -13,11 +13,15 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the execution state data from one index to another, typically after a
@@ -101,11 +105,21 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         newLifecycleState.setAction(action);
         newLifecycleState.setStep(step);
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            clusterState,
-            targetIndexMetadata.getIndex(),
-            newLifecycleState.build()
-        );
+        // Build a new index metadata with the version incremented and the new lifecycle state.
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(targetIndexMetadata)
+            .version(targetIndexMetadata.getVersion() + 1)
+            .putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
+
+        // Remove the skip setting if it's present.
+        if (targetIndexMetadata.getSettings().hasValue(LifecycleSettings.LIFECYCLE_SKIP)) {
+            final var newSettings = Settings.builder().put(targetIndexMetadata.getSettings());
+            newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP);
+            indexMetadataBuilder.settingsVersion(targetIndexMetadata.getSettingsVersion() + 1).settings(newSettings);
+        }
+
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder.build(), false))
+            .build();
     }
 
     @Override

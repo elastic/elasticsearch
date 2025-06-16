@@ -562,6 +562,9 @@ tests:
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
   issue: https://github.com/elastic/elasticsearch/issues/129481
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testFullPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/129510
 
 # Examples:
 #

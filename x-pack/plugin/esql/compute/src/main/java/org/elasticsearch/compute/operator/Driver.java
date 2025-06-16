@@ -316,22 +316,24 @@ public class Driver implements Releasable, Describable {
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
                 var index = iterator.nextIndex();
-                iterator.next();
                 /*
-                * Remove this operator and all unclosed source operators in the
-                * most paranoid possible way. Closing operators shouldn't throw,
-                * but if it does, this will make sure we don't try to close any
-                * that succeed twice.
-                */
-                while (iterator.hasPrevious()) {
-                    Operator op = iterator.previous();
+                 * Remove this operator and all source operators in the
+                 * most paranoid possible way. Closing operators shouldn't throw,
+                 * but if it does, this will make sure we don't try to close any
+                 * that succeed twice.
+                 */
+                Iterator<Operator> finishedOperators = this.activeOperators.subList(0, index + 1).iterator();
+                while (finishedOperators.hasNext()) {
+                    Operator op = finishedOperators.next();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     op.close();
-                    iterator.remove();
+                    finishedOperators.remove();
                 }
-                // Finish the next operator.
-                if (iterator.hasNext()) {
-                    iterator.next().finish();
+
+                // Finish the next operator, which is now the first operator.
+                if (activeOperators.isEmpty() == false) {
+                    Operator newRootOperator = activeOperators.get(0);
+                    newRootOperator.finish();
                 }
                 return index;
             }

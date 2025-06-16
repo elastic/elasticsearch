@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
@@ -596,29 +597,61 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         final var getChunkActionBlocked = new AtomicBoolean(false); // block only the manually triggered read action
-        CountDownLatch actionAppeared = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(searchNode);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
-                && getChunkActionBlocked.compareAndSet(false, true)) {
-                actionAppeared.countDown();
-                try {
-                    if (failureType == FailureType.INDEX_CLOSED) {
-                        assertBusy(() -> {
-                            var s = indexNodeIndicesService.getShardOrNull(shardId);
-                            assertNotNull(s);
-                            assertThat(s.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
-                        });
-                    } else {
-                        // wait until blobs are deleted
-                        assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
+        CountDownLatch getChunkActionAppeared = new CountDownLatch(1);
+        CountDownLatch getChunkActionProcessed = new CountDownLatch(1);
+        final var transportServiceIndex = MockTransportService.getInstance(indexNode);
+        transportServiceIndex.addRequestHandlingBehavior(
+            TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+            (handler, request, channel, task) -> {
+                if (getChunkActionBlocked.compareAndSet(false, true)) {
+                    getChunkActionAppeared.countDown();
+                    try {
+                        if (failureType == FailureType.INDEX_CLOSED) {
+                            assertBusy(() -> {
+                                var s = indexNodeIndicesService.getShardOrNull(shardId);
+                                assertNotNull(s);
+                                assertThat(s.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
+                            });
+                        } else {
+                            // wait until blobs are deleted
+                            assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
+                        }
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
                     }
-                } catch (Exception e) {
-                    throw new AssertionError(e);
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            channel.sendResponse(response);
+                            getChunkActionProcessed.countDown();
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                            getChunkActionProcessed.countDown();
+                        }
+
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+                    }, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
                 }
             }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        );
+
+        // Ensure any new commit notifications are processed after the search-related VBCC chunk action is responded
+        final var transportServiceSearch = MockTransportService.getInstance(searchNode);
+        transportServiceSearch.addRequestHandlingBehavior(
+            TransportNewCommitNotificationAction.NAME + "[u]",
+            (handler, request, channel, task) -> {
+                safeAwait(getChunkActionProcessed);
+                handler.messageReceived(request, channel, task);
+            }
+        );
 
         // Empty cache on search node, to ensure an action is sent to the indexing node
         evictSearchShardCache(indexName);
@@ -642,7 +675,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         });
         thread.start();
 
-        safeAwait(actionAppeared);
+        safeAwait(getChunkActionAppeared);
         switch (failureType) {
             case INDEX_DELETED:
                 // Delete the index, which will make the action fail with blob not found (after it's deleted)

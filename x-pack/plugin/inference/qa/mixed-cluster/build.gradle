@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -37,4 +38,3 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     dependsOn javaRestTest
   }
 }
-

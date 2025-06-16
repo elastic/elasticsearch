@@ -381,6 +381,7 @@ tasks.named("jar") {
 
 spotless {
   java {
+
     // workaround for https://github.com/diffplug/spotless/issues/2317
     //toggleOffOn()
     target project.fileTree("src/main/java") {

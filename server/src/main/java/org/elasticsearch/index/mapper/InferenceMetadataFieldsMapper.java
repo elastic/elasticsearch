@@ -17,10 +17,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW;
 
 /**
  * An abstract {@link MetadataFieldMapper} used as a placeholder for implementation
@@ -37,6 +40,14 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
     public static final Setting<Boolean> USE_LEGACY_SEMANTIC_TEXT_FORMAT = Setting.boolSetting(
         "index.mapping.semantic_text.use_legacy_format",
         false,
+        Setting.Property.Final,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
+
+    public static final Setting<String> DEFAULT_SEMANTIC_TEXT_INDEX_OPTIONS = Setting.simpleString(
+        "index.mapping.semantic_text.default_index_options_type",
+        BBQ_HNSW.getName(),
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex

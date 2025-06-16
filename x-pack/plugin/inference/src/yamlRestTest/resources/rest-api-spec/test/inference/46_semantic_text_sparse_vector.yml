@@ -257,6 +257,27 @@ setup:
       features: [ "headers", "close_to" ]
 
   - do:
+      indices.create:
+        index: test-sparse-index-random
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-sparse-index-random
+        id: doc_1
+        body:
+          inference_field: [ "It was a beautiful game", "Very competitive" ]
+        refresh: true
+
+  - do:
       headers:
         # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
@@ -266,13 +287,28 @@ setup:
           query:
             sparse_vector:
               field: inference_field
-              query: "inference test"
+              query: "soccer"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 6.9606755E18, error: 1e15 } }
+  - not_exists: hits.hits.0.matched_queries
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index-random
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "soccer"
               boost: 5.0
               _name: i-like-naming-my-queries
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 1.8918664E18, error: 1e15 } }
+  - close_to: { hits.hits.0._score: { value: 2.8501142E19, error: 1e15 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
-
-

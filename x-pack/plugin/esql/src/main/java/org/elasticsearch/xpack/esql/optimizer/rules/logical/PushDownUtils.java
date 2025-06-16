@@ -55,10 +55,10 @@ class PushDownUtils {
     public static <Plan extends UnaryPlan & GeneratingPlan<Plan>> LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(Plan generatingPlan) {
         LogicalPlan child = generatingPlan.child();
         if (child instanceof OrderBy orderBy) {
-            Set<String> evalFieldNames = new LinkedHashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
+            Set<String> generatedFieldNames = new LinkedHashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
 
             // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(generatedFieldNames, orderBy.order());
 
             AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
             @SuppressWarnings("unchecked")

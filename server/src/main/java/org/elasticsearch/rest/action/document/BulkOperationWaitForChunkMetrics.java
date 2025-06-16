@@ -19,8 +19,13 @@ public class BulkOperationWaitForChunkMetrics {
     private final LongHistogram chunkWaitTimeMillisHistogram;
 
     public BulkOperationWaitForChunkMetrics(MeterRegistry meterRegistry) {
-        this(meterRegistry.registerLongHistogram(CHUNK_WAIT_TIME_HISTOGRAM,
-            "Total time in millis spent waiting for next chunk of a bulk request", "centis"));
+        this(
+            meterRegistry.registerLongHistogram(
+                CHUNK_WAIT_TIME_HISTOGRAM,
+                "Total time in millis spent waiting for next chunk of a bulk request",
+                "centis"
+            )
+        );
     }
 
     private BulkOperationWaitForChunkMetrics(LongHistogram chunkWaitTimeMillisHistogram) {

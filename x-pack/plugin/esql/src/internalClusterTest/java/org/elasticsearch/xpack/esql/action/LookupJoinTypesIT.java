@@ -72,6 +72,9 @@ import static org.hamcrest.Matchers.is;
  * The main index contains a field called {@code main_byte} and the lookup index has {@code lookup_integer}. To test the pair, we run
  * {@code FROM main_index | RENAME main_byte AS lookup_integer | LOOKUP JOIN lookup_index ON lookup_integer | KEEP other}
  * and assert that the result exists and is equal to "value".
+ * For tests using union types, the same applies but there are additional main indices so that we have actual mapping conflicts.
+ * E.g. the field {@code main_byte} will occur another time in the index {@code main_byte_as_short} when we're testing a byte-short union
+ * type.
  */
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 public class LookupJoinTypesIT extends ESIntegTestCase {
@@ -237,12 +240,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
         }
 
-        // Make sure we have never added two configurations with the same index name
+        // Make sure we have never added two configurations with the same lookup index name.
+        // This prevents accidentally adding the same test config to two different groups.
         Set<String> knownTypes = new HashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {
             for (TestConfig config : configs.configs.values()) {
                 if (knownTypes.contains(config.lookupIndexName())) {
-                    throw new IllegalArgumentException("Duplicate index name: " + config.lookupIndexName());
+                    throw new IllegalArgumentException("Duplicate lookup index name: " + config.lookupIndexName());
                 }
                 knownTypes.add(config.lookupIndexName());
             }
@@ -300,7 +304,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
             config.validateMainIndex();
             config.validateLookupIndex();
-            config.validateAdditionalIndexes();
+            config.validateAdditionalMainIndexes();
 
             config.doTest();
         }
@@ -409,9 +413,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             // The main index will have many fields, one of each type to use in later type specific joins
             List<TestMapping> mainIndices = new ArrayList<>();
             for (TestConfig config : configs.values()) {
-                results.addAll(config.additionalIndexes());
-
                 mainIndices.add(config.mainIndex());
+                TestMapping otherIndex = config.additionalMainIndex();
+                if (otherIndex != null) {
+                    results.add(otherIndex);
+                }
             }
             TestMapping mainIndex = TestMapping.mergeProperties(mainIndices);
 
@@ -452,16 +458,16 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 """, String.join(",\n  ", mainProperties))));
 
             for (TestConfig config : configs.values()) {
-                for (TestMapping addtionalIndex : config.additionalIndexes()) {
+                TestMapping additionalIndex = config.additionalMainIndex();
+                if (additionalIndex != null) {
                     String doc = String.format(Locale.ROOT, """
                         {
-                          %s,
-                          "other": "value"
+                          %s
                         }
                         """, propertyFor(config.mainFieldName(), ((TestConfigPassesUnionType) config).otherMainType()));
-                    // Casting to TestConfigPassesUnionType is an ugly hack; better to derive the test data from the TestMapping or from the
-                    // TestConfig.
-                    results.add(new TestDocument(addtionalIndex.indexName, "1", doc));
+                    // TODO: Casting to TestConfigPassesUnionType is an ugly hack; better to derive the test data from the TestMapping or
+                    //  from the TestConfig.
+                    results.add(new TestDocument(additionalIndex.indexName, "1", doc));
                 }
             }
 
@@ -535,6 +541,15 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
         DataType lookupType();
 
+        default TestMapping mainIndex() {
+            return new TestMapping(MAIN_INDEX, List.of(propertySpecFor(mainFieldName(), mainType())), null);
+        }
+
+        /** Make sure the left index has the expected fields and types */
+        default void validateMainIndex() {
+            validateIndex(MAIN_INDEX, mainFieldName(), sampleDataFor(mainType()));
+        }
+
         /**
          * The same across main indices (necessary for union types).
          */
@@ -542,33 +557,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             return MAIN_INDEX_PREFIX + mainType().esType();
         }
 
-        default TestMapping mainIndex() {
-            return new TestMapping(MAIN_INDEX, List.of(propertySpecFor(mainFieldName(), mainType())), null);
-        }
-
         /**
-         * Used for union types. Will have the same main field name, but using different types.
+         * Used for union types. Will have the same main field name, but using a different type.
          */
-        default List<TestMapping> additionalIndexes() {
-            return List.of();
+        default TestMapping additionalMainIndex() {
+            return null;
         }
 
-        /** Make sure the lookup index has the expected fields and types */
-        default void validateAdditionalIndexes() {
+        /** Make sure the additional indexes have the expected fields and types */
+        default void validateAdditionalMainIndexes() {
             return;
-        }
-
-        /** Make sure the left indices have the expected fields and types */
-        default void validateMainIndex() {
-            validateIndex(MAIN_INDEX, mainFieldName(), sampleDataFor(mainType()));
         }
 
         default String lookupIndexName() {
             return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
-        }
-
-        default String lookupFieldName() {
-            return LOOKUP_INDEX_PREFIX + lookupType().esType();
         }
 
         default TestMapping lookupIndex() {
@@ -582,6 +584,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         /** Make sure the lookup index has the expected fields and types */
         default void validateLookupIndex() {
             validateIndex(lookupIndexName(), lookupFieldName(), sampleDataFor(lookupType()));
+        }
+
+        default String lookupFieldName() {
+            return LOOKUP_INDEX_PREFIX + lookupType().esType();
         }
 
         default String testQuery() {
@@ -628,6 +634,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Test case for a pair of types that can successfully be used in {@code LOOKUP JOIN}.
+     */
     private record TestConfigPasses(DataType mainType, DataType lookupType) implements TestConfig {
         @Override
         public void doTest() {
@@ -641,6 +650,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Test case for a {@code LOOKUP JOIN} where a field with a mapping conflict is cast to the type of the lookup field.
+     */
     private record TestConfigPassesUnionType(DataType mainType, DataType otherMainType, DataType lookupType) implements TestConfig {
         @Override
         public String lookupIndexName() {
@@ -649,16 +661,16 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private String additionalIndexName() {
-            return MAIN_INDEX + "_" + mainFieldName() + "_as_" + otherMainType().typeName();
+            return mainFieldName() + "_as_" + otherMainType().typeName();
         }
 
         @Override
-        public List<TestMapping> additionalIndexes() {
-            return List.of(new TestMapping(additionalIndexName(), List.of(propertySpecFor(mainFieldName(), otherMainType)), null));
+        public TestMapping additionalMainIndex() {
+            return new TestMapping(additionalIndexName(), List.of(propertySpecFor(mainFieldName(), otherMainType)), null);
         }
 
         @Override
-        public void validateAdditionalIndexes() {
+        public void validateAdditionalMainIndexes() {
             validateIndex(additionalIndexName(), mainFieldName(), sampleDataFor(otherMainType));
         }
 
@@ -698,6 +710,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Test case for a pair of types that generate an error message when used in {@code LOOKUP JOIN}.
+     */
     private record TestConfigFails<E extends Exception>(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion)
         implements
             TestConfig {

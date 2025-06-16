@@ -17,8 +17,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-
 /**
  * A list of wildcard patterns. Each pattern is a {@link WildcardPattern} that can be used to match strings and is
  * similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")

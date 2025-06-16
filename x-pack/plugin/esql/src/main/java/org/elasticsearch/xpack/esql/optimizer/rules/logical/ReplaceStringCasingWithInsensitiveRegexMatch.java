@@ -29,7 +29,7 @@ public class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules
     @Override
     protected Expression rule(RegexMatch<? extends StringPattern> regexMatch, LogicalOptimizerContext unused) {
         Expression e = regexMatch;
-        if(regexMatch.pattern() instanceof WildcardPatternList) {
+        if (regexMatch.pattern() instanceof WildcardPatternList) {
             // This optimization is not supported for WildcardPatternList for now
             return e;
         }

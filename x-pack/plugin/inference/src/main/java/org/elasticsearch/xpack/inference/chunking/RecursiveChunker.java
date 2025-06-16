@@ -84,22 +84,17 @@ public class RecursiveChunker implements Chunker {
 
     private List<ChunkOffsetAndCount> splitTextBySeparatorRegex(String input, ChunkOffset offset, String separatorRegex) {
         var pattern = Pattern.compile(separatorRegex, Pattern.MULTILINE);
-        var matcher = pattern.matcher(input);
+        var matcher = pattern.matcher(input).region(offset.start(), offset.end());
 
         var chunkOffsets = new ArrayList<ChunkOffsetAndCount>();
         int chunkStart = offset.start();
-        int searchStart = offset.start();
-        while (matcher.find(searchStart)) {
+        while (matcher.find()) {
             var chunkEnd = matcher.start();
-            if (chunkEnd >= offset.end()) {
-                break; // No more matches within the chunk offset
-            }
 
             if (chunkStart < chunkEnd) {
                 chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, chunkEnd)));
             }
             chunkStart = chunkEnd;
-            searchStart = matcher.end();
         }
 
         if (chunkStart < offset.end()) {

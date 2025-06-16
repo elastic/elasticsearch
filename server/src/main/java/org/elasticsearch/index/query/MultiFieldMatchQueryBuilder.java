@@ -310,6 +310,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
             float boost = entry.getValue() == null ? 1.0f : entry.getValue();
             fieldsAndBoosts.add(new MultiFieldMatchQueryBuilder.FieldAndBoost(fieldType, boost));
 
+            // TODO: group by analyzer.
             Analyzer analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
                 throw new IllegalArgumentException("All fields in [" + NAME + "] query must have the same search analyzer");
@@ -399,7 +400,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
 
         @Override
         public Query createPhraseQuery(String field, String queryText, int phraseSlop) {
-            throw new IllegalArgumentException("[combined_fields] queries don't support phrases");
+            throw new IllegalArgumentException("[multi_field_match] queries don't support phrases");
         }
 
         @Override

@@ -228,6 +228,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
                 keyType,
                 "lookup",
+                "lookup",
                 "key",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY

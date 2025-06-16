@@ -77,8 +77,10 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
     @Override
     protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState state) {
         var updatedTransformMetadata = TransformMetadata.getTransformMetadata(state).builder().upgradeMode(request.enabled()).build();
-        var updatedClusterMetadata = state.metadata().copyAndUpdate(b -> b.putCustom(TransformMetadata.TYPE, updatedTransformMetadata));
-        return state.copyAndUpdate(b -> b.metadata(updatedClusterMetadata));
+        return state.copyAndUpdateProject(
+            state.metadata().getProject().id(),
+            b -> b.putCustom(TransformMetadata.TYPE, updatedTransformMetadata)
+        );
     }
 
     @Override

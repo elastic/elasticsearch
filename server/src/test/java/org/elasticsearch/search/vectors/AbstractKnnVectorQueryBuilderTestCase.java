@@ -187,14 +187,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
             query = ((VectorSimilarityQuery) query).getInnerKnnQuery();
         }
-        Integer k = queryBuilder.k();
-        if (k == null) {
+        int k;
+        if (queryBuilder.k() == null) {
             k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
+        } else {
+            k = queryBuilder.k();
         }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             if (queryBuilder.rescoreVectorBuilder().oversample() > 0) {
                 RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-                assertEquals(k.intValue(), (rescoreQuery.k()));
+                assertEquals(k, (rescoreQuery.k()));
                 query = rescoreQuery.innerQuery();
             } else {
                 assertFalse(query instanceof RescoreKnnVectorQuery);
@@ -213,7 +215,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            Float oversample = queryBuilder.rescoreVectorBuilder().oversample();
+            float oversample = queryBuilder.rescoreVectorBuilder().oversample();
             k = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * oversample));
             numCands = Math.max(numCands, k);
         }

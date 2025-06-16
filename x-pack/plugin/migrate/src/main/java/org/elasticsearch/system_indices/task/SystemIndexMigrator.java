@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -863,9 +862,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         submitUnbatchedTask(clusterService, "clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                if (currentState.metadata().getProject().custom(FeatureMigrationResults.TYPE) != null) {
+                final var project = currentState.metadata().getProject();
+                if (project.custom(FeatureMigrationResults.TYPE) != null) {
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).removeProjectCustom(FeatureMigrationResults.TYPE))
+                        .putProjectMetadata(ProjectMetadata.builder(project).removeCustom(FeatureMigrationResults.TYPE))
                         .build();
                 }
                 return currentState;

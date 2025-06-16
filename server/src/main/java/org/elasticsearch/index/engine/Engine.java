@@ -26,7 +26,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -65,7 +64,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapping;
@@ -385,14 +383,15 @@ public abstract class Engine implements Closeable {
 
     private long getSparseVectorValueCount(final LeafReader atomicReader, List<BytesRef> fields) throws IOException {
         long count = 0;
-        Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
-        if (terms == null) {
-            return count;
-        }
-        TermsEnum termsEnum = terms.iterator();
-        for (var fieldName : fields) {
-            if (termsEnum.seekExact(fieldName)) {
-                count += termsEnum.docFreq();
+        for (var fieldNameBR : fields) {
+            var fieldName = fieldNameBR.utf8ToString();
+            var fi = atomicReader.getFieldInfos().fieldInfo(fieldName);
+            if (fi == null) {
+                continue;
+            }
+            Terms terms = atomicReader.terms(fieldName);
+            if (terms != null) {
+                count += terms.getDocCount();
             }
         }
         return count;

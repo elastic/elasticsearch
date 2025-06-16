@@ -27,6 +27,8 @@ import org.elasticsearch.transport.TransportService;
 
 public class GetPipelineTransportAction extends TransportLocalProjectMetadataAction<GetPipelineRequest, GetPipelineResponse> {
 
+    private final ProjectResolver projectResolver;
+
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
@@ -48,6 +50,8 @@ public class GetPipelineTransportAction extends TransportLocalProjectMetadataAct
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
         );
+
+        this.projectResolver = projectResolver;
 
         transportService.registerRequestHandler(
             actionName,
@@ -71,7 +75,7 @@ public class GetPipelineTransportAction extends TransportLocalProjectMetadataAct
 
     @Override
     protected ClusterBlockException checkBlock(GetPipelineRequest request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
 }

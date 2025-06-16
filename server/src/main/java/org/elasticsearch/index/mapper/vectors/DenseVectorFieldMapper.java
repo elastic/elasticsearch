@@ -2648,14 +2648,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else {
                 KnnFloatVectorQuery knnFloatVectorQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(
-                    name(),
-                    queryVector,
-                    filter,
-                    adjustedK,
-                    numCands,
-                    parentFilter,
-                    knnSearchStrategy
-                )
+                        name(),
+                        queryVector,
+                        filter,
+                        adjustedK,
+                        numCands,
+                        parentFilter,
+                        knnSearchStrategy
+                    )
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
                 // TODO: fix reading of saturation threshold and patience params ?
                 knnQuery = indexOptions != null && indexOptions.earlyExit()

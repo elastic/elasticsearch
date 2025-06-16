@@ -232,7 +232,7 @@ commandOptions
     ;
 
 commandOption
-    : identifier ASSIGN constant
+    : identifier ASSIGN primaryExpression
     ;
 
 explainCommand

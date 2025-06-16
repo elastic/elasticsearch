@@ -204,20 +204,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
             String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
-            Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
+            Map<String, Expression> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
-            for (Map.Entry<String, Object> item : options.entrySet()) {
+            for (Map.Entry<String, Expression> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
-                if (item.getValue() instanceof String == false) {
+                Object foldedValue = item.getValue().fold(FoldContext.small());
+                if (foldedValue instanceof String == false) {
                     throw new ParsingException(
                         source(ctx),
                         "Invalid value for dissect append_separator: expected a string, but was [{}]",
                         item.getValue()
                     );
                 }
-                appendSeparator = (String) item.getValue();
+                appendSeparator = (String) foldedValue;
             }
             Source src = source(ctx);
 
@@ -252,13 +253,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Map<String, Object> visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) {
+    public Map<String, Expression> visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) {
         if (ctx == null) {
             return Map.of();
         }
-        Map<String, Object> result = new HashMap<>();
+        Map<String, Expression> result = new HashMap<>();
         for (EsqlBaseParser.CommandOptionContext option : ctx.commandOption()) {
-            result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold(FoldContext.small() /* TODO remove me */));
+            result.put(visitIdentifier(option.identifier()), expression(option.primaryExpression()));
         }
         return result;
     }

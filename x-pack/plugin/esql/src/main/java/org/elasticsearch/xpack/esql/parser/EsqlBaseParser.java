@@ -3257,8 +3257,8 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(IdentifierContext.class,0);
     }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
-    public ConstantContext constant() {
-      return getRuleContext(ConstantContext.class,0);
+    public PrimaryExpressionContext primaryExpression() {
+      return getRuleContext(PrimaryExpressionContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public CommandOptionContext(ParserRuleContext parent, int invokingState) {
@@ -3291,7 +3291,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(433);
       match(ASSIGN);
       setState(434);
-      constant();
+      primaryExpression(0);
       }
     }
     catch (RecognitionException re) {
@@ -7340,7 +7340,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u01ac\u01af\u0001\u0000\u0000\u0000\u01ad\u01ab\u0001\u0000\u0000"+
     "\u0000\u01ad\u01ae\u0001\u0000\u0000\u0000\u01aeS\u0001\u0000\u0000\u0000"+
     "\u01af\u01ad\u0001\u0000\u0000\u0000\u01b0\u01b1\u00034\u001a\u0000\u01b1"+
-    "\u01b2\u0005:\u0000\u0000\u01b2\u01b3\u0003\u008eG\u0000\u01b3U\u0001"+
+    "\u01b2\u0005:\u0000\u0000\u01b2\u01b3\u0003\u0084B\u0000\u01b3U\u0001"+
     "\u0000\u0000\u0000\u01b4\u01b5\u0005\u0006\u0000\u0000\u01b5\u01b6\u0003"+
     "X,\u0000\u01b6W\u0001\u0000\u0000\u0000\u01b7\u01b8\u0005a\u0000\u0000"+
     "\u01b8\u01b9\u0003\u0002\u0001\u0000\u01b9\u01ba\u0005b\u0000\u0000\u01ba"+

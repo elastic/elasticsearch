@@ -541,6 +541,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
   issue: https://github.com/elastic/elasticsearch/issues/129296
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanManageIndexWithNoPermissions
+  issue: https://github.com/elastic/elasticsearch/issues/129471
 
 # Examples:
 #

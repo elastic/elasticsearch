@@ -82,8 +82,8 @@ import static org.hamcrest.Matchers.is;
 // TODO: This suite creates a lot of indices. It should be sufficient to just create 1 main index with 1 field per relevant type and 1
 // lookup index with 1 field per relevant type; only union types require additional main indices so we can have the same field mapped to
 // different types.
-@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class LookupJoinTypesIT extends ESIntegTestCase {
     private static final String MAIN_INDEX_PREFIX = "main_";
     private static final String MAIN_INDEX = MAIN_INDEX_PREFIX + "index";

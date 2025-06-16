@@ -753,6 +753,30 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithDrop() {
+        var query = """
+            FROM test
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | DROP content)
+               ( WHERE content:"dog" | DROP content)
+            | KEEP id, _fork
+            | SORT id, _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(3, "fork2"),
+                List.of(4, "fork2"),
+                List.of(6, "fork1"),
+                List.of(6, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test

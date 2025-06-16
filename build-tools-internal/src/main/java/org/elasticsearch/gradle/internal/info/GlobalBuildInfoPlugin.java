@@ -205,6 +205,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private List<DevelopmentBranch> getDevelopmentBranches() {
         List<DevelopmentBranch> branches = new ArrayList<>();
+        // TODO jozala: change to get branches.json from raw GitHub link (where to keep the URL?)
         File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
         try (InputStream is = new FileInputStream(branchesFile)) {
             JsonNode json = objectMapper.readTree(is);

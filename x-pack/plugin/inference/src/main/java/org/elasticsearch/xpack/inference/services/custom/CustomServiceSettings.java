@@ -278,8 +278,12 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
         errorParser = new ErrorResponseParser(in);
-        // TODO need a new transport version
-        inputTypeTranslator = new InputTypeTranslator(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
+            inputTypeTranslator = new InputTypeTranslator(in);
+        } else {
+            inputTypeTranslator = InputTypeTranslator.EMPTY_TRANSLATOR;
+        }
     }
 
     @Override

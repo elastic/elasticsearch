@@ -403,8 +403,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 try {
                     dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
                 } catch (Exception e) {
-                    // dispatchRequest already handles exceptions, this time we wont be able to send response
-                    logger.error(() -> "failed to send failure response for uri [" + aggregatedRequest.uri() + "]", e);
+                    throw new ElasticsearchException(e);
                 }
             });
         }

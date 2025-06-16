@@ -90,6 +90,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
+    private final AtomicLong numChildLocalCancellationsWithNoChildrenFound = new AtomicLong();
+
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
@@ -299,6 +301,16 @@ public class TaskManager implements ClusterStateApplier {
                     }
                     child.cancel(reason);
                 }
+            } else {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "No children list found for cancelChildLocal() with parent task [{}], request ID [{}], and reason [{}]",
+                        parentTaskId,
+                        childRequestId,
+                        reason
+                    );
+                }
+                numChildLocalCancellationsWithNoChildrenFound.incrementAndGet();
             }
         }
     }
@@ -815,5 +827,9 @@ public class TaskManager implements ClusterStateApplier {
 
     public Set<String> getTaskHeaders() {
         return taskHeaders;
+    }
+
+    public long getNumChildLocalCancellationsWithNoChildrenFound() {
+        return numChildLocalCancellationsWithNoChildrenFound.get();
     }
 }

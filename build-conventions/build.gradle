@@ -24,8 +24,8 @@ plugins {
 group = "org.elasticsearch"
 // This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
 java {
-  targetCompatibility = 11
-  sourceCompatibility = 11
+  targetCompatibility = 17
+  sourceCompatibility = 17
 }
 
 gradlePlugin {
@@ -73,7 +73,9 @@ dependencies {
     api buildLibs.maven.model
     api buildLibs.shadow.plugin
     api buildLibs.apache.rat
-    compileOnly buildLibs.checkstyle
+    api buildLibs.nmcp
+
+  compileOnly buildLibs.checkstyle
     api(buildLibs.spotless.plugin) {
       exclude module: "groovy-xml"
     }

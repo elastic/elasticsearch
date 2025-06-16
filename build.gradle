@@ -57,6 +57,7 @@ plugins {
   id 'elasticsearch.release-tools'
   id 'elasticsearch.auto-backporting'
   id 'elasticsearch.versions'
+  id 'com.gradleup.nmcp.aggregation'
 }
 
 /**
@@ -92,6 +93,22 @@ class ListExpansion {
 // Filters out intermediate patch releases to reduce the load of CI testing
 def filterIntermediatePatches = { List<Version> versions ->
   versions.groupBy {"${it.major}.${it.minor}"}.values().collect {it.max()}
+}
+
+nmcpAggregation {
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+tasks.named('zipAggregation').configure {
+  // put this in a place that works well with our DRA infrastructure
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregation")
+  archiveVersion.set(VersionProperties.elasticsearch)
+  destinationDirectory.set(layout.buildDirectory.dir("distributions"));
+
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }
 
 tasks.register("updateCIBwcVersions") {

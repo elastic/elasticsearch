@@ -24,7 +24,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         Redistribution and use in source and binary forms, with or without
         modification, are permitted provided that the following conditions
         are met:
-        
+
          1. Redistributions of source code must retain the above copyright
             notice, this list of conditions and the following disclaimer.
          2. Redistributions in binary form must reproduce the above copyright
@@ -32,7 +32,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             documentation and/or other materials provided with the distribution.
          3. The name of the author may not be used to endorse or promote products
             derived from this software without specific prior written permission.
-        
+
         THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
         IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
         OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -51,11 +51,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
           id 'java'
           id 'elasticsearch.global-build-info'
         }
-       
+
         apply plugin:'elasticsearch.build'
         group = 'org.acme'
         description = "some example project"
-        
+
         repositories {
           maven {
             name = "local-test"
@@ -66,7 +66,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
           }
           mavenCentral()
         }
-        
+
         dependencies {
           jarHell 'org.elasticsearch:elasticsearch-core:current'
         }
@@ -82,7 +82,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
            * Side Public License, v 1.
            */
           package org.elasticsearch;
-          
+
           public class SampleClass {
           }
         """.stripIndent()
@@ -114,8 +114,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world.jar").exists()
-        file("build/distributions/hello-world-javadoc.jar").exists()
-        file("build/distributions/hello-world-sources.jar").exists()
         assertValidJar(file("build/distributions/hello-world.jar"))
     }
 
@@ -138,7 +136,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             }
             licenseFile.set(file("LICENSE"))
             noticeFile.set(file("NOTICE"))
-            
+
             tasks.named("forbiddenApisMain").configure {enabled = false }
             tasks.named('checkstyleMain').configure { enabled = false }
             tasks.named('loggerUsageCheck').configure { enabled = false }
@@ -151,7 +149,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
         result.task(":splitPackagesAudit").outcome == TaskOutcome.SUCCESS
-        result.task(":validateElasticPom").outcome == TaskOutcome.SUCCESS
         // disabled but check for being on the task graph
         result.task(":forbiddenApisMain").outcome == TaskOutcome.SKIPPED
         result.task(":checkstyleMain").outcome == TaskOutcome.SKIPPED

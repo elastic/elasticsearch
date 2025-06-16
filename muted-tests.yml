@@ -562,6 +562,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
   method: testMoveToAllocateStep
   issue: https://github.com/elastic/elasticsearch/issues/129490
+- class: org.elasticsearch.xpack.ilm.actions.ShrinkActionIT
+  method: testShrinkDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/129491
 
 # Examples:
 #

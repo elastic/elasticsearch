@@ -220,7 +220,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         mapper = createDocumentMapper(fieldMapping(this::mappingWithIndexOptionsOnlyPruneTrue));
         assertEquals(Strings.toString(fieldMapping(this::mappingWithIndexOptionsOnlyPruneTrue)), mapper.mappingSource().toString());
-   }
+    }
 
     public void testDotInFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));

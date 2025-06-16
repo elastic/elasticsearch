@@ -212,6 +212,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -297,6 +298,9 @@ forkSubQueryProcessingCommand
     | statsCommand
     | sortCommand
     | dissectCommand
+    | changePointCommand
+    | completionCommand
+    | grokCommand
     ;
 
 rrfCommand

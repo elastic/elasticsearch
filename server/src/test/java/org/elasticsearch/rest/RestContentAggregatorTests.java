@@ -75,6 +75,7 @@ public class RestContentAggregatorTests extends ESTestCase {
         var aggregated = aggregatedRef.get();
         var expectedBytes = CompositeBytesReference.of(streamChunks.toArray(new ReleasableBytesReference[0]));
         assertEquals(expectedBytes, aggregated.content());
+        aggregated.content().close();
     }
 
     public void testReleaseChunksOnClose() {

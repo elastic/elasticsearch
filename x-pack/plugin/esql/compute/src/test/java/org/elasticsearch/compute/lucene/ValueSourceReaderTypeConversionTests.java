@@ -199,7 +199,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     private List<ValuesSourceReaderOperator.ShardContext> initShardContexts() {
         return INDICES.keySet()
             .stream()
-            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), () -> SourceLoader.FROM_STORED_SOURCE))
+            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), () -> SourceLoader.FROM_STORED_SOURCE, 0.2))
             .toList();
     }
 
@@ -261,7 +261,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
             shardContexts,
-            ctx -> new MatchAllDocsQuery(),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             DataPartitioning.SHARD,
             1,// randomIntBetween(1, 10),
             pageSize,
@@ -1289,16 +1289,17 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             List.of(shardContext),
-            ctx -> new MatchAllDocsQuery(),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
             false // no scoring
         );
-        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE);
+        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2);
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
@@ -1376,6 +1377,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         int[] pages = new int[] { 0 };
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 simpleInput(driverContext, 10),
                 List.of(
@@ -1416,7 +1418,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             cases.stream().map(c -> c.info).toList(),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE)),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1444,11 +1446,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             List<ValuesSourceReaderOperator.ShardContext> readerShardContexts = new ArrayList<>();
             for (int s = 0; s < shardCount; s++) {
                 contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
-                readerShardContexts.add(new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE));
+                readerShardContexts.add(
+                    new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                );
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
                 contexts,
-                ctx -> new MatchAllDocsQuery(),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,
@@ -1497,6 +1501,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
@@ -1524,6 +1529,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 new Driver(
+                    "test",
                     "dummy-session",
                     0,
                     0,

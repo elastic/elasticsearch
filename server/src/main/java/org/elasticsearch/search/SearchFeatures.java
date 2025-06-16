@@ -25,9 +25,16 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS = new NodeFeature(
         "search.completion_field.duplicate.support"
     );
+    public static final NodeFeature INT_SORT_FOR_INT_SHORT_BYTE_FIELDS = new NodeFeature("search.sort.int_sort_for_int_short_byte_fields");
+    static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETRIEVER_RESCORER_ENABLED, COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS);
+        return Set.of(
+            RETRIEVER_RESCORER_ENABLED,
+            COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS,
+            INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
+            MULTI_MATCH_CHECKS_POSITIONS
+        );
     }
 }

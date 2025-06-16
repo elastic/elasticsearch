@@ -68,6 +68,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext), simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
@@ -89,6 +90,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
                 List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
@@ -110,6 +112,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(
@@ -142,6 +145,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
                 List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
@@ -236,6 +240,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             DriverContext driver1Context = driverContext();
             drivers.add(
                 new Driver(
+                    "test",
                     driver1Context,
                     new CannedSourceOperator(pages.iterator()),
                     List.of(
@@ -253,6 +258,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         DriverContext driver2Context = driverContext();
         drivers.add(
             new Driver(
+                "test",
                 driver2Context,
                 new ExchangeSourceOperator(sourceExchanger.createExchangeSource()),
                 List.of(

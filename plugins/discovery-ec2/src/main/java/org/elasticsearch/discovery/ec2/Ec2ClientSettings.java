@@ -67,7 +67,7 @@ final class Ec2ClientSettings {
         "https",
         s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)),
         Property.NodeScope,
-        Property.Deprecated
+        Property.DeprecatedWarning
     );
 
     /** The username of a proxy to connect to EC2 through. */

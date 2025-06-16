@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.chunking.NoopChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 
@@ -86,7 +87,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
     }
@@ -99,9 +100,13 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
+    }
+
+    protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
+        return TestTaskSettings.fromMap(taskSettingsMap);
     }
 
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
@@ -122,7 +127,14 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
-        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
+        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
+            var offsets = NoopChunker.INSTANCE.chunk(input.input(), chunkingSettings);
+            List<ChunkedInput> ret = new ArrayList<>();
+            for (var offset : offsets) {
+                ret.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+            }
+            return ret;
+        } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
@@ -149,15 +161,15 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TaskType taskType,
             String service,
             ServiceSettings serviceSettings,
-            TestTaskSettings taskSettings,
+            TaskSettings taskSettings,
             TestSecretSettings secretSettings
         ) {
             super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
         }
 
         @Override
-        public TestTaskSettings getTaskSettings() {
-            return (TestTaskSettings) super.getTaskSettings();
+        public TaskSettings getTaskSettings() {
+            return super.getTaskSettings();
         }
 
         @Override

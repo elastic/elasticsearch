@@ -60,6 +60,7 @@ import java.util.stream.LongStream;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
@@ -520,7 +521,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             elementTypes.add(e);
@@ -543,6 +544,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -592,7 +594,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             elementTypes.add(e);
@@ -633,6 +635,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -668,6 +671,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new TupleBlockSourceOperator(driverContext.blockFactory(), inputValues, randomIntBetween(1, 1000)),
                 List.of(
@@ -938,6 +942,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         int topCount = randomIntBetween(1, values.size());
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(page).iterator()),
                 List.of(
@@ -980,7 +985,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == AGGREGATE_METRIC_DOUBLE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
@@ -1112,6 +1117,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             List<List<Object>> actual = new ArrayList<>();
             try (
                 Driver driver = new Driver(
+                    "test",
                     driverContext,
                     new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                     List.of(
@@ -1239,6 +1245,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             DriverContext driverContext = driverContext();
             try (
                 Driver driver = new Driver(
+                    "test",
                     driverContext,
                     new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                     List.of(
@@ -1327,6 +1334,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -1367,6 +1375,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, docCount)),
                 List.of(

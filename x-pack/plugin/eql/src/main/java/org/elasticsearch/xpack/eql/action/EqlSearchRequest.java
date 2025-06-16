@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +42,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
-public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
+public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
@@ -281,13 +281,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             EqlSearchRequest::waitForCompletionTimeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT),
             WAIT_FOR_COMPLETION_TIMEOUT,
-            ObjectParser.ValueType.VALUE
+            ValueType.VALUE
         );
         parser.declareField(
             EqlSearchRequest::keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE),
             KEEP_ALIVE,
-            ObjectParser.ValueType.VALUE
+            ValueType.VALUE
         );
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
@@ -467,7 +467,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         Token token = parser.currentToken();
 
         if (token == Token.START_ARRAY) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 result.add(FieldAndFormat.fromXContent(parser));
             }
         }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -99,7 +99,7 @@ public abstract class ChangeCase extends EsqlConfigurationFunction {
         return replaceChild(newChildren.get(0));
     }
 
-    @Evaluator
+    @ConvertEvaluator
     static BytesRef process(BytesRef val, @Fixed Locale locale, @Fixed Case caseType) {
         return BytesRefs.toBytesRef(caseType.process(val.utf8ToString(), locale));
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
@@ -285,7 +286,20 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         ),
                         repositoryName -> asyncRepositoryContentsListener -> SubscribableListener
 
-                            .<RepositoryData>newForked(l -> maybeGetRepositoryData(repositoryName, l))
+                            .<RepositoryData>newForked(
+                                l -> maybeGetRepositoryData(
+                                    repositoryName,
+                                    l.delegateResponse(
+                                        (ll, e) -> ll.onFailure(
+                                            new RepositoryException(
+                                                repositoryName,
+                                                "cannot retrieve snapshots list from this repository",
+                                                e
+                                            )
+                                        )
+                                    )
+                                )
+                            )
                             .andThenApply(repositoryData -> {
                                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
                                 cancellableTask.ensureNotCancelled();

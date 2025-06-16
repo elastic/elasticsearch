@@ -23,7 +23,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_KEYWORD_LEADING_ZEROS_REJECTED;
 
@@ -33,8 +32,7 @@ public class ToIP extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (source, field) -> field),
         Map.entry(KEYWORD, FROM_KEYWORD_LEADING_ZEROS_REJECTED),
-        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED),
-        Map.entry(SEMANTIC_TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED)
+        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED)
     );
 
     @FunctionInfo(

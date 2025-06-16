@@ -118,14 +118,16 @@ and that the next generation index will also be managed by {ilm-init}:
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,                                       <2>
           "ilm_policy": "pre-dsl-ilm-policy",                       <3>
-          "managed_by": "Index Lifecycle Management"                <4>
+          "managed_by": "Index Lifecycle Management",               <4>
+          "index_mode": "standard"
         },
         {
           "index_name": ".ds-dsl-data-stream-2023.10.19-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
-          "managed_by": "Index Lifecycle Management"
+          "managed_by": "Index Lifecycle Management",
+          "index_mode": "standard"
         }
       ],
       "generation": 2,
@@ -138,6 +140,7 @@ and that the next generation index will also be managed by {ilm-init}:
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -251,14 +254,16 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
-          "managed_by": "Index Lifecycle Management"                <1>
+          "managed_by": "Index Lifecycle Management",               <1>
+          "index_mode": "standard"
         },
         {
           "index_name": ".ds-dsl-data-stream-2023.10.19-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
-          "managed_by": "Index Lifecycle Management"                <2>
+          "managed_by": "Index Lifecycle Management",               <2>
+          "index_mode": "standard"
         }
       ],
       "generation": 2,
@@ -277,6 +282,7 @@ GET _data_stream/dsl-data-stream
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -324,6 +330,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"                <1>
         },
         {
@@ -331,6 +338,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"                <2>
         },
         {
@@ -338,6 +346,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8abcd1",
           "prefer_ilm": false,                                      <3>
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Data stream lifecycle"                     <4>
         }
       ],
@@ -357,6 +366,7 @@ GET _data_stream/dsl-data-stream
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]
@@ -424,6 +434,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"
         },
         {
@@ -431,6 +442,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"
         },
         {
@@ -438,6 +450,7 @@ GET _data_stream/dsl-data-stream
           "index_uuid": "PA_JquKGSiKcAKBA8abcd1",
           "prefer_ilm": false,
           "ilm_policy": "pre-dsl-ilm-policy",
+          "index_mode": "standard",
           "managed_by": "Index Lifecycle Management"                <1>
         }
       ],
@@ -455,6 +468,7 @@ GET _data_stream/dsl-data-stream
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "index_mode": "standard",
       "rollover_on_write": false
     }
   ]

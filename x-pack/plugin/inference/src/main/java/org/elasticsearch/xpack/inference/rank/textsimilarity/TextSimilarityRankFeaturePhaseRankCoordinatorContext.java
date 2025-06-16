@@ -19,11 +19,15 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
@@ -43,9 +47,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         Client client,
         String inferenceId,
         String inferenceText,
-        Float minScore
+        Float minScore,
+        boolean failuresAllowed
     ) {
-        super(size, from, rankWindowSize);
+        super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -90,7 +95,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             } else if (r.getEndpoints().isEmpty() == false
                 && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
                     configuredTopN = googleVertexAiTaskSettings.topN();
-                }
+                } else if (r.getEndpoints().isEmpty() == false
+                    && r.getEndpoints().get(0).getTaskSettings() instanceof HuggingFaceRerankTaskSettings huggingFaceRerankTaskSettings) {
+                        configuredTopN = huggingFaceRerankTaskSettings.getTopNDocumentsOnly();
+                    }
             if (configuredTopN != null && configuredTopN < rankWindowSize) {
                 l.onFailure(
                     new IllegalArgumentException(
@@ -113,7 +121,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
                 InferenceAction.Request inferenceRequest = generateRequest(featureData);
                 try {
-                    client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+                    executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
                 } finally {
                     inferenceRequest.decRef();
                 }
@@ -126,19 +134,25 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     /**
      * Sorts documents by score descending and discards those with a score less than minScore.
-     * @param originalDocs documents to process
+     *
+     * @param originalDocs   documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
     @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        List<RankFeatureDoc> docs = new ArrayList<>();
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
+        if (rerankedScores == false) {
+            // just return, don't normalize or apply minScore to scores that haven't been modified
+            return originalDocs;
+        }
+        List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);
         for (RankFeatureDoc doc : originalDocs) {
             if (minScore == null || doc.score >= minScore) {
                 doc.score = normalizeScore(doc.score);
                 docs.add(doc);
             }
         }
-        docs.sort(RankFeatureDoc::compareTo);
-        return docs.toArray(new RankFeatureDoc[0]);
+        docs.sort(null);
+        return docs.toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

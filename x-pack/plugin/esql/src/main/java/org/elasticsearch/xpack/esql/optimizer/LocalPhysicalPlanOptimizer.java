@@ -26,13 +26,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-
 /**
  * Manages field extraction and pushing parts of the query into Lucene. (Query elements that are not pushed into Lucene are executed via
  * the compute engine)
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
+
+    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
@@ -54,13 +54,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return rules(true);
+        return RULES;
     }
 
-    protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
-
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
@@ -81,7 +80,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new SpatialDocValuesExtraction(),
             new SpatialShapeBoundsExtraction()
         );
-        return asList(pushdown, fieldExtraction);
+        return List.of(pushdown, fieldExtraction);
     }
-
 }

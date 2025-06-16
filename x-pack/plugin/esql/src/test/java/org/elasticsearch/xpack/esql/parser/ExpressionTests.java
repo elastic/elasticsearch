@@ -583,7 +583,7 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> renamings;
         for (int i = 0; i < newName.length; i++) {
-            Rename r = renameExpression(oldName[i] + " AS " + newName[i]);
+            Rename r = renameExpression(randomBoolean() ? (oldName[i] + " AS " + newName[i]) : (newName[i] + " = " + oldName[i]));
             renamings = r.renamings();
             assertThat(renamings.size(), equalTo(1));
             assertThat(renamings.get(0), instanceOf(Alias.class));
@@ -610,6 +610,7 @@ public class ExpressionTests extends ESTestCase {
 
     public void testForbidWildcardProjectRename() {
         assertParsingException(() -> renameExpression("b* AS a*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [b* AS a*]");
+        assertParsingException(() -> renameExpression("a* = b*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [a* = b*]");
     }
 
     public void testSimplifyInWithSingleElementList() {

@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -368,9 +367,12 @@ public class DiskThresholdMonitor {
             }
 
             // Generate a map of node name to ID so we can use it to look up node replacement targets
-            final Map<String, String> nodeNameToId = state.getRoutingNodes()
+            final Map<String, List<String>> nodeNameToIds = state.getRoutingNodes()
                 .stream()
-                .collect(Collectors.toMap(rn -> rn.node().getName(), RoutingNode::nodeId, (s1, s2) -> s2));
+                .collect(Collectors.groupingBy(rn -> rn.node().getName(), Collectors.mapping(RoutingNode::nodeId, Collectors.toList())));
+
+            // Generate a set of the valid node IDs so we can use it to filter valid sources
+            final Set<String> routingNodeIds = state.getRoutingNodes().stream().map(RoutingNode::nodeId).collect(Collectors.toSet());
 
             // Calculate both the source node id and the target node id of a "replace" type shutdown
             final Set<String> nodesIdsPartOfReplacement = state.metadata()
@@ -379,8 +381,8 @@ public class DiskThresholdMonitor {
                 .values()
                 .stream()
                 .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
-                .flatMap(meta -> Stream.of(meta.getNodeId(), nodeNameToId.get(meta.getTargetNodeName())))
-                .filter(Objects::nonNull)  // The REPLACE target node might not still be in RoutingNodes
+                .flatMap(meta -> Stream.concat(Stream.of(meta.getNodeId()), nodeIdsOrEmpty(meta, nodeNameToIds)))
+                .filter(routingNodeIds::contains) // The REPLACE source node might already have been removed from RoutingNodes
                 .collect(Collectors.toSet());
 
             // Generate a set of all the indices that exist on either the target or source of a node replacement
@@ -418,6 +420,11 @@ public class DiskThresholdMonitor {
                 updateIndicesReadOnly(indicesToMarkReadOnly, asyncRefs.acquire(), true);
             }
         }
+    }
+
+    private static Stream<String> nodeIdsOrEmpty(SingleNodeShutdownMetadata meta, Map<String, List<String>> nodeNameToIds) {
+        var ids = nodeNameToIds.get(meta.getTargetNodeName()); // The REPLACE target node might not still be in RoutingNodes
+        return ids == null ? Stream.empty() : ids.stream();
     }
 
     // exposed for tests to override

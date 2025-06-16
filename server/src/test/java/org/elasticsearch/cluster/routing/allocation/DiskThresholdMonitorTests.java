@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLog;
@@ -1335,6 +1336,66 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         var result2 = runDiskThresholdMonitor(blockedClusterState, clusterInfo);
         assertFalse(result2.v1());
         assertNull(result2.v2());
+    }
+
+    private void doTestSkipNodesNotInRoutingTable(boolean sourceNodeInTable, boolean targetNodeInTable) {
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .putCustom(
+                NodesShutdownMetadata.TYPE,
+                new NodesShutdownMetadata(
+                    Collections.singletonMap(
+                        "node1",
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId("node1")
+                            .setNodeEphemeralId("node1")
+                            .setReason("testing")
+                            .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                            .setTargetNodeName("node3")
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .build()
+                    )
+                )
+            );
+
+        final Metadata metadata = metadataBuilder.build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
+        DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder().add(newNormalNode("node2", "node2"));
+        // node1 which is replaced by node3 may or may not be in the cluster
+        if (sourceNodeInTable) {
+            discoveryNodes.add(newNormalNode("node1", "node1"));
+        }
+        // node3 which is to replace node1 may or may not be in the cluster
+        if (targetNodeInTable) {
+            discoveryNodes.add(newNormalNode("node3", "node3"));
+        }
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(discoveryNodes).build(),
+            createAllocationService(Settings.EMPTY)
+        );
+        final Index testIndex = routingTable.index("test").getIndex();
+
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
+        diskUsages.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
+        final ClusterInfo clusterInfo = clusterInfo(diskUsages);
+        Tuple<Boolean, Set<String>> result = runDiskThresholdMonitor(clusterState, clusterInfo);
+        assertTrue(result.v1()); // reroute on new nodes
+        assertEquals(Set.of("test"), result.v2());
+    }
+
+    public void testSkipReplaceSourceNodeNotInRoutingTable() {
+        doTestSkipNodesNotInRoutingTable(false, true);
+    }
+
+    public void testSkipReplaceTargetNodeNotInRoutingTable() {
+        doTestSkipNodesNotInRoutingTable(true, false);
+    }
+
+    public void testSkipReplaceSourceAndTargetNodesNotInRoutingTable() {
+        doTestSkipNodesNotInRoutingTable(false, false);
     }
 
     // Runs a disk threshold monitor with a given cluster state and cluster info and returns whether a reroute should

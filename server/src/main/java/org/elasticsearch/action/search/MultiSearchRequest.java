@@ -9,9 +9,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
@@ -50,7 +50,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
+public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
     public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
         "support for empty first line before any action metadata in msearch API is deprecated "

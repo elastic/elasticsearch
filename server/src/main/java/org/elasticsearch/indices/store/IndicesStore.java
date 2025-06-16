@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -324,7 +325,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         return;
                     }
                     try {
-                        indicesService.deleteShardStore("no longer used", shardId, currentState);
+                        indicesService.deleteShardStore("no longer used", shardId, currentState, IndexRemovalReason.NO_LONGER_ASSIGNED);
                     } catch (Exception ex) {
                         logger.debug(() -> format("%s failed to delete unallocated shard, ignoring", shardId), ex);
                     }

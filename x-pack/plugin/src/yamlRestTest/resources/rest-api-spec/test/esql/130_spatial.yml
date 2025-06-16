@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.14.0"]
       reason: "Mixed cluster tests don't work with the changed error message from sort"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
 
   - do:
       indices.create:
@@ -148,20 +148,25 @@ geo_point unsortable with limit from row:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL pt = TO_GEOPOINT(wkt) | limit 5 | sort pt'
 
 ---
-values unsupported for geo_point:
+values supported for geo_point:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ agg_values_spatial ]
+      reason: "Spatial types added to values aggregation in 8.19.0"
   - do:
-      catch: '/.+argument of \[VALUES\(location\)\] must be .+/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM geo_points | STATS VALUES(location)'
-
----
-values unsupported for geo_point status code:
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'FROM geo_points | STATS VALUES(location)'
+          query: 'FROM geo_points | STATS locations = VALUES(location) | EVAL locations = MV_SORT(TO_STRING(locations))'
+  - length: { columns: 1 }
+  - match: { columns.0.name: locations }
+  - match: { columns.0.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: ["POINT (-1.0 1.0)", "POINT (1.0 -1.0)"] }
 
 ---
 cartesian_point:

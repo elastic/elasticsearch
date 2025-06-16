@@ -10,10 +10,8 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
-import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 
@@ -28,27 +26,14 @@ public interface SourceProvider {
     Source getSource(LeafReaderContext ctx, int doc) throws IOException;
 
     /**
-     * A SourceProvider that loads source from stored fields
+     * A SourceProvider that delegate loading source to the provided {@link MappingLookup}.
      *
      * The returned SourceProvider is thread-safe across segments, in that it may be
      * safely used by a searcher that searches different segments on different threads,
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromStoredFields() {
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.sequentialSource();
-        return new StoredFieldSourceProvider(storedFieldLoader);
-    }
-
-    /**
-     * A SourceProvider that loads source from synthetic source
-     *
-     * The returned SourceProvider is thread-safe across segments, in that it may be
-     * safely used by a searcher that searches different segments on different threads,
-     * but it is not safe to use this to access documents from the same segment across
-     * multiple threads.
-     */
-    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFilter filter, SourceFieldMetrics metrics) {
-        return new SyntheticSourceProvider(new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics));
+    static SourceProvider fromLookup(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
+        return new ConcurrentSegmentSourceProvider(lookup.newSourceLoader(filter, metrics), lookup.isSourceSynthetic() == false);
     }
 }

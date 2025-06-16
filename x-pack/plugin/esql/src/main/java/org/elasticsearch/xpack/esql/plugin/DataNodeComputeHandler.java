@@ -16,6 +16,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -64,6 +66,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  */
 final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRequest> {
     private final ComputeService computeService;
+    private final ClusterService clusterService;
     private final SearchService searchService;
     private final TransportService transportService;
     private final ExchangeService exchangeService;
@@ -72,12 +75,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     DataNodeComputeHandler(
         ComputeService computeService,
+        ClusterService clusterService,
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
         Executor esqlExecutor
     ) {
         this.computeService = computeService;
+        this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
         this.exchangeService = exchangeService;
@@ -98,13 +103,19 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(
+        Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+
+        new DataNodeRequestSender(
+            clusterService,
             transportService,
             esqlExecutor,
-            clusterAlias,
             parentTask,
-            allowPartialResults
+            originalIndices,
+            PlannerUtils.canMatchFilter(dataNodePlan),
+            clusterAlias,
+            configuration.allowPartialResults(),
+            maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
+            configuration.pragmas().unavailableShardResolutionAttempts()
         ) {
             @Override
             protected void sendRequest(
@@ -113,6 +124,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
+                if (exchangeSource.isFinished()) {
+                    nodeListener.onSkip();
+                    return;
+                }
+
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
@@ -135,7 +151,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
-                        if (allowPartialResults) {
+                        if (configuration.allowPartialResults()) {
                             try {
                                 groupTask = computeService.createGroupTask(
                                     parentTask,
@@ -155,14 +171,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                allowPartialResults == false,
-                                pagesFetched::incrementAndGet,
-                                queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
-                            );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
@@ -186,16 +194,20 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     return r.profiles();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
                             );
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                configuration.allowPartialResults() == false,
+                                pagesFetched::incrementAndGet,
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
+                            );
                         }
                     })
                 );
             }
-        };
-        sender.startComputeOnDataNodes(
-            clusterAlias,
+        }.startComputeOnDataNodes(
             concreteIndices,
-            originalIndices,
-            PlannerUtils.canMatchFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close)
         );
@@ -281,6 +293,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
                 var computeContext = new ComputeContext(
                     sessionId,
+                    "data",
                     clusterAlias,
                     searchContexts,
                     configuration,
@@ -424,6 +437,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
+                        "node_reduce",
                         request.clusterAlias(),
                         List.of(),
                         request.configuration(),

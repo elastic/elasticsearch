@@ -601,7 +601,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             "\\D" };
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
+            BinaryDvConfirmedQuery q = (BinaryDvConfirmedQuery) wildcardFieldQuery;
             Query approximationQuery = unwrapAnyBoost(q.getApproximationQuery());
             approximationQuery = getSimplifiedApproximationQuery(q.getApproximationQuery());
             assertTrue(
@@ -657,7 +657,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
-            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BinaryDvConfirmedAutomatonQuery);
+            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BinaryDvConfirmedQuery);
         }
 
         // TODO All these expressions have no acceleration at all and could be improved
@@ -665,7 +665,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String pattern : slowPatterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
-            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
+            BinaryDvConfirmedQuery q = (BinaryDvConfirmedQuery) wildcardFieldQuery;
             assertTrue(
                 pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
                 q.getApproximationQuery() instanceof MatchAllDocsQuery
@@ -674,34 +674,31 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     }
 
-    public void testQueryCachingEquality() throws IOException, ParseException {
+    public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
         Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern));
         Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern));
-        BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(
-            new MatchAllDocsQuery(),
-            "field",
-            pattern,
-            caseSensitiveAutomaton
-        );
-        BinaryDvConfirmedAutomatonQuery ciQ = new BinaryDvConfirmedAutomatonQuery(
-            new MatchAllDocsQuery(),
-            "field",
-            pattern,
-            caseInSensitiveAutomaton
-        );
+        Query csQ = BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), "field", pattern, caseSensitiveAutomaton);
+        Query ciQ = BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), "field", pattern, caseInSensitiveAutomaton);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
         Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
-        BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery(
-            new MatchAllDocsQuery(),
-            "field",
-            pattern,
-            caseSensitiveAutomaton2
-        );
+        Query csQ2 = BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), "field", pattern, caseSensitiveAutomaton2);
+        assertEquals(csQ, csQ2);
+        assertEquals(csQ.hashCode(), csQ2.hashCode());
+    }
+
+    public void testQueryCachingEqualityFromTerms() {
+        Query csQ = BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), "field", new BytesRef("termA"));
+        Query ciQ = BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), "field", new BytesRef("termB"));
+        assertNotEquals(csQ, ciQ);
+        assertNotEquals(csQ.hashCode(), ciQ.hashCode());
+
+        // Same query should be equal
+        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), "field", new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }
@@ -879,7 +876,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException,
         IOException {
-        BinaryDvConfirmedAutomatonQuery cq = (BinaryDvConfirmedAutomatonQuery) unwrapAnyConstantScore(combinedQuery);
+        BinaryDvConfirmedQuery cq = (BinaryDvConfirmedQuery) unwrapAnyConstantScore(combinedQuery);
         Query approximationQuery = cq.getApproximationQuery();
         approximationQuery = getSimplifiedApproximationQuery(approximationQuery);
         String message = "regex: "

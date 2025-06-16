@@ -44,6 +44,9 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
+import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
+
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
@@ -54,7 +57,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
         public Factory(
             List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -62,7 +65,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             List<SortBuilder<?>> sorts,
             boolean needsScore
         ) {
-            super(contexts, weightFunction(queryFunction, sorts, needsScore), dataPartitioning, taskConcurrency, limit, needsScore);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                needsScore,
+                needsScore ? TOP_DOCS_WITH_SCORES : TOP_DOCS
+            );
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }
@@ -158,6 +170,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return emit(true);
         }
         try {
+            if (scorer.tags().isEmpty() == false) {
+                throw new UnsupportedOperationException("tags not supported by " + getClass());
+            }
             if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
                 // TODO: share the bottom between shardCollectors
                 perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, needsScore, limit);

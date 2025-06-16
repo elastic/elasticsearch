@@ -48,11 +48,28 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEO_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "double",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "version" },
         preview = true,
         description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. "
             + "If you need the values returned in order use <<esql-mv_sort>>.",
@@ -72,7 +89,21 @@ public class Values extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" }
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" }
         ) Expression v
     ) {
         this(source, v, Literal.TRUE);
@@ -113,13 +144,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isType(
-            field(),
-            SUPPLIERS::containsKey,
-            sourceText(),
-            DEFAULT,
-            "any type except unsigned_long and spatial types"
-        );
+        return TypeResolutions.isType(field(), SUPPLIERS::containsKey, sourceText(), DEFAULT, "any type except unsigned_long");
     }
 
     @Override

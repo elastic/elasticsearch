@@ -1,0 +1,5 @@
+pr: 126856
+summary: "[ML] Integrate SageMaker with OpenAI Embeddings"
+area: Machine Learning
+type: enhancement
+issues: []

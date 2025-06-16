@@ -117,6 +117,7 @@ dependencies {
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
+  allPlugins project(path: ':x-pack:extras:plugins', configuration: 'allPlugins')
   filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   filebeat_fips_aarch64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
@@ -201,9 +202,10 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
         from projectDir.resolve("src/docker/config")
       }
     }
-    from(projectDir.resolve("src/docker/Dockerfile")) {
+    from(projectDir.resolve("src/docker/${base.dockerfile}")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
+      rename base.dockerfile, "Dockerfile"
     }
   }
 }
@@ -307,7 +309,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
           filter TransformLog4jConfigFilter
         }
       }
-      if(base == DockerBase.FIPS) {
+      if(base == DockerBase.CLOUD_ESS_FIPS) {
 
         // If we're performing a release build, but `build.id` hasn't been set, we can
         // infer that we're not at the Docker building stage of the build, and therefore
@@ -461,8 +463,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else {
+      } else if(base.image != null) {
         baseImages = [base.image]
+      } else {
+        baseImages = []
       }
 
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
@@ -587,19 +591,19 @@ subprojects { Project subProject ->
       base = DockerBase.UBI
     } else if (subProject.name.contains('ironbank-')) {
       base = DockerBase.IRON_BANK
-    } else if (subProject.name.contains('cloud-ess-')) {
+    } else if (subProject.name.contains('cloud-ess-docker')) {
       base = DockerBase.CLOUD_ESS
     } else if (subProject.name.contains('wolfi-')) {
       base = DockerBase.WOLFI
-    } else if (subProject.name.contains('fips-')) {
-      base = DockerBase.FIPS
+    } else if (subProject.name.contains('cloud-ess-fips-docker')) {
+      base = DockerBase.CLOUD_ESS_FIPS
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String extension = base == DockerBase.UBI ? 'ubi.tar' :
       (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
         (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
-          (base == DockerBase.FIPS ? 'fips.tar' :
+          (base == DockerBase.CLOUD_ESS_FIPS ? 'cloud-ess-fips.tar' :
             (base == DockerBase.WOLFI ? 'wolfi.tar' :
               'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"

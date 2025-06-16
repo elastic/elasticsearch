@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -33,8 +32,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.compute.lucene.LuceneOperator.weightFunction;
-
 /**
  * Creates a source operator that takes advantage of the natural sorting of segments in a tsdb index.
  * <p>
@@ -53,12 +50,21 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
 
     private TimeSeriesSortedSourceOperatorFactory(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         int taskConcurrency,
         int maxPageSize,
         int limit
     ) {
-        super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), DataPartitioning.SHARD, taskConcurrency, limit, false);
+        super(
+            contexts,
+            queryFunction,
+            DataPartitioning.SHARD,
+            query -> { throw new UnsupportedOperationException("locked to SHARD partitioning"); },
+            taskConcurrency,
+            limit,
+            false,
+            ScoreMode.COMPLETE_NO_SCORES
+        );
         this.maxPageSize = maxPageSize;
     }
 
@@ -77,7 +83,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
         int maxPageSize,
         int taskConcurrency,
         List<? extends ShardContext> searchContexts,
-        Function<ShardContext, Query> queryFunction
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction
     ) {
         return new TimeSeriesSortedSourceOperatorFactory(searchContexts, queryFunction, taskConcurrency, maxPageSize, limit);
     }

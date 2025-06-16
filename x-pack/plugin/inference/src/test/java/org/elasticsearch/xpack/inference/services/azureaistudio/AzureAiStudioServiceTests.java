@@ -257,7 +257,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -279,7 +279,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -328,7 +328,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -354,7 +354,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -380,7 +380,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -406,7 +406,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -432,7 +432,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );

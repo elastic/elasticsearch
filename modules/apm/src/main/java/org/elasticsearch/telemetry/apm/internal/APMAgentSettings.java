@@ -20,8 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -96,16 +94,13 @@ public class APMAgentSettings {
             return;
         }
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            if (value == null || value.isEmpty()) {
-                LOGGER.trace("Clearing system property [{}]", completeKey);
-                System.clearProperty(completeKey);
-            } else {
-                LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
-                System.setProperty(completeKey, value);
-            }
-            return null;
-        });
+        if (value == null || value.isEmpty()) {
+            LOGGER.trace("Clearing system property [{}]", completeKey);
+            System.clearProperty(completeKey);
+        } else {
+            LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
+            System.setProperty(completeKey, value);
+        }
     }
 
     private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";

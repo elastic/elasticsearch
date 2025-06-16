@@ -7,9 +7,13 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -55,11 +59,20 @@ public final class OptimizerRules {
         @Override
         public final LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
             return direction == TransformDirection.DOWN
-                ? plan.transformExpressionsDown(expressionTypeToken, e -> rule(e, ctx))
-                : plan.transformExpressionsUp(expressionTypeToken, e -> rule(e, ctx));
+                ? plan.transformExpressionsDown(this::shouldVisit, expressionTypeToken, e -> rule(e, ctx))
+                : plan.transformExpressionsUp(this::shouldVisit, expressionTypeToken, e -> rule(e, ctx));
         }
 
         protected abstract Expression rule(E e, LogicalOptimizerContext ctx);
+
+        /**
+         * Defines if a node should be visited or not.
+         * Allows to skip nodes that are not applicable for the rule even if they contain expressions.
+         * By default that skips FROM, LIMIT, PROJECT, KEEP and DROP but this list could be extended or replaced in subclasses.
+         */
+        protected boolean shouldVisit(Node<?> node) {
+            return (node instanceof EsRelation || node instanceof Project || node instanceof Limit) == false;
+        }
 
         public Class<E> expressionToken() {
             return expressionTypeToken;

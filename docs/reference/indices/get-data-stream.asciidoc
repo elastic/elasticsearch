@@ -304,14 +304,16 @@ The API returns the following response:
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
           "prefer_ilm": true,
           "ilm_policy": "my-lifecycle-policy",
-          "managed_by": "Index Lifecycle Management"
+          "managed_by": "Index Lifecycle Management",
+          "index_mode": "standard"
         },
         {
           "index_name": ".ds-my-data-stream-2099.03.08-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
           "prefer_ilm": true,
           "ilm_policy": "my-lifecycle-policy",
-          "managed_by": "Index Lifecycle Management"
+          "managed_by": "Index Lifecycle Management",
+          "index_mode": "standard"
         }
       ],
       "generation": 2,
@@ -319,6 +321,7 @@ The API returns the following response:
         "my-meta-field": "foo"
       },
       "status": "GREEN",
+      "index_mode": "standard",
       "next_generation_managed_by": "Index Lifecycle Management",
       "prefer_ilm": true,
       "template": "my-index-template",
@@ -340,7 +343,8 @@ The API returns the following response:
           "index_uuid": "3liBu2SYS5axasRt6fUIpA",
           "prefer_ilm": true,
           "ilm_policy": "my-lifecycle-policy",
-          "managed_by": "Index Lifecycle Management"
+          "managed_by": "Index Lifecycle Management",
+          "index_mode": "standard"
         }
       ],
       "generation": 1,
@@ -348,6 +352,7 @@ The API returns the following response:
         "my-meta-field": "foo"
       },
       "status": "YELLOW",
+      "index_mode": "standard",
       "next_generation_managed_by": "Index Lifecycle Management",
       "prefer_ilm": true,
       "template": "my-index-template",

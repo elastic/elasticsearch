@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -119,6 +120,42 @@ public class PointInTimeIT extends ESIntegTestCase {
                 resp3 -> {
                     assertHitCount(resp3, numDocs);
                     assertThat(resp3.pointInTimeId(), equalTo(pitId));
+                }
+            );
+        } finally {
+            closePointInTime(pitId);
+        }
+    }
+
+    public void testIndexWithFilteredAlias() {
+        String indexName = "index_1";
+        String alias = "alias_1";
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(indexSettings(10, 0))
+                .addAlias(new Alias(alias).filter("{\"term\":{\"tag\":\"a\"}}"))
+        );
+
+        int numDocs = randomIntBetween(50, 150);
+        int countTagA = 0;
+        for (int i = 0; i < numDocs; i++) {
+            boolean isA = randomBoolean();
+            if (isA) countTagA++;
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("tag", isA ? "a" : "b").get();
+        }
+
+        refresh(indexName);
+        BytesReference pitId = openPointInTime(new String[] { alias }, TimeValue.timeValueMinutes(1)).getPointInTimeId();
+
+        try {
+            int finalCountTagA = countTagA;
+            assertResponse(
+                prepareSearch().setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1)))
+                    .setSize(0)
+                    .setQuery(new MatchAllQueryBuilder()),
+                resp1 -> {
+                    assertThat(resp1.pointInTimeId(), equalTo(pitId));
+                    assertHitCount(resp1, finalCountTagA);
                 }
             );
         } finally {

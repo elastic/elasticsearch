@@ -40,6 +40,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
         var validation = new ValidationException();
         var parser = TextEmbeddingResponseParser.fromMap(
             new HashMap<>(Map.of(TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result[*].embeddings")),
+            "scope",
             validation
         );
 
@@ -50,12 +51,12 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> TextEmbeddingResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.result[*].embeddings")), validation)
+            () -> TextEmbeddingResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.result[*].embeddings")), "scope", validation)
         );
 
         assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [json_parser] does not contain " + "the required setting [text_embeddings];")
+            is("Validation Failed: 1: [scope.json_parser] does not contain the required setting [text_embeddings];")
         );
     }
 

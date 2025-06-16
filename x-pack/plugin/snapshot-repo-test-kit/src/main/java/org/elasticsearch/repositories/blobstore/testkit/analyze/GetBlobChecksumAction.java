@@ -10,9 +10,9 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.CRC32;
 
 /**
- * Action which instructs a node to read a range of a blob from a {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository}
+ * Action which instructs a node to read a range of a blob from a {@link BlobStoreRepository}
  * (possibly the entire blob) and compute its checksum. It is acceptable if the blob is not found but we do not accept the blob being
  * otherwise unreadable.
  */
@@ -176,7 +176,7 @@ class GetBlobChecksumAction extends HandledTransportAction<GetBlobChecksumAction
         listener.onResponse(response);
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
 
         private final String repositoryName;
         private final String blobPath;

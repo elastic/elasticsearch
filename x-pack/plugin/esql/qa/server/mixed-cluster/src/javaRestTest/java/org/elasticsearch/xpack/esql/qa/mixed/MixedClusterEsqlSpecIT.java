@@ -80,6 +80,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
+    protected boolean supportTimeSeriesCommand() {
+        return false;
+    }
+
+    @Override
     protected boolean supportsAsync() {
         return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +50,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
         try (var threadPool = new TestThreadPool(getTestName())) {
+            when(client.threadPool()).thenReturn(threadPool);
             var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());
             Supplier<Metadata> metadataSupplier = clusterState::metadata;
 
@@ -80,6 +82,8 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
         var threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
         when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
         var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());
@@ -104,6 +108,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         var client = mock(Client.class);
 
         var threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
         var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
         when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
         var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("log-app1-prod", 1)), List.of());
@@ -120,7 +125,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         assertEquals(service.nextWaitTime, TimeValue.timeValueMinutes(2));
 
         verify(threadPool, times(2)).schedule(any(), any(), any());
-        verifyNoInteractions(client);
+        verify(client, times(1)).threadPool();
     }
 
     public void testCheckPriorLogsUsageAlreadySet() {
@@ -148,7 +153,8 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         assertTrue(service.hasPriorLogsUsage);
         assertNull(service.cancellable);
 
-        verifyNoInteractions(client, threadPool);
+        verify(client, times(1)).threadPool();
+        verifyNoInteractions(threadPool);
     }
 
     public void testCheckHasUsageUnexpectedResponse() {
@@ -170,6 +176,8 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
         var threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(threadPool);
         var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
         when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
         var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());

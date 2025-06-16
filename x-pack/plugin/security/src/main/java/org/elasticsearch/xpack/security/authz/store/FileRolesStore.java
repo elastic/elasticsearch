@@ -305,7 +305,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     Validation.Error validationError = Validation.Roles.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
-                            "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",
+                            "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role...",
                             roleName,
                             path.toAbsolutePath(),
                             validationError
@@ -392,7 +392,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         Validation.Error validationError = Validation.Roles.validateRoleDescription(descriptor.getDescription());
         if (validationError != null) {
             logger.error(
-                "invalid role definition [{}] in roles file [{}]. invalid description - {}. skipping role... ",
+                "invalid role definition [{}] in roles file [{}]. invalid description - {}. skipping role...",
                 roleName,
                 path.toAbsolutePath(),
                 validationError

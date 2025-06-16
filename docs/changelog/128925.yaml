@@ -1,0 +1,5 @@
+pr: 128925
+summary: ES|QL - Add `match_phrase` full text function (tech preview)
+area: ES|QL
+type: enhancement
+issues: []

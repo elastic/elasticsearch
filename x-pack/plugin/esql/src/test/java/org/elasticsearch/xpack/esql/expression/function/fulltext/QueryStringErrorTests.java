@@ -44,7 +44,7 @@ public class QueryStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(errorMessageStringForMatch(validPerPosition, signature, (l, p) -> "keyword, text, semantic_text"));
+        return equalTo(errorMessageStringForMatch(validPerPosition, signature, (l, p) -> "keyword, text"));
     }
 
     private static String errorMessageStringForMatch(

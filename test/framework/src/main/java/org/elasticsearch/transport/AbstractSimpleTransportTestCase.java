@@ -202,7 +202,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 fail("disconnect should not be called " + node);
             }
         };
@@ -924,7 +924,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 latch.countDown();
             }
         };
@@ -2124,7 +2124,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 fail("disconnect should not be called " + node);
             }
         };
@@ -3360,7 +3360,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockLog.assertThatLogger(
             deterministicTaskQueue::runAllRunnableTasks,
             ThreadWatchdog.class,
-            new MockLog.UnseenEventExpectation("no logging", ThreadWatchdog.class.getCanonicalName(), Level.WARN, "*")
+            new MockLog.UnseenEventExpectation("no logging", ThreadWatchdog.class.getCanonicalName(), Level.WARN, "*" + threadName + "*")
         );
         deterministicTaskQueue.advanceTime();
         MockLog.assertThatLogger(

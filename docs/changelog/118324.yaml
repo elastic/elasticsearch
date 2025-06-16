@@ -1,0 +1,6 @@
+pr: 118324
+summary: Allow the data type of `null` in filters
+area: ES|QL
+type: bug
+issues:
+  - 116351

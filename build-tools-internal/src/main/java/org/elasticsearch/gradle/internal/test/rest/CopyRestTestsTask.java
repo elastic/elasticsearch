@@ -27,8 +27,7 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
-import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
+import org.gradle.api.tasks.util.internal.PatternSetFactory;
 
 import java.io.File;
 import java.util.Map;
@@ -65,23 +64,23 @@ public abstract class CopyRestTestsTask extends DefaultTask {
     private final FileSystemOperations fileSystemOperations;
 
     @Inject
-    public abstract FileOperations getFileOperations();
-
-    @Inject
     public CopyRestTestsTask(
         ProjectLayout projectLayout,
-        Factory<PatternSet> patternSetFactory,
+        PatternSetFactory patternSetFactory,
         FileSystemOperations fileSystemOperations,
         ObjectFactory objectFactory
     ) {
         this.includeCore = objectFactory.listProperty(String.class);
         this.includeXpack = objectFactory.listProperty(String.class);
         this.outputResourceDir = objectFactory.directoryProperty();
-        this.corePatternSet = patternSetFactory.create();
-        this.xpackPatternSet = patternSetFactory.create();
+        this.corePatternSet = patternSetFactory.createPatternSet();
+        this.xpackPatternSet = patternSetFactory.createPatternSet();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
     }
+
+    @Inject
+    public abstract FileOperations getFileOperations();
 
     @Input
     public ListProperty<String> getIncludeCore() {

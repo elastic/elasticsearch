@@ -400,8 +400,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
         errorParser.writeTo(out);
-        // TODO need a new transport version
-        inputTypeTranslator.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
+            inputTypeTranslator.writeTo(out);
+        }
     }
 
     @Override

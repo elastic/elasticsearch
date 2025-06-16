@@ -86,7 +86,7 @@ setup:
 "Highlighting empty index":
   - do:
       search:
-        index: test-sparse-index
+        index: test-dense-index
         body:
           query:
             match_all: {}

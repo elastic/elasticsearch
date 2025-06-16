@@ -45,7 +45,13 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
             futures.add(future);
             taskIds[i] = UUIDs.base64UUID();
-            service.sendClusterStartRequest(taskIds[i], TestPersistentTasksExecutor.NAME, new TestParams("Blah"), TEST_REQUEST_TIMEOUT, future);
+            service.sendClusterStartRequest(
+                taskIds[i],
+                TestPersistentTasksExecutor.NAME,
+                new TestParams("Blah"),
+                TEST_REQUEST_TIMEOUT,
+                future
+            );
         }
 
         for (int i = 0; i < numberOfTasks; i++) {

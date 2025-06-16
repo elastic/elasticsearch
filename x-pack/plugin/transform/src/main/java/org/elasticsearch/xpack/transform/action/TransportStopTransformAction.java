@@ -549,7 +549,11 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String taskId : transformTasks) {
-                persistentTasksService.sendClusterRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, groupedListener);
+                persistentTasksService.sendClusterRemoveRequest(
+                    taskId,
+                    Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT,
+                    groupedListener
+                );
             }
         });
     }

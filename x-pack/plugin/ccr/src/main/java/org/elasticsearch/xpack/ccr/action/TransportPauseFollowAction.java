@@ -95,7 +95,11 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
         final ResponseHandler responseHandler = new ResponseHandler(shardFollowTaskIds.size(), listener);
         for (String taskId : shardFollowTaskIds) {
             final int taskSlot = i++;
-            persistentTasksService.sendClusterRemoveRequest(taskId, request.masterNodeTimeout(), responseHandler.getActionListener(taskSlot));
+            persistentTasksService.sendClusterRemoveRequest(
+                taskId,
+                request.masterNodeTimeout(),
+                responseHandler.getActionListener(taskSlot)
+            );
         }
     }
 

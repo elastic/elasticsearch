@@ -134,7 +134,15 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        sendCompletionRequest(Objects.requireNonNull(projectId), taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
+        sendCompletionRequest(
+            Objects.requireNonNull(projectId),
+            taskId,
+            taskAllocationId,
+            taskFailure,
+            localAbortReason,
+            timeout,
+            listener
+        );
     }
 
     private void sendCompletionRequest(

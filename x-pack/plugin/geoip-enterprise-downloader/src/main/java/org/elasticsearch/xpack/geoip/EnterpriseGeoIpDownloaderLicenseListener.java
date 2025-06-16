@@ -137,6 +137,10 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
                 }
             }
         );
-        persistentTasksService.sendClusterRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, listener);
+        persistentTasksService.sendClusterRemoveRequest(
+            ENTERPRISE_GEOIP_DOWNLOADER,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            listener
+        );
     }
 }

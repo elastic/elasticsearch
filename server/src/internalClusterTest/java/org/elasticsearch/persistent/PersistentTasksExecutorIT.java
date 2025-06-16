@@ -310,7 +310,13 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertFutureThrows(future1, IllegalStateException.class, "timed out after 10ms");
 
         PlainActionFuture<PersistentTask<?>> failedUpdateFuture = new PlainActionFuture<>();
-        persistentTasksService.sendClusterUpdateStateRequest(taskId, -2, new State("should fail"), TEST_REQUEST_TIMEOUT, failedUpdateFuture);
+        persistentTasksService.sendClusterUpdateStateRequest(
+            taskId,
+            -2,
+            new State("should fail"),
+            TEST_REQUEST_TIMEOUT,
+            failedUpdateFuture
+        );
         assertFutureThrows(
             failedUpdateFuture,
             ResourceNotFoundException.class,

@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Reader that decodes UTF-8 formatted bytes into chars.
  */
-public class UTF8DecodingReader extends Reader {
+public final class UTF8DecodingReader extends Reader {
     private CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
     private ByteBuffer bytes;
 

@@ -308,7 +308,7 @@ rrfCommand
    ;
 
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceId=identifierOrParameter)?
+    : DEV_RERANK queryText=constant ON rerankFields (WITH commandOptions)?
     ;
 
 completionCommand

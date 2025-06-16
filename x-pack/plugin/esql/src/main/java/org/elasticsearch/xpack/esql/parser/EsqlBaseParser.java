@@ -4370,7 +4370,6 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class RerankCommandContext extends ParserRuleContext {
     public ConstantContext queryText;
-    public IdentifierOrParameterContext inferenceId;
     public TerminalNode DEV_RERANK() { return getToken(EsqlBaseParser.DEV_RERANK, 0); }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
     public RerankFieldsContext rerankFields() {
@@ -4380,8 +4379,8 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(ConstantContext.class,0);
     }
     public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
-    public IdentifierOrParameterContext identifierOrParameter() {
-      return getRuleContext(IdentifierOrParameterContext.class,0);
+    public CommandOptionsContext commandOptions() {
+      return getRuleContext(CommandOptionsContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public RerankCommandContext(ParserRuleContext parent, int invokingState) {
@@ -4425,7 +4424,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(537);
         match(WITH);
         setState(538);
-        ((RerankCommandContext)_localctx).inferenceId = identifierOrParameter();
+        commandOptions();
         }
         break;
       }
@@ -7395,7 +7394,7 @@ public class EsqlBaseParser extends ParserConfig {
     "q\u0001\u0000\u0000\u0000\u0213\u0214\u0005\u001f\u0000\u0000\u0214s\u0001"+
     "\u0000\u0000\u0000\u0215\u0216\u0005\u0011\u0000\u0000\u0216\u0217\u0003"+
     "\u008eG\u0000\u0217\u0218\u0005J\u0000\u0000\u0218\u021b\u0003\u0012\t"+
-    "\u0000\u0219\u021a\u0005O\u0000\u0000\u021a\u021c\u0003<\u001e\u0000\u021b"+
+    "\u0000\u0219\u021a\u0005O\u0000\u0000\u021a\u021c\u0003R)\u0000\u021b"+
     "\u0219\u0001\u0000\u0000\u0000\u021b\u021c\u0001\u0000\u0000\u0000\u021c"+
     "u\u0001\u0000\u0000\u0000\u021d\u0221\u0005\u0007\u0000\u0000\u021e\u021f"+
     "\u0003.\u0017\u0000\u021f\u0220\u0005:\u0000\u0000\u0220\u0222\u0001\u0000"+

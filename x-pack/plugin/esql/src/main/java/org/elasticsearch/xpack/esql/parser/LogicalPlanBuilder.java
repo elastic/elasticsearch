@@ -723,7 +723,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
         Source source = source(ctx);
+        List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
+
         if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
             if (queryTextLiteral.value() == null) {
                 throw new ParsingException(
@@ -740,18 +742,46 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        Literal inferenceId = ctx.inferenceId != null
-            ? inferenceId(ctx.inferenceId)
-            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+        return p -> visitRerankOptions(new Rerank.Builder(source, p, queryText, rerankFields), ctx.commandOptions()).build();
+    }
 
-        return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
+    private Rerank.Builder visitRerankOptions(Rerank.Builder rerannkBuilder, EsqlBaseParser.CommandOptionsContext ctx) {
+        if (ctx == null) {
+            return rerannkBuilder;
+        }
+
+        for (var option : ctx.commandOption()) {
+            String optionName = visitIdentifier(option.identifier());
+            if (optionName.equals(Rerank.Builder.INFERENCE_ID_OPTION_NAME)) {
+                rerannkBuilder.withInferenceId(visitInferenceId(expression(option.primaryExpression())));
+            } else if (optionName.equals(Rerank.Builder.SCORE_COLUMN_OPTION_NAME)) {
+                if (expression(option.primaryExpression()) instanceof UnresolvedAttribute scoreAttribute) {
+                    rerannkBuilder.withScoreColumnAttribute(scoreAttribute);
+                } else {
+                    throw new ParsingException(
+                        source(option.identifier()),
+                        "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
+                        option.identifier().getText(),
+                        option.primaryExpression().getText()
+                    );
+                }
+            } else {
+                throw new ParsingException(
+                    source(option.identifier()),
+                    "Unknow parameter [{}] in RERANK command",
+                    option.identifier().getText()
+                );
+            }
+        }
+
+        return rerannkBuilder;
     }
 
     @Override
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
-        Literal inferenceId = inferenceId(ctx.inferenceId);
+        Literal inferenceId = visitInferenceId(ctx.inferenceId);
         Attribute targetField = ctx.targetField == null
             ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
             : visitQualifiedName(ctx.targetField);
@@ -759,27 +789,35 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Completion(source, p, inferenceId, prompt, targetField);
     }
 
-    public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+    public Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
             return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
         }
 
-        if (expression(ctx.parameter()) instanceof Literal literalParam) {
-            if (literalParam.value() != null) {
-                return literalParam;
+        return visitInferenceId(expression(ctx.parameter()));
+    }
+
+    public Literal visitInferenceId(Expression expression) {
+        if (expression instanceof Literal literal) {
+            if (literal.value() == null) {
+                throw new ParsingException(
+                    expression.source(),
+                    "Query parameter [{}] is null or undefined and cannot be used as inference id",
+                    expression.source().text()
+                );
             }
 
-            throw new ParsingException(
-                source(ctx.parameter()),
-                "Query parameter [{}] is null or undefined and cannot be used as inference id",
-                ctx.parameter().getText()
-            );
+            return literal;
+        } else if (expression instanceof UnresolvedAttribute attribute) {
+            // Support for unquoted inference id
+            return new Literal(expression.source(), attribute.name(), KEYWORD);
         }
 
         throw new ParsingException(
-            source(ctx.parameter()),
-            "Query parameter [{}] is not a string and cannot be used as inference id",
-            ctx.parameter().getText()
+            expression.source(),
+            "Query parameter [{}] is not a string and cannot be used as inference id [{}]",
+            expression.source().text(),
+            expression.getClass()
         );
     }
 

@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
@@ -37,22 +39,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class Rerank extends InferencePlan<Rerank> implements SortAgnostic, SurrogateLogicalPlan, TelemetryAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    public static final Object DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
+    public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private List<Attribute> lazyOutput;
-
-    public Rerank(Source source, LogicalPlan child, Expression inferenceId, Expression queryText, List<Alias> rerankFields) {
-        super(source, child, inferenceId);
-        this.queryText = queryText;
-        this.rerankFields = rerankFields;
-        this.scoreAttribute = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-    }
 
     public Rerank(
         Source source,
@@ -188,5 +184,39 @@ public class Rerank extends InferencePlan<Rerank> implements SortAgnostic, Surro
 
     public static boolean planHasAttribute(QueryPlan<?> plan, Attribute attribute) {
         return plan.outputSet().stream().anyMatch(attr -> attr.equals(attribute));
+    }
+
+    public static class Builder {
+
+        public static final String INFERENCE_ID_OPTION_NAME = "inferenceId";
+        public static final String SCORE_COLUMN_OPTION_NAME = "scoreColumn";
+
+        private final Source source;
+        private final LogicalPlan child;
+        private final Expression queryText;
+        private final List<Alias> rerankFields;
+        private Expression inferenceId = new Literal(Source.EMPTY, Rerank.DEFAULT_INFERENCE_ID, DataType.KEYWORD);
+        private Attribute scoreAttribute = new UnresolvedAttribute(Source.EMPTY, MetadataAttribute.SCORE);
+
+        public Builder(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields) {
+            this.source = source;
+            this.child = child;
+            this.queryText = queryText;
+            this.rerankFields = rerankFields;
+        }
+
+        public Builder withInferenceId(Expression inferenceId) {
+            this.inferenceId = inferenceId;
+            return this;
+        }
+
+        public Builder withScoreColumnAttribute(Attribute scoreAttribute) {
+            this.scoreAttribute = scoreAttribute;
+            return this;
+        }
+
+        public Rerank build() {
+            return new Rerank(source, child, inferenceId, queryText, rerankFields, scoreAttribute);
+        }
     }
 }

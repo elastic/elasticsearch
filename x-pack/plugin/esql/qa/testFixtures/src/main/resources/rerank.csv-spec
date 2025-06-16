@@ -9,7 +9,7 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH test_reranker
+| RERANK "war and peace" ON title WITH inferenceId=test_reranker
 | KEEP book_no, title, author
 ;
 
@@ -27,7 +27,7 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title, author WITH test_reranker
+| RERANK "war and peace" ON title, author inferenceId=test_reranker
 | KEEP book_no, title, author
 ;
 
@@ -47,7 +47,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 3
-| RERANK "war and peace" ON title WITH test_reranker
+| RERANK "war and peace" ON title inferenceId=test_reranker
 | KEEP book_no, title, author
 ;
 
@@ -64,7 +64,7 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH test_reranker
+| RERANK "war and peace" ON title inferenceId=test_reranker
 | KEEP book_no, title, author
 | LIMIT 3
 ;
@@ -82,7 +82,7 @@ required_capability: match_operator_colon
 
 FROM books
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title WITH test_reranker
+| RERANK "war and peace" ON title inferenceId=test_reranker
 | KEEP book_no, title, author
 | SORT author, title 
 | LIMIT 3
@@ -105,7 +105,7 @@ FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
 | RRF
-| RERANK "Tolkien" ON title WITH test_reranker
+| RERANK "Tolkien" ON title inferenceId=test_reranker
 | LIMIT 2
 | KEEP book_no, title, author
 ;

@@ -3552,7 +3552,7 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `reranking-inference-id`",
+                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`reranking-inference-id`",
                 "mapping-books.json"
             );
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
@@ -3563,7 +3563,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `completion-inference-id`",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`completion-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3581,7 +3581,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `error-inference-id`",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`error-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3593,7 +3593,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title WITH `unknown-inference-id`",
+                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`unknown-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3612,7 +3612,7 @@ public class AnalyzerTests extends ESTestCase {
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | KEEP description, title, year, _score
                 | DROP description
-                | RERANK "italian food recipe" ON title WITH `reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3633,11 +3633,14 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             // Multiple fields.
-            LogicalPlan plan = analyze("""
-                FROM books METADATA _score
-                | WHERE title:"food"
-                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
-                """, "mapping-books.json");
+            LogicalPlan plan = analyze(
+                """
+                    FROM books METADATA _score
+                    | WHERE title:"food"
+                    | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH inferenceId=`reranking-inference-id`
+                    """,
+                "mapping-books.json"
+            );
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -3674,7 +3677,7 @@ public class AnalyzerTests extends ESTestCase {
                 LogicalPlan plan = analyze("""
                     FROM books METADATA _score
                     | WHERE title:"food"
-                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH inferenceId=`reranking-inference-id`
                     """, "mapping-books.json");
             } catch (ParsingException ex) {
                 assertThat(
@@ -3688,7 +3691,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField WITH `reranking-inference-id`",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField WITH inferenceId=`reranking-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3705,7 +3708,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH `reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3723,7 +3726,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH `reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.

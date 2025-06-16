@@ -195,6 +195,7 @@ import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
+import org.elasticsearch.rest.action.document.BulkOperationWaitForChunkMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -933,6 +934,9 @@ class NodeConstruction {
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final BulkOperationWaitForChunkMetrics bulkOperationWaitForChunkMetrics = new BulkOperationWaitForChunkMetrics(
+            telemetryProvider.getMeterRegistry()
+        );
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -990,7 +994,11 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
+            client,
+            indexingLimits,
+            bulkOperationWaitForChunkMetrics
+        );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
@@ -1246,6 +1254,7 @@ class NodeConstruction {
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
+            b.bind(BulkOperationWaitForChunkMetrics.class).toInstance(bulkOperationWaitForChunkMetrics);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
             b.bind(MetaStateService.class).toInstance(metaStateService);

@@ -130,7 +130,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null),
+            new IncrementalBulkService(null, null, null),
             TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
@@ -197,7 +197,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null),
+                new IncrementalBulkService(null, null, null),
                 TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
@@ -257,7 +257,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null),
+                new IncrementalBulkService(null, null, null),
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
@@ -310,7 +310,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null),
+                    new IncrementalBulkService(null, null, null),
                     TestProjectResolvers.alwaysThrow()
                 )
             );
@@ -354,7 +354,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null),
+                    new IncrementalBulkService(null, null, null),
                     TestProjectResolvers.alwaysThrow()
                 )
             );

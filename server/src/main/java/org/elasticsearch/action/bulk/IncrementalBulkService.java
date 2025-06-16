@@ -22,6 +22,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.rest.action.document.BulkOperationWaitForChunkMetrics;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,10 +44,16 @@ public class IncrementalBulkService {
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
+    private final BulkOperationWaitForChunkMetrics bulkOperationWaitForChunkMetrics;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure) {
+    public IncrementalBulkService(
+        Client client,
+        IndexingPressure indexingPressure,
+        BulkOperationWaitForChunkMetrics bulkOperationWaitForChunkMetrics
+    ) {
         this.client = client;
         this.indexingPressure = indexingPressure;
+        this.bulkOperationWaitForChunkMetrics = bulkOperationWaitForChunkMetrics;
     }
 
     public Handler newBulkRequest() {
@@ -56,7 +63,7 @@ public class IncrementalBulkService {
 
     public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh);
+        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, bulkOperationWaitForChunkMetrics);
     }
 
     private void ensureEnabled() {
@@ -105,24 +112,31 @@ public class IncrementalBulkService {
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
+        private final BulkOperationWaitForChunkMetrics bulkOperationWaitForChunkMetrics;
 
         protected Handler(
             Client client,
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
-            @Nullable String refresh
+            @Nullable String refresh,
+            @Nullable BulkOperationWaitForChunkMetrics bulkOperationWaitForChunkMetrics
         ) {
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            this.bulkOperationWaitForChunkMetrics = bulkOperationWaitForChunkMetrics;
             createNewBulkRequest(EMPTY_STATE);
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
             return incrementalOperation;
+        }
+
+        public void updateWaitForChunkMetrics(long chunkWaitTimeCentis) {
+            bulkOperationWaitForChunkMetrics.recordTookTime(chunkWaitTimeCentis);
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {

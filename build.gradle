@@ -354,11 +354,27 @@ allprojects {
             dependsOn 'assemble'
           }
         }
+
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart4") { name ->
+          if(name.endsWith("#bwcTestPart4")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part4") })
+            }
+          }
+        }
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
         tasks.register('checkPart3') {
           dependsOn 'check'
           withReleaseBuild {
             dependsOn 'assemble'
+          }
+        }
+
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart3") { name ->
+          if(name.endsWith("#bwcTestPart3")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part3") })
+            }
           }
         }
       } else if (project.path.contains("multi-node")) {
@@ -368,11 +384,39 @@ allprojects {
             dependsOn 'assemble'
           }
         }
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart5") { name ->
+          if(name.endsWith("#bwcTestPart5")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part5") })
+            }
+          }
+        }
       } else {
         tasks.register('checkPart2') {
           dependsOn 'check'
           withReleaseBuild {
             dependsOn 'assemble'
+          }
+        }
+        tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart2") { name ->
+          if(name.endsWith("#bwcTestPart2")) {
+            project.getTasks().register(name) {
+              task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part2") })
+            }
+          }
+        }
+      }
+    } else if(project.path.startsWith(":qa:")) {
+      tasks.register('checkPart6') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
+      tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart6") { name ->
+        if(name.endsWith("#bwcTestPart6")) {
+          project.getTasks().register(name) {
+            task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part6") })
           }
         }
       }
@@ -381,6 +425,13 @@ allprojects {
         dependsOn 'check'
         withReleaseBuild {
           dependsOn 'assemble'
+        }
+      }
+      tasks.addRule("Pattern: v<BWC_VERSION>#bwcTestPart1") { name ->
+        if(name.endsWith("#bwcTestPart1")) {
+          project.getTasks().register(name) {
+            task -> task.dependsOn(tasks.named { tskName -> tskName == (name - "Part1") })
+          }
         }
       }
     }

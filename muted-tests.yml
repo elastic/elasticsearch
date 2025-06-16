@@ -271,9 +271,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test schedule_now on an already started transform}
   issue: https://github.com/elastic/elasticsearch/issues/120720
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
-  method: testIORateIsAdjustedForRunningMergeTasks
-  issue: https://github.com/elastic/elasticsearch/issues/125842
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Verify start transform creates destination index with appropriate mapping}
   issue: https://github.com/elastic/elasticsearch/issues/125854
@@ -301,9 +298,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
-- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
-  method: testUpdatingFileBasedRoleAffectsAllProjects
-  issue: https://github.com/elastic/elasticsearch/issues/126223
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test020PluginsListWithNoPlugins
   issue: https://github.com/elastic/elasticsearch/issues/126232
@@ -535,6 +529,39 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129447
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/129453
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithDatastreams
+  issue: https://github.com/elastic/elasticsearch/issues/129457
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/129296
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanManageIndexWithNoPermissions
+  issue: https://github.com/elastic/elasticsearch/issues/129471
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanManageIndexAndPolicyDifferentUsers
+  issue: https://github.com/elastic/elasticsearch/issues/129479
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testCanViewExplainOnUnmanagedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/129480
+- class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
+  method: testWaitsUntilResourcesAreCreated
+  issue: https://github.com/elastic/elasticsearch/issues/129486
+- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
+  method: testMoveToRolloverStep
+  issue: https://github.com/elastic/elasticsearch/issues/129489
+- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
+  method: testMoveToAllocateStep
+  issue: https://github.com/elastic/elasticsearch/issues/129490
+- class: org.elasticsearch.xpack.ilm.actions.ShrinkActionIT
+  method: testShrinkDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/129491
+- class: org.elasticsearch.xpack.security.PermissionsIT
+  method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/129481
 
 # Examples:
 #

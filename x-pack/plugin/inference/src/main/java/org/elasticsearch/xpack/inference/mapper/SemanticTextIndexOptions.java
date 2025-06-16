@@ -36,12 +36,10 @@ public class SemanticTextIndexOptions implements ToXContent {
 
     private final SupportedIndexOptions type;
     private final IndexOptions indexOptions;
-    private final IndexVersion indexVersion;
 
-    public SemanticTextIndexOptions(SupportedIndexOptions type, IndexOptions indexOptions, IndexVersion indexVersion) {
+    public SemanticTextIndexOptions(SupportedIndexOptions type, IndexOptions indexOptions) {
         this.type = type;
         this.indexOptions = indexOptions;
-        this.indexVersion = indexVersion;
     }
 
     public SupportedIndexOptions type() {
@@ -50,10 +48,6 @@ public class SemanticTextIndexOptions implements ToXContent {
 
     public IndexOptions indexOptions() {
         return indexOptions;
-    }
-
-    public IndexVersion indexVersion() {
-        return indexVersion;
     }
 
     public enum SupportedIndexOptions {

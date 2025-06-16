@@ -293,12 +293,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
             semanticMergeWith = copySettings(semanticMergeWith, mapperMergeContext);
 
-            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
-            conflicts.check();
             var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
+
+            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
+            conflicts.check();
         }
 
         /**
@@ -1218,11 +1219,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
     }
 
-    static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions(IndexVersion indexVersion) {
+    static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultBbqHnswDenseVectorIndexOptions(),
-            indexVersion
+            defaultBbqHnswDenseVectorIndexOptions()
         );
     }
 
@@ -1242,15 +1242,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
 
-        if (previous == null
-            && current.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR
-            && indexVersionDefaultsToBbqHnsw(current.indexVersion())) {
-            return canMergeIndexOptions(defaultBbqHnswSemanticTextIndexOptions(current.indexVersion()), current, conflicts);
-        } else if (current == null
-            && previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR
-            && indexVersionDefaultsToBbqHnsw(previous.indexVersion())) {
-                return canMergeIndexOptions(previous, defaultBbqHnswSemanticTextIndexOptions(previous.indexVersion()), conflicts);
-            }
+        if (previous == null || current == null) {
+            return true;
+        }
 
         if (previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
             DenseVectorFieldMapper.DenseVectorIndexOptions previousDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) previous
@@ -1283,10 +1277,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return new SemanticTextIndexOptions(
-            indexOptions,
-            indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion),
-            indexVersion
-        );
+        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
     }
 }

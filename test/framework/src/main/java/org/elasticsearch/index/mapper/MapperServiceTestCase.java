@@ -103,7 +103,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 /**
- * Test case that lets you easilly build {@link MapperService} based on some
+ * Test case that lets you easily build {@link MapperService} based on some
  * mapping. Useful when you don't need to spin up an entire index but do
  * need most of the trapping of the mapping.
  */

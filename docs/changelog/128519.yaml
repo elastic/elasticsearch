@@ -1,0 +1,5 @@
+pr: 128519
+summary: Add support for LOOKUP JOIN on aliases
+area: ES|QL
+type: enhancement
+issues: []

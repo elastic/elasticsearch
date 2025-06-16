@@ -558,3 +558,31 @@ from books metadata _score
 avg_score:double   | max_score:double   | min_score:double
 3.869828939437866  | 5.123856544494629  | 3.0124807357788086
 ;
+
+testMatchPhraseWithScore
+
+required_capability: match_phrase_function
+required_capability: metadata_score
+
+from books metadata _score
+| where match_phrase(title, "J. R. R. Tolkien")
+| keep book_no, title, author, _score
+;
+
+book_no:keyword | title:text                            | author:text                                      | _score:double    
+    5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 9.017186164855957
+    2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 8.412636756896973
+;
+
+testMatchPhraseWithScoreBoost
+required_capability: match_phrase_function
+
+from books metadata _score
+| where match_phrase(title, "J. R. R. Tolkien", {"boost": 5})
+| keep book_no, title, author, _score
+;
+
+book_no:keyword | title:text                            | author:text                                      | _score:double    
+    5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 45.0859260559082 
+    2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 42.06318283081055
+;

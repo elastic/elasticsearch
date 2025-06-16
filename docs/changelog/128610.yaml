@@ -1,0 +1,6 @@
+pr: 128610
+summary: "Handle the indices pattern `[\"*\", \"-*\"]` when grouping indices by cluster\
+  \ name"
+area: CCS
+type: bug
+issues: []

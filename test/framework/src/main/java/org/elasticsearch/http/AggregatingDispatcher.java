@@ -16,7 +16,9 @@ import org.elasticsearch.rest.RestRequest;
 
 public class AggregatingDispatcher implements HttpServerTransport.Dispatcher {
 
-    public void dispatchAggregatedRequest(RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {}
+    public void dispatchAggregatedRequest(RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+        assert restRequest.isStreamedContent();
+    }
 
     @Override
     public final void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {

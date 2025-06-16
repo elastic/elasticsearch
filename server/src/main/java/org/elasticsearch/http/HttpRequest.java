@@ -30,9 +30,7 @@ public interface HttpRequest extends HttpPreRequest {
 
     HttpBody body();
 
-    default void setBody(HttpBody body) {
-        throw new UnsupportedOperationException("not implemented");
-    }
+    void setBody(HttpBody body);
 
     List<String> strictCookies();
 

@@ -53,6 +53,11 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
+    public void setBody(HttpBody body) {
+        throw new IllegalStateException("not allowed");
+    }
+
+    @Override
     public Map<String, List<String>> getHeaders() {
         return headers;
     }

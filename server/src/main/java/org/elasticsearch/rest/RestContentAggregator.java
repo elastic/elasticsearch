@@ -27,17 +27,17 @@ public class RestContentAggregator {
      * Aggregates content of the RestRequest and notifies consumer with updated, in-place, RestRequest.
      * If content is already aggregated then does nothing.
      */
-    public static void aggregate(RestRequest restRequest, Consumer<RestRequest> result) {
+    public static void aggregate(RestRequest restRequest, Consumer<RestRequest> resultConsumer) {
         final var httpRequest = restRequest.getHttpRequest();
         switch (httpRequest.body()) {
-            case HttpBody.Full full -> result.accept(restRequest);
+            case HttpBody.Full full -> resultConsumer.accept(restRequest);
             case HttpBody.Stream stream -> {
                 if (httpRequest.contentLengthHeader() == 0) {
                     stream.close();
                     replaceBody(restRequest, ReleasableBytesReference.empty());
-                    result.accept(restRequest);
+                    resultConsumer.accept(restRequest);
                 } else {
-                    final var aggregationHandler = new AggregationChunkHandler(restRequest, result);
+                    final var aggregationHandler = new AggregationChunkHandler(restRequest, resultConsumer);
                     stream.setHandler(aggregationHandler);
                     stream.next();
                 }
@@ -47,14 +47,14 @@ public class RestContentAggregator {
 
     private static class AggregationChunkHandler implements HttpBody.ChunkHandler {
         final RestRequest restRequest;
-        final Consumer<RestRequest> result;
+        final Consumer<RestRequest> resultConsumer;
         final HttpBody.Stream stream;
         boolean closing;
         ArrayList<ReleasableBytesReference> chunks;
 
-        private AggregationChunkHandler(RestRequest restRequest, Consumer<RestRequest> result) {
+        private AggregationChunkHandler(RestRequest restRequest, Consumer<RestRequest> resultConsumer) {
             this.restRequest = restRequest;
-            this.result = result;
+            this.resultConsumer = resultConsumer;
             this.stream = restRequest.getHttpRequest().body().asStream();
         }
 
@@ -73,13 +73,13 @@ public class RestContentAggregator {
             } else {
                 if (chunks == null) {
                     replaceBody(restRequest, chunk);
-                    result.accept(restRequest);
+                    resultConsumer.accept(restRequest);
                 } else {
                     chunks.add(chunk);
                     var comp = CompositeBytesReference.of(chunks.toArray(new ReleasableBytesReference[0]));
                     var relComp = new ReleasableBytesReference(comp, Releasables.wrap(chunks));
                     replaceBody(restRequest, relComp);
-                    result.accept(restRequest);
+                    resultConsumer.accept(restRequest);
                 }
             }
         }

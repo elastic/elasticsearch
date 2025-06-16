@@ -93,11 +93,9 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public void setBody(HttpBody body) {
-        if (body.isFull()) {
-            var contentLength = body.asFull().bytes().length();
-            HttpUtil.setContentLength(nettyRequest, contentLength);
-        }
-        this.content = body;
+        var fullBody = body.asFull();
+        var contentLength = fullBody.bytes().length();
+        HttpUtil.setContentLength(nettyRequest, contentLength);
     }
 
     @Override

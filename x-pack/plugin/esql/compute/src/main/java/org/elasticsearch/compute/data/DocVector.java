@@ -51,7 +51,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
     private final ShardRefCounted shardRefCounters;
 
-    public ShardRefCounted shardRefCounters() {
+    public ShardRefCounted shardRefCounted() {
         return shardRefCounters;
     }
 

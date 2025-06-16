@@ -216,7 +216,7 @@ public class TopNOperator implements Operator, Accountable {
         private void writeValues(int position, Row destination) {
             for (ValueExtractor e : valueExtractors) {
                 if (e instanceof ValueExtractorForDoc fd) {
-                    destination.setShardRefCountersAndShard(fd.vector().shardRefCounters().get(fd.vector().shards().getInt(position)));
+                    destination.setShardRefCountersAndShard(fd.vector().shardRefCounted().get(fd.vector().shards().getInt(position)));
                 }
                 e.writeValue(destination.values, position);
             }

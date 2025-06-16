@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
@@ -15,6 +16,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -51,6 +54,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for pushing queries to lucene.
  */
+// @Repeat(iterations = 50)
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
@@ -93,22 +97,23 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value"
             """;
-        String luceneQuery = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> "#test.keyword:%value -_ignored:test.keyword";
-            case KEYWORD, TEXT -> "test:%value";
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
-            case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        List<String> luceneQuery = switch (type) {
+            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword");
+            case KEYWORD -> List.of("test:%value");
+            case TEXT -> emulateLargeTextTokens(value);
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
+            case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT, SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD ->
                 ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     public void testEqualityTooBigToPush() throws IOException {
-        String value = "a".repeat(between(257, 1000));
+        String value = "v".repeat(between(257, 1000));
         String esqlQuery = """
             FROM test
             | WHERE test == "%value"
@@ -131,8 +136,24 @@ public class PushQueriesIT extends ESRestTestCase {
      * {@code NOT !=} should function just like {@code ==}.
      */
     public void testNotInequality() throws IOException {
-        // NOCOMMIT copy from previous commit
-
+        String value = "v".repeat(between(0, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE NOT test != "%value"
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword");
+            case KEYWORD -> List.of("test:%value");
+            case TEXT -> emulateLargeTextTokens(value);
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
+            case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT, SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD ->
+                ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     /**
@@ -159,36 +180,45 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testEqualityOrOther() throws IOException {
-        String value = "v".repeat(between(0, 256));
+        String value = "v".repeat(256);
         String esqlQuery = """
             FROM test
             | WHERE test == "%value" OR foo == 2
             """;
-        String luceneQuery = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]";
-            case TEXT -> "#test:%value foo:[2 TO 2]";
-            case KEYWORD -> "test:%value foo:[2 TO 2]";
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
-            case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        List<String> luceneQuery = switch (type) {
+            case AUTO, TEXT_WITH_KEYWORD -> List.of("(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]");
+            case TEXT -> {
+                List<String> q = emulateLargeTextTokens(value);
+                if (q.size() > 1) {
+                    String s = "(" + String.join(" ", q) + ")";
+                    yield List.of(s + " foo:[2 TO 2]", "foo:[2 TO 2] " + s);
+                }
+                yield List.of(q.get(0) + " foo:[2 TO 2]", "foo:[2 TO 2] " + q.get(0));
+            }
+            case KEYWORD -> List.of("test:%value foo:[2 TO 2]");
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
+            case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD, TEXT ->
                 ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     public void testEqualityAndOther() throws IOException {
-        String value = "v".repeat(between(0, 256));
+        String value = "v".repeat(256);
         String esqlQuery = """
             FROM test
             | WHERE test == "%value" AND foo == 1
             """;
         List<String> luceneQueryOptions = switch (type) {
             case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
-            case TEXT -> List.of("#foo:[1 TO 1] #test:%value");
             case KEYWORD -> List.of("#test:%value #foo:[1 TO 1]");
+            case TEXT -> emulateLargeTextTokens(value).stream()
+                .flatMap(o -> Stream.of("#" + o + " #foo:[1 TO 1]", "#foo:[1 TO 1] #" + o))
+                .toList();
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("foo:[1 TO 1]");
             case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
@@ -226,7 +256,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testInequalityTooBigToPush() throws IOException {
-        String value = "a".repeat(between(257, 1000));
+        String value = "v".repeat(between(257, 1000));
         String esqlQuery = """
             FROM test
             | WHERE test != "%value"
@@ -246,7 +276,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
-        String value = "a".repeat(between(0, 256));
+        String value = "v".repeat(between(0, 256));
         String esqlQuery = """
             FROM test
             | WHERE TO_LOWER(test) == "%value"
@@ -523,11 +553,11 @@ public class PushQueriesIT extends ESRestTestCase {
 
     private List<String> emulateLargeTextTokens(String value) {
         // The default tokenizer splits at 255 characters
-        String first = "#test:" + "a".repeat(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        if (value.length() % 255 == 0) {
-            return List.of(first);
+        if (value.length() < StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH) {
+            return List.of("test:" + "v".repeat(value.length()));
         }
-        String rest = "#test:" + "a".repeat(value.length() % 255);
+        String first = "#test:" + "v".repeat(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        String rest = "#test:" + "v".repeat(value.length() % StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         // We don't know what order they'll show up, so either is fine.
         return List.of(first + " " + rest, rest + " " + first);
     }

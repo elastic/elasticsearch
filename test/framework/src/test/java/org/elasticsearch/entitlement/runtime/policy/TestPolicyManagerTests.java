@@ -31,7 +31,7 @@ public class TestPolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> new PolicyScope(PLUGIN, "example-plugin" + scopeCounter.incrementAndGet(), "org.example.module"),
             Map.of(),
-            new TestPathLookup(List.of()),
+            new TestPathLookup(Map.of()),
             List.of()
         );
         policyManager.setActive(true);

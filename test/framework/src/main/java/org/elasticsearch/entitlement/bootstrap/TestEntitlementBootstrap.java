@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
@@ -38,6 +39,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
+
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
@@ -47,15 +51,23 @@ public class TestEntitlementBootstrap {
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap(Path tempDir) throws IOException {
+    public static void bootstrap(@Nullable Path tempDir, @Nullable Path configDir) throws IOException {
         if (isEnabledForTest() == false) {
             return;
         }
-        TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
+        TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
         policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+    }
+
+    private static <T> List<T> zeroOrOne(T item) {
+        if (item == null) {
+            return List.of();
+        } else {
+            return List.of(item);
+        }
     }
 
     public static boolean isEnabledForTest() {

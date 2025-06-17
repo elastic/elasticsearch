@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.jdk.JarHell;
@@ -75,9 +76,17 @@ public class BootstrapForTesting {
 
         // Fire up entitlements
         try {
-            TestEntitlementBootstrap.bootstrap(javaTmpDir);
+            TestEntitlementBootstrap.bootstrap(javaTmpDir, maybePath(System.getProperty("tests.config")));
         } catch (IOException e) {
             throw new IllegalStateException(e.getClass().getSimpleName() + " while initializing entitlements for tests", e);
+        }
+    }
+
+    private static @Nullable Path maybePath(String str) {
+        if (str == null) {
+            return null;
+        } else {
+            return Path.of(str);
         }
     }
 

@@ -629,7 +629,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
 
         // query should be pruned by default on newer index versions
-        performTypeQueryFinalizationTest(mapperService, null, null, null, true);
+        performTypeQueryFinalizationTest(version, mapperService, null, null, null, true);
     }
 
     public void testTypeQueryFinalizationDefaultsPreviousVersion() throws Exception {
@@ -641,7 +641,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
 
         // query should _not_ be pruned by default on older index versions
-        performTypeQueryFinalizationTest(mapperService, null, null, null, false);
+        performTypeQueryFinalizationTest(version, mapperService, null, null, null, false);
     }
 
     public void testTypeQueryFinalizationWithIndexExplicit() throws Exception {
@@ -650,6 +650,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         // query should be pruned via explicit index options
         performTypeQueryFinalizationTest(
+            version,
             mapperService,
             new SparseVectorFieldMapper.IndexOptions(true, new TokenPruningConfig()),
             null,
@@ -663,7 +664,14 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
 
         // query should be pruned via explicit index options
-        performTypeQueryFinalizationTest(mapperService, new SparseVectorFieldMapper.IndexOptions(false, null), null, null, false);
+        performTypeQueryFinalizationTest(
+            version,
+            mapperService,
+            new SparseVectorFieldMapper.IndexOptions(false, null),
+            null,
+            null,
+            false
+        );
     }
 
     public void testTypeQueryFinalizationQueryOverridesPruning() throws Exception {
@@ -672,6 +680,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         // query should still be pruned due to query builder setting it
         performTypeQueryFinalizationTest(
+            version,
             mapperService,
             new SparseVectorFieldMapper.IndexOptions(false, null),
             true,
@@ -686,6 +695,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         // query should not pruned due to query builder setting it
         performTypeQueryFinalizationTest(
+            version,
             mapperService,
             new SparseVectorFieldMapper.IndexOptions(true, new TokenPruningConfig()),
             false,
@@ -695,6 +705,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     private void performTypeQueryFinalizationTest(
+        IndexVersion indexVersion,
         MapperService mapperService,
         SparseVectorFieldMapper.IndexOptions indexOptions,
         @Nullable Boolean queryPrune,
@@ -703,6 +714,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     ) throws IOException {
         withSearchExecutionContext(mapperService, (context) -> {
             SparseVectorFieldMapper.SparseVectorFieldType ft = new SparseVectorFieldMapper.SparseVectorFieldType(
+                indexVersion,
                 "field",
                 false,
                 Collections.emptyMap(),
@@ -776,7 +788,14 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         }
 
         try {
-            performTypeQueryFinalizationTest(mapperService, indexOptions, shouldQueryPrune, queryPruningConfig, resultShouldBePruned);
+            performTypeQueryFinalizationTest(
+                version,
+                mapperService,
+                indexOptions,
+                shouldQueryPrune,
+                queryPruningConfig,
+                resultShouldBePruned
+            );
         } catch (AssertionError e) {
             String message = "performTypeQueryFinalizationTest failed using parameters: "
                 + "usePreviousIndex: "

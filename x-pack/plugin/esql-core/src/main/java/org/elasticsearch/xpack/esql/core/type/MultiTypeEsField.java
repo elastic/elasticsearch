@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -38,12 +39,24 @@ public class MultiTypeEsField extends EsField {
         this.indexToConversionExpressions = indexToConversionExpressions;
     }
 
+    public MultiTypeEsField(
+        String name,
+        DataType dataType,
+        boolean aggregatable,
+        Map<String, Expression> indexToConversionExpressions,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
+        this.indexToConversionExpressions = indexToConversionExpressions;
+    }
+
     protected MultiTypeEsField(StreamInput in) throws IOException {
         this(
             readCachedStringWithVersionCheck(in),
             DataType.readFrom(in),
             in.readBoolean(),
-            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class))
+            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
+            readTimeSeriesFieldType(in)
         );
     }
 
@@ -53,6 +66,7 @@ public class MultiTypeEsField extends EsField {
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

@@ -22,20 +22,27 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
 public class DateEsField extends EsField {
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues);
+        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, TimeSeriesFieldType.UNKNOWN);
     }
 
-    private DateEsField(String name, DataType dataType, Map<String, EsField> properties, boolean hasDocValues) {
-        super(name, dataType, properties, hasDocValues);
+    private DateEsField(
+        String name,
+        DataType dataType,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, dataType, properties, hasDocValues, timeSeriesFieldType);
     }
 
     protected DateEsField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), DataType.DATETIME, in.readImmutableMap(EsField::readFrom), in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
-            this.timeSeriesFieldType = TimeSeriesFieldType.readFromStream(in);
-        } else {
-            this.timeSeriesFieldType = TimeSeriesFieldType.UNKNOWN;
-        }
+        this(
+            readCachedStringWithVersionCheck(in),
+            DataType.DATETIME,
+            in.readImmutableMap(EsField::readFrom),
+            in.readBoolean(),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     @Override
@@ -43,9 +50,7 @@ public class DateEsField extends EsField {
         writeCachedStringWithVersionCheck(out, getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
-            this.timeSeriesFieldType.writeTo(out);
-        }
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

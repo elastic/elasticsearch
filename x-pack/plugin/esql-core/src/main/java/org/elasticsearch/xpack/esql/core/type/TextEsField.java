@@ -31,16 +31,27 @@ public class TextEsField extends EsField {
     }
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
-        super(name, TEXT, properties, hasDocValues, isAlias);
+        super(name, TEXT, properties, hasDocValues, isAlias, TimeSeriesFieldType.UNKNOWN);
+    }
+
+    public TextEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
     }
 
     protected TextEsField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), in.readImmutableMap(EsField::readFrom), in.readBoolean(), in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
-            this.timeSeriesFieldType = TimeSeriesFieldType.readFromStream(in);
-        } else {
-            this.timeSeriesFieldType = TimeSeriesFieldType.UNKNOWN;
-        }
+        this(
+            readCachedStringWithVersionCheck(in),
+            in.readImmutableMap(EsField::readFrom),
+            in.readBoolean(),
+            in.readBoolean(),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     @Override
@@ -49,9 +60,7 @@ public class TextEsField extends EsField {
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
-            this.timeSeriesFieldType.writeTo(out);
-        }
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

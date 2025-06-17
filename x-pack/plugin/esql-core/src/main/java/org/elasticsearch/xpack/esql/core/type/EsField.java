@@ -84,19 +84,36 @@ public class EsField implements Writeable {
     private final String name;
     private final boolean isAlias;
     // Because the subclasses all reimplement serialization, this needs to be writeable from subclass constructors
-    protected TimeSeriesFieldType timeSeriesFieldType;
+    private final TimeSeriesFieldType timeSeriesFieldType;
 
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
-        this(name, esDataType, properties, aggregatable, false);
+        this(name, esDataType, properties, aggregatable, false, TimeSeriesFieldType.UNKNOWN);
     }
 
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        this(name, esDataType, properties, aggregatable, false, timeSeriesFieldType);
+    }
+
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
         this.properties = properties;
         this.isAlias = isAlias;
-        this.timeSeriesFieldType = TimeSeriesFieldType.UNKNOWN;
+        this.timeSeriesFieldType = timeSeriesFieldType;
     }
 
     public EsField(StreamInput in) throws IOException {
@@ -105,11 +122,7 @@ public class EsField implements Writeable {
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
-            this.timeSeriesFieldType = TimeSeriesFieldType.readFromStream(in);
-        } else {
-            this.timeSeriesFieldType = TimeSeriesFieldType.UNKNOWN;
-        }
+        this.timeSeriesFieldType = readTimeSeriesFieldType(in);
     }
 
     private DataType readDataType(StreamInput in) throws IOException {
@@ -148,8 +161,20 @@ public class EsField implements Writeable {
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);
+        writeTimeSeriesFieldType(out);
+    }
+
+    protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
             this.timeSeriesFieldType.writeTo(out);
+        }
+    }
+
+    protected static TimeSeriesFieldType readTimeSeriesFieldType(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+            return TimeSeriesFieldType.readFromStream(in);
+        } else {
+            return TimeSeriesFieldType.UNKNOWN;
         }
     }
 

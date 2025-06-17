@@ -317,7 +317,7 @@ public class Driver implements Releasable, Describable {
             if (iterator.previous().isFinished()) {
                 var index = iterator.nextIndex();
                 /*
-                 * Remove this operator and all source operators in the
+                 * Close and remove this operator and all source operators in the
                  * most paranoid possible way. Closing operators shouldn't throw,
                  * but if it does, this will make sure we don't try to close any
                  * that succeed twice.

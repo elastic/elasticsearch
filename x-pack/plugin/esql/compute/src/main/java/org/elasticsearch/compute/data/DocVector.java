@@ -82,10 +82,15 @@ public final class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
-
-        this.uniqueShards = computeUniqueShards(shards);
-        forEachShardRefCounter(RefCounted::mustIncRef);
-        blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
+        var uniqueShards = computeUniqueShards(shards);
+        try {
+            blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
+            this.uniqueShards = uniqueShards;
+            forEachShardRefCounter(RefCounted::mustIncRef);
+        } catch (Exception e) {
+            Releasables.close(uniqueShards);
+            throw e;
+        }
     }
 
     private static IntVector computeUniqueShards(IntVector shards) {
@@ -359,12 +364,14 @@ public final class DocVector extends AbstractVector implements Vector {
     public void allowPassingToDifferentDriver() {
         super.allowPassingToDifferentDriver();
         shards.allowPassingToDifferentDriver();
+        uniqueShards.allowPassingToDifferentDriver();
         segments.allowPassingToDifferentDriver();
         docs.allowPassingToDifferentDriver();
     }
 
     @Override
     public void closeInternal() {
+        forEachShardRefCounter(RefCounted::decRef);
         Releasables.closeExpectNoException(
             () -> blockFactory().adjustBreaker(-BASE_RAM_BYTES_USED - (shardSegmentDocMapForwards == null ? 0 : sizeOfSegmentDocMap())),
             shards,
@@ -372,7 +379,6 @@ public final class DocVector extends AbstractVector implements Vector {
             segments,
             docs
         );
-        forEachShardRefCounter(RefCounted::decRef);
     }
 
     private void forEachShardRefCounter(Consumer<RefCounted> consumer) {

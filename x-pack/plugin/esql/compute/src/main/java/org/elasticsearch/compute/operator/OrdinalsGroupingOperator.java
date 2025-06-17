@@ -357,8 +357,8 @@ public class OrdinalsGroupingOperator implements Operator {
             RefCounted shardRefCounted
         ) throws IOException {
             boolean success = false;
-            shardRefCounted.mustIncRef();
             this.shardRefCounted = shardRefCounted;
+            this.shardRefCounted.mustIncRef();
             List<GroupingAggregator> groupingAggregators = null;
             BitArray bitArray = null;
             try {
@@ -370,7 +370,6 @@ public class OrdinalsGroupingOperator implements Operator {
                 this.docValuesSupplier = docValuesSupplier;
                 this.aggregators = groupingAggregators;
                 this.visitedOrds = bitArray;
-                this.shardRefCounted.mustIncRef();
                 success = true;
             } finally {
                 if (success == false) {

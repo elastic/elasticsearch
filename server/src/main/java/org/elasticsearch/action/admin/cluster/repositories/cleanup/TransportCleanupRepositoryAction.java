@@ -21,11 +21,13 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
@@ -198,11 +200,13 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 "Cannot cleanup [" + repositoryName + "] - a snapshot is currently running in [" + snapshots + "]"
                             );
                         }
+                        @FixForMultiProject
+                        final var projectId = ProjectId.DEFAULT;
                         return ClusterState.builder(currentState)
                             .putCustom(
                                 RepositoryCleanupInProgress.TYPE,
                                 new RepositoryCleanupInProgress(
-                                    List.of(RepositoryCleanupInProgress.startedEntry(repositoryName, repositoryStateId))
+                                    List.of(RepositoryCleanupInProgress.startedEntry(projectId, repositoryName, repositoryStateId))
                                 )
                             )
                             .build();

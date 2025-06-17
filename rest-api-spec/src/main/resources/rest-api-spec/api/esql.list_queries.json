@@ -7,10 +7,8 @@
     "stability": "experimental",
     "visibility": "public",
     "headers": {
-      "accept": [],
-      "content_type": [
-        "application/json"
-      ]
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
     },
     "url": {
       "paths": [

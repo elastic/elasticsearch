@@ -61,7 +61,6 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
             projectResolver
         );
         clusterSettings = clusterService.getClusterSettings();
-
         transportService.registerRequestHandler(
             actionName,
             executor,
@@ -74,7 +73,7 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
 
     @Override
     protected ClusterBlockException checkBlock(GetComponentTemplateAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

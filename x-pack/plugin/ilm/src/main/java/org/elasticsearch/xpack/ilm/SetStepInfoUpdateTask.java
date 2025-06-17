@@ -11,8 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,8 +32,8 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     private final String policy;
     private final ToXContentObject stepInfo;
 
-    public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        super(index, currentStepKey);
+    public SetStepInfoUpdateTask(ProjectId projectId, Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
+        super(projectId, index, currentStepKey);
         this.policy = policy;
         this.stepInfo = stepInfo;
     }
@@ -45,23 +47,20 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     }
 
     @Override
-    protected ClusterState doExecute(ClusterState currentState) throws IOException {
-        final var project = currentState.metadata().getProject();
-        IndexMetadata idxMeta = project.index(index);
+    protected ClusterState doExecute(ProjectState currentState) throws IOException {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            return currentState;
+            return currentState.cluster();
         }
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(lifecycleState))) {
-            return ClusterState.builder(currentState)
-                .putProjectMetadata(IndexLifecycleTransition.addStepInfoToProject(index, project, stepInfo))
-                .build();
+            return currentState.updatedState(IndexLifecycleTransition.addStepInfoToProject(index, currentState.metadata(), stepInfo));
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
-            return currentState;
+            return currentState.cluster();
         }
     }
 

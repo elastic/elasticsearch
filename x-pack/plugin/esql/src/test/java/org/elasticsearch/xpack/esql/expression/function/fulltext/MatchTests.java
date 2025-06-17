@@ -82,7 +82,7 @@ public class MatchTests extends AbstractMatchFullTextFunctionTests {
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
             QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, match).toQueryBuilder();
-            match.replaceQueryBuilder(queryBuilder);
+            match = (Match) match.replaceQueryBuilder(queryBuilder);
         }
         return match;
     }

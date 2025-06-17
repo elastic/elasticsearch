@@ -2,5 +2,5 @@
 
 **Description**
 
-The standard deviation of a numeric field.
+The population standard deviation of a numeric field.
 

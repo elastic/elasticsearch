@@ -58,10 +58,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     public String visitClusterString(EsqlBaseParser.ClusterStringContext ctx) {
         if (ctx == null) {
             return null;
-        } else if (ctx.UNQUOTED_SOURCE() != null) {
-            return ctx.UNQUOTED_SOURCE().getText();
         } else {
-            return unquote(ctx.QUOTED_STRING().getText());
+            return ctx.UNQUOTED_SOURCE().getText();
         }
     }
 
@@ -78,10 +76,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     public String visitSelectorString(EsqlBaseParser.SelectorStringContext ctx) {
         if (ctx == null) {
             return null;
-        } else if (ctx.UNQUOTED_SOURCE() != null) {
-            return ctx.UNQUOTED_SOURCE().getText();
         } else {
-            return unquote(ctx.QUOTED_STRING().getText());
+            return ctx.UNQUOTED_SOURCE().getText();
         }
     }
 
@@ -89,7 +85,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         List<String> patterns = new ArrayList<>(ctx.size());
         Holder<Boolean> hasSeenStar = new Holder<>(false);
         ctx.forEach(c -> {
-            String indexPattern = visitIndexString(c.indexString());
+            String indexPattern = c.unquotedIndexString() != null ? c.unquotedIndexString().getText() : visitIndexString(c.indexString());
             String clusterString = visitClusterString(c.clusterString());
             String selectorString = visitSelectorString(c.selectorString());
             // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster

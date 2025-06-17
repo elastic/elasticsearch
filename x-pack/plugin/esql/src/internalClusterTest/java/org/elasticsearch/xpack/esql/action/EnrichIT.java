@@ -127,7 +127,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         final Client client;
         if (randomBoolean()) {
             client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());

@@ -33,9 +33,9 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
-    private static final String COHERE_EMBEDDINGS_ADDED = "8.13.0";
-    private static final String COHERE_RERANK_ADDED = "8.14.0";
-    private static final String BYTE_ALIAS_FOR_INT8_ADDED = "8.14.0";
+    // TODO: replace with proper test features
+    private static final String COHERE_EMBEDDINGS_ADDED_TEST_FEATURE = "gte_v8.13.0";
+    private static final String COHERE_RERANK_ADDED_TEST_FEATURE = "gte_v8.14.0";
 
     private static MockWebServer cohereEmbeddingsServer;
     private static MockWebServer cohereRerankServer;
@@ -61,10 +61,9 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCohereEmbeddings() throws IOException {
-        var embeddingsSupported = getOldClusterTestVersion().onOrAfter(COHERE_EMBEDDINGS_ADDED);
-        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
-        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
+        var embeddingsSupported = oldClusterHasFeature(COHERE_EMBEDDINGS_ADDED_TEST_FEATURE);
+        String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("Cohere embedding service supported", embeddingsSupported);
 
         final String oldClusterIdInt8 = "old-cluster-embeddings-int8";
         final String oldClusterIdFloat = "old-cluster-embeddings-float";
@@ -191,9 +190,9 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRerank() throws IOException {
-        var rerankSupported = getOldClusterTestVersion().onOrAfter(COHERE_RERANK_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);
+        var rerankSupported = oldClusterHasFeature(COHERE_RERANK_ADDED_TEST_FEATURE);
+        String old_cluster_endpoint_identifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("Cohere rerank service supported", rerankSupported);
 
         final String oldClusterId = "old-cluster-rerank";
         final String upgradedClusterId = "upgraded-cluster-rerank";

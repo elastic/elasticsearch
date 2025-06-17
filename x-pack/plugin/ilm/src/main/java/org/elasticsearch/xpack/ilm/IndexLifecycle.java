@@ -146,8 +146,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         ilmTemplateRegistry.initialize();
         ilmHistoryStore.set(

@@ -186,7 +186,14 @@ alias-repeated-index:
   - match: {values.1: [2, "yellow"]}
 
 ---
-alias-pattern-multiple:
+fails when alias or pattern resolves to multiple:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [update_lookup_join_error_messages]
+      reason: "checks updated error messages"
   - do:
       esql.query:
         body:

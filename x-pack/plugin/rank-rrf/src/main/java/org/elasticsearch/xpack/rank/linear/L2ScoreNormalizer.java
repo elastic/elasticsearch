@@ -9,6 +9,7 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.features.NodeFeature;
 
 /**
  * A score normalizer that applies L2 normalization to a set of scores.
@@ -24,6 +25,8 @@ public class L2ScoreNormalizer extends ScoreNormalizer {
     public static final String NAME = "l2_norm";
 
     private static final float EPSILON = 1e-6f;
+
+    public static final NodeFeature LINEAR_RETRIEVER_L2_NORM = new NodeFeature("linear_retriever.l2_norm");
 
     public L2ScoreNormalizer() {}
 

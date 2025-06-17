@@ -117,7 +117,7 @@ class KnnIndexer {
             }
         });
         logger.debug(
-            "KnnIndexer: using codec=%s, vectorEncoding=%s, dim=%d, similarityFunction=%s",
+            "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}",
             codec.getName(),
             vectorEncoding,
             dim,
@@ -125,7 +125,7 @@ class KnnIndexer {
         );
 
         if (Files.exists(indexPath)) {
-            logger.debug("KnnIndexer: existing index at %s", indexPath);
+            logger.debug("KnnIndexer: existing index at {}", indexPath);
         } else {
             Files.createDirectories(indexPath);
         }
@@ -143,7 +143,7 @@ class KnnIndexer {
                 );
             }
             logger.info(
-                "docsPathSizeInBytes=%d, dim=%d, vectorEncoding=%s, byteSize=%d",
+                "docsPathSizeInBytes={}, dim={}, vectorEncoding={}, byteSize={}",
                 docsPathSizeInBytes,
                 dim,
                 vectorEncoding,
@@ -170,7 +170,7 @@ class KnnIndexer {
         }
 
         long elapsed = System.nanoTime() - start;
-        logger.debug("Indexing took %d ms for %d docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
+        logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
     }
 
@@ -183,14 +183,14 @@ class KnnIndexer {
             }
         });
         iwc.setCodec(codec);
-        logger.debug("KnnIndexer: forceMerge in %s", indexPath);
+        logger.debug("KnnIndexer: forceMerge in {}", indexPath);
         long startNS = System.nanoTime();
         try (IndexWriter iw = new IndexWriter(FSDirectory.open(indexPath), iwc)) {
             iw.forceMerge(1);
         }
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);
-        logger.info("forceMerge took %d ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
+        logger.info("forceMerge took {} ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
         results.forceMergeTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
     }
 

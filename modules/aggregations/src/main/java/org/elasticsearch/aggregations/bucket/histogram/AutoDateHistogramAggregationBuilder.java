@@ -64,7 +64,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         entry(Rounding.DateTimeUnit.MONTH_OF_YEAR, "month"),
         entry(Rounding.DateTimeUnit.DAY_OF_MONTH, "day"),
         entry(Rounding.DateTimeUnit.HOUR_OF_DAY, "hour"),
-        entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
+        entry(Rounding.DateTimeUnit.MINUTE_OF_HOUR, "minute"),
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
 
@@ -84,7 +84,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
         RoundingInfo[] roundings = new RoundingInfo[6];
         roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone, 1000L, "s", 1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTE_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
         roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone, 60 * 60 * 1000L, "h", 1, 3, 12);
         roundings[3] = new RoundingInfo(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone, 24 * 60 * 60 * 1000L, "d", 1, 7);
         roundings[4] = new RoundingInfo(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone, 30 * 24 * 60 * 60 * 1000L, "M", 1, 3);

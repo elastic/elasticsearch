@@ -181,7 +181,7 @@ class KnnSearcher {
                         resultIds[i] = getResultIds(results[i], storedFields);
                     }
                     logger.info(
-                        "completed %d searches in %d ms: %d QPS CPU time=%dms",
+                        "completed {} searches in {} ms: {} QPS CPU time={}ms",
                         numQueryVectors,
                         elapsed,
                         (1000L * numQueryVectors) / elapsed,
@@ -276,12 +276,11 @@ class KnnSearcher {
     TopDocs doVectorQuery(float[] vector, IndexSearcher searcher) throws IOException {
         Query knnQuery;
         int topK = this.topK;
-        int efSearch = this.efSearch;
         if (overSamplingFactor > 1f) {
             // oversample the topK results to get more candidates for the final result
             topK = (int) Math.ceil(topK * overSamplingFactor);
-            efSearch = Math.max(topK, efSearch);
         }
+        int efSearch = Math.max(topK, this.efSearch);
         if (indexType == KnnIndexTester.IndexType.IVF) {
             knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, null, nProbe);
         } else {

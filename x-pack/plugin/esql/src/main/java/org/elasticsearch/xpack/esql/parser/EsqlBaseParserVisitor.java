@@ -130,6 +130,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unquotedIndexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnquotedIndexString(EsqlBaseParser.UnquotedIndexStringContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -468,11 +474,26 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#regexBooleanExpression}.
+   * Visit a parse tree produced by the {@code likeExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
+  T visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code rlikeExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code likeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

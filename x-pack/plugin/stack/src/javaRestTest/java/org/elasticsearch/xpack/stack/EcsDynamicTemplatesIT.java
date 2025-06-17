@@ -376,8 +376,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             case "long" -> {
                 return randomLong();
             }
-            case "int" -> {
+            case "integer" -> {
                 return randomInt();
+            }
+            case "double" -> {
+                return randomDouble();
             }
             case "float", "scaled_float" -> {
                 return randomFloat();

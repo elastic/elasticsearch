@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V7;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V7;
@@ -146,7 +146,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
-        assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V7.capabilityName()));
+        assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse("LOOKUP JOIN after stats not yet supported in CCS", LOOKUP_JOIN_AFTER_STATS_TESTS.contains(testName));
     }
@@ -303,11 +303,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 onlyRemotes = true;
             }
             final String remoteIndices;
-            if (onlyRemotes) {
-                remoteIndices = Arrays.stream(localIndices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
+            if (canUseRemoteIndicesOnly() && randomBoolean()) {
+                remoteIndices = Arrays.stream(localIndices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
+                    .collect(Collectors.joining(","));
             } else {
                 remoteIndices = Arrays.stream(localIndices)
-                    .map(index -> "*:" + index.trim() + "," + index.trim())
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
                     .collect(Collectors.joining(","));
             }
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
@@ -317,10 +319,14 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");
-            if (onlyRemotes) {
-                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
+            if (canUseRemoteIndicesOnly() && randomBoolean()) {
+                parts[1] = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
+                    .collect(Collectors.joining(","));
             } else {
-                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim() + "," + index.trim()).collect(Collectors.joining(","));
+                parts[1] = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
+                    .collect(Collectors.joining(","));
             }
             String newNewMetrics = String.join(" ", parts);
             testCase.query = newNewMetrics + query.substring(first.length());
@@ -351,6 +357,40 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    /**
+     * Since partial quoting is prohibited, we need to take the index name, unquote it,
+     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
+     * turned into the remote index *:employees, and then requoted to get "*:employees".
+     * @param index Name of the index.
+     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
+     * @return A remote index pattern that's requoted.
+     */
+    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
+        index = index.trim();
+
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+
+        String unquoted = unquote(index, numOfQuotes);
+        if (asRemoteIndexOnly) {
+            return quote("*:" + unquoted, numOfQuotes);
+        } else {
+            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
+        }
+    }
+
+    private static String quote(String index, int numOfQuotes) {
+        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
+    }
+
+    private static String unquote(String index, int numOfQuotes) {
+        return index.substring(numOfQuotes, index.length() - numOfQuotes);
     }
 
     @Override

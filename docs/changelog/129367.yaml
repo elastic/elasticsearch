@@ -1,0 +1,5 @@
+pr: 129367
+summary: Run `TransportGetStatusAction` on local node
+area: ILM+SLM
+type: enhancement
+issues: []

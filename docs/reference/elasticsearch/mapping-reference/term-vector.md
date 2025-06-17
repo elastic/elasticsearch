@@ -14,6 +14,8 @@ Term vectors contain information about the terms produced by the [analysis](docs
 
 These term vectors can be stored so that they can be retrieved for a particular document.
 
+Refer to the [term vectors API examples](../rest-apis/term-vectors-examples.md) page for usage examples.
+
 The `term_vector` setting accepts:
 
 `no`

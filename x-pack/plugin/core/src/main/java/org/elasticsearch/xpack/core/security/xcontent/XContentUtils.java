@@ -128,6 +128,9 @@ public class XContentUtils {
                 }
                 builder.endObject();
             }
+            case CLOUD_API_KEY -> {
+                // TODO Add cloud API key information here
+            }
         }
     }
 

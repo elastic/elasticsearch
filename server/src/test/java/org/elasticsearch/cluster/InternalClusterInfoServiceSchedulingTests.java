@@ -34,12 +34,17 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.mockito.Mockito;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
@@ -48,7 +53,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
         final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
 
-        final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName())
+            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
         if (randomBoolean()) {
             settingsBuilder.put(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), randomIntBetween(10000, 60000) + "ms");
         }
@@ -71,7 +78,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
-        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
+        final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            mockEstimatedHeapUsageCollector
+        );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
 
@@ -107,11 +121,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
+            Mockito.clearInvocations(mockEstimatedHeapUsageCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
+            verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -126,6 +142,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
         assertFalse(deterministicTaskQueue.hasDeferredTasks());
+    }
+
+    private static class StubEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {
+
+        @Override
+        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            listener.onResponse(Map.of());
+        }
     }
 
     private static void runFor(DeterministicTaskQueue deterministicTaskQueue, long duration) {

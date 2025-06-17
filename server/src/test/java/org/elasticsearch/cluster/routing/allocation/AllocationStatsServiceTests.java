@@ -78,6 +78,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             Map.of(ClusterInfo.shardIdentifierFromRouting(shardId, true), currentShardSize),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
 

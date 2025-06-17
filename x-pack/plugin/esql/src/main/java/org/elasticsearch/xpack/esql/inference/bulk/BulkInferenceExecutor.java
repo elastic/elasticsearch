@@ -69,16 +69,19 @@ public class BulkInferenceExecutor {
                 bulkExecutionState.finish();
             }
 
-            throttledInferenceRunner.doInference(
-                request,
-                ActionListener.runAfter(
-                    ActionListener.wrap(
-                        r -> bulkExecutionState.onInferenceResponse(seqNo, r),
-                        e -> bulkExecutionState.onInferenceException(seqNo, e)
-                    ),
-                    responseHandler::persistPendingResponses
-                )
+            ActionListener<InferenceAction.Response> inferenceResponseListener = ActionListener.runAfter(
+                ActionListener.wrap(
+                    r -> bulkExecutionState.onInferenceResponse(seqNo, r),
+                    e -> bulkExecutionState.onInferenceException(seqNo, e)
+                ),
+                responseHandler::persistPendingResponses
             );
+
+            if (request == null) {
+                inferenceResponseListener.onResponse(null);
+            } else {
+                throttledInferenceRunner.doInference(request, inferenceResponseListener);
+            }
         }
     }
 
@@ -112,7 +115,6 @@ public class BulkInferenceExecutor {
                 if (bulkExecutionState.hasFailure() == false) {
                     try {
                         InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
-                        assert response != null;
                         responses.add(response);
                     } catch (Exception e) {
                         bulkExecutionState.addFailure(e);

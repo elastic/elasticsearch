@@ -783,7 +783,7 @@ public class PersistedClusterStateService {
     private static final ToXContent.Params FORMAT_PARAMS;
 
     static {
-        Map<String, String> params = Maps.newMapWithExpectedSize(2);
+        Map<String, String> params = Maps.newMapWithExpectedSize(4);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         params.put(Metadata.DEDUPLICATED_MAPPINGS_PARAM, Boolean.TRUE.toString());

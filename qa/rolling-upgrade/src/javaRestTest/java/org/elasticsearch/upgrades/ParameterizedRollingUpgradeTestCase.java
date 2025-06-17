@@ -127,11 +127,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         upgradeFailed = false;
     }
 
-    @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
-    protected static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
-    }
-
     protected static boolean oldClusterHasFeature(String featureId) {
         assert oldClusterTestFeatureService != null;
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
@@ -146,12 +141,20 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return oldIndexVersion;
     }
 
-    protected static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedRollingUpgradeTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    protected static boolean isOldClusterVersion(String nodeVersion) {
-        return OLD_CLUSTER_VERSION.equals(nodeVersion);
+    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+        String bwcRefSpec = System.getProperty("tests.bwc.refspec.main");
+        if (bwcRefSpec != null) {
+            return bwcRefSpec.equals(buildHash);
+        }
+        return getOldClusterVersion().equals(nodeVersion);
     }
 
     protected static boolean isOldCluster() {

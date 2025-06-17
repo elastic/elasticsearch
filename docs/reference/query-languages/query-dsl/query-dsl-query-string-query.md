@@ -85,16 +85,12 @@ are only [normalized](/reference/text-analysis/normalizers.md).
 
 Boost values are relative to the default value of `1.0`. A boost value between `0` and `1.0` decreases the relevance score. A value greater than `1.0` increases the relevance score.
 
-
 `default_operator`
 :   (Optional, string) Default boolean logic used to interpret text in the query string if no operators are specified. Valid values are:
-
-`OR` (Default)
-:   For example, a query string of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
-
-`AND`
-:   For example, a query string of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
-
+  - `OR` (Default)
+  For example, a query string of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
+  - `AND`
+  For example, a query string of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
 
 `enable_position_increments`
 :   (Optional, Boolean) If `true`, enable position increments in queries constructed from a `query_string` search. Defaults to `true`.

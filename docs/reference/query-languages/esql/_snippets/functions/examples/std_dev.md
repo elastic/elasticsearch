@@ -11,7 +11,7 @@ FROM employees
 | --- |
 | 0.20637044362020449 |
 
-The expression can use inline functions. For example, to calculate the standard deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, and then use `STD_DEV` on the result
+The expression can use inline functions. For example, to calculate the population standard deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, and then use `STD_DEV` on the result
 
 ```esql
 FROM employees

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,6 +31,11 @@ public class DateEsField extends EsField {
 
     protected DateEsField(StreamInput in) throws IOException {
         this(readCachedStringWithVersionCheck(in), DataType.DATETIME, in.readImmutableMap(EsField::readFrom), in.readBoolean());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+            this.timeSeriesFieldType = TimeSeriesFieldType.readFromStream(in);
+        } else {
+            this.timeSeriesFieldType = TimeSeriesFieldType.UNKNOWN;
+        }
     }
 
     @Override
@@ -37,6 +43,9 @@ public class DateEsField extends EsField {
         writeCachedStringWithVersionCheck(out, getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+            this.timeSeriesFieldType.writeTo(out);
+        }
     }
 
     public String getWriteableName() {

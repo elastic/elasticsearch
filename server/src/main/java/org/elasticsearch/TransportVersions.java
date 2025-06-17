@@ -302,7 +302,7 @@ public class TransportVersions {
     public static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = def(9_099_0_00);
     public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
-
+    public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_102_0_00);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

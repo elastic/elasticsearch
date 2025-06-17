@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.GetDataStreamSettingsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class TransportGetDataStreamSettingsAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamSettingsAction extends TransportLocalClusterStateAction<
     GetDataStreamSettingsAction.Request,
     GetDataStreamSettingsAction.Response> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -48,12 +48,10 @@ public class TransportGetDataStreamSettingsAction extends TransportMasterNodeRea
     ) {
         super(
             GetDataStreamSettingsAction.NAME,
-            transportService,
             clusterService,
-            threadPool,
+            transportService,
             actionFilters,
             GetDataStreamSettingsAction.Request::localOnly,
-            GetDataStreamSettingsAction.Response::localOnly,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -66,7 +64,7 @@ public class TransportGetDataStreamSettingsAction extends TransportMasterNodeRea
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetDataStreamSettingsAction.Request request,
         ClusterState state,

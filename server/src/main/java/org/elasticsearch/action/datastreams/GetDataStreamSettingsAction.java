@@ -9,19 +9,18 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -42,12 +41,11 @@ public class GetDataStreamSettingsAction extends ActionType<GetDataStreamSetting
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
         private String[] dataStreamNames;
 
-        public Request(TimeValue masterNodeTimeout) {
-            super(masterNodeTimeout);
-            local = true; // this only ever runs locally
+        public Request() {
+            super();
         }
 
         public static Request localOnly(StreamInput ignored) {
@@ -104,10 +102,6 @@ public class GetDataStreamSettingsAction extends ActionType<GetDataStreamSetting
 
         public Response(List<DataStreamSettingsResponse> dataStreamSettingsResponses) {
             this.dataStreamSettingsResponses = dataStreamSettingsResponses;
-        }
-
-        public static Response localOnly(StreamInput ignored) {
-            return TransportAction.localOnly();
         }
 
         public List<DataStreamSettingsResponse> getDataStreamSettingsResponses() {

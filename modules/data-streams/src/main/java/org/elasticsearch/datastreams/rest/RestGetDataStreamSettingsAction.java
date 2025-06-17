@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -39,9 +38,9 @@ public class RestGetDataStreamSettingsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetDataStreamSettingsAction.Request getDataStreamRequest = new GetDataStreamSettingsAction.Request(
-            RestUtils.getMasterNodeTimeout(request)
-        ).indices(Strings.splitStringByCommaToArray(request.param("name")));
+        GetDataStreamSettingsAction.Request getDataStreamRequest = new GetDataStreamSettingsAction.Request().indices(
+            Strings.splitStringByCommaToArray(request.param("name"))
+        );
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetDataStreamSettingsAction.INSTANCE,
             getDataStreamRequest,

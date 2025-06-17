@@ -61,7 +61,7 @@ public class DataStreamSettingsIT extends ESIntegTestCase {
         {
             List<GetDataStreamSettingsAction.DataStreamSettingsResponse> getSettingsResponses = client().execute(
                 GetDataStreamSettingsAction.INSTANCE,
-                new GetDataStreamSettingsAction.Request(TimeValue.THIRTY_SECONDS).indices(dataStreamName)
+                new GetDataStreamSettingsAction.Request().indices(dataStreamName)
             ).actionGet().getDataStreamSettingsResponses();
             assertThat(getSettingsResponses.size(), equalTo(1));
             assertThat(getSettingsResponses.get(0).settings(), equalTo(Settings.EMPTY));
@@ -103,7 +103,7 @@ public class DataStreamSettingsIT extends ESIntegTestCase {
             assertThat(settings.get("index.lifecycle.name"), equalTo(newLifecycleName));
             getSettingsResponses = client().execute(
                 GetDataStreamSettingsAction.INSTANCE,
-                new GetDataStreamSettingsAction.Request(TimeValue.THIRTY_SECONDS).indices(dataStreamName)
+                new GetDataStreamSettingsAction.Request().indices(dataStreamName)
             ).actionGet().getDataStreamSettingsResponses();
             assertThat(getSettingsResponses.size(), equalTo(1));
             assertThat(getSettingsResponses.get(0).settings(), equalTo(dataStreamSettings));
@@ -236,7 +236,7 @@ public class DataStreamSettingsIT extends ESIntegTestCase {
             }
             List<GetDataStreamSettingsAction.DataStreamSettingsResponse> getSettingsResponses = client().execute(
                 GetDataStreamSettingsAction.INSTANCE,
-                new GetDataStreamSettingsAction.Request(TimeValue.THIRTY_SECONDS).indices(testDataStreamNames.toArray(new String[0]))
+                new GetDataStreamSettingsAction.Request().indices(testDataStreamNames.toArray(new String[0]))
             ).actionGet().getDataStreamSettingsResponses();
             assertThat(getSettingsResponses.size(), equalTo(testDataStreamNames.size()));
         }

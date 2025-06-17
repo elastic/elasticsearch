@@ -97,7 +97,8 @@ public class ExtractorTests extends ESTestCase {
                             TopNEncoder.DEFAULT_UNSORTABLE,
                             () -> new DocVector(
                                 ShardRefCounted.ALWAYS_REFERENCED,
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                // Shard ID should be small and non-negative.
+                                blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 randomBoolean() ? null : randomBoolean()

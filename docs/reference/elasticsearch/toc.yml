@@ -83,6 +83,7 @@ toc:
             - file: rest-apis/collapse-search-results.md
             - file: rest-apis/create-index-from-source.md
             - file: rest-apis/filter-search-results.md
+            - file: rest-apis/find-text-structure-examples.md
             - file: rest-apis/highlighting.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md

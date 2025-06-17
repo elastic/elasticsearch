@@ -2,7 +2,7 @@
 
 ## `ROUND_TO` [esql-round_to]
 ```{applies_to}
-stack: coming
+stack: preview 9.1.0
 ```
 
 **Syntax**

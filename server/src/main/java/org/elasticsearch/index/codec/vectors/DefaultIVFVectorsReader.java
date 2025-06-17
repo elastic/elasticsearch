@@ -113,15 +113,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    protected FloatVectorValues getCentroids(IndexInput indexInput, int numCentroids, FieldInfo info) {
-        FieldEntry entry = fields.get(info.number);
-        if (entry == null) {
-            return null;
-        }
-        return new OffHeapCentroidFloatVectorValues(numCentroids, indexInput, info.getVectorDimension());
-    }
-
-    @Override
     NeighborQueue scorePostingLists(FieldInfo fieldInfo, KnnCollector knnCollector, CentroidQueryScorer centroidQueryScorer, int nProbe)
         throws IOException {
         NeighborQueue neighborQueue = new NeighborQueue(centroidQueryScorer.size(), true);

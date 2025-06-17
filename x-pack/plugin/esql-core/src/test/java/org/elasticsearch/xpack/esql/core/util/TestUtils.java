@@ -66,8 +66,8 @@ public final class TestUtils {
     /** Returns the input string, but with parts of it having the letter casing changed. */
     public static String randomCasing(String input) {
         StringBuilder sb = new StringBuilder(input.length());
-        for (int i = 0, inputLen = input.length(), step = (int) Math.sqrt(inputLen), chunkEnd; i < inputLen; i += step) {
-            chunkEnd = Math.min(i + step, inputLen);
+        for (int i = 0, inputLen = input.length(), step = (int) Math.sqrt(inputLen); i < inputLen; i += step) {
+            var chunkEnd = Math.min(i + step, inputLen);
             var chunk = input.substring(i, chunkEnd);
             sb.append(randomBoolean() ? chunk.toLowerCase(Locale.ROOT) : chunk.toUpperCase(Locale.ROOT));
         }

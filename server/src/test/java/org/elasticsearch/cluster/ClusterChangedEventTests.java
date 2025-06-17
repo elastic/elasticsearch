@@ -681,10 +681,12 @@ public class ClusterChangedEventTests extends ESTestCase {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(previousState.metadata().projects().values().iterator().next());
         metadataBuilder.removeCustomIf((ignore, custom) -> custom instanceof TestClusterCustomMetadata);
-        metadataBuilder.removeProjectCustomIf((ignore, custom) -> custom instanceof TestProjectCustomMetadata);
+        projectBuilder.removeCustomIf((ignore, custom) -> custom instanceof TestProjectCustomMetadata);
         clusterCustoms.forEach(clusterCustom -> metadataBuilder.putCustom(clusterCustom.getWriteableName(), clusterCustom));
-        projectCustoms.forEach(projectCustom -> metadataBuilder.putCustom(projectCustom.getWriteableName(), projectCustom));
+        projectCustoms.forEach(projectCustom -> projectBuilder.putCustom(projectCustom.getWriteableName(), projectCustom));
+        metadataBuilder.put(projectBuilder);
         builder.metadata(metadataBuilder);
         return builder.build();
     }

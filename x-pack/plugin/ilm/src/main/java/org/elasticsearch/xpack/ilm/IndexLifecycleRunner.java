@@ -657,13 +657,14 @@ class IndexLifecycleRunner {
 
         @Override
         protected ClusterState doExecute(ClusterState currentState) {
-            return IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
-                currentState,
+            final var updatedProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
+                currentState.metadata().getProject(),
                 index.getName(),
                 nowSupplier,
                 stepRegistry,
                 true
             );
+            return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
         }
 
         @Override

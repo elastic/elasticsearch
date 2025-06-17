@@ -15,6 +15,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -91,7 +93,8 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                 Request createIndex = new Request("PUT", "/" + indexName);
                 boolean useSyntheticSource = randomBoolean() && oldClusterHasFeature(SYNTHETIC_SOURCE_FEATURE);
 
-                boolean useIndexSetting = SourceFieldMapper.onOrAfterDeprecateModeVersion(getOldClusterIndexVersion());
+                IndexVersion version = getOldClusterIndexVersion();
+                boolean useIndexSetting = version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER);
                 XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
                 if (useSyntheticSource) {
                     if (useIndexSetting) {

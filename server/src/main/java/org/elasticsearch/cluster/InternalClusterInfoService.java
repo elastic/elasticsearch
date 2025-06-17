@@ -83,22 +83,22 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED = Setting.boolSetting(
-        "cluster.routing.allocation.shard_heap.threshold_enabled",
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED = Setting.boolSetting(
+        "cluster.routing.allocation.estimated_heap.threshold_enabled",
         false,
         Property.Dynamic,
         Property.NodeScope
     );
 
     private volatile boolean diskThresholdEnabled;
-    private volatile boolean shardHeapThresholdEnabled;
+    private volatile boolean estimatedHeapThresholdEnabled;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-    private volatile Map<String, Long> shardHeapUsagePerNode;
+    private volatile Map<String, Long> estimatedHeapUsagePerNode;
     private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
@@ -107,7 +107,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
-    private final ShardHeapUsageCollector shardHeapUsageCollector;
+    private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -118,16 +118,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        ShardHeapUsageCollector shardHeapUsageCollector
+        EstimatedHeapUsageCollector estimatedHeapUsageCollector
     ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
         this.maxHeapPerNode = Map.of();
-        this.shardHeapUsagePerNode = Map.of();
+        this.estimatedHeapUsagePerNode = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
-        this.shardHeapUsageCollector = shardHeapUsageCollector;
+        this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -139,8 +139,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             this::setDiskThresholdEnabled
         );
         clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED,
-            this::setShardHeapThresholdEnabled
+            CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
+            this::setEstimatedHeapThresholdEnabled
         );
     }
 
@@ -148,8 +148,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.diskThresholdEnabled = diskThresholdEnabled;
     }
 
-    private void setShardHeapThresholdEnabled(boolean shardHeapThresholdEnabled) {
-        this.shardHeapThresholdEnabled = shardHeapThresholdEnabled;
+    private void setEstimatedHeapThresholdEnabled(boolean estimatedHeapThresholdEnabled) {
+        this.estimatedHeapThresholdEnabled = estimatedHeapThresholdEnabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -202,8 +202,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
             try (var ignoredRefs = fetchRefs) {
                 maybeFetchIndicesStats(diskThresholdEnabled);
-                maybeFetchNodeStats(diskThresholdEnabled || shardHeapThresholdEnabled);
-                maybeFetchNodesHeapUsage(shardHeapThresholdEnabled);
+                maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
+                maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
             }
         }
 
@@ -231,28 +231,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void maybeFetchNodesHeapUsage(boolean shouldFetch) {
+        private void maybeFetchNodesEstimatedHeapUsage(boolean shouldFetch) {
             if (shouldFetch) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesHeapUsage();
+                    fetchNodesEstimatedHeapUsage();
                 }
             } else {
-                logger.trace("skipping collecting shard heap usage from cluster, notifying listeners with empty shard heap usage");
-                shardHeapUsagePerNode = Map.of();
+                logger.trace("skipping collecting estimated heap usage from cluster, notifying listeners with empty estimated heap usage");
+                estimatedHeapUsagePerNode = Map.of();
             }
         }
 
-        private void fetchNodesHeapUsage() {
-            shardHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+        private void fetchNodesEstimatedHeapUsage() {
+            estimatedHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, Long> currentShardHeapUsages) {
-                    shardHeapUsagePerNode = currentShardHeapUsages;
+                public void onResponse(Map<String, Long> currentEstimatedHeapUsages) {
+                    estimatedHeapUsagePerNode = currentEstimatedHeapUsages;
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for nodes", e);
-                    shardHeapUsagePerNode = Map.of();
+                    estimatedHeapUsagePerNode = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -479,11 +479,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @Override
     public ClusterInfo getClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
-        final Map<String, ShardHeapUsage> shardHeapUsages = new HashMap<>();
+        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
         maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-            final Long estimatedHeapUsage = shardHeapUsagePerNode.get(nodeId);
+            final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
             if (estimatedHeapUsage != null) {
-                shardHeapUsages.put(nodeId, new ShardHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
+                estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }
         });
         return new ClusterInfo(
@@ -493,7 +493,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardDataSetSizes,
             indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace,
-            shardHeapUsages
+            estimatedHeapUsages
         );
     }
 

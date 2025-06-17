@@ -36,6 +36,7 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
         var location = callerCodeSource.getLocation().toString();
         var scope = scopeMap.get(location);
         if (scope == null) {
+            // Special cases for libraries not handled by our automatically-generated scopeMap
             if (callerClass.getPackageName().startsWith("org.bouncycastle")) {
                 scope = new PolicyManager.PolicyScope(PLUGIN, "security", ALL_UNNAMED);
                 logger.debug("Assuming bouncycastle is part of the security plugin");

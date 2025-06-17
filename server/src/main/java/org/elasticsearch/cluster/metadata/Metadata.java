@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -50,7 +49,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -2050,30 +2048,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
     }
-
-    private static final ToXContent.Params FORMAT_PARAMS;
-    static {
-        Map<String, String> params = Maps.newMapWithExpectedSize(2);
-        params.put("binary", "true");
-        params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
-        FORMAT_PARAMS = new ToXContent.MapParams(params);
-    }
-
-    /**
-     * State format for {@link Metadata} to write to and load from disk
-     */
-    public static final MetadataStateFormat<Metadata> FORMAT = new MetadataStateFormat<>(GLOBAL_STATE_FILE_PREFIX) {
-
-        @Override
-        public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
-            ChunkedToXContent.wrapAsToXContent(state).toXContent(builder, FORMAT_PARAMS);
-        }
-
-        @Override
-        public Metadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-    };
 
     private volatile Metadata.ProjectLookup projectLookup = null;
 

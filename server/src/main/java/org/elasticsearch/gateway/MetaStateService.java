@@ -11,6 +11,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.cluster.metadata.Metadata.GLOBAL_STATE_FILE_PREFIX;
 
 /**
  * Handles writing and loading {@link Manifest}, {@link Metadata} and {@link IndexMetadata} as used for cluster state persistence in
@@ -76,19 +79,12 @@ public class MetaStateService {
     }
 
     /**
-     * Loads the global state, *without* index state
-     */
-    Metadata loadGlobalState() throws IOException {
-        return Metadata.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-    }
-
-    /**
      * Creates empty cluster state file on disk, deleting global metadata and unreferencing all index metadata
      * (only used for dangling indices at that point).
      */
     public void unreferenceAll() throws IOException {
         Manifest.FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        Metadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        MetadataStateFormat.cleanupOldFiles(GLOBAL_STATE_FILE_PREFIX, Long.MAX_VALUE, nodeEnv.nodeDataPaths(), NIOFSDirectory::new);
     }
 
     /**

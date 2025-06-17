@@ -17,14 +17,14 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery implements QueryProfilerProvider {
-    private final Integer kParam;
+    private final int kParam;
     private long vectorOpsCount;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
         float[] query,
         Query childFilter,
-        Integer k,
+        int k,
         int numCands,
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
@@ -35,7 +35,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
+        TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }

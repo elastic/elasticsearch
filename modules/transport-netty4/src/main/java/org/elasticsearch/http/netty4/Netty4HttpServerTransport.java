@@ -371,7 +371,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
 
             // from this point in pipeline every handler must call ctx or channel #read() when ready to process next HTTP part
-            ch.pipeline().addLast(new FlowControlHandler());
             if (Assertions.ENABLED) {
                 // missing reads are hard to catch, but we can detect absence of reads within interval
                 long missingReadIntervalMs = 10_000;

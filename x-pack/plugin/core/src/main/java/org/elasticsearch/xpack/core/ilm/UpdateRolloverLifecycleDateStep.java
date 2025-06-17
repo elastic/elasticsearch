@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
@@ -39,8 +40,8 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState currentState) {
-        IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
 
         long newIndexTime;
 
@@ -52,7 +53,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             // so just use the current time.
             newIndexTime = fallbackTimeSupplier.getAsLong();
         } else {
-            final String rolloverTarget = getRolloverTarget(index, currentState);
+            final String rolloverTarget = getRolloverTarget(index, projectState.metadata());
             RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(rolloverTarget);
             if (rolloverInfo == null) {
                 throw new IllegalStateException(
@@ -68,21 +69,17 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(indexMetadata.getLifecycleExecutionState());
         newLifecycleState.setIndexCreationDate(newIndexTime);
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            currentState,
-            indexMetadata.getIndex(),
-            newLifecycleState.build()
-        );
+        return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
-    private static String getRolloverTarget(Index index, ClusterState currentState) {
-        IndexAbstraction indexAbstraction = currentState.metadata().getProject().getIndicesLookup().get(index.getName());
+    private static String getRolloverTarget(Index index, ProjectMetadata project) {
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
             rolloverTarget = indexAbstraction.getParentDataStream().getName();
         } else {
             // find the newly created index from the rollover and fetch its index.creation_date
-            IndexMetadata indexMetadata = currentState.metadata().getProject().index(index);
+            IndexMetadata indexMetadata = project.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 throw new IllegalStateException(

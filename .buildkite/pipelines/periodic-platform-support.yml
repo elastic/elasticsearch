@@ -38,12 +38,14 @@ steps:
           setup:
             image:
               - windows-2022
+              - windows-2025
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: gcp
@@ -70,6 +72,7 @@ steps:
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: aws

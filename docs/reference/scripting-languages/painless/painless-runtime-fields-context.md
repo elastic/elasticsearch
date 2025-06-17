@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-runtime-fields-context.html
+products:
+  - id: painless
 ---
 
 # Runtime fields context [painless-runtime-fields-context]

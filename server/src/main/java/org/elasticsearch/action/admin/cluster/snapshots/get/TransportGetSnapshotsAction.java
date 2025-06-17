@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
@@ -45,6 +46,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -54,6 +56,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -160,7 +163,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.size(),
             SnapshotsInProgress.get(state),
             request.verbose(),
-            request.includeIndexNames()
+            request.includeIndexNames(),
+            request.states()
         ).runOperation(listener);
     }
 
@@ -181,6 +185,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotNamePredicate snapshotNamePredicate;
         private final SnapshotPredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
+        private final EnumSet<SnapshotState> states;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
@@ -224,7 +229,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             int size,
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
-            boolean indices
+            boolean indices,
+            EnumSet<SnapshotState> states
         ) {
             this.cancellableTask = cancellableTask;
             this.repositories = repositories;
@@ -237,6 +243,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
+            this.states = states;
 
             this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
             this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
@@ -285,7 +292,20 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         ),
                         repositoryName -> asyncRepositoryContentsListener -> SubscribableListener
 
-                            .<RepositoryData>newForked(l -> maybeGetRepositoryData(repositoryName, l))
+                            .<RepositoryData>newForked(
+                                l -> maybeGetRepositoryData(
+                                    repositoryName,
+                                    l.delegateResponse(
+                                        (ll, e) -> ll.onFailure(
+                                            new RepositoryException(
+                                                repositoryName,
+                                                "cannot retrieve snapshots list from this repository",
+                                                e
+                                            )
+                                        )
+                                    )
+                                )
+                            )
                             .andThenApply(repositoryData -> {
                                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
                                 cancellableTask.ensureNotCancelled();
@@ -558,16 +578,25 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return false;
             }
 
+            final var details = repositoryData.getSnapshotDetails(snapshotId);
+
+            if (details != null && details.getSnapshotState() != null && states.contains(details.getSnapshotState()) == false) {
+                return false;
+            }
+
             if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
                 return true;
             }
 
-            final var details = repositoryData.getSnapshotDetails(snapshotId);
             return details == null || details.getSlmPolicy() == null || slmPolicyPredicate.test(details.getSlmPolicy());
         }
 
         private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
             if (fromSortValuePredicates.test(snapshotInfo) == false) {
+                return false;
+            }
+
+            if (snapshotInfo.state() != null && states.contains(snapshotInfo.state()) == false) {
                 return false;
             }
 

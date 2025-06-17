@@ -10,17 +10,50 @@
 package org.elasticsearch.xcontent;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public interface XContentString {
+    record UTF8Bytes(byte[] bytes, int offset, int length) implements Comparable<UTF8Bytes> {
+        public UTF8Bytes(byte[] bytes) {
+            this(bytes, 0, bytes.length);
+        }
+
+        @Override
+        public int compareTo(UTF8Bytes o) {
+            if (this.bytes == o.bytes && this.offset == o.offset && this.length == o.length) {
+                return 0;
+            }
+
+            return Arrays.compareUnsigned(bytes, offset, offset + length, o.bytes, o.offset, o.offset + o.length);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            return this.compareTo((UTF8Bytes) o) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return ByteBuffer.wrap(bytes, offset, length).hashCode();
+        }
+    }
+
     /**
      * Returns a {@link String} view of the data.
      */
     String string();
 
     /**
-     * Returns a UTF8-encoded {@link ByteBuffer} view of the data.
+     * Returns an encoded {@link UTF8Bytes} view of the data.
      */
-    ByteBuffer bytes();
+    UTF8Bytes bytes();
 
     /**
      * Returns the number of characters in the represented string.

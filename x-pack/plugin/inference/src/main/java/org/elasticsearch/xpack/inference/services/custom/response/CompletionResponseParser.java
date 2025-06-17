@@ -30,8 +30,17 @@ public class CompletionResponseParser extends BaseCustomResponseParser<ChatCompl
 
     private final String completionResultPath;
 
-    public static CompletionResponseParser fromMap(Map<String, Object> responseParserMap, ValidationException validationException) {
-        var path = extractRequiredString(responseParserMap, COMPLETION_PARSER_RESULT, JSON_PARSER, validationException);
+    public static CompletionResponseParser fromMap(
+        Map<String, Object> responseParserMap,
+        String scope,
+        ValidationException validationException
+    ) {
+        var path = extractRequiredString(
+            responseParserMap,
+            COMPLETION_PARSER_RESULT,
+            String.join(".", scope, JSON_PARSER),
+            validationException
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

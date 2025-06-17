@@ -1,0 +1,5 @@
+pr: 128504
+summary: Add l2_norm normalization support to linear retriever
+area: Relevance
+type: enhancement
+issues: []

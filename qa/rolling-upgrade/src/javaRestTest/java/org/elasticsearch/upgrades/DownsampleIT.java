@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DownsampleIT extends AbstractRollingUpgradeTestCase {
+public class DownsampleIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     private static final String FIXED_INTERVAL = "1h";
     private String index;

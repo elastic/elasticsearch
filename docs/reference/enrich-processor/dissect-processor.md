@@ -46,7 +46,7 @@ and result in a document with the following fields:
 
 A dissect pattern is defined by the parts of the string that will be discarded. In the previous example, the first part to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` everything up until that space. Next, dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`. Paying special attention to the parts of the string to discard will help build successful dissect patterns.
 
-Successful matches require all keys in a pattern to have a value. If any of the `%{{keyname}}` defined in the pattern do not have a value, then an exception is thrown and may be handled by the [`on_failure`](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures) directive. An empty key `%{}` or a [named skip key](#dissect-modifier-named-skip-key) can be used to match values, but exclude the value from the final document. All matched values are represented as string data types. The [convert processor](/reference/enrich-processor/convert-processor.md) may be used to convert to expected data type.
+Successful matches require all keys in a pattern to have a value. If any of the `%{keyname}` defined in the pattern do not have a value, then an exception is thrown and may be handled by the [`on_failure`](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures) directive. An empty key `%{}` or a [named skip key](#dissect-modifier-named-skip-key) can be used to match values, but exclude the value from the final document. All matched values are represented as string data types. The [convert processor](/reference/enrich-processor/convert-processor.md) may be used to convert to expected data type.
 
 Dissect also supports [key modifiers](#dissect-key-modifiers) that can change dissect’s default behavior. For example you can instruct dissect to ignore certain fields, append fields, skip over padding, etc. See [below](#dissect-key-modifiers) for more information.
 
@@ -75,7 +75,7 @@ $$$dissect-options$$$
 
 ## Dissect key modifiers [dissect-key-modifiers]
 
-Key modifiers can change the default behavior for dissection. Key modifiers may be found on the left or right of the `%{{keyname}}` always inside the `%{` and `}`. For example `%{+keyname ->}` has the append and right padding modifiers.
+Key modifiers can change the default behavior for dissection. Key modifiers may be found on the left or right of the `%{keyname}` always inside the `%{` and `}`. For example `%{+keyname ->}` has the append and right padding modifiers.
 
 $$$dissect-key-modifiers-table$$$
 
@@ -89,9 +89,9 @@ $$$dissect-key-modifiers-table$$$
 
 ### Right padding modifier (`->`) [dissect-modifier-skip-right-padding]
 
-The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
+The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{fookey} %{barkey}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
 
-The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
+The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{barkey}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
 
 Use the right padding modifier to allow for repetition of the characters after a `%{keyname->}`.
 
@@ -101,8 +101,8 @@ Right padding modifier example
 
 |     |     |
 | --- | --- |
-| **Pattern** | `%{ts->} %{{level}}` |
-| **Input** | 1998-08-10T17:15:42,466          WARN |
+| **Pattern** | `%{ts->} %{level}` |
+| **Input** | 1998-08-10T17:15:42,466          WARN |
 | **Result** | * ts = 1998-08-10T17:15:42,466<br>* level = WARN<br> |
 
 The right padding modifier may be used with an empty key to help skip unwanted data. For example, the same input string, but wrapped with brackets requires the use of an empty right padded key to achieve the same result.
@@ -111,8 +111,8 @@ Right padding modifier with empty key example
 
 |     |     |
 | --- | --- |
-| **Pattern** | `[%{{ts}}]%{->}[%{{level}}]` |
-| **Input** | [1998-08-10T17:15:42,466]            [WARN] |
+| **Pattern** | `[%{ts}]%{->}[%{level}]` |
+| **Input** | [1998-08-10T17:15:42,466]            [WARN] |
 | **Result** | * ts = 1998-08-10T17:15:42,466<br>* level = WARN<br> |
 
 
@@ -153,7 +153,7 @@ Named skip key modifier example
 
 |     |     |
 | --- | --- |
-| **Pattern** | `%{{clientip}} %{?ident} %{?auth} [%{@timestamp}]` |
+| **Pattern** | `%{clientip} %{?ident} %{?auth} [%{@timestamp}]` |
 | **Input** | 1.2.3.4 - - [30/Apr/1998:22:00:52 +0000] |
 | **Result** | * clientip = 1.2.3.4<br>* @timestamp = 30/Apr/1998:22:00:52 +0000<br> |
 
@@ -167,7 +167,7 @@ Reference key modifier example
 
 |     |     |
 | --- | --- |
-| **Pattern** | `[%{{ts}}] [%{{level}}] %{*p1}:%{&p1} %{*p2}:%{&p2}` |
+| **Pattern** | `[%{ts}] [%{level}] %{*p1}:%{&p1} %{*p2}:%{&p2}` |
 | **Input** | [2018-08-10T17:15:42,466] [ERR] ip:1.2.3.4 error:REFUSED |
 | **Result** | * ts = 2018-08-10T17:15:42,466<br>* level = ERR<br>* ip = 1.2.3.4<br>* error = REFUSED<br> |
 

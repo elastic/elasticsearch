@@ -121,7 +121,10 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
 
             var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            FileCollection moduleInfoFile = mainSourceSet.getOutput().getAsFileTree().matching(p -> p.include("module-info.class"));
+            FileCollection moduleInfoFile = mainSourceSet.getOutput()
+                .getClassesDirs()
+                .getAsFileTree()
+                .matching(p -> p.include("module-info.class"));
             task.getModuleInfoFile().setFrom(moduleInfoFile);
 
         });

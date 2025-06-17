@@ -29,6 +29,7 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -385,29 +386,28 @@ public abstract class StreamInput extends InputStream {
         return new BigInteger(readString());
     }
 
+    private Text readText(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        if (length > 0) {
+            readBytes(bytes, 0, length);
+        }
+        var encoded = new XContentString.UTF8Bytes(bytes);
+        return new Text(encoded);
+    }
+
     @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
         if (length == -1) {
             return null;
         }
-        byte[] bytes = new byte[length];
-        if (length > 0) {
-            readBytes(bytes, 0, length);
-        }
-        var byteBuff = ByteBuffer.wrap(bytes);
-        return new Text(byteBuff);
+        return readText(length);
     }
 
     public Text readText() throws IOException {
         // use Text so we can cache the string if it's ever converted to it
         int length = readInt();
-        byte[] bytes = new byte[length];
-        if (length > 0) {
-            readBytes(bytes, 0, length);
-        }
-        var byteBuff = ByteBuffer.wrap(bytes);
-        return new Text(byteBuff);
+        return readText(length);
     }
 
     @Nullable

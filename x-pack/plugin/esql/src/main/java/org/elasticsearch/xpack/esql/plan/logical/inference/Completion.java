@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -37,6 +38,7 @@ public class Completion extends InferencePlan<Completion>
     implements
         GeneratingPlan<Completion>,
         SortAgnostic,
+        TelemetryAware,
         PostAnalysisVerificationAware {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
@@ -136,7 +138,7 @@ public class Completion extends InferencePlan<Completion>
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && prompt.resolved();
+        return super.expressionsResolved() && prompt.resolved() && targetField.resolved();
     }
 
     @Override

@@ -38,7 +38,6 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
     GetComponentTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
-    private final ProjectResolver projectResolver;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -62,7 +61,6 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
             projectResolver
         );
         clusterSettings = clusterService.getClusterSettings();
-        this.projectResolver = projectResolver;
         transportService.registerRequestHandler(
             actionName,
             executor,
@@ -75,7 +73,7 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
 
     @Override
     protected ClusterBlockException checkBlock(GetComponentTemplateAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

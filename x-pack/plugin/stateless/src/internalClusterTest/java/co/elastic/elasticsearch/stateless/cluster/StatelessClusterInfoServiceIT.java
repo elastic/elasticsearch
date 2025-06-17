@@ -53,7 +53,7 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessIntegTestCas
         return super.nodeSettings().put(
             "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
             TimeValue.timeValueMillis(10)
-        );
+        ).put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
     }
 
     public void testClusterInfoIncludesHeapUsage() throws Exception {

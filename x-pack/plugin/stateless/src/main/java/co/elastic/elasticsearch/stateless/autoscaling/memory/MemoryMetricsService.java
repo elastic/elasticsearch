@@ -214,7 +214,11 @@ public class MemoryMetricsService implements ClusterStateListener {
         final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
         final Map<String, ShardHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
         for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetrics.entrySet()) {
-            final ShardHeapUsageBuilder builderForNode = heapUsageBuilders.computeIfAbsent(entry.getValue().getMetricShardNodeId(), id -> {
+            final String shardNodeId = entry.getValue().getMetricShardNodeId();
+            if (shardNodeId == null) { // nodeId is null for unassigned shard
+                continue;
+            }
+            final ShardHeapUsageBuilder builderForNode = heapUsageBuilders.computeIfAbsent(shardNodeId, id -> {
                 // Pass the DiscoveryNode if available, this allows us to determine the ephemeral ID and look for current merge memory
                 // estimates
                 final DiscoveryNode discoveryNode = discoveryNodes.get(id);

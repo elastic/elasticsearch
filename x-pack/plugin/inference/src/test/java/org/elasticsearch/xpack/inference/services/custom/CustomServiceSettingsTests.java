@@ -137,7 +137,9 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.ERROR_PARSER,
                             new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
                         )
-                    )
+                    ),
+                    CustomServiceSettings.BATCH_SIZE,
+                    10
                 )
             ),
             ConfigurationParseContext.REQUEST,
@@ -161,7 +163,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message", "inference_id")
+                    new ErrorResponseParser("$.error.message", "inference_id"),
+                    10
                 )
             )
         );
@@ -652,7 +655,50 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 },
                 "rate_limit": {
                     "requests_per_minute": 10000
-                }
+                },
+                "batch_size": 1
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testXContent_BatchSize10() throws IOException {
+        var entity = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            "http://www.abc.com",
+            Map.of("key", "value"),
+            null,
+            "string",
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            null,
+            new ErrorResponseParser("$.error.message", "inference_id"),
+            10
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "url": "http://www.abc.com",
+                "headers": {
+                    "key": "value"
+                },
+                "request": "string",
+                "response": {
+                    "json_parser": {
+                        "text_embeddings": "$.result.embeddings[*].embedding"
+                    },
+                    "error_parser": {
+                        "path": "$.error.message"
+                    }
+                },
+                "rate_limit": {
+                    "requests_per_minute": 10000
+                },
+                "batch_size": 10
             }
             """);
 

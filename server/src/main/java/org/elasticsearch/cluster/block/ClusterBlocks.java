@@ -72,16 +72,33 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global;
     }
 
-    public boolean noIndexBlockAllProjects() {
+    public Set<ClusterBlock> global(ProjectId projectId) {
+        return Sets.union(global, projectBlocks(projectId).projectGlobals());
+    }
+
+    public boolean noProjectHasAProjectBlock() {
         return projectBlocksMap.values().stream().allMatch(ProjectBlocks::isEmpty);
     }
 
     public Map<String, Set<ClusterBlock>> indices(ProjectId projectId) {
-        return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).indices();
+        return projectBlocks(projectId).indices();
+    }
+
+    public ProjectBlocks projectBlocks(ProjectId projectId) {
+        return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY);
+    }
+
+    protected Set<ClusterBlock> projectGlobal(ProjectId projectId) {
+        return projectBlocks(projectId).projectGlobals();
     }
 
     public Set<ClusterBlock> global(ClusterBlockLevel level) {
         return levelHolders.get(level).global();
+    }
+
+    public Set<ClusterBlock> global(ProjectId projectId, ClusterBlockLevel level) {
+        var levelHolder = levelHolders.get(level);
+        return Sets.union(levelHolder.global, levelHolder.projects.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals());
     }
 
     public Map<String, Set<ClusterBlock>> indices(ProjectId projectId, ClusterBlockLevel level) {
@@ -109,7 +126,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
                 for (Map.Entry<String, Set<ClusterBlock>> indexEntry : projectEntry.getValue().indices().entrySet()) {
                     indicesBuilder.put(indexEntry.getKey(), addBlocksAtLevel(indexEntry.getValue(), scratch, level));
                 }
-                projectsBuilder.put(projectEntry.getKey(), new ProjectBlocks(Map.copyOf(indicesBuilder)));
+                var projectGlobals = addBlocksAtLevel(projectEntry.getValue().projectGlobals(), scratch, level);
+                projectsBuilder.put(projectEntry.getKey(), new ProjectBlocks(Map.copyOf(indicesBuilder), projectGlobals));
                 indicesBuilder.clear();
             }
             levelHolders.put(level, new ImmutableLevelHolder(addBlocksAtLevel(global, scratch, level), Map.copyOf(projectsBuilder)));
@@ -223,6 +241,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global(level).isEmpty() == false;
     }
 
+    private boolean globalBlocked(ProjectId projectId, ClusterBlockLevel level) {
+        return global(projectId, level).isEmpty() == false;
+    }
+
     public ClusterBlockException globalBlockedException(ClusterBlockLevel level) {
         if (globalBlocked(level) == false) {
             return null;
@@ -255,7 +277,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     public boolean indexBlocked(ProjectId projectId, ClusterBlockLevel level, String index) {
-        return globalBlocked(level) || blocksForIndex(projectId, level, index).isEmpty() == false;
+        return globalBlocked(projectId, level) || blocksForIndex(projectId, level, index).isEmpty() == false;
     }
 
     @Deprecated(forRemoval = true)
@@ -265,7 +287,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     public ClusterBlockException indicesBlockedException(ProjectId projectId, ClusterBlockLevel level, String[] indices) {
-        Set<ClusterBlock> globalLevelBlocks = global(level);
+        Set<ClusterBlock> globalLevelBlocks = global(projectId, level);
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
             Set<ClusterBlock> indexBlocks = blocksForIndex(projectId, level, index);
@@ -283,14 +305,15 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     /**
-     * Returns <code>true</code> iff non of the given have a {@link ClusterBlockLevel#METADATA_WRITE} in place where the
+     * Returns <code>true</code> iff none of the given indices have a {@link ClusterBlockLevel#METADATA_WRITE} in place where the
      * {@link ClusterBlock#isAllowReleaseResources()} returns <code>false</code>. This is used in places where resources will be released
      * like the deletion of an index to free up resources on nodes.
+     *
      * @param projectId the project that owns the indices
-     * @param indices the indices to check
+     * @param indices   the indices to check
      */
     public ClusterBlockException indicesAllowReleaseResources(ProjectId projectId, String[] indices) {
-        Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.METADATA_WRITE).stream()
+        Set<ClusterBlock> globalBlocks = global(projectId, ClusterBlockLevel.METADATA_WRITE).stream()
             .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false)
             .collect(toSet());
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
@@ -314,7 +337,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     @Override
     public String toString() {
-        if (global.isEmpty() && noIndexBlockAllProjects()) {
+        if (global.isEmpty() && noProjectHasAProjectBlock()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
@@ -328,6 +351,12 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         for (var projectId : projectBlocksMap.keySet().stream().sorted(Comparator.comparing(ProjectId::id)).toList()) {
             final Map<String, Set<ClusterBlock>> indices = indices(projectId);
             sb.append("   ").append(projectId).append(":\n");
+            if (projectGlobal(projectId).isEmpty() == false) {
+                sb.append("      _project_global_:\n");
+            }
+            for (ClusterBlock block : projectGlobal(projectId)) {
+                sb.append("         ").append(block).append("\n");
+            }
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
                 sb.append("      ").append(entry.getKey()).append(":\n");
                 for (ClusterBlock block : entry.getValue()) {
@@ -345,7 +374,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             out.writeMap(projectBlocksMap, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
         } else {
             if (noProjectOrDefaultProjectOnly()) {
-                writeToBwc(out);
+                writeToSingleProjectNode(out);
             } else {
                 throw new IllegalStateException(
                     "Cannot write multi-project blocks to a stream with version [" + out.getTransportVersion() + "]"
@@ -354,7 +383,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
     }
 
-    private void writeToBwc(StreamOutput out) throws IOException {
+    private void writeToSingleProjectNode(StreamOutput out) throws IOException {
         writeBlockSet(global, out);
         out.writeMap(indices(Metadata.DEFAULT_PROJECT_ID), (o, s) -> writeBlockSet(s, o));
     }
@@ -387,16 +416,16 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     private static class ClusterBlocksDiff implements Diff<ClusterBlocks> {
 
         private final ClusterBlocks part;
-        private final boolean isFromBwcNode;
+        private final boolean isFromSingleProjectNode;
 
-        ClusterBlocksDiff(ClusterBlocks part, boolean isFromBwcNode) {
+        ClusterBlocksDiff(ClusterBlocks part, boolean isFromSingleProjectNode) {
             this.part = part;
-            this.isFromBwcNode = isFromBwcNode;
+            this.isFromSingleProjectNode = isFromSingleProjectNode;
         }
 
         @Override
         public ClusterBlocks apply(ClusterBlocks part) {
-            if (isFromBwcNode) {
+            if (isFromSingleProjectNode) {
                 if (part.noProjectOrDefaultProjectOnly()) {
                     return this.part;
                 } else {
@@ -421,7 +450,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             } else {
                 if (part.noProjectOrDefaultProjectOnly()) {
                     out.writeBoolean(true);
-                    part.writeToBwc(out);
+                    part.writeToSingleProjectNode(out);
                 } else {
                     throw new IllegalStateException(
                         "Cannot write multi-project blocks diff to a stream with version [" + out.getTransportVersion() + "]"
@@ -446,11 +475,11 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             }
             return new ClusterBlocks(global, projectBlocksMap);
         } else {
-            return readFromBwc(in);
+            return readFromSingleProjectNode(in);
         }
     }
 
-    private static ClusterBlocks readFromBwc(StreamInput in) throws IOException {
+    private static ClusterBlocks readFromSingleProjectNode(StreamInput in) throws IOException {
         final Set<ClusterBlock> global = readBlockSet(in);
         Map<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
         if (global.isEmpty() && indicesBlocks.isEmpty()) {
@@ -459,7 +488,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         if (indicesBlocks.isEmpty()) {
             return new ClusterBlocks(global, Map.of());
         }
-        return new ClusterBlocks(global, Map.of(Metadata.DEFAULT_PROJECT_ID, new ProjectBlocks(indicesBlocks)));
+        return new ClusterBlocks(global, Map.of(Metadata.DEFAULT_PROJECT_ID, new ProjectBlocks(indicesBlocks, Set.of())));
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
@@ -471,41 +500,65 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
                 return new ClusterBlocksDiff(ClusterBlocks.readFrom(in), false);
             } else {
-                return new ClusterBlocksDiff(ClusterBlocks.readFromBwc(in), true);
+                return new ClusterBlocksDiff(ClusterBlocks.readFromSingleProjectNode(in), true);
             }
         }
         return SimpleDiffable.empty();
     }
 
-    static class ProjectBlocks implements Writeable {
+    /**
+     * ProjectBlocks encapsulates the project-specific ClusterBlocks. These apply either to a specific index
+     * or are project global blocks. Project global blocks are similar to cluster-global blocks, but impact
+     * only one project.
+     */
+    public static class ProjectBlocks implements Writeable {
 
-        static final ProjectBlocks EMPTY = new ProjectBlocks(Map.of());
+        static final ProjectBlocks EMPTY = new ProjectBlocks(Map.of(), Set.of());
 
         private final Map<String, Set<ClusterBlock>> indices;
 
-        ProjectBlocks(Map<String, Set<ClusterBlock>> indices) {
+        private final Set<ClusterBlock> projectGlobal;
+
+        ProjectBlocks(Map<String, Set<ClusterBlock>> indices, Set<ClusterBlock> projectGlobal) {
             this.indices = indices;
+            this.projectGlobal = projectGlobal;
         }
 
-        Map<String, Set<ClusterBlock>> indices() {
+        public Map<String, Set<ClusterBlock>> indices() {
             return indices;
+        }
+
+        public Set<ClusterBlock> projectGlobals() {
+            return projectGlobal;
         }
 
         Set<ClusterBlock> get(String index) {
             return indices.get(index);
         }
 
-        boolean isEmpty() {
-            return indices.isEmpty();
+        public boolean isEmpty() {
+            return indices.isEmpty() && projectGlobal.isEmpty();
         }
 
         static ProjectBlocks readFrom(StreamInput in) throws IOException {
-            return new ProjectBlocks(in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet));
+            Map<String, Set<ClusterBlock>> indices = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
+            Set<ClusterBlock> projectGlobal;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
+                projectGlobal = ClusterBlocks.readBlockSet(in);
+            } else {
+                projectGlobal = Set.of();
+            }
+            return new ProjectBlocks(indices, projectGlobal);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indices, (o, s) -> writeBlockSet(s, o));
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
+                writeBlockSet(projectGlobal, out);
+            } else {
+                assert projectGlobal.isEmpty() : "Any MP-enabled cluster must be past TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK";
+            }
         }
     }
 
@@ -514,6 +567,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     /**
      * Ensure all projects that the ClusterBlocks contains are found in the provided projects
      * by removing any project that does not exist in the provided set.
+     *
      * @param projectIds The set of project-ids from {@link Metadata}.
      * @return A new ClusterBlocks is returned if there are any changes. Otherwise, the same instance of
      * ClusterBlocks is returned.
@@ -542,20 +596,24 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     public static class Builder {
 
         private final Set<ClusterBlock> global = new HashSet<>();
-
-        private final Map<ProjectId, Map<String, Set<ClusterBlock>>> projects = new HashMap<>();
+        private final Map<ProjectId, ProjectBlocks> projects = new HashMap<>();
 
         public Builder() {}
+
+        private static ProjectBlocks emptyMutableProjectBlocks() {
+            return new ProjectBlocks(new HashMap<>(), new HashSet<>());
+        }
 
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
             for (var projectId : blocks.projectBlocksMap.keySet()) {
-                final var indices = projects.computeIfAbsent(projectId, k -> new HashMap<>());
+                final var projectBlocks = projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks());
+                projectBlocks.projectGlobal.addAll(blocks.projectGlobal(projectId));
                 for (Map.Entry<String, Set<ClusterBlock>> entry : blocks.indices(projectId).entrySet()) {
-                    if (indices.containsKey(entry.getKey()) == false) {
-                        indices.put(entry.getKey(), new HashSet<>());
+                    if (projectBlocks.indices.containsKey(entry.getKey()) == false) {
+                        projectBlocks.indices.put(entry.getKey(), new HashSet<>());
                     }
-                    indices.get(entry.getKey()).addAll(entry.getValue());
+                    projectBlocks.indices.get(entry.getKey()).addAll(entry.getValue());
                 }
             }
             return this;
@@ -596,7 +654,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         public Builder updateBlocks(ProjectId projectId, IndexMetadata indexMetadata) {
             // let's remove all blocks for this index and add them back -- no need to remove all individual blocks....
-            projects.computeIfAbsent(projectId, k -> new HashMap<>()).remove(indexMetadata.getIndex().getName());
+            projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks()).indices.remove(indexMetadata.getIndex().getName());
             return addBlocks(projectId, indexMetadata);
         }
 
@@ -620,17 +678,31 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return this;
         }
 
+        public Builder addProjectGlobalBlock(ProjectId projectId, ClusterBlock block) {
+            assert projectId.equals(ProjectId.DEFAULT) == false;
+            projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks()).projectGlobal.add(block);
+            return this;
+        }
+
+        public Builder removeProjectGlobalBlock(ProjectId projectId, ClusterBlock block) {
+            var project = projects.get(projectId);
+            if (project != null) {
+                project.projectGlobal.remove(block);
+            }
+            return this;
+        }
+
         @Deprecated(forRemoval = true)
         public Builder addIndexBlock(String index, ClusterBlock block) {
             return addIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, block);
         }
 
         public Builder addIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
-            final var indices = projects.computeIfAbsent(projectId, k -> new HashMap<>());
-            if (indices.containsKey(index) == false) {
-                indices.put(index, new HashSet<>());
+            final var projectBlocks = projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks());
+            if (projectBlocks.indices().containsKey(index) == false) {
+                projectBlocks.indices.put(index, new HashSet<>());
             }
-            indices.get(index).add(block);
+            projectBlocks.indices.get(index).add(block);
             return this;
         }
 
@@ -640,62 +712,62 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
 
         public Builder removeIndexBlocks(ProjectId projectId, String index) {
-            final var indices = projects.get(projectId);
-            if (indices == null) {
+            final var projectBlocks = projects.get(projectId);
+            if (projectBlocks == null) {
                 return this;
             }
-            if (indices.containsKey(index) == false) {
+            if (projectBlocks.indices.containsKey(index) == false) {
                 return this;
             }
-            indices.remove(index);
+            projectBlocks.indices.remove(index);
             return this;
         }
 
         public boolean hasIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
-            final var indices = projects.get(projectId);
-            if (indices == null) {
+            final var projectBlocks = projects.get(projectId);
+            if (projectBlocks == null) {
                 return false;
             }
-            return indices.getOrDefault(index, Set.of()).contains(block);
+            return projectBlocks.indices.getOrDefault(index, Set.of()).contains(block);
         }
 
         public boolean hasIndexBlockLevel(ProjectId projectId, String index, ClusterBlockLevel level) {
-            final var indices = projects.get(projectId);
-            if (indices == null) {
+            final var projectBlocks = projects.get(projectId);
+            if (projectBlocks == null) {
                 return false;
             }
-            return indices.getOrDefault(index, Set.of()).stream().anyMatch(clusterBlock -> clusterBlock.contains(level));
+            return projectBlocks.indices.getOrDefault(index, Set.of()).stream().anyMatch(clusterBlock -> clusterBlock.contains(level));
         }
 
         public Builder removeIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
-            final var indices = projects.get(projectId);
-            if (indices == null) {
+            final var projectBlocks = projects.get(projectId);
+            if (projectBlocks == null) {
                 return this;
             }
 
-            if (indices.containsKey(index) == false) {
+            if (projectBlocks.indices.containsKey(index) == false) {
                 return this;
             }
-            indices.get(index).remove(block);
-            if (indices.get(index).isEmpty()) {
-                indices.remove(index);
+            projectBlocks.get(index).remove(block);
+            if (projectBlocks.get(index).isEmpty()) {
+                projectBlocks.indices.remove(index);
             }
             return this;
         }
 
         public Builder removeIndexBlockWithId(ProjectId projectId, String index, int blockId) {
-            final var indices = projects.get(projectId);
-            if (indices == null) {
+            final var projectBlocks = projects.get(projectId);
+            if (projectBlocks == null) {
                 return this;
             }
 
-            final Set<ClusterBlock> indexBlocks = indices.get(index);
+            final Set<ClusterBlock> indexBlocks = projectBlocks.get(index);
             if (indexBlocks == null) {
                 return this;
             }
             indexBlocks.removeIf(block -> block.id() == blockId);
             if (indexBlocks.isEmpty()) {
-                indices.remove(index);
+                projectBlocks.indices.remove(index);
             }
             return this;
         }
@@ -703,18 +775,21 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         public ClusterBlocks build() {
             if (global.isEmpty()
                 && noProjectOrDefaultProjectOnly(projects)
-                && projects.getOrDefault(Metadata.DEFAULT_PROJECT_ID, Map.of()).isEmpty()) {
+                && projects.getOrDefault(Metadata.DEFAULT_PROJECT_ID, ProjectBlocks.EMPTY).isEmpty()) {
                 return EMPTY_CLUSTER_BLOCK;
             }
             // We copy the block sets here in case of the builder is modified after build is called
             Map<ProjectId, ProjectBlocks> projectsBuilder = new HashMap<>(projects.size());
-            for (Map.Entry<ProjectId, Map<String, Set<ClusterBlock>>> projectEntry : projects.entrySet()) {
-                Map<String, Set<ClusterBlock>> indicesBuilder = new HashMap<>(projectEntry.getValue().size());
-                for (Map.Entry<String, Set<ClusterBlock>> indexEntry : projectEntry.getValue().entrySet()) {
+            for (Map.Entry<ProjectId, ProjectBlocks> projectEntry : projects.entrySet()) {
+                Map<String, Set<ClusterBlock>> indicesBuilder = new HashMap<>(projectEntry.getValue().indices.size());
+                for (Map.Entry<String, Set<ClusterBlock>> indexEntry : projectEntry.getValue().indices.entrySet()) {
                     indicesBuilder.put(indexEntry.getKey(), Set.copyOf(indexEntry.getValue()));
                 }
-                if (indicesBuilder.isEmpty() == false) {
-                    projectsBuilder.put(projectEntry.getKey(), new ProjectBlocks(Map.copyOf(indicesBuilder)));
+                if (indicesBuilder.isEmpty() == false || projectEntry.getValue().projectGlobals().isEmpty() == false) {
+                    projectsBuilder.put(
+                        projectEntry.getKey(),
+                        new ProjectBlocks(Map.copyOf(indicesBuilder), Set.copyOf(projectEntry.getValue().projectGlobals()))
+                    );
                 }
             }
             return new ClusterBlocks(Set.copyOf(global), Map.copyOf(projectsBuilder));

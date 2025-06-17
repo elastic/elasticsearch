@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -42,18 +43,22 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     private boolean executed;
 
-    public final ClusterState execute(ClusterState currentState) throws Exception {
+    /**
+     * Executes the task on the current project state. We return a cluster state instead of a project state because we're only interested
+     * in the resulting cluster state, so we avoid constructing a project state just to only access the cluster state.
+     */
+    public final ClusterState execute(ProjectState currentState) throws Exception {
         assert executed == false;
         final ClusterState updatedState = doExecute(currentState);
-        if (currentState != updatedState) {
+        if (currentState.cluster() != updatedState) {
             executed = true;
         }
         return updatedState;
     }
 
-    protected abstract ClusterState doExecute(ClusterState currentState) throws Exception;
+    protected abstract ClusterState doExecute(ProjectState currentState) throws Exception;
 
-    public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+    public final void clusterStateProcessed(ProjectState newState) {
         listener.onResponse(null);
         if (executed) {
             onClusterStateProcessed(newState);
@@ -68,7 +73,7 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     /**
      * Add a listener that is resolved once this update has been processed or failed and before either the
-     * {@link #onClusterStateProcessed(ClusterState)} or the {@link #handleFailure(Exception)} hooks are
+     * {@link #onClusterStateProcessed(ProjectState)} or the {@link #handleFailure(Exception)} hooks are
      * executed.
      */
     public final void addListener(ActionListener<Void> actionListener) {
@@ -78,10 +83,10 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     /**
      * This method is functionally the same as {@link ClusterStateUpdateTask#clusterStateProcessed}
      * and implementations can override it as they would override {@code ClusterStateUpdateTask#clusterStateProcessed}.
-     * The only difference to  {@link ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ClusterState)}
+     * The only difference to  {@link ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ProjectState)}
      * implementation was a noop and returned the input cluster state, then this method will not be invoked.
      */
-    protected void onClusterStateProcessed(ClusterState newState) {}
+    protected void onClusterStateProcessed(ProjectState newState) {}
 
     @Override
     public abstract boolean equals(Object other);

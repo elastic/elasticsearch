@@ -311,7 +311,7 @@ public final class TextFieldMapper extends FieldMapper {
             // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
             this.withinMultiField = withinMultiField;
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)) {
+                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                     return isSyntheticSourceEnabled
                         && this.withinMultiField == false
                         && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -327,6 +327,14 @@ public final class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+        }
+
+        public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(IndexVersion indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
+                || indexCreatedVersion.between(
+                    IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
+                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                );
         }
 
         public Builder index(boolean index) {
@@ -894,9 +902,11 @@ public final class TextFieldMapper extends FieldMapper {
             return Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount());
         }
 
-        private void checkForPositions() {
+        private void checkForPositions(boolean multi) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalArgumentException(
+                    "field:[" + name() + "] was indexed without position data; cannot run " + (multi ? "MultiPhraseQuery" : "PhraseQuery")
+                );
             }
         }
 
@@ -904,7 +914,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            checkForPositions();
+            checkForPositions(false);
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
@@ -939,6 +949,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
+            checkForPositions(true);
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
@@ -959,7 +970,7 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
             if (countTokens(stream) > 1) {
-                checkForPositions();
+                checkForPositions(false);
             }
             return analyzePhrasePrefix(stream, slop, maxExpansions);
         }

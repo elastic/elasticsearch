@@ -52,6 +52,7 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticInferenceMetadataFieldsMapper.EXPLICIT_NULL_FIXES,
             SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
             TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
+            TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_MINSCORE_FIX,
             SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
             SEMANTIC_KNN_FILTER_FIX,

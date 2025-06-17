@@ -217,7 +217,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         orig.endObject();
 
         XContentBuilder withDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMappingWithExplicitDefaults)).documentMapper().mapping()
+        createMapperService(fieldMapping(this::minimalMappingWithExplicitDefaults)).documentMapper()
+            .mapping()
             .toXContent(withDefaults, INCLUDE_DEFAULTS);
         withDefaults.endObject();
 

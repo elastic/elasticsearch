@@ -792,11 +792,6 @@ public final class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
 
-        final String managedBy = (String) metadata.get(AuthenticationField.MANAGED_BY_KEY);
-        if (managedBy != null) {
-            builder.field("managed_by", managedBy);
-        }
-
         if (isApiKey() || isCrossClusterAccess() || isCloudApiKey()) {
             final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) metadata.get(AuthenticationField.API_KEY_NAME_KEY);
@@ -808,6 +803,12 @@ public final class Authentication implements ToXContentObject {
             if (isCloudApiKey()) {
                 final boolean internal = (boolean) metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY);
                 apiKeyField.put("internal", internal);
+            }
+            final String managedBy = (String) metadata.get(AuthenticationField.API_KEY_MANAGED_BY_KEY);
+            if (managedBy != null) {
+                apiKeyField.put("managed_by", managedBy);
+            } else {
+                apiKeyField.put("managed_by", isCloudApiKey() ? ManagedBy.CLOUD.getDisplayName() : ManagedBy.ELASTICSEARCH.getDisplayName());
             }
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
@@ -1662,11 +1663,17 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     *  Indicates if the credentials are managed by Elasticsearch or by the cloud.
+     *  Indicates if credentials are managed by Elasticsearch or by the Cloud.
      */
     public enum ManagedBy {
+
         CLOUD,
-        ELASTICSEARCH
+
+        ELASTICSEARCH;
+
+        public String getDisplayName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     public static class AuthenticationSerializationHelper {

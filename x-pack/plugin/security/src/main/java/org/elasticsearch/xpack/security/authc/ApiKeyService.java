@@ -1429,6 +1429,7 @@ public class ApiKeyService implements Closeable {
             authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, credentials.getId());
             authResultMetadata.put(AuthenticationField.API_KEY_NAME_KEY, apiKeyDoc.name);
             authResultMetadata.put(AuthenticationField.API_KEY_TYPE_KEY, apiKeyDoc.type.value());
+            authResultMetadata.put(AuthenticationField.API_KEY_MANAGED_BY_KEY, Authentication.ManagedBy.ELASTICSEARCH.getDisplayName());
             if (apiKeyDoc.metadataFlattened != null) {
                 authResultMetadata.put(AuthenticationField.API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
             }

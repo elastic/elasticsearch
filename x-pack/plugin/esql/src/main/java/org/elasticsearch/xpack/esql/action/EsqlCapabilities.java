@@ -1040,7 +1040,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V8(Build.current().isSnapshot()),
+        FORK_V9(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.

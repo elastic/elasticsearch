@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
+import org.elasticsearch.xpack.esql.core.querydsl.query.AutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -89,10 +90,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (pattern().patternList().size() != 1) {
-            // we only support a single pattern in the list for pushdown for now
-            return Translatable.NO;
-        }
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
 
     }
@@ -113,9 +110,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        if (pattern().patternList().size() != 1) {
-            throw new IllegalArgumentException("WildcardLikeList can only be translated when it has a single pattern");
-        }
-        return new WildcardQuery(source(), targetFieldName, pattern().patternList().getFirst().asLuceneWildcard(), caseInsensitive());
+        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()));
     }
 }

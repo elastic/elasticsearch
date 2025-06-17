@@ -574,6 +574,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/129529
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
+  method: testIORateIsAdjustedForAllRunningMergeTasks
+  issue: https://github.com/elastic/elasticsearch/issues/129531
 
 # Examples:
 #

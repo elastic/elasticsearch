@@ -13,7 +13,7 @@ DEV_FORK :        {this.isDevVersion()}? 'fork'          -> pushMode(FORK_MODE);
 
 mode FORK_MODE;
 FORK_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
-FORK_RO : RP -> type(RP), popMode, popMode;
+FORK_RP : RP -> type(RP), popMode, popMode;
 FORK_PIPE : PIPE -> type(PIPE), popMode;
 
 FORK_WS : WS -> channel(HIDDEN);

@@ -3317,6 +3317,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a = b WITH c )
+               ( SAMPLE 0.99 )
             | KEEP a
             """;
 

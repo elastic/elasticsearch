@@ -5,7 +5,7 @@
       "description": "Return the current status of the streams feature for each streams type"
     },
     "stability": "stable",
-    "visibility": "public",
+    "visibility": "feature_flag",
     "headers": {
       "accept": [
         "application/json"

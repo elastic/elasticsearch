@@ -5,7 +5,7 @@
       "description": "Disable the Logs Streams feature for this cluster"
     },
     "stability": "stable",
-    "visibility": "public",
+    "visibility": "feature_flag",
     "headers": {
       "accept": [
         "application/json",
@@ -17,7 +17,7 @@
         {
           "path": "/_streams/logs/_disable",
           "methods": [
-            "GET"
+            "POST"
           ]
         }
       ]

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -45,6 +46,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     private Exception failure = null;
 
     public ExecuteStepsUpdateTask(
+        ProjectId projectId,
         String policy,
         Index index,
         Step startStep,
@@ -52,7 +54,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         IndexLifecycleRunner lifecycleRunner,
         LongSupplier nowSupplier
     ) {
-        super(index, startStep.getKey());
+        super(projectId, index, startStep.getKey());
         this.policy = policy;
         this.startStep = startStep;
         this.policyStepsRegistry = policyStepsRegistry;
@@ -234,7 +236,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                 // After the cluster state has been processed and we have moved
                 // to a new step, we need to conditionally execute the step iff
                 // it is an `AsyncAction` so that it is executed exactly once.
-                lifecycleRunner.maybeRunAsyncAction(newState.cluster(), indexMetadata, policy, nextStepKey);
+                lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
             }
         }
         assert indexToStepKeysForAsyncActions.size() <= 1 : "we expect a maximum of one single spawned index currently";
@@ -253,7 +255,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                             nextStep
                         );
                         final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMeta.getSettings());
-                        lifecycleRunner.maybeRunAsyncAction(newState.cluster(), indexMeta, policyName, nextStep);
+                        lifecycleRunner.maybeRunAsyncAction(newState, indexMeta, policyName, nextStep);
                     }
                 }
             }

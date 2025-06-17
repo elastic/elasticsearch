@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -121,6 +122,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected abstract boolean resolveIndex(Request request);
 
+    @FixForMultiProject(
+        description = "Many actions extend TransportSingleShardAction, consider checking for project global blocks when applicable"
+    )
     protected static ClusterBlockException checkGlobalBlock(ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }

@@ -474,7 +474,18 @@ public class PersistentTasksService {
     }
 
     private Client getDefaultOrProjectClient(@Nullable ProjectId projectId) {
-        return projectId == null ? client : client.projectClient(projectId);
+        if (projectId == null) {
+            return client;
+        }
+
+        final var currentProjectId = client.projectResolver().getProjectId();
+        if (projectId.equals(currentProjectId)) {
+            // The projectId will already be used in the client through thread context, so no need to set it again
+            return client;
+        } else {
+            // Execute will throw if the projectId conflicts with the one in the current context
+            return client.projectClient(projectId);
+        }
     }
 
     /**

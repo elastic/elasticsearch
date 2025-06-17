@@ -66,6 +66,21 @@ public class PersistentTasksService {
     }
 
     /**
+     * Notifies the master node to create new cluster persistent task and to assign it to a node.
+     * Accepts operation timeout as optional parameter
+     */
+    public <Params extends PersistentTaskParams> void sendClusterStartRequest(
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
+        assert PersistentTasksExecutorRegistry.isClusterScopedTask(taskName) : taskName + " is not a cluster scoped task";
+        sendStartRequest(null, taskId, taskName, taskParams, timeout, listener);
+    }
+
+    /**
      * Notifies the master node to create new project level persistent task and to assign it to a node.
      * Accepts operation timeout as optional parameter
      */
@@ -108,6 +123,25 @@ public class PersistentTasksService {
      * Accepts operation timeout as optional parameter
      */
     public void sendCompletionRequest(
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        sendCompletionRequest(null, taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node about the completion of a persistent task.
+     * <p>
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendClusterCompletionRequest(
         final String taskId,
         final long taskAllocationId,
         final @Nullable Exception taskFailure,
@@ -177,6 +211,13 @@ public class PersistentTasksService {
     }
 
     /**
+     * Cancels a locally running task using the Task Manager API. Accepts operation timeout as optional parameter
+     */
+    void sendClusterCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
+        sendCancelRequest(null, taskId, reason, listener);
+    }
+
+    /**
      * Cancels a locally running project task using the Task Manager API. Accepts operation timeout as optional parameter
      */
     void sendProjectCancelRequest(
@@ -213,6 +254,23 @@ public class PersistentTasksService {
      * Accepts operation timeout as optional parameter
      */
     void sendUpdateStateRequest(
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        sendUpdateStateRequest(null, taskId, taskAllocationID, taskState, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node that the state of a persistent task has changed.
+     * <p>
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
+     * Accepts operation timeout as optional parameter
+     */
+    void sendClusterUpdateStateRequest(
         final String taskId,
         final long taskAllocationID,
         final PersistentTaskState taskState,
@@ -260,6 +318,13 @@ public class PersistentTasksService {
      * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
      */
     public void sendRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
+        sendRemoveRequest(null, taskId, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
+     */
+    public void sendClusterRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
         sendRemoveRequest(null, taskId, timeout, listener);
     }
 

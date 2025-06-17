@@ -275,7 +275,7 @@ required_capability: spatial_grid
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (6.351574736181647 51.8981519783847)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
 | MV_EXPAND location
-| WHERE ST_INTERSECTS(location, TO_GEOHASH("u1"))
+| WHERE ST_INTERSECTS(location, "u1"::geohash)
 ;
 
 location:geo_point
@@ -610,7 +610,7 @@ required_capability: spatial_grid
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (24.516750878736943 23.93036561181085)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
 | MV_EXPAND location
-| WHERE ST_INTERSECTS(location, TO_GEOTILE("3/4/3"))
+| WHERE ST_INTERSECTS(location, "3/4/3"::geotile)
 ;
 
 location:geo_point
@@ -1014,7 +1014,7 @@ required_capability: spatial_grid
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (2.475211258445467 41.32352174592337)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
 | MV_EXPAND location
-| WHERE ST_INTERSECTS(location, TO_GEOHEX("81397ffffffffff"))
+| WHERE ST_INTERSECTS(location, "81397ffffffffff"::geohex)
 ;
 
 location:geo_point

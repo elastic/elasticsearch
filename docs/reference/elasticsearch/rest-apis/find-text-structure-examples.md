@@ -11,7 +11,7 @@ The [find text structure API](https://www.elastic.co/docs/api/doc/elasticsearch/
 
 The next example shows how it's possible to find the structure of some New York City yellow cab trip data. The first `curl` command downloads the data, the first 20000 lines of which are then piped into the `find_structure` endpoint. The `lines_to_sample` query parameter of the endpoint is set to 20000 to match what is specified in the `head` command.
 
-```js
+```
 curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=20000" -T -
 ```
 
@@ -324,7 +324,7 @@ If the request does not encounter errors, you receive the following result:
 
 If you try to analyze a lot of data then the analysis will take a long time. If you want to limit the amount of processing your {es} cluster performs for a request, use the `timeout` query parameter. The analysis will be aborted and an error returned when the timeout expires. For example, you can replace 20000 lines in the previous example with 200000 and set a 1 second timeout on theanalysis:
 
-```curl
+```
 curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
 ```
 
@@ -359,7 +359,7 @@ If you try the example above yourself you will note that the overall running tim
 
 This is an example of analyzing an {{es}} log file:
 
-```curl
+```
 curl -s -H "Content-Type: application/json" -XPOST
 "localhost:9200/_text_structure/find_structure?pretty&ecs_compatibility=disabled" -T "$ES_HOME/logs/elasticsearch.log"
 ```
@@ -512,7 +512,7 @@ If you recognize more fields than the simple `grok_pattern` produced by the stru
 
 In the case of the {es} log a more complete Grok pattern is `\[%{TIMESTAMP_ISO8601:timestamp}\]\[%{LOGLEVEL:loglevel} *\]\[%{JAVACLASS:class} *\] \[%{HOSTNAME:node}\] %{JAVALOGMESSAGE:message}`. You can analyze the same text again, submitting this `grok_pattern` as a query parameter (appropriately URL escaped):
 
-```curl
+```
 curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
 ```
 

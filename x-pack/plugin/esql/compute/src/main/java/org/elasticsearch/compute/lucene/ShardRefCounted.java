@@ -13,6 +13,10 @@ import java.util.List;
 
 /** Manages reference counting for {@link ShardContext}. */
 public interface ShardRefCounted {
+    /**
+     * @param shardId The shard index used by {@link org.elasticsearch.compute.data.DocVector}.
+     * @return the {@link RefCounted} for the given shard. In production, this will almost always be a {@link ShardContext}.
+     */
     RefCounted get(int shardId);
 
     static ShardRefCounted fromList(List<? extends RefCounted> refCounters) {

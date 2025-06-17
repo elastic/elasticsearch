@@ -11,10 +11,13 @@ import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.BitSet;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * {@link Vector} where each entry references a lucene document.
@@ -30,6 +33,7 @@ public final class DocVector extends AbstractVector implements Vector {
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
     private final IntVector shards;
+    private final IntVector uniqueShards;
     private final IntVector segments;
     private final IntVector docs;
 
@@ -78,9 +82,34 @@ public final class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
-        blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
 
-        forEachShardRefCounter(DecOrInc.INC);
+        this.uniqueShards = computeUniqueShards(shards);
+        forEachShardRefCounter(RefCounted::mustIncRef);
+        blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
+    }
+
+    private static IntVector computeUniqueShards(IntVector shards) {
+        switch (shards) {
+            case ConstantIntVector constantIntVector -> {
+                return shards.blockFactory().newConstantIntVector(constantIntVector.getInt(0), 1);
+            }
+            case ConstantNullVector unused -> {
+                return shards.blockFactory().newConstantIntVector(0, 0);
+            }
+            default -> {
+                var seen = new BitSet(128);
+                try (IntVector.Builder uniqueShardsBuilder = shards.blockFactory().newIntVectorBuilder(shards.getPositionCount())) {
+                    for (int p = 0; p < shards.getPositionCount(); p++) {
+                        int shardId = shards.getInt(p);
+                        if (seen.get(shardId) == false) {
+                            seen.set(shardId);
+                            uniqueShardsBuilder.appendInt(shardId);
+                        }
+                    }
+                    return uniqueShardsBuilder.build();
+                }
+            }
+        }
     }
 
     public DocVector(
@@ -310,18 +339,20 @@ public final class DocVector extends AbstractVector implements Vector {
 
     public static long ramBytesEstimated(
         IntVector shards,
+        IntVector uniqueShards,
         IntVector segments,
         IntVector docs,
         int[] shardSegmentDocMapForwards,
         int[] shardSegmentDocMapBackwards
     ) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator.sizeOf(docs)
-            + ramBytesOrZero(shardSegmentDocMapForwards) + ramBytesOrZero(shardSegmentDocMapBackwards);
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(uniqueShards) + RamUsageEstimator.sizeOf(
+            segments
+        ) + RamUsageEstimator.sizeOf(docs) + ramBytesOrZero(shardSegmentDocMapForwards) + ramBytesOrZero(shardSegmentDocMapBackwards);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(shards, segments, docs, shardSegmentDocMapForwards, shardSegmentDocMapBackwards);
+        return ramBytesEstimated(shards, uniqueShards, segments, docs, shardSegmentDocMapForwards, shardSegmentDocMapBackwards);
     }
 
     @Override
@@ -337,33 +368,22 @@ public final class DocVector extends AbstractVector implements Vector {
         Releasables.closeExpectNoException(
             () -> blockFactory().adjustBreaker(-BASE_RAM_BYTES_USED - (shardSegmentDocMapForwards == null ? 0 : sizeOfSegmentDocMap())),
             shards,
+            uniqueShards,
             segments,
             docs
         );
-        forEachShardRefCounter(DecOrInc.DEC);
+        forEachShardRefCounter(RefCounted::decRef);
     }
 
-    private enum DecOrInc {
-        DEC,
-        INC;
-
-        void apply(ShardRefCounted counters, int shardId) {
-            switch (this) {
-                case DEC -> counters.get(shardId).decRef();
-                case INC -> counters.get(shardId).mustIncRef();
-            }
-        }
-    }
-
-    private void forEachShardRefCounter(DecOrInc mode) {
+    private void forEachShardRefCounter(Consumer<RefCounted> consumer) {
         switch (shards) {
-            case ConstantIntVector constantIntVector -> mode.apply(shardRefCounters, constantIntVector.getInt(0));
+            case ConstantIntVector constantIntVector -> consumer.accept(shardRefCounters.get(constantIntVector.getInt(0)));
             case ConstantNullVector ignored -> {
                 // Noop
             }
             default -> {
-                for (int i = 0; i < shards.getPositionCount(); i++) {
-                    mode.apply(shardRefCounters, shards.getInt(i));
+                for (int i = 0; i < uniqueShards.getPositionCount(); i++) {
+                    consumer.accept(shardRefCounters.get(uniqueShards.getInt(i)));
                 }
             }
         }

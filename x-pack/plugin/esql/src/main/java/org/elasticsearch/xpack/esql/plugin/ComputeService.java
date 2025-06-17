@@ -590,6 +590,8 @@ public class ComputeService {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
             drivers = localExecutionPlan.createDrivers(context.sessionId());
+            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
+            // will hold a reference to the contexts where relevant.
             contexts.forEach(RefCounted::decRef);
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");

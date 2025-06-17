@@ -92,7 +92,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
     /**
-     * Context of each shard we're operating against.
+     * Context of each shard we're operating against. Note these objects are shared across multiple operators as
+     * {@link org.elasticsearch.core.RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
@@ -379,6 +380,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     public static class DefaultShardContext extends ShardContext {
         private final int index;
+        /**
+         * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
+         * dependency here.
+         */
         private final Releasable releasable;
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;

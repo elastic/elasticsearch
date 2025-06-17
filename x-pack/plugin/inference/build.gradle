@@ -404,5 +404,5 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("Uses the inference API")
 }

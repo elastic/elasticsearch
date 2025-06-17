@@ -14,24 +14,24 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ShardHeapUsageTests extends ESTestCase {
+public class EstimatedHeapUsageTests extends ESTestCase {
 
     public void testEstimatedUsageAsPercentage() {
         final long totalBytes = randomNonNegativeLong();
         final long estimatedUsageBytes = randomLongBetween(0, totalBytes);
-        final ShardHeapUsage shardHeapUsage = new ShardHeapUsage(randomUUID(), totalBytes, estimatedUsageBytes);
-        assertThat(shardHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
-        assertThat(shardHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
-        assertEquals(shardHeapUsage.estimatedUsageAsPercentage(), 100.0 * estimatedUsageBytes / totalBytes, 0.0001);
+        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(randomUUID(), totalBytes, estimatedUsageBytes);
+        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
+        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
+        assertEquals(estimatedHeapUsage.estimatedUsageAsPercentage(), 100.0 * estimatedUsageBytes / totalBytes, 0.0001);
     }
 
     public void testEstimatedFreeBytesAsPercentage() {
         final long totalBytes = randomNonNegativeLong();
         final long estimatedUsageBytes = randomLongBetween(0, totalBytes);
         final long estimatedFreeBytes = totalBytes - estimatedUsageBytes;
-        final ShardHeapUsage shardHeapUsage = new ShardHeapUsage(randomUUID(), totalBytes, estimatedUsageBytes);
-        assertThat(shardHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
-        assertThat(shardHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
-        assertEquals(shardHeapUsage.estimatedFreeBytesAsPercentage(), 100.0 * estimatedFreeBytes / totalBytes, 0.0001);
+        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(randomUUID(), totalBytes, estimatedUsageBytes);
+        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
+        assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
+        assertEquals(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), 100.0 * estimatedFreeBytes / totalBytes, 0.0001);
     }
 }

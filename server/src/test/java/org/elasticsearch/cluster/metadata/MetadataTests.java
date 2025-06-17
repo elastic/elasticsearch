@@ -1440,7 +1440,7 @@ public class MetadataTests extends ESTestCase {
                 "index, alias, and data stream names need to be unique, but the following duplicates were found ["
                     + dataStreamName
                     + " (alias of ["
-                    + DataStream.getDefaultBackingIndexName(dataStreamName, 1)
+                    + idx.getIndex().getName()
                     + "]) conflicts with data stream]"
             )
         );
@@ -1499,7 +1499,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices(), hasSize(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getName(), equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
+            assertThat(value.getWriteIndex().getName(), DataStreamTestHelper.backingIndexEqualTo(name, (int) ds.getGeneration()));
         }
     }
 

@@ -4,7 +4,8 @@
 Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
 usually acts on a field placed on the left-hand side of the operator, but it can
 also act on a constant (literal) expression. The right-hand side of the operator
-represents the pattern.
+represents the pattern or a list of patterns. If a list of patterns is provided,
+the expression will return true if any of the patterns match.
 
 The following wildcard characters are supported:
 

@@ -24,8 +24,8 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHea
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
+import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.ShardHeapUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +53,7 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessIntegTestCas
         return super.nodeSettings().put(
             "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
             TimeValue.timeValueMillis(10)
-        ).put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
+        ).put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
     }
 
     public void testClusterInfoIncludesHeapUsage() throws Exception {
@@ -83,7 +83,7 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessIntegTestCas
 
         ClusterInfoServiceUtils.setUpdateFrequency(infoService, TimeValue.timeValueMillis(100));
         final ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
-        final Map<String, ShardHeapUsage> nodesHeapUsage = info.getShardHeapUsages();
+        final Map<String, EstimatedHeapUsage> nodesHeapUsage = info.getEstimatedHeapUsages();
         assertThat(nodesHeapUsage.size(), greaterThan(0));
     }
 }

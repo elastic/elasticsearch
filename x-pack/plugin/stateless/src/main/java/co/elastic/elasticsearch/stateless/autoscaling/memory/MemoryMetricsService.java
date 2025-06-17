@@ -212,13 +212,13 @@ public class MemoryMetricsService implements ClusterStateListener {
     public Map<String, Long> getPerNodeMemoryMetrics(DiscoveryNodes discoveryNodes) {
         final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
         final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
-        final Map<String, ShardHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
+        final Map<String, EstimatedHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
         for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetrics.entrySet()) {
             final String shardNodeId = entry.getValue().getMetricShardNodeId();
             if (shardNodeId == null) { // nodeId is null for unassigned shard
                 continue;
             }
-            final ShardHeapUsageBuilder builderForNode = heapUsageBuilders.computeIfAbsent(shardNodeId, id -> {
+            final EstimatedHeapUsageBuilder builderForNode = heapUsageBuilders.computeIfAbsent(shardNodeId, id -> {
                 // Pass the DiscoveryNode if available, this allows us to determine the ephemeral ID and look for current merge memory
                 // estimates
                 final DiscoveryNode discoveryNode = discoveryNodes.get(id);
@@ -226,7 +226,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                 if (discoveryNode != null && discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                     return null;
                 }
-                return new ShardHeapUsageBuilder(
+                return new EstimatedHeapUsageBuilder(
                     discoveryNode,
                     nodeBaseHeapEstimateInBytes,
                     minimumRequiredHeapForHandlingLargeIndexingOps
@@ -236,7 +236,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                 builderForNode.add(entry.getKey(), entry.getValue());
             }
         }
-        return Maps.transformValues(heapUsageBuilders, ShardHeapUsageBuilder::getShardHeapUsageEstimate);
+        return Maps.transformValues(heapUsageBuilders, EstimatedHeapUsageBuilder::getHeapUsageEstimate);
     }
 
     private MemoryMetrics getMemoryMetrics(long nodeHeapEstimateInBytes) {
@@ -719,7 +719,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         return Map.copyOf(maxShardMergeMemoryEstimatePerNode);
     }
 
-    private class ShardHeapUsageBuilder {
+    private class EstimatedHeapUsageBuilder {
         @Nullable
         private final DiscoveryNode discoveryNode;
         private final long nodeBaseHeapEstimateInBytes;
@@ -730,7 +730,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         private long totalFields;
         private int totalShards;
 
-        ShardHeapUsageBuilder(
+        EstimatedHeapUsageBuilder(
             @Nullable DiscoveryNode discoveryNode,
             long nodeBaseHeapEstimateInBytes,
             long minimumRequiredHeapForAcceptingLargeIndexingOps
@@ -749,7 +749,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             totalShards++;
         }
 
-        long getShardHeapUsageEstimate() {
+        long getHeapUsageEstimate() {
             final long shardMergeMemoryEstimate = Optional.ofNullable(discoveryNode)
                 .map(node -> maxShardMergeMemoryEstimatePerNode.get(node.getEphemeralId()))
                 .map(publication -> publication.estimate().estimateInBytes())

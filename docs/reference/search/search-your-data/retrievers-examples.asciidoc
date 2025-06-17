@@ -1524,7 +1524,7 @@ pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
 
 [discrete]
-[[retrievers-examples-pinned-retriever]]
+[[pinned-retriever]]
 ==== Example: Using the pinned retriever
 
 The pinned retriever allows you to always place specific documents at the top of the results, with the remaining hits provided by a secondary retriever.

@@ -547,21 +547,9 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
-  method: testMoveToRolloverStep
-  issue: https://github.com/elastic/elasticsearch/issues/129489
-- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
-  method: testMoveToAllocateStep
-  issue: https://github.com/elastic/elasticsearch/issues/129490
-- class: org.elasticsearch.xpack.ilm.actions.ShrinkActionIT
-  method: testShrinkDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/129491
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
   issue: https://github.com/elastic/elasticsearch/issues/129481
-- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
-  method: testFullPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/129510
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512

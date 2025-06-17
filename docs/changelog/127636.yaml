@@ -1,0 +1,13 @@
+pr: 127636
+summary: Disallow mixed quoted/unquoted patterns in FROM
+area: ES|QL
+type: breaking
+issues:
+ - 122651
+breaking:
+  title: Disallow mixed quoted/unquoted patterns in FROM
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

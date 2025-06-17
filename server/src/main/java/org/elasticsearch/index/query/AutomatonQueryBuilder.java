@@ -14,7 +14,6 @@ import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -77,9 +76,8 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
         return Objects.equals(fieldName, other.fieldName) && Objects.equals(automaton, other.automaton);
     }
 
-    // TO DO, what should be the minimal supported version?
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        throw new UnsupportedOperationException("AutomatonQueryBuilder does not support getMinimalSupportedVersion");
     }
 }

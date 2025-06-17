@@ -33,7 +33,7 @@ public class ClusterInfoSimulator {
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<NodeAndShard, String> dataPath;
-    private final Map<String, ShardHeapUsage> shardHeapUsages;
+    private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
@@ -42,7 +42,7 @@ public class ClusterInfoSimulator {
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
-        this.shardHeapUsages = allocation.clusterInfo().getShardHeapUsages();
+        this.estimatedHeapUsages = allocation.clusterInfo().getEstimatedHeapUsages();
     }
 
     /**
@@ -156,7 +156,7 @@ public class ClusterInfoSimulator {
             shardDataSetSizes,
             dataPath,
             Map.of(),
-            shardHeapUsages
+            estimatedHeapUsages
         );
     }
 }

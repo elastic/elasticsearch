@@ -478,9 +478,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
   method: testSimpleOffHeapSizeFSDir
   issue: https://github.com/elastic/elasticsearch/issues/128800
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIOUsed
-  issue: https://github.com/elastic/elasticsearch/issues/128829
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120
@@ -568,6 +565,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/129527
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/129528
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/129529
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
+  method: testIORateIsAdjustedForAllRunningMergeTasks
+  issue: https://github.com/elastic/elasticsearch/issues/129531
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/129533
+- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
+  method: testSnapshotUpgrader
+  issue: https://github.com/elastic/elasticsearch/issues/98560
+- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
+  method: testBuiltInRolesSyncedOnClusterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/129534
 
 # Examples:
 #

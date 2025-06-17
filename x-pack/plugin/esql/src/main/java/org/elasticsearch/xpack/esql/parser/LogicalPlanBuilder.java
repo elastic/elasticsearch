@@ -745,26 +745,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> visitRerankOptions(new Rerank.Builder(source, p, queryText, rerankFields), ctx.commandOptions()).build();
     }
 
-    private Rerank.Builder visitRerankOptions(Rerank.Builder rerannkBuilder, EsqlBaseParser.CommandOptionsContext ctx) {
+    private Rerank.Builder visitRerankOptions(Rerank.Builder rerankBuilder, EsqlBaseParser.CommandOptionsContext ctx) {
         if (ctx == null) {
-            return rerannkBuilder;
+            return rerankBuilder;
         }
 
         for (var option : ctx.commandOption()) {
             String optionName = visitIdentifier(option.identifier());
-            if (optionName.equals(Rerank.Builder.INFERENCE_ID_OPTION_NAME)) {
-                rerannkBuilder.withInferenceId(visitInferenceId(expression(option.primaryExpression())));
-            } else if (optionName.equals(Rerank.Builder.SCORE_COLUMN_OPTION_NAME)) {
-                if (expression(option.primaryExpression()) instanceof UnresolvedAttribute scoreAttribute) {
-                    rerannkBuilder.withScoreColumnAttribute(scoreAttribute);
-                } else {
-                    throw new ParsingException(
-                        source(option.identifier()),
-                        "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
-                        option.identifier().getText(),
-                        option.primaryExpression().getText()
-                    );
-                }
+            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
+                rerankBuilder.withInferenceId(visitInferenceId(expression(option.primaryExpression())));
+            } else if (optionName.equals(Rerank.SCORE_COLUMN_OPTION_NAME)) {
+                rerankBuilder.withScoreAttribute(visitRerankScoreAttribute(option));
             } else {
                 throw new ParsingException(
                     source(option.identifier()),
@@ -774,7 +765,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        return rerannkBuilder;
+        return rerankBuilder;
     }
 
     @Override
@@ -787,6 +778,33 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             : visitQualifiedName(ctx.targetField);
 
         return p -> new Completion(source, p, inferenceId, prompt, targetField);
+    }
+
+    public UnresolvedAttribute visitRerankScoreAttribute(EsqlBaseParser.CommandOptionContext ctx) {
+        if (ctx.primaryExpression() == null) {
+            throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", ctx.identifier().getText());
+        }
+
+        Expression optionValue = expression(ctx.primaryExpression());
+
+        if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
+            return scoreAttribute;
+        } else if (optionValue instanceof Literal literal) {
+            if (literal.value() == null) {
+                throw new ParsingException(optionValue.source(), "Parameter [{}] is null or undefined", ctx.identifier().getText());
+            }
+
+            if (literal.value() instanceof String attributeName) {
+                return new UnresolvedAttribute(literal.source(), attributeName);
+            }
+        }
+
+        throw new ParsingException(
+            source(ctx),
+            "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
+            ctx.identifier().getText(),
+            ctx.primaryExpression().getText()
+        );
     }
 
     public Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
@@ -802,7 +820,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (literal.value() == null) {
                 throw new ParsingException(
                     expression.source(),
-                    "Query parameter [{}] is null or undefined and cannot be used as inference id",
+                    "Parameter [{}] is null or undefined and cannot be used as inference id",
                     expression.source().text()
                 );
             }

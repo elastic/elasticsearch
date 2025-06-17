@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.inference.queries;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -17,6 +21,7 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -30,6 +35,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -99,6 +105,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
     private static boolean useSearchInferenceId;
     private final boolean useLegacyFormat;
+    private MapperService currentMapperService;
 
     private enum InferenceResultType {
         NONE,
@@ -180,6 +187,22 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         applyRandomInferenceResults(mapperService);
     }
 
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) {
+                Document document = new Document();
+                document.add(new TextField("semantic.inference.chunks.embeddings", "a b x y", Field.Store.NO));
+                try {
+                    indexWriter.addDocument(document);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
     private void applyRandomInferenceResults(MapperService mapperService) throws IOException {
         // Parse random inference results (or no inference results) to set up the dynamic inference result mappings under the semantic text
         // field
@@ -240,12 +263,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
 
         BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
-        assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
-        innerBooleanQuery.forEach(c -> {
-            assertThat(c.occur(), equalTo(SHOULD));
-            assertThat(c.query(), instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) c.query()).getBoost(), equalTo(TOKEN_WEIGHT));
-        });
+        // no clauses as tokens would be pruned
+        assertThat(innerBooleanQuery.clauses().size(), equalTo(0));
     }
 
     private void assertTextEmbeddingLuceneQuery(Query query) {
@@ -376,18 +395,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         DenseVectorFieldMapper.ElementType denseVectorElementType,
         boolean useLegacyFormat
     ) throws IOException {
-        var modelSettings = switch (inferenceResultType) {
-            case NONE -> null;
-            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                TEXT_EMBEDDING_DIMENSION_COUNT,
-                // l2_norm similarity is required for bit embeddings
-                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
-                denseVectorElementType
-            );
-        };
+        var modelSettings = getModelSettingsForInferenceResultType(inferenceResultType, denseVectorElementType);
 
         SourceToParse sourceToParse = null;
         if (modelSettings != null) {
@@ -412,6 +420,23 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         }
 
         return sourceToParse;
+    }
+
+    private static MinimalServiceSettings getModelSettingsForInferenceResultType(
+        InferenceResultType inferenceResultType, @Nullable DenseVectorFieldMapper.ElementType denseVectorElementType
+    ) {
+        return switch (inferenceResultType) {
+            case NONE -> null;
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new MinimalServiceSettings(
+                "my-service",
+                TaskType.TEXT_EMBEDDING,
+                TEXT_EMBEDDING_DIMENSION_COUNT,
+                // l2_norm similarity is required for bit embeddings
+                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
+                denseVectorElementType
+            );
+        };
     }
 
     public static class FakeMlPlugin extends Plugin {

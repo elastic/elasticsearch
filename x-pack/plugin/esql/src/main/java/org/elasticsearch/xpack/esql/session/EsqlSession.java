@@ -235,8 +235,7 @@ public class EsqlSession {
 
     private LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan) {
         Holder<LogicalPlanTuple> subPlan = new Holder<>();
-        // Collect the first inlinejoin (bottom up in the tree or, viewing from the user-friendly query pov, the closest to ES source
-        // inlinestats command)
+        // Collect the first inlinejoin (bottom up in the tree)
         optimizedPlan.forEachUp(InlineJoin.class, ij -> {
             // extract the right side of the plan and replace its source
             if (subPlan.get() == null && ij.right().anyMatch(p -> p instanceof StubRelation)) {

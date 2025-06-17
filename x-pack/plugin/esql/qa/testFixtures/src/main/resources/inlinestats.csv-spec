@@ -509,59 +509,110 @@ ALG            |Algiers        |385            |major          |1               
 ALL            |Albenga        |499            |mid            |1                  |Albenga
 ;
 
-shadowing-Ignore
+shadowing
 required_capability: join_planning_v1
+required_capability: inlinestats_v8
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
-| INLINESTATS env=VALUES(right) BY client_ip
+| INLINESTATS env = VALUES(right) BY client_ip
 ;
 
-left:keyword | client_ip:keyword | right:keyword | env:keyword
-left         | 172.21.0.5        | right         | right
+left:keyword |  right:keyword | env:keyword | client_ip:keyword
+left         | right          | right       | 172.21.0.5        
 ;
 
-shadowingMulti-Ignore
+shadowingMulti
 required_capability: join_planning_v1
+required_capability: inlinestats_v8
 
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | INLINESTATS airport=VALUES(left), region=VALUES(left), city_boundary=VALUES(left) BY city
 ;
 
-left:keyword | city:keyword | middle:keyword | right:keyword | airport:keyword | region:keyword | city_boundary:keyword
-left         | Zürich       | middle         | right         |            left |           left | left
+left:keyword | middle:keyword | right:keyword | airport:keyword | region:keyword | city_boundary:keyword | city:keyword 
+left         | middle         | right         |            left |           left | left                  | Zürich
 ;
 
-shadowingSelf-Ignore
+shadowingSelf
 required_capability: join_planning_v1
+required_capability: inlinestats_v8
 
-ROW city="Raleigh"
-| INLINESTATS city=COUNT(city)
+ROW city = "Raleigh"
+| INLINESTATS city = COUNT(city)
 ;
 
 city:long
 1
 ;
 
-shadowingSelfBySelf-Ignore
+shadowingSelfBySelf
 required_capability: join_planning_v1
+required_capability: inlinestats_v8
 
-ROW city="Raleigh"
-| INLINESTATS city=COUNT(city) BY city
+ROW city = "Raleigh"
+| INLINESTATS city = COUNT(city) BY city
+;
+warning:Line 2:15: Field 'city' shadowed by field at line 2:37
+
+city:keyword
+Raleigh
 ;
 
-city:long
-1
-;
-
-shadowingInternal-Ignore
+shadowingInternal
 required_capability: join_planning_v1
+required_capability: inlinestats_v8
 
 ROW city = "Zürich"
-| INLINESTATS x=VALUES(city), x=VALUES(city)
+| INLINESTATS x = VALUES(city), x = VALUES(city)
 ;
+warning:Line 2:15: Field 'x' shadowed by field at line 2:33
 
 city:keyword | x:keyword
 Zürich       | Zürich
+;
+
+multiInlinestatsWithRow
+required_capability: inlinestats_v8
+
+row x = 1
+| inlinestats x = max(x) + min(x)
+| eval y = x + 1
+| inlinestats sum(y)
+| inlinestats count(y), count(x)
+;
+
+  x:integer    |    y:integer  |  sum(y):long  | count(y):long | count(x):long    
+2              |3              |3              |1              |1
+;
+
+ignoreUnusedEvaledValue-Ignore
+required_capability: inlinestats_v8
+// fails with expected [keys] to be non-empty
+
+ROW x = 1
+| INLINESTATS max(x)
+| EVAL y = x + 1
+| KEEP x
+;
+
+x:integer
+1
+;
+
+ignoreUnusedEvaledValue2-Ignore
+required_capability: inlinestats_v8
+// fails with expected [keys] to be non-empty
+
+from employees
+| inlinestats max(salary)
+| eval y = salary + 1
+| keep salary
+| sort salary desc
+| limit 1
+;
+
+ salary:integer     
+74999     
 ;
 
 byConstant

@@ -41,7 +41,7 @@ The following retrievers are available:
 `text_similarity_reranker`
 :   A [retriever](#text-similarity-reranker-retriever) that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
-`pinned` {applies_to}`stack: preview 9.1`
+`pinned` {applies_to}`stack: GA 9.1`
 :   A [retriever](#pinned-retriever) that always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
 
 `rule`

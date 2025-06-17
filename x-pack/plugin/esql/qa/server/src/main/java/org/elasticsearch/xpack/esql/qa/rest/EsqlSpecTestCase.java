@@ -76,6 +76,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -273,8 +276,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
         Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
 
-        var isPartial = answer.get("is_partial");
-        assertTrue("unexpected partial results", isPartial == null || (boolean) isPartial == false);
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 

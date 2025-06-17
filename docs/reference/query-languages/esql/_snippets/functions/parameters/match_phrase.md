@@ -9,5 +9,5 @@
 :   Value to find in the provided field.
 
 `options`
-:   (Optional) MatchPhrase additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [match_phrase query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-match-query-phrase) for more information.
+:   (Optional) MatchPhrase additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) for more information.
 

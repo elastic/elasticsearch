@@ -56,10 +56,10 @@ processingCommand
     | mvExpandCommand
     | joinCommand
     | changePointCommand
+    | completionCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
@@ -212,6 +212,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -291,12 +292,7 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : evalCommand
-    | whereCommand
-    | limitCommand
-    | statsCommand
-    | sortCommand
-    | dissectCommand
+    : processingCommand
     ;
 
 rrfCommand
@@ -308,9 +304,9 @@ rerankCommand
     ;
 
 completionCommand
-    : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;
 
 sampleCommand
-    : DEV_SAMPLE probability=decimalValue seed=integerValue?
+    : DEV_SAMPLE probability=constant
     ;

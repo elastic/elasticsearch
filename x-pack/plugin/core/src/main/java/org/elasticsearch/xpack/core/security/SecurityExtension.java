@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -125,6 +126,10 @@ public interface SecurityExtension {
      * @param components Access to components that can be used to authenticate service account tokens
      */
     default ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+        return null;
+    }
+
+    default CustomApiKeyAuthenticator getCustomApiKeyAuthenticator(SecurityComponents components) {
         return null;
     }
 

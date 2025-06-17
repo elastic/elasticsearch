@@ -11,9 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -45,6 +46,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     private Exception failure = null;
 
     public ExecuteStepsUpdateTask(
+        ProjectId projectId,
         String policy,
         Index index,
         Step startStep,
@@ -52,7 +54,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         IndexLifecycleRunner lifecycleRunner,
         LongSupplier nowSupplier
     ) {
-        super(index, startStep.getKey());
+        super(projectId, index, startStep.getKey());
         this.policy = policy;
         this.startStep = startStep;
         this.policyStepsRegistry = policyStepsRegistry;
@@ -84,22 +86,22 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
      * @throws IOException if any exceptions occur
      */
     @Override
-    public ClusterState doExecute(final ClusterState currentState) throws IOException {
+    public ClusterState doExecute(final ProjectState currentState) throws IOException {
         Step currentStep = startStep;
-        IndexMetadata indexMetadata = currentState.metadata().getProject().index(index);
+        IndexMetadata indexMetadata = currentState.metadata().index(index);
         if (indexMetadata == null) {
             logger.debug("lifecycle for index [{}] executed but index no longer exists", index.getName());
             // This index doesn't exist any more, there's nothing to execute currently
-            return currentState;
+            return currentState.cluster();
         }
         Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetadata);
         if (currentStep.equals(registeredCurrentStep) == false) {
             // either we are no longer the master or the step is now
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
-            return currentState;
+            return currentState.cluster();
         }
-        ClusterState state = currentState;
+        ProjectState state = currentState;
         // We can do cluster state steps all together until we
         // either get to a step that isn't a cluster state step or a
         // cluster state wait step returns not completed
@@ -114,7 +116,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                 return moveToErrorStep(state, currentStep.getKey(), exception);
             }
             if (nextStepKey == null) {
-                return state;
+                return state.cluster();
             } else {
                 state = moveToNextStep(state);
             }
@@ -123,14 +125,14 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             // loop, if we are about to go into a new phase, return so that
             // other processing can occur
             if (currentStep.getKey().phase().equals(currentStep.getNextStepKey().phase()) == false) {
-                return state;
+                return state.cluster();
             }
             currentStep = policyStepsRegistry.getStep(indexMetadata, currentStep.getNextStepKey());
         }
-        return state;
+        return state.cluster();
     }
 
-    private ClusterState executeActionStep(ClusterState state, Step currentStep) {
+    private ProjectState executeActionStep(ProjectState state, Step currentStep) {
         // cluster state action step so do the action and
         // move the cluster state to the next step
         logger.trace(
@@ -140,7 +142,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             currentStep.getKey()
         );
         ClusterStateActionStep actionStep = (ClusterStateActionStep) currentStep;
-        state = actionStep.performAction(index, state.projectState()).cluster();
+        state = actionStep.performAction(index, state);
         // If this step (usually a CopyExecutionStateStep step) has brought the
         // index to where it needs to have async actions invoked, then add that
         // index to the list so that when the new cluster state has been
@@ -153,7 +155,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         return state;
     }
 
-    private ClusterState executeWaitStep(ClusterState state, Step currentStep) {
+    private ProjectState executeWaitStep(ProjectState state, Step currentStep) {
         // cluster state wait step so evaluate the
         // condition, if the condition is met move to the
         // next step, if its not met return the current
@@ -198,33 +200,23 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             if (stepInfo == null) {
                 return state;
             }
-            return IndexLifecycleTransition.addStepInfoToClusterState(index, state, stepInfo);
+            return state.updateProject(IndexLifecycleTransition.addStepInfoToProject(index, state.metadata(), stepInfo));
         }
     }
 
-    private ClusterState moveToNextStep(ClusterState state) {
+    private ProjectState moveToNextStep(ProjectState state) {
         if (nextStepKey == null) {
             return state;
         }
         logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
-        return ClusterState.builder(state)
-            .putProjectMetadata(
-                IndexLifecycleTransition.moveIndexToStep(
-                    index,
-                    state.metadata().getProject(),
-                    nextStepKey,
-                    nowSupplier,
-                    policyStepsRegistry,
-                    false
-                )
-            )
-            .build();
+        return state.updateProject(
+            IndexLifecycleTransition.moveIndexToStep(index, state.metadata(), nextStepKey, nowSupplier, policyStepsRegistry, false)
+        );
     }
 
     @Override
-    public void onClusterStateProcessed(ClusterState newState) {
-        final Metadata metadata = newState.metadata();
-        final IndexMetadata indexMetadata = metadata.getProject().index(index);
+    public void onClusterStateProcessed(ProjectState newState) {
+        final IndexMetadata indexMetadata = newState.metadata().index(index);
         if (indexMetadata != null) {
 
             LifecycleExecutionState exState = indexMetadata.getLifecycleExecutionState();
@@ -251,9 +243,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         for (Map.Entry<String, Step.StepKey> indexAndStepKey : indexToStepKeysForAsyncActions.entrySet()) {
             final String indexName = indexAndStepKey.getKey();
             final Step.StepKey nextStep = indexAndStepKey.getValue();
-            final IndexMetadata indexMeta = metadata.getProject().index(indexName);
+            final IndexMetadata indexMeta = newState.metadata().index(indexName);
             if (indexMeta != null) {
-                if (newState.metadata().getProject().isIndexManagedByILM(indexMeta)) {
+                if (newState.metadata().isIndexManagedByILM(indexMeta)) {
                     if (nextStep != null && nextStep != TerminalPolicyStep.KEY) {
                         logger.trace(
                             "[{}] index has been spawed from a different index's ({}) "
@@ -275,7 +267,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         logger.warn(() -> format("policy [%s] for index [%s] failed on step [%s].", policy, index, startStep.getKey()), e);
     }
 
-    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) {
+    private ClusterState moveToErrorStep(final ProjectState state, Step.StepKey currentStepKey, Exception cause) {
         this.failure = cause;
         logger.warn(
             () -> format(
@@ -286,7 +278,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             ),
             cause
         );
-        return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
+        return state.updatedState(
+            IndexLifecycleTransition.moveIndexToErrorStep(index, state.metadata(), cause, nowSupplier, policyStepsRegistry::getStep)
+        );
     }
 
     @Override

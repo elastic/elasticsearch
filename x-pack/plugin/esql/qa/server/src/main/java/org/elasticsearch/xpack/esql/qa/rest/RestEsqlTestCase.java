@@ -1022,7 +1022,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(21, columns.size());
+            assertEquals(22, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }
@@ -1438,6 +1438,46 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             """;
         var answer = runEsql(requestObjectBuilder().query(query));
         assertThat(answer.get("values"), equalTo(List.of(List.of("_\"_$_(_)_+_._[_]_^_{_|_}___", "_#_&_<_>___"))));
+    }
+
+    public void testRLikeHandlingOfEmptyLanguagePattern() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "field": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        for (var val : List.of("#", "foo#bar")) {
+            Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "field": "%s"
+                }
+                """.formatted(val));
+            client().performRequest(doc);
+        }
+        // pushed down, matches nothing
+        var query = "FROM " + testIndexName() + " | WHERE TO_LOWER(field) RLIKE \"#\"";
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches nothing
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches one doc
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"\\\\#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"))));
+
+        // matches both docs
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \".*\\\\#.*\" | SORT field";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {

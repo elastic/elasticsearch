@@ -104,6 +104,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
@@ -1158,7 +1159,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         RLike rlike = (RLike) filter.condition();
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
-        expectError("from a | where foo like 12", "mismatched input '12'");
+        expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
 
         expectError(
@@ -3292,6 +3293,39 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(dissect.parser().pattern(), equalTo("%{d} %{e} %{f}"));
     }
 
+    public void testForkAllCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+
+        var query = """
+            FROM foo*
+            | FORK
+               ( SORT c )
+               ( LIMIT 5 )
+               ( DISSECT a "%{d} %{e} %{f}" )
+               ( GROK a "%{WORD:foo}" )
+               ( STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
+               ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
+               ( EVAL xyz = ( (a/b) * (b/a)) )
+               ( WHERE a < 1 )
+               ( KEEP a )
+               ( DROP b )
+               ( RENAME a as c )
+               ( MV_EXPAND a )
+               ( INSIST_🐔 a )
+               ( CHANGE_POINT a on b )
+               ( LOOKUP JOIN idx2 ON f1 )
+               ( LOOKUP_🐔 a on b )
+               ( ENRICH idx2 on f1 with f2 = f3 )
+               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
+               ( COMPLETION a = b WITH c )
+               ( SAMPLE 0.99 )
+            | KEEP a
+            """;
+
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+    }
+
     public void testInvalidFork() {
         assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
 
@@ -3301,9 +3335,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
         expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
 
-        expectError("FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)", "line 1:20: mismatched input 'FORK'");
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
+        expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
+        expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -3432,9 +3467,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFieldAsPrompt() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
-        var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID AS targetField"), Completion.class);
+        var plan = as(processingCommand("COMPLETION targetField=prompt_field WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3442,9 +3475,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
-        var plan = as(processingCommand("COMPLETION CONCAT(fieldA, fieldB) WITH inferenceID AS targetField"), Completion.class);
+        var plan = as(processingCommand("COMPLETION targetField=CONCAT(fieldA, fieldB) WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3452,8 +3483,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionDefaultFieldName() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
@@ -3462,8 +3491,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionWithPositionalParameters() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
 
@@ -3473,8 +3500,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionWithNamedParameters() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
 
@@ -3484,22 +3509,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCompletion() {
-        assumeTrue("COMPLETION requires corresponding capability", EsqlCapabilities.Cap.COMPLETION.isEnabled());
-
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
-        expectError("FROM foo* | COMPLETION prompt WITH", "line 1:35: mismatched input '<EOF>' expecting {");
+        expectError("FROM foo* | COMPLETION completion=prompt WITH", "line 1:46: mismatched input '<EOF>' expecting {");
 
-        expectError("FROM foo* | COMPLETION prompt AS targetField", "line 1:31: mismatched input 'AS' expecting {");
+        expectError("FROM foo* | COMPLETION completion=prompt", "line 1:41: mismatched input '<EOF>' expecting {");
     }
 
     public void testSample() {
-        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
-        expectError("FROM test | SAMPLE .1 2 3", "line 1:25: extraneous input '3' expecting <EOF>");
+        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+        expectError("FROM test | SAMPLE .1 2", "line 1:23: extraneous input '2' expecting <EOF>");
         expectError("FROM test | SAMPLE .1 \"2\"", "line 1:23: extraneous input '\"2\"' expecting <EOF>");
-        expectError("FROM test | SAMPLE 1", "line 1:20: mismatched input '1' expecting {DECIMAL_LITERAL, '+', '-'}");
-        expectError("FROM test | SAMPLE", "line 1:19: mismatched input '<EOF>' expecting {DECIMAL_LITERAL, '+', '-'}");
-        expectError("FROM test | SAMPLE +.1 2147483648", "line 1:24: seed must be an integer, provided [2147483648] of type [LONG]");
+        expectError(
+            "FROM test | SAMPLE 1",
+            "line 1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
+        );
+        expectThrows(
+            ParsingException.class,
+            startsWith("line 1:19: mismatched input '<EOF>' expecting {"),
+            () -> statement("FROM test | SAMPLE")
+        );
     }
 
     static Alias alias(String name, Expression value) {
@@ -4267,7 +4296,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testUnclosedParenthesis() {
-        String[] queries = { "row a = )", "row ]", "from source | eval x = [1,2,3]]" };
+        String[] queries = {
+            "row a = )",
+            "row ]",
+            "from source | eval x = [1,2,3]]",
+            "ROW x = 1 | KEEP x )",
+            "ROW x = 1 | DROP x )",
+            "ROW a = [1, 2] | RENAME a =b)",
+            "ROW a = [1, 2] | MV_EXPAND a)",
+            "from test | enrich a on b)" };
         for (String q : queries) {
             expectError(q, "Invalid query");
         }

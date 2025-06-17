@@ -337,6 +337,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
             }
+            queries.add(query);
         }
 
         // TODO: combine queries.

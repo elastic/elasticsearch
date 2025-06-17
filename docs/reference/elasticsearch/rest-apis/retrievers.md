@@ -925,6 +925,10 @@ GET movies/_search
 2. The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
 
 ## Pinned Retriever [pinned-retriever]
+```yaml {applies_to}
+stack: ga 9.1
+```
+
 
 A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the [pinned query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md), but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.
 

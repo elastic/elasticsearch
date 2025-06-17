@@ -264,14 +264,33 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testHeapUsageEstimateIsPresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
-        ClusterState state = getInstanceFromNode(ClusterService.class).state();
         Map<String, ShardHeapUsage> shardHeapUsages = clusterInfoService.getClusterInfo().getShardHeapUsages();
         assertNotNull(shardHeapUsages);
-        assertEquals(state.nodes().size(), shardHeapUsages.size());
-        for (DiscoveryNode node : state.nodes()) {
-            assertTrue(shardHeapUsages.containsKey(node.getId()));
-            ShardHeapUsage shardHeapUsage = shardHeapUsages.get(node.getId());
-            assertThat(shardHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(shardHeapUsage.totalBytes()));
+        // Not collecting yet because it is disabled
+        assertTrue(shardHeapUsages.isEmpty());
+
+        // Enable collection for shard heap usages
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+                .build()
+        );
+        try {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            shardHeapUsages = clusterInfoService.getClusterInfo().getShardHeapUsages();
+            assertEquals(state.nodes().size(), shardHeapUsages.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(shardHeapUsages.containsKey(node.getId()));
+                ShardHeapUsage shardHeapUsage = shardHeapUsages.get(node.getId());
+                assertThat(shardHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(shardHeapUsage.totalBytes()));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
+                    .build()
+            );
         }
     }
 

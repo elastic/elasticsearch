@@ -83,7 +83,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             settings,
             clusterService,
             threadPool,
-            client, mockEstimatedHeapUsageCollector
+            client,
+            mockEstimatedHeapUsageCollector
         );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});

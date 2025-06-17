@@ -52,8 +52,11 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
             final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
-            final EstimatedHeapUsage
-                estimatedHeapUsage = new EstimatedHeapUsage(randomAlphaOfLength(4), totalBytes, randomIntBetween(0, totalBytes));
+            final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+                randomAlphaOfLength(4),
+                totalBytes,
+                randomIntBetween(0, totalBytes)
+            );
             nodeHeapUsage.put(key, estimatedHeapUsage);
         }
         return nodeHeapUsage;

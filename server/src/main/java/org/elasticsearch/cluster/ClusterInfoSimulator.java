@@ -155,7 +155,8 @@ public class ClusterInfoSimulator {
             shardSizes.toImmutableMap(),
             shardDataSetSizes,
             dataPath,
-            Map.of(), estimatedHeapUsages
+            Map.of(),
+            estimatedHeapUsages
         );
     }
 }

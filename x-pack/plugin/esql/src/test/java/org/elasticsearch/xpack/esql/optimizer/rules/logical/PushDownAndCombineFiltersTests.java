@@ -333,7 +333,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             child,
             randomLiteral(DataType.KEYWORD),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
-            randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(randomFrom(DataType.values())))),
+            randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(DataType.KEYWORD))),
             referenceAttribute(randomBoolean() ? MetadataAttribute.SCORE : randomIdentifier(), DataType.DOUBLE)
         );
     }

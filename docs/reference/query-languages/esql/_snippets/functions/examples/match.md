@@ -15,10 +15,6 @@ FROM books
 | 2883 | William Faulkner |
 | 3293 | Danny Faulkner |
 
-```{applies_to}
-stack: ga 9.1.0
-```
-
 ```esql
 FROM books
 | WHERE MATCH(title, "Hobbit Back Again", {"operator": "AND"})

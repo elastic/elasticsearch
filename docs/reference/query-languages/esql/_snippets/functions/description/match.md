@@ -9,7 +9,7 @@ as well as other field types like keyword, boolean, dates, and numeric types.
 When Match is used on a [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) field, it will perform a semantic query on the field.
 
 Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional options
-for the match query. {applies_to}`stack: ga 9.1.0`
+for the match query.
 All [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params) are supported.
 
 For a simplified syntax, you can use the [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:` operator instead of `MATCH`.

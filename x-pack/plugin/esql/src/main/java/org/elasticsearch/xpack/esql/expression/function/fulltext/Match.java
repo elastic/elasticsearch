@@ -147,7 +147,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options
-            for the match query. {applies_to}`stack: ga 9.1.0`
+            for the match query.
             All <<match-field-params,match query parameters>> are supported.
 
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
@@ -155,7 +155,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
-            @Example(file = "match-function", tag = "match-with-named-function-params", applies_to = "stack: ga 9.1.0") }
+            @Example(file = "match-function", tag = "match-with-named-function-params") }
     )
     public Match(
         Source source,
@@ -171,8 +171,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         ) Expression matchQuery,
         @MapParam(
             name = "options",
-            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>. "
-                + "{applies_to}`stack: ga 9.1.0`",
+            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>.",
             params = {
                 @MapParam.MapParamEntry(
                     name = "analyzer",

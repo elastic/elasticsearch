@@ -206,6 +206,11 @@ public class FieldAttribute extends TypedAttribute {
         return "f";
     }
 
+    @Override
+    public boolean isDimension() {
+        return false;
+    }
+
     public EsField field() {
         return field;
     }

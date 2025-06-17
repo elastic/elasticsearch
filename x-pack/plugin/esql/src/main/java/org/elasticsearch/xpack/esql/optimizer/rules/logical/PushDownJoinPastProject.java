@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -38,6 +39,13 @@ import java.util.Set;
 public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<Join> {
     @Override
     protected LogicalPlan rule(Join join) {
+        if (join instanceof InlineJoin) {
+            // Do not apply to INLINESTATS; this rule could be expanded to include INLINESTATS, but the StubRelation refers to the left
+            // child - so pulling out a Project from the left child would require us to also update the StubRelation (and the Aggregate
+            // on top of it)
+            return join;
+        }
+
         if (join.left() instanceof Project project && join.config().type() == JoinTypes.LEFT) {
             AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));

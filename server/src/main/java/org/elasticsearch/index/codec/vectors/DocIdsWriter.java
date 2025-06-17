@@ -71,7 +71,6 @@ final class DocIdsWriter {
 
     void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
         if (count == 0) {
-            out.writeByte(CONTINUOUS_IDS);
             return;
         }
         if (count > scratch.length) {
@@ -215,6 +214,9 @@ final class DocIdsWriter {
 
     /** Read {@code count} integers into {@code docIDs}. */
     void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
+        if (count == 0) {
+            return;
+        }
         if (count > scratch.length) {
             scratch = new int[count];
         }
@@ -258,9 +260,6 @@ final class DocIdsWriter {
     }
 
     private static void readContinuousIds(IndexInput in, int count, int[] docIDs) throws IOException {
-        if (count == 0) {
-            return;
-        }
         int start = in.readVInt();
         for (int i = 0; i < count; i++) {
             docIDs[i] = start + i;

@@ -49,6 +49,17 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
     private final List<Alias> rerankFields;
     private List<Attribute> lazyOutput;
 
+    public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields) {
+        this(
+            source,
+            child,
+            new Literal(Source.EMPTY, DEFAULT_INFERENCE_ID, DataType.KEYWORD),
+            queryText,
+            rerankFields,
+            new UnresolvedAttribute(Source.EMPTY, MetadataAttribute.SCORE)
+        );
+    }
+
     public Rerank(
         Source source,
         LogicalPlan child,
@@ -182,36 +193,5 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
             lazyOutput = mergeOutputAttributes(List.of(scoreAttribute), child().output());
         }
         return lazyOutput;
-    }
-
-    public static class Builder {
-
-        private final Source source;
-        private final LogicalPlan child;
-        private final Expression queryText;
-        private final List<Alias> rerankFields;
-        private Expression inferenceId = new Literal(Source.EMPTY, Rerank.DEFAULT_INFERENCE_ID, DataType.KEYWORD);
-        private Attribute scoreAttribute = new UnresolvedAttribute(Source.EMPTY, MetadataAttribute.SCORE);
-
-        public Builder(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields) {
-            this.source = source;
-            this.child = child;
-            this.queryText = queryText;
-            this.rerankFields = rerankFields;
-        }
-
-        public Builder withInferenceId(Expression inferenceId) {
-            this.inferenceId = inferenceId;
-            return this;
-        }
-
-        public Builder withScoreAttribute(Attribute scoreAttribute) {
-            this.scoreAttribute = scoreAttribute;
-            return this;
-        }
-
-        public Rerank build() {
-            return new Rerank(source, child, inferenceId, queryText, rerankFields, scoreAttribute);
-        }
     }
 }

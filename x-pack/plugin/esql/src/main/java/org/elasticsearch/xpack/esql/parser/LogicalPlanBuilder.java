@@ -742,10 +742,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return p -> visitRerankOptions(new Rerank.Builder(source, p, queryText, rerankFields), ctx.commandOptions()).build();
+        return p -> visitRerankOptions(new Rerank(source, p, queryText, rerankFields), ctx.commandOptions());
     }
 
-    private Rerank.Builder visitRerankOptions(Rerank.Builder rerankBuilder, EsqlBaseParser.CommandOptionsContext ctx) {
+    private Rerank visitRerankOptions(Rerank rerankBuilder, EsqlBaseParser.CommandOptionsContext ctx) {
         if (ctx == null) {
             return rerankBuilder;
         }

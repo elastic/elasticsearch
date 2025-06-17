@@ -6,6 +6,7 @@
     },
     "stability": "stable",
     "visibility": "feature_flag",
+    "feature_flag": "logs_stream",
     "headers": {
       "accept": [
         "application/json",

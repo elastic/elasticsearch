@@ -283,7 +283,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         READ("read", INDEX_READ_BLOCK, Property.ServerlessPublic),
         WRITE("write", INDEX_WRITE_BLOCK, Property.ServerlessPublic),
         METADATA("metadata", INDEX_METADATA_BLOCK, Property.ServerlessPublic),
-        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK),
+        REFRESH("refresh", INDEX_REFRESH_BLOCK);
 
         final String name;
         final String settingName;

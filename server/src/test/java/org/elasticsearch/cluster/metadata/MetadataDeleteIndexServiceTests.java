@@ -199,7 +199,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             List.of()
         );
 
-        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1) - 1;
+        // Adjusting the random index to match zero-based indexing of the list
+        int numIndexToDelete = randomIntBetween(0, numBackingIndices - 2);
 
         Index indexToDelete = before.metadata()
             .getProject(projectId)

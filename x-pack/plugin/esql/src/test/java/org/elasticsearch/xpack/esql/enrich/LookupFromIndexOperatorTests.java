@@ -57,6 +57,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -135,7 +136,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         int inputChannel = 0;
         DataType inputDataType = DataType.LONG;
         String lookupIndex = "idx";
-        String matchField = "match";
+        FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match");
         List<NamedExpression> loadFields = List.of(
             new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)

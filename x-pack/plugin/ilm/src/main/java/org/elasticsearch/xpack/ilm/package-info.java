@@ -90,7 +90,7 @@
  * successfully (see {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#onErrorMaybeRetryFailedStep}). In order to see all retryable
  * steps see {@link org.elasticsearch.xpack.core.ilm.Step#isRetryable()}.
  * For steps that are not retryable the failed step can manually be retried using
- * {@link org.elasticsearch.xpack.ilm.IndexLifecycleService#moveClusterStateToPreviouslyFailedStep}.
+ * {@link org.elasticsearch.xpack.ilm.IndexLifecycleService#moveIndicesToPreviouslyFailedStep}.
  *
  */
 package org.elasticsearch.xpack.ilm;

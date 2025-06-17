@@ -32,9 +32,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.Text;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -209,6 +209,9 @@ public class SemanticTextHighlighter implements Highlighter {
         leafQueries.stream().forEach(q -> bq.add(q, BooleanClause.Occur.SHOULD));
         Weight weight = new IndexSearcher(reader).createWeight(bq.build(), ScoreMode.COMPLETE, 1);
         Scorer scorer = weight.scorer(reader.getContext());
+        if (scorer == null) {
+            return List.of();
+        }
         if (previousParent != -1) {
             if (scorer.iterator().advance(previousParent) == DocIdSetIterator.NO_MORE_DOCS) {
                 return List.of();

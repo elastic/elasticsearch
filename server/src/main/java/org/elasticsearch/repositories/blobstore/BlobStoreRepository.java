@@ -2593,7 +2593,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata state = RepositoriesMetadata.get(currentState);
+                    final var project = currentState.metadata().getDefaultProject();
+                    final RepositoriesMetadata state = RepositoriesMetadata.get(project);
                     final RepositoryMetadata repoState = state.repository(metadata.name());
                     if (repoState.generation() != corruptedGeneration) {
                         throw new IllegalStateException(
@@ -2605,8 +2606,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         );
                     }
                     return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(currentState.metadata())
+                        .putProjectMetadata(
+                            ProjectMetadata.builder(project)
                                 .putCustom(
                                     RepositoriesMetadata.TYPE,
                                     state.withUpdatedGeneration(
@@ -2615,7 +2616,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         repoState.pendingGeneration()
                                     )
                                 )
-                                .build()
                         )
                         .build();
                 }
@@ -2787,12 +2787,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "] must be larger than latest known generation ["
                         + latestKnownRepoGen.get()
                         + "]";
+                final var project = currentState.metadata().getDefaultProject();
                 return ClusterState.builder(currentState)
-                    .metadata(
-                        Metadata.builder(currentState.getMetadata())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(project)
                             .putCustom(
                                 RepositoriesMetadata.TYPE,
-                                RepositoriesMetadata.get(currentState).withUpdatedGeneration(repoName, safeGeneration, newGen)
+                                RepositoriesMetadata.get(project).withUpdatedGeneration(repoName, safeGeneration, newGen)
                             )
                             .build()
                     )

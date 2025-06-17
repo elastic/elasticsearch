@@ -138,12 +138,12 @@ public class IndexLifecycleService
      * Resolve the given phase, action, and name into a real {@link StepKey}. The phase is always
      * required, but the action and name are optional. If a name is specified, an action is also required.
      */
-    public StepKey resolveStepKey(ClusterState state, Index index, String phase, @Nullable String action, @Nullable String name) {
+    public StepKey resolveStepKey(ProjectMetadata project, Index index, String phase, @Nullable String action, @Nullable String name) {
         if (name == null) {
             if (action == null) {
-                return this.policyRegistry.getFirstStepForPhase(state, index, phase);
+                return this.policyRegistry.getFirstStepForPhase(project, index, phase);
             } else {
-                return this.policyRegistry.getFirstStepForPhaseAndAction(state, index, phase, action);
+                return this.policyRegistry.getFirstStepForPhaseAndAction(project, index, phase, action);
             }
         } else {
             assert action != null
@@ -170,12 +170,12 @@ public class IndexLifecycleService
         return IndexLifecycleTransition.moveIndexToStep(index, project, newStepKey, nowSupplier, policyRegistry, true);
     }
 
-    public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {
-        ClusterState newState = currentState;
+    public ProjectMetadata moveIndicesToPreviouslyFailedStep(ProjectMetadata currentProject, String[] indices) {
+        ProjectMetadata newProject = currentProject;
         for (String index : indices) {
-            newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(newState, index, nowSupplier, policyRegistry, false);
+            newProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(newProject, index, nowSupplier, policyRegistry, false);
         }
-        return newState;
+        return newProject;
     }
 
     // package private for testing

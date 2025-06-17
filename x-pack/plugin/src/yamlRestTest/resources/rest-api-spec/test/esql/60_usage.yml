@@ -228,7 +228,7 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  - length: {esql.functions: 144} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 146} # check the "sister" test above for a likely update to the same esql.functions length check
 
 ---
 took:

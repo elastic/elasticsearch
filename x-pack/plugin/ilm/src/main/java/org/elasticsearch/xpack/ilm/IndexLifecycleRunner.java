@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -67,12 +68,13 @@ class IndexLifecycleRunner {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     try {
                         final var task = taskContext.getTask();
+                        // Retrieving the project ID and building the ProjectState inside the loop would be quite inefficient if it weren't
+                        // for the fact that ILM will never run in multi-project mode - these methods shortcut in single-project mode.
+                        final var projectId = batchExecutionContext.initialState().metadata().projectFor(task.getIndex()).id();
                         try (var ignored = taskContext.captureResponseHeaders()) {
-                            state = task.execute(state);
+                            state = task.execute(state.projectState(projectId));
                         }
-                        taskContext.success(
-                            publishedState -> task.clusterStateProcessed(batchExecutionContext.initialState(), publishedState)
-                        );
+                        taskContext.success(publishedState -> task.clusterStateProcessed(publishedState.projectState(projectId)));
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
@@ -477,11 +479,11 @@ class IndexLifecycleRunner {
                 currentStepKey,
                 newStepKey
             ),
-            new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+            new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, state -> {
+                IndexMetadata indexMetadata = state.metadata().index(index);
                 registerSuccessfulOperation(indexMetadata);
                 if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetadata != null) {
-                    maybeRunAsyncAction(clusterState, indexMetadata, policy, newStepKey);
+                    maybeRunAsyncAction(state.cluster(), indexMetadata, policy, newStepKey);
                 }
             })
         );
@@ -497,8 +499,8 @@ class IndexLifecycleRunner {
         );
         submitUnlessAlreadyQueued(
             Strings.format("ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
-            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, state -> {
+                IndexMetadata indexMetadata = state.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
             })
         );
@@ -656,14 +658,15 @@ class IndexLifecycleRunner {
         }
 
         @Override
-        protected ClusterState doExecute(ClusterState currentState) {
-            return IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
-                currentState,
+        protected ClusterState doExecute(ProjectState currentState) {
+            final var updatedProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
+                currentState.metadata(),
                 index.getName(),
                 nowSupplier,
                 stepRegistry,
                 true
             );
+            return currentState.updatedState(updatedProject);
         }
 
         @Override
@@ -692,8 +695,8 @@ class IndexLifecycleRunner {
         }
 
         @Override
-        protected void onClusterStateProcessed(ClusterState newState) {
-            IndexMetadata newIndexMeta = newState.metadata().getProject().index(index);
+        protected void onClusterStateProcessed(ProjectState newState) {
+            IndexMetadata newIndexMeta = newState.metadata().index(index);
             if (newIndexMeta == null) {
                 // index was deleted
                 return;
@@ -712,7 +715,7 @@ class IndexLifecycleRunner {
                     index,
                     stepKey
                 );
-                maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
+                maybeRunAsyncAction(newState.cluster(), newIndexMeta, policy, stepKey);
             }
 
         }

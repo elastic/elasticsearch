@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+echo "Selecting the most recent build from branch [$BUILDKITE_BRANCH]."
+
 # Select the most recent build from the current branch.
 # We collect snapshots, order by date, then collect BCs, order by date, and concat them; then we select the last.
 # So if we have one (or more) BC, we will always prefer to use that. Otherwise we will use the latest snapshot.
@@ -28,7 +30,9 @@ if [[ -z "$MANIFEST_URL" ]]; then
    exit 0
 fi
 
-MANIFEST="$(curl -s "$MANIFEST_URL")"
+echo "Getting build manifest from [$MANIFEST_URL]"
+
+MANIFEST="$(eval "curl -s $MANIFEST_URL")"
 if [[ -z "$MANIFEST" ]]; then
    echo "Cannot get the build manifest from [$MANIFEST_URL]"
    exit 1

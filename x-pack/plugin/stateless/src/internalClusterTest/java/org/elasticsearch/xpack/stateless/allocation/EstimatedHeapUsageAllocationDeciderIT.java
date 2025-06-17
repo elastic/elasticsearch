@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class ShardHeapAllocationDeciderIT extends AbstractStatelessIntegTestCase {
+public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -73,10 +73,10 @@ public class ShardHeapAllocationDeciderIT extends AbstractStatelessIntegTestCase
         return super.nodeSettings().put(
             "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
             TimeValue.timeValueMillis(10)
-        ).put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
+        ).put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
     }
 
-    public void testShardHeapAllocationDecider() {
+    public void testEstimatedHeapAllocationDecider() {
         final var masterNodeName = startMasterOnlyNode();
         final var nodeNameA = startIndexNode();
         final var nodeNameB = startIndexNode();
@@ -101,8 +101,8 @@ public class ShardHeapAllocationDeciderIT extends AbstractStatelessIntegTestCase
             );
 
         // Fake large heap memory usages to block allocation
-        final var nodesToInjectShardHeapUsage = ConcurrentCollections.newConcurrentSet();
-        nodesToInjectShardHeapUsage.addAll(nodeHeapMaxLookupById.keySet());
+        final var nodesToInjectEstimatedHeapUsage = ConcurrentCollections.newConcurrentSet();
+        nodesToInjectEstimatedHeapUsage.addAll(nodeHeapMaxLookupById.keySet());
         final var nodeIdToPublicationLatch = new ConcurrentHashMap<>(
             Maps.transformValues(nodeHeapMaxLookupById, v -> new CountDownLatch(1))
         );
@@ -117,7 +117,7 @@ public class ShardHeapAllocationDeciderIT extends AbstractStatelessIntegTestCase
             }
 
             final String nodeId = nodeIdFromHeapMemoryUsage(heapMemoryUsage);
-            if (nodesToInjectShardHeapUsage.contains(nodeId)) {
+            if (nodesToInjectEstimatedHeapUsage.contains(nodeId)) {
                 assertThat(nodeHeapMaxLookupById, hasKey(nodeId));
                 final long nodeHeapMax = nodeHeapMaxLookupById.get(nodeId);
                 final var updatedShardMappingSizes = shardMappingSizes.entrySet()
@@ -159,11 +159,11 @@ public class ShardHeapAllocationDeciderIT extends AbstractStatelessIntegTestCase
         ClusterInfoServiceUtils.setUpdateFrequency(infoService, TimeValue.timeValueMillis(100));
         final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(infoService);
         assertTrue(
-            "expect all shard heap usages to be greater than 100%, but got " + clusterInfo.getShardHeapUsages(),
-            clusterInfo.getShardHeapUsages()
+            "expect all estimated heap usages to be greater than 100%, but got " + clusterInfo.getEstimatedHeapUsages(),
+            clusterInfo.getEstimatedHeapUsages()
                 .values()
                 .stream()
-                .allMatch(shardHeapUsage -> shardHeapUsage.estimatedUsageAsPercentage() > 100.0)
+                .allMatch(estimatedHeapUsage -> estimatedHeapUsage.estimatedUsageAsPercentage() > 100.0)
         );
 
         final String indexName = "index";
@@ -201,19 +201,19 @@ public class ShardHeapAllocationDeciderIT extends AbstractStatelessIntegTestCase
                         && nodeDecision.getCanAllocateDecision()
                             .getDecisions()
                             .stream()
-                            .anyMatch(decision -> decision.getExplanation().startsWith("insufficient shard heap"))
+                            .anyMatch(decision -> decision.getExplanation().startsWith("insufficient estimated heap"))
                 )
         );
 
         // Stop faking large heap memory usages and unblock allocation
         final String nodeIdToUnblock = getNodeId(randomFrom(nodeNameA, nodeNameB));
-        nodesToInjectShardHeapUsage.remove(nodeIdToUnblock);
+        nodesToInjectEstimatedHeapUsage.remove(nodeIdToUnblock);
         waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
 
         final ClusterInfo clusterInfo2 = ClusterInfoServiceUtils.refresh(infoService);
         assertTrue(
-            "unexpected shard heap usages " + clusterInfo2.getShardHeapUsages(),
-            clusterInfo2.getShardHeapUsages().entrySet().stream().allMatch(entry -> {
+            "unexpected estimated heap usages " + clusterInfo2.getEstimatedHeapUsages(),
+            clusterInfo2.getEstimatedHeapUsages().entrySet().stream().allMatch(entry -> {
                 if (entry.getKey().equals(nodeIdToUnblock)) {
                     return entry.getValue().estimatedUsageAsPercentage() < 100.0;
                 } else {

@@ -221,3 +221,28 @@ FROM employees
 is_expected:boolean
 true
 ;
+
+
+example for docs
+required_capability: sample_v3
+
+// tag::sampleForDocs[]
+FROM employees
+| KEEP emp_no
+| SAMPLE 0.05
+// end::sampleForDocs[]
+// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// presence of randomness, and be able to specify an expected result for the docs.
+| STATS emp_no = COUNT()
+| EVAL emp_no = [10018, 10024, 10062, 10081]
+| MV_EXPAND emp_no
+;
+
+// tag::sampleForDocs-result[]
+emp_no:integer
+10018
+10024
+10062
+10081
+// end::sampleForDocs-result[]
+;

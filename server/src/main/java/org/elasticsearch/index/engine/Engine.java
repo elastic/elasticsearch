@@ -132,6 +132,7 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    protected static final String SEGMENTS_STATS_SOURCE = "segments_stats";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
@@ -1136,7 +1137,7 @@ public abstract class Engine implements Closeable {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
-        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.INTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
@@ -1144,7 +1145,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {

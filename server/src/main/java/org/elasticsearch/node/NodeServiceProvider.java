@@ -12,8 +12,8 @@ package org.elasticsearch.node;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.ShardHeapUsageCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -75,16 +75,16 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         NodeClient client
     ) {
-        final ShardHeapUsageCollector shardHeapUsageCollector = pluginsService.loadSingletonServiceProvider(
-            ShardHeapUsageCollector.class,
-            () -> ShardHeapUsageCollector.EMPTY
+        final EstimatedHeapUsageCollector estimatedHeapUsageCollector = pluginsService.loadSingletonServiceProvider(
+            EstimatedHeapUsageCollector.class,
+            () -> EstimatedHeapUsageCollector.EMPTY
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             clusterService,
             threadPool,
             client,
-            shardHeapUsageCollector
+            estimatedHeapUsageCollector
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)

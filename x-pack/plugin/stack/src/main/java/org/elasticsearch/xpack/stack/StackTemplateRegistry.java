@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -119,10 +118,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
         this.componentTemplateConfigs = loadComponentTemplateConfigs();

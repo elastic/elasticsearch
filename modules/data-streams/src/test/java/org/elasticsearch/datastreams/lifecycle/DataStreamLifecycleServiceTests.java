@@ -182,8 +182,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             errorStore,
             allocationService,
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
-            globalRetentionSettings,
-            TestProjectResolvers.mustExecuteFirst()
+            globalRetentionSettings
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -1456,8 +1455,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             errorStore,
             mock(AllocationService.class),
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, getTransportRequestsRecordingClient(), clusterService, errorStore),
-            globalRetentionSettings,
-            TestProjectResolvers.mustExecuteFirst()
+            globalRetentionSettings
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));
@@ -1758,7 +1756,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
      * (it does not even notify the listener), but tests can provide an implementation of clientDelegate to provide any needed behavior.
      */
     private Client getTransportRequestsRecordingClient() {
-        return new NoOpClient(threadPool) {
+        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

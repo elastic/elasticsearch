@@ -1,0 +1,71 @@
+name: "Docs preview comment"
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  preview-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment preview links for changed docs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr     = context.payload.pull_request;
+            const prNum  = pr.number;
+            const owner  = context.repo.owner;
+            const repo   = context.repo.repo;
+            const base   = `https://docs-v3-preview.elastic.dev/${owner}/${repo}/pull/${prNum}`;
+            // 1) List all files in this PR
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner, repo, pull_number: prNum
+            });
+            // 2) Filter to only added/modified .md files (skip removed and _snippets/)
+            const links = files
+              .filter(f =>
+                f.status !== 'removed' &&
+                /\.md$/i.test(f.filename) &&
+                !/(^|\/)_snippets\//i.test(f.filename)
+              )
+              .map(f => {
+                let p = f.filename.replace(/\/index\.md$/i, '/');
+                if (p === f.filename) p = p.replace(/\.md$/i, '');
+                return `- [\`${f.filename}\`](${base}/${p})`;
+              });
+            if (!links.length) return;  // nothing to do
+            // 3) Build the comment body
+            const body = [
+              "🔍 **Preview links for changed docs:**",
+              "",
+              ...links,
+              "",
+              "🔔 *The preview site may take up to **3 minutes** to finish building. These links will become live once it completes.*"
+            ].join("\n");
+            // 4) Post or update a single bot comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNum
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.startsWith("🔍 **Preview links for changed docs:**")
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: prNum,
+                body
+              });
+            }

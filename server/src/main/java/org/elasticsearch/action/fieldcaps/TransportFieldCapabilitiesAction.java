@@ -348,11 +348,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
         var blocks = projectState.blocks();
-        if (blocks.global().isEmpty() && blocks.indices(projectState.projectId()).isEmpty()) {
+        var projectId = projectState.projectId();
+        if (blocks.global(projectId).isEmpty() && blocks.indices(projectId).isEmpty()) {
             // short circuit optimization because block check below is relatively expensive for many indices
             return;
         }
-        blocks.globalBlockedRaiseException(ClusterBlockLevel.READ);
+        blocks.globalBlockedRaiseException(projectId, ClusterBlockLevel.READ);
         for (String index : concreteIndices) {
             blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
         }

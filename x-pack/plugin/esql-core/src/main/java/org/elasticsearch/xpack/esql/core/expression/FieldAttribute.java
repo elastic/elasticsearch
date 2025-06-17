@@ -34,8 +34,8 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *
  * To adequately represent e.g. union types, the name of the attribute can be altered because we may have multiple synthetic field
  * attributes that really belong to the same underlying field. For instance, if a multi-typed field is used both as {@code field::string}
- * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$string} and {@code $$field$converted_to$ip}
- * but still referring to the same underlying field.
+ * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
+ * which still refer to the same underlying index field.
  */
 public class FieldAttribute extends TypedAttribute {
 
@@ -156,10 +156,20 @@ public class FieldAttribute extends TypedAttribute {
             // name starting with `$$`.
             if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
                 lazyFieldName = new FieldName(name());
+            } else {
+                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
             }
-            lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
         }
         return lazyFieldName;
+    }
+
+    /**
+     * The name of the attribute. Can deviate from the field name e.g. in case of union types. For the physical field name, use
+     * {@link FieldAttribute#fieldName()}.
+     */
+    @Override
+    public String name() {
+        return super.name();
     }
 
     public EsField.Exact getExactInfo() {
@@ -175,7 +185,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), name(), name() + "." + type.getName(), type, nullable(), id(), synthetic());
+        return new FieldAttribute(source(), fieldName().string, name() + "." + type.getName(), type, nullable(), id(), synthetic());
     }
 
     @Override

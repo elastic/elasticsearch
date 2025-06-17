@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -38,6 +39,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     private final Client client;
     private final DatafeedManager datafeedManager;
     private final PersistentTasksService persistentTasksService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteDatafeedAction(
@@ -47,7 +49,8 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         ActionFilters actionFilters,
         Client client,
         PersistentTasksService persistentTasksService,
-        DatafeedManager datafeedManager
+        DatafeedManager datafeedManager,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDatafeedAction.NAME,
@@ -61,6 +64,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.datafeedManager = datafeedManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -126,6 +130,6 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected ClusterBlockException checkBlock(DeleteDatafeedAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

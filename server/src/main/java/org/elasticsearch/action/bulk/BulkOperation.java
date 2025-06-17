@@ -687,7 +687,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return {@code true} if the cluster is currently blocked at all, {@code false} if the cluster has no blocks.
      */
     private boolean handleBlockExceptions(ClusterState state, Runnable retryOperation, Consumer<Exception> onClusterBlocked) {
-        ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        ClusterBlockException blockException = state.blocks()
+            .globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.WRITE);
         if (blockException != null) {
             if (blockException.retryable()) {
                 logger.trace("cluster is blocked, scheduling a retry", blockException);

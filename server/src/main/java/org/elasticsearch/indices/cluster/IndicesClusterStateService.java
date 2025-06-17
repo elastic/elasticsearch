@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -701,6 +702,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
                     return;
                 }
+            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
+                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
+                if (sourceNode == null) {
+                    logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
+                    return;
+                }
             } else {
                 sourceNode = null;
             }
@@ -984,6 +992,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             throw new IllegalStateException(
                 "trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting
             );
+        }
+        return sourceNode;
+    }
+
+    private static DiscoveryNode findSourceNodeForReshardSplitRecovery(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        ShardId sourceShardId
+    ) {
+        ShardRouting sourceShardRouting = routingTable.shardRoutingTable(sourceShardId).primaryShard();
+
+        if (sourceShardRouting.active() == false) {
+            assert false : sourceShardRouting;
+            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting);
+            return null;
+        }
+
+        DiscoveryNode sourceNode = nodes.get(sourceShardRouting.currentNodeId());
+        if (sourceNode == null) {
+            assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
+            logger.trace(
+                "can't find reshard split source node because source shard {} is assigned to an unknown node.",
+                sourceShardRouting
+            );
+            return null;
         }
         return sourceNode;
     }

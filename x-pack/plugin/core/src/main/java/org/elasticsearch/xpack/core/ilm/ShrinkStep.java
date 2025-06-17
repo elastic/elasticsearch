@@ -83,6 +83,9 @@ public class ShrinkStep extends AsyncActionStep {
         // need to remove the single shard, allocation so replicas can be allocated
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            // We add the skip setting to prevent ILM from processing the shrunken index before the execution state has been copied - which
+            // could happen if the shards of the shrunken index take a long time to allocate.
+            .put(LifecycleSettings.LIFECYCLE_SKIP, true)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);

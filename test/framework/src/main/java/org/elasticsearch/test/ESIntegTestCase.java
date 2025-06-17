@@ -963,6 +963,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for all nodes in the cluster to have a consistent view of which node is currently the master.
+     */
+    public void awaitMasterNode() {
+        // The cluster health API always runs on the master node, and the master only completes cluster state publication when all nodes
+        // in the cluster have accepted the new cluster state. By waiting for all events to have finished on the master node, we ensure
+        // that the whole cluster has a consistent view of which node is the master.
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+    }
+
+    /**
      * Waits for a random node in the cluster to not see a master node in the cluster state.
      * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
      */
@@ -1360,8 +1370,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
+        // This check has very little value in external test clusters and there is no guaranteed method of obtaining the master cluster
+        // state in those clusters.
+        if (isInternalCluster() == false) {
+            return;
+        }
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
+        final var masterName = internalCluster().getMasterName();
         for (Client client : cluster().getClients()) {
             localStates.add(
                 SubscribableListener.newForked(
@@ -1371,7 +1387,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
             SubscribableListener.<ClusterStateResponse>newForked(
-                l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
+                l -> client(masterName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
             ).andThenAccept(masterStateResponse -> {
                 byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
                 // remove local node reference

@@ -9,13 +9,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQuery;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -23,9 +18,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
-
-public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
+public class Sample extends UnaryPlan implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sample", Sample::new);
 
     private final Expression probability;
@@ -91,14 +84,5 @@ public class Sample extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         var other = (Sample) obj;
 
         return Objects.equals(probability, other.probability) && Objects.equals(child(), other.child());
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        try {
-            RandomSamplingQuery.checkProbabilityRange((double) Foldables.valueOf(FoldContext.small(), probability));
-        } catch (IllegalArgumentException e) {
-            failures.add(fail(probability, e.getMessage()));
-        }
     }
 }

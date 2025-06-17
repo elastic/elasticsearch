@@ -239,6 +239,42 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
 
+    public void testLike() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test like "%value*"
+            """;
+        String luceneQuery = switch (type) {
+            case KEYWORD -> "test:%value*";
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testLikeList() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test like ("%value*", "abc*")
+            """;
+        String luceneQuery = switch (type) {
+            case KEYWORD, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, KEYWORD, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD ->
+                ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
     enum ComputeSignature {
         FILTER_IN_COMPUTE(
             matchesList().item("LuceneSourceOperator")

@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestStreamsStatusAction extends BaseRestHandler {
 
-    public static final Set<String> SUPPORTED_PARAMS = Collections.singleton(RestUtils.REST_TIMEOUT_PARAM);
+    public static final Set<String> SUPPORTED_PARAMS = Collections.singleton(RestUtils.REST_MASTER_TIMEOUT_PARAM);
 
     @Override
     public String getName() {
@@ -42,7 +42,7 @@ public class RestStreamsStatusAction extends BaseRestHandler {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        StreamsStatusAction.Request statusRequest = new StreamsStatusAction.Request(RestUtils.getAckTimeout(request));
+        StreamsStatusAction.Request statusRequest = new StreamsStatusAction.Request(RestUtils.getMasterNodeTimeout(request));
         return restChannel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             StreamsStatusAction.INSTANCE,
             statusRequest,

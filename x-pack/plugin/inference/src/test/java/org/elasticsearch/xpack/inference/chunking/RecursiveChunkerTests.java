@@ -78,6 +78,27 @@ public class RecursiveChunkerTests extends ESTestCase {
         );
     }
 
+    public void testChunkInputDoesNotSplitWhenNoLongerExceedingMaxChunkSize() {
+        var separators = randomSubsetOf(3, TEST_SEPARATORS);
+        RecursiveChunkingSettings settings = generateChunkingSettings(25, separators);
+        // Generate a test text such that after each split a valid chunk is found that contains a subsequent separator. This tests that we
+        // do not continue to split once the chunk size is valid even if there are more separators present in the text.
+        String input = generateTestText(5, List.of(separators.get(1), separators.getFirst(), separators.get(2), separators.get(1)));
+
+        var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(1).length();
+        var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 4 + separators.get(1).length() + separators.getFirst().length()
+            + separators.get(2).length();
+        assertExpectedChunksGenerated(
+            input,
+            settings,
+            List.of(
+                new Chunker.ChunkOffset(0, expectedFirstChunkOffsetEnd),
+                new Chunker.ChunkOffset(expectedFirstChunkOffsetEnd, expectedSecondChunkOffsetEnd),
+                new Chunker.ChunkOffset(expectedSecondChunkOffsetEnd, input.length())
+            )
+        );
+    }
+
     public void testChunkInputRequiresBackupChunkingStrategy() {
         var separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(10, separators);

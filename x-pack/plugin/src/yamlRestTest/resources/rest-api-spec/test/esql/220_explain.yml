@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [capabilities, contains]
+      test_runner_features: [capabilities, contains, allowed_warnings_regex]
       capabilities:
         - method: POST
           path: /_query
@@ -40,6 +40,8 @@ setup:
 ---
 explainRow:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'EXPLAIN [row a = 1]'
@@ -57,6 +59,8 @@ explainRow:
 ---
 explainQuery:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'EXPLAIN [from test | where color == "red" | eval b = 20]'
@@ -74,6 +78,8 @@ explainQuery:
 ---
 explainDownstream:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'EXPLAIN [row a = 1] | eval b = 2'

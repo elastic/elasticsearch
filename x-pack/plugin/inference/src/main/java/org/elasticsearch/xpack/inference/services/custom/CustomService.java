@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -94,9 +95,29 @@ public class CustomService extends SenderService {
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
+            validateConfiguration(model);
+
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
+        }
+    }
+
+    /**
+     * This does some initial validation with mock inputs to determine if any templates are missing a field to fill them.
+     */
+    private static void validateConfiguration(CustomModel model) {
+        String query = null;
+        if (model.getTaskType() == TaskType.RERANK) {
+            query = "test query";
+        }
+
+        try {
+            new CustomRequest(query, List.of("test input"), model).createHttpRequest();
+        } catch (Exception e) {
+            var validationException = new ValidationException();
+            validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
+            throw validationException;
         }
     }
 

@@ -66,6 +66,7 @@ import java.util.Set;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.GPU_FORMAT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1323,6 +1324,66 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     // that do provide fielddata. TODO: resolve this inconsistency!
     @Override
     public void testAggregatableConsistency() {}
+
+    public void testGPUParsing() throws IOException {
+        assumeTrue("feature flag [gpu_format] must be enabled", GPU_FORMAT.isEnabled());
+        DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "gpu");
+            b.endObject();
+        }));
+        DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+        DenseVectorFieldMapper.GPUIndexOptions indexOptions = (DenseVectorFieldMapper.GPUIndexOptions) denseVectorFieldMapper.fieldType()
+            .getIndexOptions();
+        // TODO: finish tests
+    }
+
+    public void testGPUParsingFailureInRelease() {
+        assumeFalse("feature flag [gpu_format] must be disabled", GPU_FORMAT.isEnabled());
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector").field("dims", dims).startObject("index_options").field("type", "gpu").endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown vector index options"));
+    }
+
+    public void testKnnGPUVectorsFormat() throws IOException {
+        assumeTrue("feature flag [gpu_format] must be enabled", GPU_FORMAT.isEnabled());
+        final int dims = randomIntBetween(64, 4096);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "gpu");
+            b.endObject();
+        }));
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        Codec codec = codecService.codec("default");
+        KnnVectorsFormat knnVectorsFormat;
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        }
+        String expectedString = "GPUVectorsFormat()";
+        assertEquals(expectedString, knnVectorsFormat.toString());
+    }
 
     public void testIVFParsing() throws IOException {
         assumeTrue("feature flag [ivf_format] must be enabled", IVF_FORMAT.isEnabled());

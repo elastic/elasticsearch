@@ -457,7 +457,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+            org.elasticsearch.index.codec.vectors.IVFVectorsFormat,
+            org.elasticsearch.index.codec.vectors.GPUVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with

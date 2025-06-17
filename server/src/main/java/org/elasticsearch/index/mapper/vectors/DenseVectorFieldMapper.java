@@ -49,6 +49,7 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
+import org.elasticsearch.index.codec.vectors.GPUVectorsFormat;
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
@@ -122,6 +123,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int BBQ_MIN_DIMS = 64;
 
     public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
+    public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_format");
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -1652,11 +1654,29 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
+        },
+        GPU("gpu", false) {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new GPUIndexOptions();
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return true;
+            }
         };
 
         static Optional<VectorIndexType> fromString(String type) {
             return Stream.of(VectorIndexType.values())
                 .filter(vectorIndexType -> vectorIndexType != VectorIndexType.BBQ_IVF || IVF_FORMAT.isEnabled())
+                .filter(vectorIndexType -> vectorIndexType != VectorIndexType.GPU || GPU_FORMAT.isEnabled())
                 .filter(vectorIndexType -> vectorIndexType.name.equals(type))
                 .findFirst();
         }
@@ -1766,6 +1786,42 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean doEquals(IndexOptions o) {
             return o instanceof FlatIndexOptions;
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hash(type);
+        }
+    }
+
+    static class GPUIndexOptions extends IndexOptions {
+
+        GPUIndexOptions() {
+            super(VectorIndexType.GPU);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT;
+            return new GPUVectorsFormat();
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return false;
+        }
+
+        @Override
+        public boolean doEquals(IndexOptions o) {
+            return o instanceof GPUIndexOptions;
         }
 
         @Override

@@ -96,8 +96,8 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
             specified field.
-            Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
-
+            Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.""",
+        detailedDescription = """
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
             MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
 
@@ -107,11 +107,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
         examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field") },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
-            ) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.1.0"), }
     )
     public MatchPhrase(
         Source source,

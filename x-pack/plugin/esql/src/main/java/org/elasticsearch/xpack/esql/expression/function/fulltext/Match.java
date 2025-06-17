@@ -140,8 +140,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
-            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
-
+            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.""",
+        detailedDescription = """
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.

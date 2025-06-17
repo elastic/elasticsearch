@@ -583,6 +583,9 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader
   issue: https://github.com/elastic/elasticsearch/issues/98560
+- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
+  method: testBuiltInRolesSyncedOnClusterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/129534
 
 # Examples:
 #

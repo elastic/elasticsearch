@@ -99,7 +99,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<IndexOptions> indexOptions = new Parameter<>(SPARSE_VECTOR_INDEX_OPTIONS,
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
+            SPARSE_VECTOR_INDEX_OPTIONS,
             true,
             () -> null,
             (n, c, o) -> parseIndexOptions(c, o),
@@ -170,8 +171,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         Map<String, Object> indexOptionsMap = XContentMapValues.nodeMapValue(propNode, SPARSE_VECTOR_INDEX_OPTIONS);
 
-        XContentParser parser =
-            new MapXContentParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, indexOptionsMap, XContentType.JSON);
+        XContentParser parser = new MapXContentParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS,
+            indexOptionsMap,
+            XContentType.JSON
+        );
 
         try {
             return INDEX_OPTIONS_PARSER.parse(parser, null);
@@ -205,11 +210,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
             @Nullable SparseVectorFieldMapper.IndexOptions indexOptions
         ) {
             super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.indexOptions = indexOptions != null
-                ? indexOptions
+            this.indexOptions = indexOptions != null ? indexOptions
                 : SparseVectorFieldMapper.indexVersionSupportsDefaultPruningConfig(indexVersion)
                     ? new IndexOptions(true, new TokenPruningConfig())
-                    : null;
+                : null;
         }
 
         public IndexOptions getIndexOptions() {
@@ -277,13 +281,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
 
             return (shouldPruneTokens != null && shouldPruneTokens)
-                   ? WeightedTokensUtils.queryBuilderWithPrunedTokens(
-                        fieldName,
-                        tokenPruningConfig == null ? new TokenPruningConfig() : tokenPruningConfig,
-                        queryVectors,
-                        this,
-                        context
-                   ) : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, this, context);
+                ? WeightedTokensUtils.queryBuilderWithPrunedTokens(
+                    fieldName,
+                    tokenPruningConfig == null ? new TokenPruningConfig() : tokenPruningConfig,
+                    queryVectors,
+                    this,
+                    context
+                )
+                : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, this, context);
         }
 
         private static String indexedValueForSearch(Object value) {
@@ -344,7 +349,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException(
-                "[sparse_vector] fields must be json objects, expected a START_OBJECT but got: " + context.parser().currentToken());
+                "[sparse_vector] fields must be json objects, expected a START_OBJECT but got: " + context.parser().currentToken()
+            );
         }
 
         final boolean isWithinLeaf = context.path().isWithinLeafObject();
@@ -372,8 +378,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     }
                 } else {
                     throw new IllegalArgumentException(
-                        "[sparse_vector] fields take hashes that map a feature to a strictly positive " + "float, but got unexpected token "
-                            + token);
+                        "[sparse_vector] fields take hashes that map a feature to a strictly positive "
+                            + "float, but got unexpected token "
+                            + token
+                    );
                 }
             }
             if (context.indexSettings().getIndexVersionCreated().onOrAfter(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
@@ -396,10 +404,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     private static boolean indexVersionSupportsDefaultPruningConfig(IndexVersion indexVersion) {
         // default pruning for 9.1.0+ or 8.19.0+ is true for this index
-        return (
-            indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION) ||
-            indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
-        );
+        return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+            || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0));
     }
 
     private static class SparseVectorValueFetcher implements ValueFetcher {
@@ -522,8 +528,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
         IndexOptions(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {
             if (pruningConfig != null && (prune == null || prune == false)) {
                 throw new IllegalArgumentException(
-                    "[" + SPARSE_VECTOR_INDEX_OPTIONS + "] field [" + PRUNING_CONFIG_FIELD_NAME.getPreferredName()
-                        + "] should only be set if [" + PRUNE_FIELD_NAME.getPreferredName() + "] is set to true");
+                    "["
+                        + SPARSE_VECTOR_INDEX_OPTIONS
+                        + "] field ["
+                        + PRUNING_CONFIG_FIELD_NAME.getPreferredName()
+                        + "] should only be set if ["
+                        + PRUNE_FIELD_NAME.getPreferredName()
+                        + "] is set to true"
+                );
             }
 
             this.prune = prune;

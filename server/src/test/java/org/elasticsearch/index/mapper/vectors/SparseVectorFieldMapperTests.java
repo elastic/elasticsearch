@@ -664,14 +664,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(version, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
 
         // query should be pruned via explicit index options
-        performTypeQueryFinalizationTest(
-            version,
-            mapperService,
-            new SparseVectorFieldMapper.IndexOptions(false, null),
-            null,
-            null,
-            false
-        );
+        performTypeQueryFinalizationTest(version, mapperService, new SparseVectorFieldMapper.IndexOptions(false, null), null, null, false);
     }
 
     public void testTypeQueryFinalizationQueryOverridesPruning() throws Exception {

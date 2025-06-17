@@ -1,0 +1,5 @@
+pr: 129074
+summary: "[apm-data] Set `event.dataset` if empty for logs"
+area: Data streams
+type: bug
+issues: []

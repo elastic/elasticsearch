@@ -311,5 +311,5 @@ completionCommand
     ;
 
 sampleCommand
-    : DEV_SAMPLE probability=constant
+    : SAMPLE probability=constant
     ;

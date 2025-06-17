@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.test.ESTestCase;
@@ -150,7 +151,7 @@ public class GeoIpCacheTests extends ESTestCase {
         cache.putIfAbsent(projectId1, ip2, databasePath1, ip -> response); // cache miss
         cache.putIfAbsent(projectId2, ip1, databasePath1, ip -> response); // cache miss
         cache.putIfAbsent(projectId1, ip1, databasePath2, ip -> response); // cache miss
-        cache.purgeCacheEntriesForDatabase(projectId1, Path.of(databasePath1));
+        cache.purgeCacheEntriesForDatabase(projectId1, PathUtils.get(databasePath1));
         // should have purged entries for projectId1 and databasePath1...
         assertNull(cache.get(projectId1, ip1, databasePath1));
         assertNull(cache.get(projectId1, ip2, databasePath1));

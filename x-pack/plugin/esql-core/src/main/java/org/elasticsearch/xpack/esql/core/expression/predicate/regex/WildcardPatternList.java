@@ -76,7 +76,7 @@ public class WildcardPatternList extends AbstractStringPattern implements Writea
             return "";
         }
         if (patternList.size() == 1) {
-            return patternList.getFirst().pattern();
+            return patternList.get(0).pattern();
         }
         return "(\"" + patternList.stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \"")) + "\")";
     }

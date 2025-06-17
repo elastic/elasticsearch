@@ -116,6 +116,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         if (pattern().patternList().size() != 1) {
             throw new IllegalArgumentException("WildcardLikeList can only be translated when it has a single pattern");
         }
-        return new WildcardQuery(source(), targetFieldName, pattern().patternList().getFirst().asLuceneWildcard(), caseInsensitive());
+        return new WildcardQuery(source(), targetFieldName, pattern().patternList().get(0).asLuceneWildcard(), caseInsensitive());
     }
 }

@@ -1077,9 +1077,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         boolean useLegacyFormat
     ) {
         return switch (modelSettings.taskType()) {
-            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper
-                .Builder(CHUNKED_EMBEDDINGS_FIELD, indexVersionCreated)
-                .setStored(useLegacyFormat == false);
+            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD, indexVersionCreated).setStored(
+                useLegacyFormat == false
+            );
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,

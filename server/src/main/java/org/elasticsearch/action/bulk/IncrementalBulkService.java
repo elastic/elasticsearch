@@ -136,7 +136,9 @@ public class IncrementalBulkService {
         }
 
         public void updateWaitForChunkMetrics(long chunkWaitTimeCentis) {
-            bulkOperationWaitForChunkMetrics.recordTookTime(chunkWaitTimeCentis);
+            if (bulkOperationWaitForChunkMetrics != null) {
+                bulkOperationWaitForChunkMetrics.recordTookTime(chunkWaitTimeCentis);
+            }
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {

@@ -19,7 +19,7 @@ curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head 
 % Not converting to console because this shows how curl can be used
 
 ::::{note}
-The `Content-Type: application/json` header must be set even though in this case the data is not JSON. (Alternatively the `Content-Type` can be set to any other supported by {es}, but it must be set.)
+The `Content-Type: application/json` header must be set even though in this case the data is not JSON. (Alternatively the `Content-Type` can be set to any other supported by {{es}}, but it must be set.)
 ::::
 
 If the request does not encounter errors, you receive the following result:
@@ -317,12 +317,12 @@ If the request does not encounter errors, you receive the following result:
 6. The `quote` character is the default double quote. (The structure finder does not attempt to deduce any other quote character, so if you have delimited text that's quoted with some other character you must specify it using the `quote` query parameter.)
 7. The `timestamp_field` has been chosen to be `tpep_pickup_datetime`. `tpep_dropoff_datetime` would work just as well, but `tpep_pickup_datetime` was chosen because it comes first in the column order. If you prefer `tpep_dropoff_datetime` then force it to be chosen using the `timestamp_field` query parameter.
 8. `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
-9. `java_timestamp_formats` are the Java time formats recognized in the time fields. {es} mappings and ingest pipelines use this format.
-10. The timestamp format in this sample doesn't specify a timezone, so to accurately convert them to UTC timestamps to store in {es} it's necessary to supply the timezone they relate to. `need_client_timezone` will be `false` for timestamp formats that include the timezone.
+9. `java_timestamp_formats` are the Java time formats recognized in the time fields. {{es}} mappings and ingest pipelines use this format.
+10. The timestamp format in this sample doesn't specify a timezone, so to accurately convert them to UTC timestamps to store in {{es}} it's necessary to supply the timezone they relate to. `need_client_timezone` will be `false` for timestamp formats that include the timezone.
 
 ## Setting the timeout parameter [find-structure-example-timeout]
 
-If you try to analyze a lot of data then the analysis will take a long time. If you want to limit the amount of processing your {es} cluster performs for a request, use the `timeout` query parameter. The analysis will be aborted and an error returned when the timeout expires. For example, you can replace 20000 lines in the previous example with 200000 and set a 1 second timeout on theanalysis:
+If you try to analyze a lot of data then the analysis will take a long time. If you want to limit the amount of processing your {{es}} cluster performs for a request, use the `timeout` query parameter. The analysis will be aborted and an error returned when the timeout expires. For example, you can replace 20000 lines in the previous example with 200000 and set a 1 second timeout on theanalysis:
 
 ```
 curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
@@ -355,7 +355,7 @@ Unless you are using an incredibly fast computer you'll receive a timeout error:
 If you try the example above yourself you will note that the overall running time of the `curl` commands is considerably longer than 1 second. This is because it takes a while to download 200000 lines of CSV from the internet, and the timeout is measured from the time this endpoint starts to process the data.
 ::::
 
-## Analyzing {es} log files [find-structure-example-eslog]
+## Analyzing {{es}} log files [find-structure-example-eslog]
 
 This is an example of analyzing an {{es}} log file:
 
@@ -510,7 +510,7 @@ If the request does not encounter errors, the result will look something like th
 
 If you recognize more fields than the simple `grok_pattern` produced by the structure finder unaided then you can resubmit the request specifying a more advanced `grok_pattern` as a query parameter and the structure finder will calculate `field_stats` for your additional fields.
 
-In the case of the {es} log a more complete Grok pattern is `\[%{TIMESTAMP_ISO8601:timestamp}\]\[%{LOGLEVEL:loglevel} *\]\[%{JAVACLASS:class} *\] \[%{HOSTNAME:node}\] %{JAVALOGMESSAGE:message}`. You can analyze the same text again, submitting this `grok_pattern` as a query parameter (appropriately URL escaped):
+In the case of the {{es}} log a more complete Grok pattern is `\[%{TIMESTAMP_ISO8601:timestamp}\]\[%{LOGLEVEL:loglevel} *\]\[%{JAVACLASS:class} *\] \[%{HOSTNAME:node}\] %{JAVALOGMESSAGE:message}`. You can analyze the same text again, submitting this `grok_pattern` as a query parameter (appropriately URL escaped):
 
 ```
 curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"

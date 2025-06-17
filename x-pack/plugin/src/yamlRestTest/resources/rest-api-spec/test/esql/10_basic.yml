@@ -413,20 +413,22 @@ FROM EVAL SORT LIMIT with documents_found:
   - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
 
 ---
-"Test Unnamed Input Params Also For Limit":
+"Test Unnamed Input Params Also For Limit And Sample":
   - requires:
         test_runner_features: [ capabilities ]
         capabilities:
           - method: POST
             path: /_query
             parameters: [ ]
-            capabilities: [ parameter_for_limit ]
+            capabilities: [ parameter_for_limit, parameter_for_sample ]
         reason: "named or positional parameters"
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
-          params: ["1", 2.0, null, true, 123, 1674835275193, 3]
+          # The "| sort time" is to work around https://github.com/elastic/elasticsearch/issues/120272
+          # TODO: remove it when the issue is fixed
+          query: 'from test | sort time | sample ? | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
+          params: [0.999999999999, "1", 2.0, null, true, 123, 1674835275193, 3]
 
   - length: {columns: 6}
   - match: {columns.0.name: "x"}
@@ -461,7 +463,9 @@ FROM EVAL SORT LIMIT with documents_found:
   - do:
       esql.query:
         body:
-          query: 'from test | sample ? | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
+          # The "| sort time" is to work around https://github.com/elastic/elasticsearch/issues/120272
+          # TODO: remove it when the issue is fixed
+          query: 'from test | sort time | sample ? | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
           params: [{"s": 0.99999999999}, {"n1" : "1"}, {"n2" : 2.0}, {"n3" : null}, {"n4" : true}, {"n5" : 123}, {"n6": 1674835275193}, {"l": 3}]
 
   - length: {columns: 6}
@@ -525,7 +529,9 @@ FROM EVAL SORT LIMIT with documents_found:
   - do:
       esql.query:
         body:
-          query: 'from test | sample ?s | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit ?l'
+          # The "| sort time" is to work around https://github.com/elastic/elasticsearch/issues/120272
+          # TODO: remove it when the issue is fixed
+          query: 'from test | sort time | sample ?s | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit ?l'
           params: [{"s": 0.99999999999}, {"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}, {"l": 3}]
 
   - length: {columns: 3}

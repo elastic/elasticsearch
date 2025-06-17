@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -35,15 +36,15 @@ public abstract class FilterClient extends AbstractClient {
      * @see #in()
      */
     public FilterClient(Client in) {
-        this(in.settings(), in.threadPool(), in);
+        this(in.settings(), in.threadPool(), in.projectResolver(), in);
     }
 
     /**
      * A Constructor that allows to pass settings and threadpool separately. This is useful if the
      * client is a proxy and not yet fully constructed ie. both dependencies are not available yet.
      */
-    protected FilterClient(Settings settings, ThreadPool threadPool, Client in) {
-        super(settings, threadPool);
+    protected FilterClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver, Client in) {
+        super(settings, threadPool, projectResolver);
         this.in = in;
     }
 

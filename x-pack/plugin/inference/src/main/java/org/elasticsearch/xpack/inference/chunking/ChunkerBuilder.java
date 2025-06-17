@@ -16,6 +16,7 @@ public class ChunkerBuilder {
         }
 
         return switch (chunkingStrategy) {
+            case NONE -> NoopChunker.INSTANCE;
             case WORD -> new WordBoundaryChunker();
             case SENTENCE -> new SentenceBoundaryChunker();
         };

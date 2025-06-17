@@ -396,7 +396,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "Invalid value for LIMIT ["
                     + BytesRefs.toString(val)
                     + ": "
-                    + expression(ctx.constant()).dataType()
+                    + (expression(ctx.constant()).dataType() == KEYWORD ? "String" : val.getClass().getSimpleName())
                     + "], expecting a non negative integer"
             );
         }

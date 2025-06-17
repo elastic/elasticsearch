@@ -4294,8 +4294,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "ROW x = 1 | DROP x )",
             "ROW a = [1, 2] | RENAME a =b)",
             "ROW a = [1, 2] | MV_EXPAND a)",
-            "from test | enrich a on b)"
-        };
+            "from test | enrich a on b)" };
         for (String q : queries) {
             expectError(q, "Invalid query");
         }

@@ -7,11 +7,11 @@ Elasticsearch is the search and analytics engine that powers the Elastic Stack.
 
 [Get started](https://www.elastic.co/docs/get-started)
 
-[Introduction](elasticsearch-intro.html) 
+[Introduction](https://www.elastic.co/docs/get-started) 
 
-[What's new](release-highlights.html) 
+[What's new](https://www.elastic.co/docs/release-notes/elasticsearch) 
 
-[Release notes](es-release-notes.html)
+[Release notes](https://www.elastic.co/docs/release-notes/elasticsearch)
 
 ![](https://images.contentstack.io/v3/assets/bltefdd0b53724fa2ce/bltb8eb1c8cf2e7309e/636925fb7457f32a10457f6d/elasticsearch.png)
 

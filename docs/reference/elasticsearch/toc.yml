@@ -90,6 +90,7 @@ toc:
             - file: rest-apis/reciprocal-rank-fusion.md
             - file: rest-apis/refresh-parameter.md
             - file: rest-apis/reindex-data-stream.md
+            - file: rest-apis/reindex-indices.md
             - file: rest-apis/retrieve-inner-hits.md
             - file: rest-apis/retrieve-selected-fields.md
             - file: rest-apis/retrieve-stored-fields.md

@@ -37,8 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
@@ -56,7 +57,7 @@ public class TestEntitlementBootstrap {
             return;
         }
         TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
-        policyManager = createPolicyManager(pathLookup);
+        policyManager = createPolicyManager(tempDir, configDir);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
@@ -88,7 +89,7 @@ public class TestEntitlementBootstrap {
         }
     }
 
-    private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
+    private static TestPolicyManager createPolicyManager(Path tempDir, Path configDir) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
         var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo);
@@ -99,8 +100,22 @@ public class TestEntitlementBootstrap {
             .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
-        Map<String, Collection<Path>> pluginSourcePaths = Map.of();
 
+        // In productions, plugins would have access to their respective bundle directories,
+        // and so they'd be able to read from their jars. In testing, we approximate this
+        // by considering the entire classpath to be "source paths" of all plugins. This
+        // also has the effect of granting read access to everything on the test-only classpath,
+        // which is fine, because any entitlement errors there could only be false positives.
+        String classPathProperty = System.getProperty("java.class.path");
+        Set<Path> classPathEntries;
+        if (classPathProperty == null) {
+            classPathEntries = Set.of();
+        } else {
+            classPathEntries = Arrays.stream(classPathProperty.split(":")).map(Path::of).collect(toCollection(TreeSet::new));
+        }
+        Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
+
+        PathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");
@@ -108,7 +123,7 @@ public class TestEntitlementBootstrap {
         if (testOnlyPathProperty == null) {
             testOnlyClassPath = Set.of();
         } else {
-            testOnlyClassPath = Arrays.stream(testOnlyPathProperty.split(":")).collect(Collectors.toCollection(TreeSet::new));
+            testOnlyClassPath = Arrays.stream(testOnlyPathProperty.split(":")).collect(toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

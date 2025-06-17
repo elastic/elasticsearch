@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner.mapper;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;

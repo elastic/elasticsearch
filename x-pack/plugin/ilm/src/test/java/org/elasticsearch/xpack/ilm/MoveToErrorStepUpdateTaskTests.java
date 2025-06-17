@@ -73,6 +73,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey);
 
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,
@@ -104,6 +105,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(notCurrentStepKey);
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,
@@ -123,6 +125,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,

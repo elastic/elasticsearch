@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
@@ -32,6 +33,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     private final Consumer<ProjectState> stateChangeConsumer;
 
     public MoveToNextStepUpdateTask(
+        ProjectId projectId,
         Index index,
         String policy,
         Step.StepKey currentStepKey,
@@ -40,7 +42,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
         PolicyStepsRegistry stepRegistry,
         Consumer<ProjectState> stateChangeConsumer
     ) {
-        super(index, currentStepKey);
+        super(projectId, index, currentStepKey);
         this.policy = policy;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;

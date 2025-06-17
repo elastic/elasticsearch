@@ -17,5 +17,5 @@ For a simplified syntax, you can use the [match operator](https://www.elastic.co
 
 ```esql
 FROM books
-| WHERE MATCH(author, "Faulkner")
+| WHERE MATCH(author, description, "Faulkner")
 ```

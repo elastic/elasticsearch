@@ -87,7 +87,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after LIMIT"));
+        assertThat(error.getMessage(), containsString("[Match] function cannot be used after LIMIT"));
     }
 
     public void testNotWhereMatch() {
@@ -190,7 +190,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[MATCH] function cannot operate on [upper_content], which is not a field from an index mapping")
+            containsString("[Match] function cannot operate on [upper_content], which is not a field from an index mapping")
         );
     }
 
@@ -205,7 +205,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
+            containsString("[Match] function cannot operate on [content], which is not a field from an index mapping")
         );
     }
 
@@ -244,7 +244,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("line 2:15: [MATCH] function cannot operate on [content], which is not a field from an index mapping")
+            containsString("line 2:15: [Match] function cannot operate on [content], which is not a field from an index mapping")
         );
     }
 
@@ -255,7 +255,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[Match] function is only supported in WHERE and STATS commands"));
 
         var query = """
             FROM test
@@ -291,7 +291,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[Match] function is only supported in WHERE and STATS commands"));
     }
 
     private void createAndPopulateIndex() {

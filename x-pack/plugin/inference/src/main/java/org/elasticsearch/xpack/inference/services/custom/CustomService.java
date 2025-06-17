@@ -26,7 +26,6 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.validation.CustomServiceIntegrationValidator;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -200,16 +200,8 @@ public class CustomService extends SenderService {
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        // We will support all values. If one of the values is not included in the translation map, we'll use the default provided instead
-        // if (model instanceof CustomModel customModel) {
-        // var translationKeys = customModel.getServiceSettings().getInputTypeTranslator().getTranslation().keySet();
-        // var supportedInputTypes = translationKeys.isEmpty() ? EnumSet.noneOf(InputType.class) : EnumSet.copyOf(translationKeys);
-        // ServiceUtils.validateInputTypeAgainstAllowlist(inputType, supportedInputTypes, SERVICE_NAME, validationException);
-        // } else {
-        // validationException.addValidationError(
-        // Strings.format("Model of type [%s] is not supported by the %s service", model.getClass().getSimpleName(), NAME)
-        // );
-        // }
+        // The custom service doesn't do any validation for the input type because if the input type is supported a default
+        // must be supplied within the service settings.
     }
 
     @Override

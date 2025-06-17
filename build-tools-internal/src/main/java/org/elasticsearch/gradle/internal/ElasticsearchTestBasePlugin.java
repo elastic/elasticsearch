@@ -24,6 +24,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -216,7 +217,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             /*
-             *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
+             *  If this project builds a shadow JAR then any unit tests should test against that artifact instead of
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
             project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
@@ -245,17 +246,31 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             .create(configurationName, config -> config.setCanBeConsumed(false));
         var deps = project.getDependencies();
         deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
+
+        // If ElasticsearchJavaBasePlugin has specified a dependency on the entitlement bridge jar,
+        // then it needs to be added to the --patch-module=java.base command line option.
+        ConfigurationContainer configurations = project.getConfigurations();
+
         project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
             test.getInputs().files(patchedFileCollection);
             test.systemProperty("tests.hackImmutableCollections", "true");
+
+            Configuration bridgeJarConfig = configurations.findByName("entitlementBridgeJar");
+            String bridgeJarPart;
+            if (bridgeJarConfig == null) {
+                bridgeJarPart = "";
+            } else {
+                bridgeJarConfig.defaultDependencies(d -> {
+                    d.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge", "configuration", "default")));
+                });
+                test.getInputs().files(bridgeJarConfig);
+                bridgeJarPart = File.pathSeparator + bridgeJarConfig.getSingleFile().getAbsolutePath();
+            }
+
             test.getJvmArgumentProviders()
                 .add(
                     () -> List.of(
-                        "--patch-module=java.base="
-                            + patchedFileCollection.getSingleFile()
-                            + "/java.base"
-                            + File.pathSeparator
-                            + "/Users/prdoyle/IdeaProjects/elasticsearch/libs/entitlement/bridge/build/distributions/elasticsearch-entitlement-bridge-9.1.0-SNAPSHOT.jar",
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base" + bridgeJarPart,
                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                     )
                 );

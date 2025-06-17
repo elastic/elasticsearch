@@ -90,6 +90,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -789,7 +790,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
-        var probability = visitDecimalValue(ctx.probability);
-        return plan -> new Sample(source(ctx), probability, plan);
+        Source source = source(ctx);
+        Object val = expression(ctx.probability).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Double probability && probability > 0.0 && probability < 1.0) {
+            return input -> new Sample(source, new Literal(source, probability, DataType.DOUBLE), input);
+        } else {
+            throw new ParsingException(
+                source(ctx),
+                "invalid value for SAMPLE probability [" + val + "], expecting a number between 0 and 1, exclusive"
+            );
+        }
     }
 }

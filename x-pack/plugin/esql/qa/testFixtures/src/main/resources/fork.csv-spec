@@ -775,6 +775,7 @@ null   | null         | fork2         | spike
 
 forkBeforeCompletion
 required_capability: fork_v9
+required_capability: completion
 
 FROM employees
 | KEEP emp_no, first_name, last_name
@@ -793,6 +794,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _fork:keyword | x:keyw
 
 forkBranchWithCompletion
 required_capability: fork_v9
+required_capability: completion
 
 FROM employees
 | KEEP emp_no, first_name, last_name
@@ -811,6 +813,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | x:keyword        | _fo
 
 forkAfterCompletion
 required_capability: fork_v9
+required_capability: completion
 
 FROM employees
 | KEEP emp_no, first_name, last_name

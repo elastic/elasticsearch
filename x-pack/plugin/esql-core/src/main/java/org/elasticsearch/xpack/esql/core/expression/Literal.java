@@ -53,11 +53,11 @@ public class Literal extends LeafExpression {
         super(source);
         assert noPlainStrings(value, dataType);
         this.dataType = dataType;
-        this.value = stringsToBytesRef(dataType, value);
+        this.value = value;
     }
 
     private boolean noPlainStrings(Object value, DataType dataType) {
-        if (dataType == KEYWORD || dataType == TEXT) {
+        if (dataType == KEYWORD || dataType == TEXT || dataType == VERSION) {
             if (value instanceof String) {
                 return false;
             }
@@ -66,19 +66,6 @@ public class Literal extends LeafExpression {
             }
         }
         return true;
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static Object stringsToBytesRef(DataType dataType, Object value) {
-        // we should do it for IPs as well, but there is a problem for CIDR_MATCH, see CombineDisjunctions
-        if (value instanceof String s && dataType == VERSION) {
-            return new Version(s).toBytesRef();
-        }
-
-        if (value instanceof List l) {
-            return l.stream().map(x -> stringsToBytesRef(dataType, x)).toList();
-        }
-        return value;
     }
 
     private static Literal readFrom(StreamInput in) throws IOException {
@@ -196,9 +183,7 @@ public class Literal extends LeafExpression {
     }
 
     public static Literal of(Expression source, Object value) {
-        DataType type = source.dataType();
-        value = stringsToBytesRef(type, value);
-        return new Literal(source.source(), value, type);
+        return new Literal(source.source(), value, source.dataType());
     }
 
     /**

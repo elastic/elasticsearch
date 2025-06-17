@@ -797,7 +797,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             throw new ParsingException(
                 source(ctx),
-                "invalid value for SAMPLE probability [" + val + "], expecting a number between 0 and 1, exclusive"
+                "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
             );
         }
     }

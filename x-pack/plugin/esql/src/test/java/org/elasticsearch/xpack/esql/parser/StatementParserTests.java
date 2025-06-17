@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CL
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.DATE_MATH;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.INDEX_SELECTOR;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.quote;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
@@ -3183,6 +3184,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
+
+        // If one or more patterns participating in LOOKUP JOINs are partially quoted, we expect the partial quoting
+        // error messages to take precedence over any LOOKUP JOIN error messages.
+        {
+            // Generate a syntactically invalid (partial quoted) pattern.
+            var fromPatterns = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
+            var joinPattern = randomIndexPattern();
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
+                // index name that we're expecting an unquoted string.
+                "expecting UNQUOTED_SOURCE"
+            );
+        }
+
+        {
+            var fromPatterns = randomIndexPattern();
+            // Generate a syntactically invalid (partial quoted) pattern.
+            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
+                // index name that we're expecting an unquoted string.
+                "expecting UNQUOTED_SOURCE"
             );
         }
 

@@ -164,6 +164,7 @@ import org.junit.rules.RuleChain;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -500,6 +501,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
+    @Inherited
     public @interface WithoutEntitlements {
     }
 
@@ -509,6 +511,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
+    @Inherited
     public @interface WithEntitlementsOnTestCode {
     }
 

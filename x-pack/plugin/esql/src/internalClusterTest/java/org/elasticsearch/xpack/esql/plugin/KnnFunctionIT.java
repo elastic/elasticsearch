@@ -49,7 +49,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            assertEquals(Math.min(indexedVectors.size(), 10), valuesList.size());
+            assertEquals(indexedVectors.size(), valuesList.size());
             for (int i = 0; i < valuesList.size(); i++) {
                 List<Object> row = valuesList.get(i);
                 // Vectors should be in order of ID, as they're less similar than the query vector as the ID increases
@@ -111,7 +111,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
 
         var indexName = "test";
         var client = client().admin().indices();

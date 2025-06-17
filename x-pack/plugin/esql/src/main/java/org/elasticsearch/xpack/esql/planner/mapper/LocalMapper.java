@@ -73,14 +73,14 @@ public class LocalMapper {
         // Pipeline breakers
         //
 
-        if (unary instanceof Aggregate aggregate) {
-            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-        }
-
         if (unary instanceof TopNAggregate topNAggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(topNAggregate);
             return MapperUtils.topNAggExec(topNAggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+        }
+
+        if (unary instanceof Aggregate aggregate) {
+            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {

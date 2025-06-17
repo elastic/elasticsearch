@@ -44,3 +44,14 @@ height:double
 2.1
 2.1
 ;
+
+multipleTopN
+from employees
+| stats c = count(height) by languages.long
+| sort languages.long | limit 4
+| sort languages.long desc | limit 2;
+
+c:long | languages.long:long
+17     | 3
+18     | 4
+;

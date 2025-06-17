@@ -146,27 +146,6 @@ public class Mapper {
         //
         // Pipeline breakers
         //
-        if (unary instanceof Aggregate aggregate) {
-            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-
-            // create both sides of the aggregate (for parallelism purposes), if no fragment is present
-            // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this
-            // stage
-            mappedChild = addExchangeForFragment(aggregate, mappedChild);
-
-            // exchange was added - use the intermediates for the output
-            if (mappedChild instanceof ExchangeExec exchange) {
-                mappedChild = new ExchangeExec(mappedChild.source(), intermediate, true, exchange.child());
-            }
-            // if no exchange was added (aggregation happening on the coordinator), create the initial agg
-            else {
-                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-            }
-
-            // always add the final/reduction agg
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
-        }
-
         if (unary instanceof TopNAggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
 
@@ -186,6 +165,27 @@ public class Mapper {
 
             // always add the final/reduction agg
             return MapperUtils.topNAggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
+        }
+
+        if (unary instanceof Aggregate aggregate) {
+            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+
+            // create both sides of the aggregate (for parallelism purposes), if no fragment is present
+            // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this
+            // stage
+            mappedChild = addExchangeForFragment(aggregate, mappedChild);
+
+            // exchange was added - use the intermediates for the output
+            if (mappedChild instanceof ExchangeExec exchange) {
+                mappedChild = new ExchangeExec(mappedChild.source(), intermediate, true, exchange.child());
+            }
+            // if no exchange was added (aggregation happening on the coordinator), create the initial agg
+            else {
+                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            }
+
+            // always add the final/reduction agg
+            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {

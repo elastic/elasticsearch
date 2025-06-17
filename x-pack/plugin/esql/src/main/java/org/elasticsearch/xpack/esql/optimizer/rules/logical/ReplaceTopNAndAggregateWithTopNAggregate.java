@@ -30,7 +30,7 @@ public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, Logical
     }
 
     private LogicalPlan applyRule(TopN topN) {
-        if (topN.child() instanceof Aggregate aggregate) {
+        if (topN.child() instanceof Aggregate aggregate && aggregate instanceof TopNAggregate == false) {
             // TimeSeriesAggregate shouldn't appear after a TopN when this rule is executed
             assert aggregate instanceof TimeSeriesAggregate == false : "TimeSeriesAggregate should not be replaced with TopNAggregate";
 

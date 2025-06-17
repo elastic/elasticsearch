@@ -76,7 +76,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     var logicalFragment = fragmentExec.fragment();
 
                     // no need for projection when dealing with aggs
-                    if (logicalFragment instanceof Aggregate == false && logicalFragment instanceof TopNAggregate == false) {
+                    if (logicalFragment instanceof Aggregate == false) {
                         List<Attribute> output = new ArrayList<>(requiredAttrBuilder.build());
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)

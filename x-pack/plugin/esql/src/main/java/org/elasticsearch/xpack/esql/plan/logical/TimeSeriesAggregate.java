@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -74,8 +76,35 @@ public class TimeSeriesAggregate extends Aggregate {
         return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
     }
 
+    @Override
+    public boolean expressionsResolved() {
+        return super.expressionsResolved() && timeBucket.resolved();
+    }
+
     @Nullable
     public Bucket timeBucket() {
         return timeBucket;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(groupings, aggregates, child(), timeBucket);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        TimeSeriesAggregate other = (TimeSeriesAggregate) obj;
+        return Objects.equals(groupings, other.groupings)
+            && Objects.equals(aggregates, other.aggregates)
+            && Objects.equals(child(), other.child())
+            && Objects.equals(timeBucket, other.timeBucket);
     }
 }

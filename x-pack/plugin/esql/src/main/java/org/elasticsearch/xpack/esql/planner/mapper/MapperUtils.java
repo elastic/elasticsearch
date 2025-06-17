@@ -152,14 +152,6 @@ public class MapperUtils {
         return intermediateAttributes;
     }
 
-    static List<Attribute> intermediateAttributes(TopNAggregate aggregate) {
-        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
-            aggregate.aggregates(),
-            aggregate.groupings()
-        );
-        return intermediateAttributes;
-    }
-
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
         if (aggregate instanceof TimeSeriesAggregate ts) {
             return new TimeSeriesAggregateExec(

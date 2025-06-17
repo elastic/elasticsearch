@@ -23,16 +23,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-// TODO: Should this be TelemetryAware?
-public class TopNAggregate extends UnaryPlan {
+public class TopNAggregate extends Aggregate {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "TopNAggregate",
         TopNAggregate::new
     );
-
-    protected final List<Expression> groupings;
-    protected final List<? extends NamedExpression> aggregates;
 
     private final List<Order> order;
     private final Expression limit;
@@ -47,27 +43,20 @@ public class TopNAggregate extends UnaryPlan {
         List<Order> order,
         Expression limit
     ) {
-        super(source, child);
-        this.groupings = groupings;
-        this.aggregates = aggregates;
+        super(source, child, groupings, aggregates);
         this.order = order;
         this.limit = limit;
     }
 
     public TopNAggregate(StreamInput in) throws IOException {
-        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-        this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        this.aggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
+        super(in);
         this.order = in.readCollectionAsList(Order::new);
         this.limit = in.readNamedWriteable(Expression.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteableCollection(groupings);
-        out.writeNamedWriteableCollection(aggregates());
+        super.writeTo(out);
         out.writeCollection(order);
         out.writeNamedWriteable(limit);
     }
@@ -87,14 +76,6 @@ public class TopNAggregate extends UnaryPlan {
         return new TopNAggregate(source(), newChild, groupings, aggregates, order, limit);
     }
 
-    public List<Expression> groupings() {
-        return groupings;
-    }
-
-    public List<? extends NamedExpression> aggregates() {
-        return aggregates;
-    }
-
     public List<Order> order() {
         return order;
     }
@@ -105,20 +86,7 @@ public class TopNAggregate extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(groupings) && Resolvables.resolved(aggregates);
-    }
-
-    @Override
-    public List<Attribute> output() {
-        if (lazyOutput == null) {
-            lazyOutput = Aggregate.output(aggregates);
-        }
-        return lazyOutput;
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Aggregate.computeReferences(aggregates, groupings);
+        return super.expressionsResolved() && Resolvables.resolved(order) && limit.resolved();
     }
 
     @Override

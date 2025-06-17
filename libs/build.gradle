@@ -45,4 +45,15 @@ configure(childProjects.values()) {
      */
     apply plugin: 'elasticsearch.build'
   }
+
+  // This is for any code potentially included in the server at runtime.
+  // Omit oddball libraries that aren't in server.
+  if (project.name != 'plugin-scanner') {
+    project.getTasks().withType(Test.class).configureEach(test -> {
+      if (List.of("test", "internalClusterTest").contains(test.getName())) {
+        test.systemProperty("es.entitlement.enableForTests", "true")
+      }
+    })
+  }
+
 }

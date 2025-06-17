@@ -876,6 +876,27 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         return newKeySet;
     }
 
+    /*
+     * This method merges the given newSettings into this Settings, returning either a new Settings object or this if the newSettings are
+     * empty. If any values are null in newSettings, those keys are removed from the returned object.
+     */
+    public Settings merge(Settings newSettings) {
+        Objects.requireNonNull(newSettings);
+        if (Settings.EMPTY.equals(newSettings)) {
+            return this;
+        }
+        Settings.Builder builder = Settings.builder().put(this);
+        for (String key : newSettings.keySet()) {
+            String rawValue = newSettings.get(key);
+            if (rawValue == null) {
+                builder.remove(key);
+            } else {
+                builder.put(key, rawValue);
+            }
+        }
+        return builder.build();
+    }
+
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#builder()} in order to

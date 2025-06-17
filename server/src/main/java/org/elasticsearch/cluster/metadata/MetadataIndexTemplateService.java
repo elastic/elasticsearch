@@ -1854,8 +1854,7 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
-        throws Exception {
+    static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService) throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {

@@ -212,6 +212,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -297,6 +298,9 @@ forkSubQueryProcessingCommand
     | statsCommand
     | sortCommand
     | dissectCommand
+    | changePointCommand
+    | completionCommand
+    | grokCommand
     ;
 
 rrfCommand
@@ -308,9 +312,9 @@ rerankCommand
     ;
 
 completionCommand
-    : COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;
 
 sampleCommand
-    : DEV_SAMPLE probability=decimalValue seed=integerValue?
+    : DEV_SAMPLE probability=decimalValue
     ;

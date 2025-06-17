@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -767,10 +766,11 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private record MatchConfig(String fieldName, int channel, DataType type) {
+    private record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
         private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // Note, this handles TEXT fields with KEYWORD subfields
-            this(match.exactAttribute().name(), input.channel(), input.type());
+            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
+            // indices, so the call to exactAttribute looks redundant now.
+            this(match.exactAttribute().fieldName(), input.channel(), input.type());
         }
     }
 
@@ -837,10 +837,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        final Integer rowSize = limit.estimatedRowSize();
-        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
-        int pageSize = context.pageSize(rowSize);
-        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx), pageSize), source.layout);
+        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
@@ -871,8 +868,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
-        var seed = rsx.seed() != null ? (int) Foldables.valueOf(context.foldCtx(), rsx.seed()) : Randomness.get().nextInt();
-        return source.with(new SampleOperator.Factory(probability, seed), source.layout);
+        return source.with(new SampleOperator.Factory(probability), source.layout);
     }
 
     /**

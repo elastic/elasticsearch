@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -2305,12 +2306,18 @@ public class AnalyzerTests extends ESTestCase {
                 AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
             )
         );
-        assertThat(e.getMessage(), containsString("1:70: invalid [test] resolution in lookup mode to an index in [standard] mode"));
+        assertThat(
+            e.getMessage(),
+            containsString("1:70: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
+        );
         e = expectThrows(
             VerificationException.class,
             () -> analyze("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
         );
-        assertThat(e.getMessage(), containsString("1:25: invalid [test] resolution in lookup mode to an index in [standard] mode"));
+        assertThat(
+            e.getMessage(),
+            containsString("1:25: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
+        );
     }
 
     public void testImplicitCasting() {
@@ -2361,6 +2368,22 @@ public class AnalyzerTests extends ESTestCase {
             """));
 
         assertThat(e.getMessage(), containsString("[+] has arguments with incompatible types [datetime] and [datetime]"));
+    }
+
+    public void testDenseVectorImplicitCasting() {
+        Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
+
+        var plan = analyze("""
+            from test | where knn(vector, [0.342, 0.164, 0.234])
+            """, "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var field = knn.field();
+        var queryVector = as(knn.query(), Literal.class);
+        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
+        assertThat(queryVector.value(), equalTo(List.of(0.342, 0.164, 0.234)));
     }
 
     public void testRateRequiresCounterTypes() {
@@ -3443,7 +3466,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRandomSampleProbability() {
-        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
         assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
@@ -3759,7 +3782,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionTargetField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS translation
+            | COMPLETION translation=CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3801,7 +3824,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionOutputField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id` AS description
+            | COMPLETION description=CONCAT("Translate the following text in French\\n", description) WITH `completion-inference-id`
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);

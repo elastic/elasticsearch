@@ -12,7 +12,9 @@ lexer grammar Fork;
 DEV_FORK :        {this.isDevVersion()}? 'fork'          -> pushMode(FORK_MODE);
 
 mode FORK_MODE;
+// commands needs to break out of their mode and the default mode when they encounter RP
 FORK_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
+// explicit popMode of RP to allow FORK in FORK branches
 FORK_RP : RP -> type(RP), popMode, popMode;
 FORK_PIPE : PIPE -> type(PIPE), popMode;
 

@@ -14,6 +14,7 @@ ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
 
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
+// explicit popMode of RP to allow ENRICH in FORK branches
 ENRICH_RP : RP -> type(RP), popMode, popMode;
 ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
@@ -84,7 +85,6 @@ ENRICH_FIELD_WS
 
 mode SETTING_MODE;
 SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
-SETTING_RP : RP -> type(RP), popMode, popMode, popMode;
 
 SETTING_COLON : COLON -> type(COLON);
 

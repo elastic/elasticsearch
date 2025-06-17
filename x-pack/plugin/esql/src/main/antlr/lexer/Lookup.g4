@@ -13,6 +13,7 @@ DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_M
 
 mode LOOKUP_MODE;
 LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+// explicit popMode of RP to allow lookup_🐔 in FORK branches
 LOOKUP_RP : RP -> type(RP), popMode, popMode;
 LOOKUP_COLON : COLON -> type(COLON);
 LOOKUP_COMMA : COMMA -> type(COMMA);

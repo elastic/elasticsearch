@@ -14,6 +14,7 @@ MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 
 mode MVEXPAND_MODE;
 MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
+// explicit popMode of RP to allow MV_EXPAND in FORK branches
 MVEXPAND_RP : RP -> type(RP), popMode, popMode;
 MVEXPAND_DOT: DOT -> type(DOT);
 MVEXPAND_PARAM : PARAM -> type(PARAM);

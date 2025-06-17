@@ -152,6 +152,60 @@
       "params" : [
         {
           "name" : "field1",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geohash"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geohex"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geotile"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
           "type" : "integer",
           "optional" : false,
           "description" : ""

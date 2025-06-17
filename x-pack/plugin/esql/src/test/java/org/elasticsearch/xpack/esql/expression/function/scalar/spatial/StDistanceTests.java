@@ -49,6 +49,6 @@ public class StDistanceTests extends BinarySpatialFunctionTestCase {
     }
 
     protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        return typeErrorMessage(includeOrdinal, validPerPosition, types, true);
+        return typeErrorMessage(includeOrdinal, validPerPosition, types, true, false);
     }
 }

@@ -12,6 +12,9 @@
 | double | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |
+| geohash | boolean |
+| geohex | boolean |
+| geotile | boolean |
 | integer | boolean |
 | ip | boolean |
 | keyword | boolean |

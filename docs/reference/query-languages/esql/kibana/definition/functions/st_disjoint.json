@@ -10,13 +10,13 @@
           "name" : "geomA",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -28,13 +28,13 @@
           "name" : "geomA",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -46,13 +46,13 @@
           "name" : "geomA",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -64,13 +64,13 @@
           "name" : "geomA",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -82,13 +82,13 @@
           "name" : "geomA",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -100,13 +100,67 @@
           "name" : "geomA",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
+        },
+        {
+          "name" : "geomB",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
+        },
+        {
+          "name" : "geomB",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
+        },
+        {
+          "name" : "geomB",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -118,13 +172,13 @@
           "name" : "geomA",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,
@@ -136,13 +190,67 @@
           "name" : "geomA",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
+        },
+        {
+          "name" : "geomB",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
+        },
+        {
+          "name" : "geomB",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`."
+        },
+        {
+          "name" : "geomB",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`) or a geo-grid value (`geohash`, `geotile`, `geohex`). If `null`, the function returns `null`. The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         }
       ],
       "variadic" : false,

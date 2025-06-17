@@ -13,8 +13,12 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -46,6 +50,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -632,6 +637,20 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#GEOHASH}.
+     */
+    public static void forUnaryGeoGrid(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType gridType,
+        DataType expectedType,
+        Function<Long, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, geoGridCases(gridType), expectedType, n -> expectedValue.apply((long) n), warnings);
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
@@ -832,7 +851,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         int lower = Math.max(min, 1);
         int upper = Math.min(max, Integer.MAX_VALUE);
         if (lower < upper) {
-            cases.add(new TypedDataSupplier("<positive int>", () -> ESTestCase.randomIntBetween(lower, upper), DataType.INTEGER));
+            cases.add(new TypedDataSupplier("<positive int>", () -> randomIntBetween(lower, upper), DataType.INTEGER));
         } else if (lower == upper) {
             cases.add(new TypedDataSupplier("<" + lower + " int>", () -> lower, DataType.INTEGER));
         }
@@ -840,7 +859,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         int lower1 = Math.max(min, Integer.MIN_VALUE);
         int upper1 = Math.min(max, -1);
         if (lower1 < upper1) {
-            cases.add(new TypedDataSupplier("<negative int>", () -> ESTestCase.randomIntBetween(lower1, upper1), DataType.INTEGER));
+            cases.add(new TypedDataSupplier("<negative int>", () -> randomIntBetween(lower1, upper1), DataType.INTEGER));
         } else if (lower1 == upper1) {
             cases.add(new TypedDataSupplier("<" + lower1 + " int>", () -> lower1, DataType.INTEGER));
         }
@@ -1157,11 +1176,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier("<zero date period>", () -> Period.ZERO, DataType.DATE_PERIOD, true),
             new TypedDataSupplier(
                 "<random date period>",
-                () -> Period.of(
-                    ESTestCase.randomIntBetween(yMin, yMax),
-                    ESTestCase.randomIntBetween(mMin, mMax),
-                    ESTestCase.randomIntBetween(dMin, dMax)
-                ),
+                () -> Period.of(randomIntBetween(yMin, yMax), randomIntBetween(mMin, mMax), randomIntBetween(dMin, dMax)),
                 DataType.DATE_PERIOD,
                 true
             )
@@ -1187,6 +1202,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static List<TypedDataSupplier> geoGridCases(DataType gridType) {
+        return geoGridCases(gridType, ESTestCase::randomBoolean);
+    }
+
     public static List<TypedDataSupplier> geoPointCases() {
         return geoPointCases(ESTestCase::randomBoolean);
     }
@@ -1201,6 +1220,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> cartesianShapeCases() {
         return cartesianShapeCases(ESTestCase::randomBoolean);
+    }
+
+    /**
+     * Generate cases for {@link DataType#GEOHASH}.
+     */
+    public static List<TypedDataSupplier> geoGridCases(DataType gridType, Supplier<Boolean> hasAlt) {
+        Supplier<Object> gridId = () -> {
+            Point point = GeometryTestUtils.randomPoint(hasAlt.get());
+            return switch (gridType) {
+                case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+                case GEOTILE -> GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM));
+                case GEOHEX -> H3.geoToH3(point.getLat(), point.getLon(), randomIntBetween(0, H3.MAX_H3_RES));
+                default -> throw new IllegalArgumentException("Unsupported grid type: " + gridType);
+            };
+        };
+        return List.of(new TypedDataSupplier("<" + gridType.esType() + ">", gridId, gridType));
     }
 
     /**

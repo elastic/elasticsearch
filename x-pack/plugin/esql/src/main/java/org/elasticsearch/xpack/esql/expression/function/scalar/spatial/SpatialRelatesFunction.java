@@ -18,10 +18,14 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,6 +46,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometry;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 
@@ -53,11 +58,22 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         SurrogateExpression {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues, false);
+        super(source, left, right, leftDocValues, rightDocValues, false, false);
+    }
+
+    protected SpatialRelatesFunction(
+        Source source,
+        Expression left,
+        Expression right,
+        boolean leftDocValues,
+        boolean rightDocValues,
+        boolean supportsGrid
+    ) {
+        super(source, left, right, leftDocValues, rightDocValues, false, supportsGrid);
     }
 
     protected SpatialRelatesFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues) throws IOException {
-        super(in, leftDocValues, rightDocValues, false);
+        super(in, leftDocValues, rightDocValues, false, false);
     }
 
     public abstract ShapeRelation queryRelation();
@@ -115,6 +131,93 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             var visitor = Component2DVisitor.getVisitor(rightComponent2D, queryRelation, coordinateEncoder);
             reader.visit(visitor);
             return visitor.matches();
+        }
+
+        protected void processSourceAndConstantGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            BytesRefBlock wkb,
+            long gridId,
+            DataType gridType
+        ) {
+            if (wkb.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridId, gridType));
+            }
+        }
+
+        protected void processSourceAndSourceGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            BytesRefBlock wkb,
+            LongBlock gridIds,
+            DataType gridType
+        ) {
+            if (wkb.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridIds.getLong(position), gridType));
+            }
+        }
+
+        protected boolean compareGeometryAndGrid(Geometry geometry, long gridId, DataType gridType) {
+            if (geometry instanceof Point point) {
+                long geoGridId = getGridId(point, gridId, gridType);
+                return gridId == geoGridId;
+            } else {
+                throw new IllegalArgumentException(
+                    "Unsupported grid intersection geometry type: " + geometry.getClass().getSimpleName() + "; expected Point"
+                );
+            }
+        }
+
+        protected void processGeoPointDocValuesAndConstantGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock encodedPoint,
+            long gridId,
+            DataType gridType
+        ) {
+            if (encodedPoint.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
+                long geoGridId = getGridId(point, gridId, gridType);
+                builder.appendBoolean(gridId == geoGridId);
+            }
+        }
+
+        protected void processGeoPointDocValuesAndSourceGrid(
+            BooleanBlock.Builder builder,
+            int position,
+            LongBlock encodedPoint,
+            LongBlock gridIds,
+            DataType gridType
+        ) {
+            if (encodedPoint.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+                builder.appendNull();
+            } else {
+                final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
+                final long gridId = gridIds.getLong(position);
+                long geoGridId = getGridId(point, gridId, gridType);
+                builder.appendBoolean(gridId == geoGridId);
+            }
+        }
+
+        private long getGridId(Point point, @Fixed long gridId, @Fixed DataType gridType) {
+            return switch (gridType) {
+                case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), Geohash.stringEncode(gridId).length());
+                case GEOTILE -> GeoTileUtils.longEncode(
+                    point.getX(),
+                    point.getY(),
+                    Integer.parseInt(GeoTileUtils.stringEncode(gridId).split("/")[0])
+                );
+                case GEOHEX -> H3.geoToH3(point.getY(), point.getX(), H3.getResolution(gridId));
+                default -> throw new IllegalArgumentException(
+                    "Unsupported grid type: " + gridType + "; expected GEOHASH, GEOTILE, or GEOHEX"
+                );
+            };
         }
 
         protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D right)

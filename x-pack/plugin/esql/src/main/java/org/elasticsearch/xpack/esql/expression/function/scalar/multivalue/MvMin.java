@@ -27,7 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialAndGrid;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
@@ -69,7 +69,7 @@ public class MvMin extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> isSpatial(t) == false && isRepresentable(t), sourceText(), null, "representableNonSpatial");
+        return isType(field(), t -> isSpatialAndGrid(t) == false && isRepresentable(t), sourceText(), null, "representableNonSpatial");
     }
 
     @Override

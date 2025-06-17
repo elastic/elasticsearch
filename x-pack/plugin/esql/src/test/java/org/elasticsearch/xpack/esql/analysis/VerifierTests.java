@@ -50,6 +50,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -1041,6 +1044,9 @@ public class VerifierTests extends ESTestCase {
             "1:136: cannot sort on cartesian_shape",
             error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
         );
+        assertEquals("1:143: cannot sort on geohash", error(prefix + "| EVAL grid = ST_GEOHASH(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"));
+        assertEquals("1:143: cannot sort on geotile", error(prefix + "| EVAL grid = ST_GEOTILE(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"));
+        assertEquals("1:142: cannot sort on geohex", error(prefix + "| EVAL grid = ST_GEOHEX(TO_GEOPOINT(wkt),1) | limit 5 | sort grid"));
         var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
         var airportsWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports_web.json", "airports_web"));
         var countriesBbox = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox.json", "countries_bbox"));
@@ -1049,6 +1055,15 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+        assertEquals(
+            "1:67: cannot sort on geohash",
+            error("FROM airports | LIMIT 5 | EVAL g = ST_GEOHASH(location, 1) | sort g", airports)
+        );
+        assertEquals(
+            "1:67: cannot sort on geotile",
+            error("FROM airports | LIMIT 5 | EVAL g = ST_GEOTILE(location, 1) | sort g", airports)
+        );
+        assertEquals("1:66: cannot sort on geohex", error("FROM airports | LIMIT 5 | EVAL g = ST_GEOHEX(location, 1) | sort g", airports));
     }
 
     public void testSourceSorting() {
@@ -1738,7 +1753,8 @@ public class VerifierTests extends ESTestCase {
         // where
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, "
+                + "geohash, geohex, geotile, integer, ip, keyword, "
                 + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
@@ -1964,7 +1980,7 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_keySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
+        List<DataType> unsortableTypes = List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX);
         for (DataType type : sortableTypes) {
             query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
@@ -1987,6 +2003,9 @@ public class VerifierTests extends ESTestCase {
             DATETIME,
             GEO_POINT,
             GEO_SHAPE,
+            GEOHASH,
+            GEOTILE,
+            GEOHEX,
             IP,
             KEYWORD,
             VERSION

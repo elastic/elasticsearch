@@ -16,7 +16,10 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -32,7 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
@@ -93,10 +97,12 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     );
 
     @FunctionInfo(
-        returnType = "long",
+        returnType = "geotile",
         description = """
             Calculates the `geotile` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
+            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
+            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](esql-to_geoshape.md) to calculate
+            the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).""",
@@ -141,7 +147,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return GEOTILE;
     }
 
     @Override
@@ -213,5 +219,17 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         @Fixed GeoTileBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
+    }
+
+    public static BytesRef toBounds(long gridId) {
+        return fromRectangle(GeoTileUtils.toBoundingBox(gridId));
+    }
+
+    static BytesRef fromRectangle(Rectangle bbox) {
+        double[] x = new double[] { bbox.getMinX(), bbox.getMaxX(), bbox.getMaxX(), bbox.getMinX(), bbox.getMinX() };
+        double[] y = new double[] { bbox.getMinY(), bbox.getMinY(), bbox.getMaxY(), bbox.getMaxY(), bbox.getMinY() };
+        LinearRing ring = new LinearRing(x, y);
+        Polygon polygon = new Polygon(ring);
+        return SpatialCoordinateTypes.GEO.asWkb(polygon);
     }
 }

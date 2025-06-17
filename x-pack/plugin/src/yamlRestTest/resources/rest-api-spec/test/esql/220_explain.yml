@@ -70,9 +70,9 @@ explainQuery:
   - match: {columns.0.name: "parsedPlan"}
   - match: {columns.0.type: "keyword"}
   - match: {columns.1.name: "optimizedLogicalPlan"}
-  - match: {columns.1.type: "text"}
+  - match: {columns.1.type: "keyword"}
   - match: {columns.2.name: "optimizedPhysicalPlan"}
-  - match: {columns.2.type: "text"}
+  - match: {columns.2.type: "keyword"}
 
 
 ---

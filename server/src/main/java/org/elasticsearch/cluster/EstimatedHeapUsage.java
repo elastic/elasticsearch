@@ -18,14 +18,14 @@ import java.io.IOException;
 /**
  * Record representing an estimate of the heap used by allocated shards and ongoing merges on a particular node
  */
-public record ShardHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) implements Writeable {
+public record EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) implements Writeable {
 
-    public ShardHeapUsage {
+    public EstimatedHeapUsage {
         assert totalBytes >= 0;
         assert estimatedUsageBytes >= 0;
     }
 
-    public ShardHeapUsage(StreamInput in) throws IOException {
+    public EstimatedHeapUsage(StreamInput in) throws IOException {
         this(in.readString(), in.readVLong(), in.readVLong());
     }
 
@@ -45,6 +45,10 @@ public record ShardHeapUsage(String nodeId, long totalBytes, long estimatedUsage
     }
 
     public double estimatedUsageAsPercentage() {
-        return 100.0 * estimatedUsageBytes / (double) totalBytes;
+        return 100.0 * estimatedUsageAsRatio();
+    }
+
+    public double estimatedUsageAsRatio() {
+        return estimatedUsageBytes / (double) totalBytes;
     }
 }

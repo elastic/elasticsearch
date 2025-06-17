@@ -1,0 +1,6 @@
+pr: 129503
+summary: Pushdown Lookup Join past Project take 2
+area: ES|QL
+type: enhancement
+issues:
+ - 119082

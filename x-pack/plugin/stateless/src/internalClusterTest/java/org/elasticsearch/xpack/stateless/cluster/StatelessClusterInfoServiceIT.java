@@ -71,7 +71,7 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessIntegTestCas
         });
 
         final String indexName = randomIdentifier();
-        indexDocsAndRefresh(indexName, randomInt(1_000));
+        indexDocsAndRefresh(indexName, between(1, 1_000));
         ensureGreen(indexName);
 
         safeAwait(heapMetricsReceived);

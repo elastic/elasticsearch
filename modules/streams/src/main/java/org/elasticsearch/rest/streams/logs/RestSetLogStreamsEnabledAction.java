@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
@@ -48,7 +49,7 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
             enabled
         );
 
-        return restChannel -> client.execute(
+        return restChannel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             LogsStreamsActivationToggleAction.INSTANCE,
             activationRequest,
             new RestToXContentListener<>(restChannel)

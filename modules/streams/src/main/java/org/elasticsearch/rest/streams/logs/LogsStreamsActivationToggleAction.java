@@ -9,15 +9,18 @@
 
 package org.elasticsearch.rest.streams.logs;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class LogsStreamsActivationToggleAction {
 
@@ -44,17 +47,17 @@ public class LogsStreamsActivationToggleAction {
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public String toString() {
             return "LogsStreamsActivationToggleAction.Request{" + "enable=" + enable + '}';
         }
 
         public boolean shouldEnable() {
             return enable;
+        }
+
+        @Override
+        public Task createTask(String localNodeId, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "Logs streams activation toggle request", parentTaskId, headers);
         }
     }
 }

@@ -118,7 +118,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDe
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -3464,7 +3463,7 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
-    
+
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
     private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
         String indexName,

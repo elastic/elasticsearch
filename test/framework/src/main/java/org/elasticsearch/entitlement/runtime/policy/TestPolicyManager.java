@@ -10,14 +10,25 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public class TestPolicyManager extends PolicyManager {
+    boolean isActive;
+    boolean isTriviallyAllowingTestCode;
+
+    /**
+     * We don't have modules in tests, so we can't use the inherited map of entitlements per module.
+     * We need this larger map per class instead.
+     */
+    final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
+
     public TestPolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
@@ -27,13 +38,25 @@ public class TestPolicyManager extends PolicyManager {
         PathLookup pathLookup
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        reset();
+    }
+
+    public void setActive(boolean newValue) {
+        this.isActive = newValue;
+    }
+
+    public void setTriviallyAllowingTestCode(boolean newValue) {
+        this.isTriviallyAllowingTestCode = newValue;
     }
 
     /**
      * Called between tests so each test is not affected by prior tests
      */
-    public void reset() {
-        super.moduleEntitlementsMap.clear();
+    public final void reset() {
+        assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";
+        classEntitlementsMap.clear();
+        isActive = false;
+        isTriviallyAllowingTestCode = true;
     }
 
     @Override
@@ -44,7 +67,16 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     boolean isTriviallyAllowed(Class<?> requestingClass) {
-        return isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass) || super.isTriviallyAllowed(requestingClass);
+        if (isActive == false) {
+            return true;
+        }
+        if (isTriviallyAllowingTestCode && isTestCaseClass(requestingClass)) {
+            return true;
+        }
+        if (isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass)) {
+            return true;
+        }
+        return super.isTriviallyAllowed(requestingClass);
     }
 
     private boolean isEntitlementClass(Class<?> requestingClass) {
@@ -54,6 +86,37 @@ public class TestPolicyManager extends PolicyManager {
 
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
         String packageName = requestingClass.getPackageName();
-        return packageName.startsWith("org.junit") || packageName.startsWith("org.gradle");
+        for (String prefix : TEST_FRAMEWORK_PACKAGE_PREFIXES) {
+            if (packageName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isTestCaseClass(Class<?> requestingClass) {
+        for (Class<?> candidate = requestingClass; candidate != null; candidate = candidate.getDeclaringClass()) {
+            if (ESTestCase.class.isAssignableFrom(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
+        "org.gradle",
+
+        // We shouldn't really need the rest of these. They should be discovered on the testOnlyClasspath.
+        "com.carrotsearch.randomizedtesting",
+        "com.sun.tools.javac",
+        "org.apache.lucene.tests", // Interferes with SSLErrorMessageFileTests.testMessageForPemCertificateOutsideConfigDir
+        "org.junit",
+        "org.mockito",
+        "net.bytebuddy", // Mockito uses this
+    };
+
+    @Override
+    protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+        return classEntitlementsMap.computeIfAbsent(requestingClass, c -> computeEntitlements(requestingClass));
     }
 }

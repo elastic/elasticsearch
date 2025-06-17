@@ -17,8 +17,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,50 +29,42 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
+    private static TestPolicyManager policyManager;
+
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap() throws IOException {
-        TestPathLookup pathLookup = new TestPathLookup();
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
-            pathLookup,
-            Set.of(),
-            createPolicyManager(pathLookup)
-        );
+    public static void bootstrap(Path tempDir) throws IOException {
+        TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
+        policyManager = createPolicyManager(pathLookup);
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
-    private record TestPathLookup() implements PathLookup {
-        @Override
-        public Path pidFile() {
-            return null;
-        }
-
-        @Override
-        public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
-            return Stream.empty();
-        }
-
-        @Override
-        public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
-            return Stream.empty();
-        }
-
+    public static void setActive(boolean newValue) {
+        policyManager.setActive(newValue);
     }
 
-    private static PolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
+    public static void setTriviallyAllowingTestCode(boolean newValue) {
+        policyManager.setTriviallyAllowingTestCode(newValue);
+    }
 
+    public static void reset() {
+        policyManager.reset();
+    }
+
+    private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
         var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo);
@@ -83,6 +75,7 @@ public class TestEntitlementBootstrap {
             .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
+        Map<String, Collection<Path>> pluginSourcePaths = Map.of();
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
@@ -91,12 +84,10 @@ public class TestEntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            Map.of(),
+            pluginSourcePaths,
             pathLookup
         );
     }
-
-    private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {
         Map<String, Policy> policies = new HashMap<>();
@@ -136,5 +127,7 @@ public class TestEntitlementBootstrap {
     private static InputStream getStream(URL resource) throws IOException {
         return resource.openStream();
     }
+
+    private record TestPluginData(String pluginName, boolean isModular, boolean isExternalPlugin) {}
 
 }

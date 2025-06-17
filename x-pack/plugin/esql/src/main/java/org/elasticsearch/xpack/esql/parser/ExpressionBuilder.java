@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -738,31 +739,45 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) {
-        int type = ctx.kind.getType();
+    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
         Source source = source(ctx);
         Expression left = expression(ctx.valueExpression());
-        Literal pattern = visitString(ctx.pattern);
-        RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> {
-                try {
-                    yield new WildcardLike(
-                        source,
-                        left,
-                        new WildcardPattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
-                    );
-                } catch (InvalidArgumentException e) {
-                    throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
-                }
-            }
-            case EsqlBaseParser.RLIKE -> new RLike(
-                source,
-                left,
-                new RLikePattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
-            );
-            default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
-        };
-        return ctx.NOT() == null ? result : new Not(source, result);
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            RLike rLike = new RLike(source, left, new RLikePattern(patternLiteral.fold(FoldContext.small()).toString()));
+            return ctx.NOT() == null ? rLike : new Not(source, rLike);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
+    }
+
+    @Override
+    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            WildcardPattern pattern = new WildcardPattern(patternLiteral.fold(FoldContext.small()).toString());
+            WildcardLike result = new WildcardLike(source, left, pattern);
+            return ctx.NOT() == null ? result : new Not(source, result);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
+    }
+
+    @Override
+    public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        List<WildcardPattern> wildcardPatterns = ctx.string()
+            .stream()
+            .map(x -> new WildcardPattern(visitString(x).fold(FoldContext.small()).toString()))
+            .toList();
+        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
+        Expression e = wildcardPatterns.size() == 1
+            ? new WildcardLike(source, left, wildcardPatterns.get(0))
+            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override

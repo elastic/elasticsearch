@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -24,9 +25,14 @@ import java.util.function.Function;
  * Defines how to handle various response types returned from the custom integration.
  */
 public class CustomResponseHandler extends BaseResponseHandler {
-    private static final Function<HttpResult, ErrorResponse> ERROR_PARSER = (httpResult) -> new ErrorResponse(
-        new String(httpResult.body(), StandardCharsets.UTF_8)
-    );
+    // default for testing
+    static final Function<HttpResult, ErrorResponse> ERROR_PARSER = (httpResult) -> {
+        try {
+            return new ErrorResponse(new String(httpResult.body(), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new ErrorResponse(Strings.format("Failed to parse error response body: %s", e.getMessage()));
+        }
+    };
 
     public CustomResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, ERROR_PARSER);

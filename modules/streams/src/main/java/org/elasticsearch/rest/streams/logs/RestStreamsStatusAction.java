@@ -18,8 +18,9 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
-import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -37,7 +38,7 @@ public class RestStreamsStatusAction extends BaseRestHandler {
     }
 
     @Override
-    protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return restChannel -> client.execute(
             StreamsStatusAction.INSTANCE,
             new StreamsStatusAction.Request(RestUtils.getMasterNodeTimeout(request)),
@@ -45,4 +46,8 @@ public class RestStreamsStatusAction extends BaseRestHandler {
         );
     }
 
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return Collections.singleton(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+    }
 }

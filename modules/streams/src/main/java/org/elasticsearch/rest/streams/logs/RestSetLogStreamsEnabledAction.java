@@ -17,8 +17,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -35,7 +35,7 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final boolean enabled = request.path().endsWith("_enable");
         assert enabled || request.path().endsWith("_disable");
         return restChannel -> client.execute(
@@ -47,6 +47,11 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
             ),
             new RestToXContentListener<>(restChannel)
         );
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
     }
 
 }

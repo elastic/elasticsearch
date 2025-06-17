@@ -23,13 +23,9 @@
       ]
     },
     "params": {
-      "local": {
-        "type": "boolean",
-        "description": "Return local information, do not retrieve the state from master node (default: false)"
-      },
       "master_timeout": {
         "type": "time",
-        "description": "Specify timeout for connection to master"
+        "description": "Period to wait for a connection to the master node. If no response is received before the timeout expires, the request fails and returns an error."
       }
     }
   }

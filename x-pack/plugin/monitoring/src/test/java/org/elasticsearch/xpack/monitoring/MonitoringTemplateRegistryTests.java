@@ -83,14 +83,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new MonitoringTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            NamedXContentRegistry.EMPTY,
-            TestProjectResolvers.mustExecuteFirst()
-        );
+        registry = new MonitoringTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After
@@ -123,8 +116,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY,
-            TestProjectResolvers.mustExecuteFirst()
+            NamedXContentRegistry.EMPTY
         );
         assertThat(disabledRegistry.getLegacyTemplateConfigs(), is(empty()));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
@@ -203,8 +195,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
                 clusterService,
                 threadPool,
                 client,
-                NamedXContentRegistry.EMPTY,
-                TestProjectResolvers.mustExecuteFirst()
+                NamedXContentRegistry.EMPTY
             );
             testRegistry.clusterChanged(event);
         } else {
@@ -329,7 +320,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override

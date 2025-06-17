@@ -299,6 +299,8 @@ public class TransportVersions {
     public static final TransportVersion NONE_CHUNKING_STRATEGY = def(9_097_0_00);
     public static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = def(9_098_0_00);
     public static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = def(9_099_0_00);
+    public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
+    public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

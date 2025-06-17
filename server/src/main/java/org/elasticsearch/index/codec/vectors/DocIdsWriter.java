@@ -70,8 +70,6 @@ final class DocIdsWriter {
     DocIdsWriter() {}
 
     void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
-        // docs can be sorted either when all docs in a block have the same value
-        // or when a segment is sorted
         if (count == 0) {
             out.writeByte(CONTINUOUS_IDS);
             return;
@@ -79,6 +77,8 @@ final class DocIdsWriter {
         if (count > scratch.length) {
             scratch = new int[count];
         }
+        // docs can be sorted either when all docs in a block have the same value
+        // or when a segment is sorted
         boolean strictlySorted = true;
         int min = docIds.apply(0);
         int max = min;
@@ -258,6 +258,9 @@ final class DocIdsWriter {
     }
 
     private static void readContinuousIds(IndexInput in, int count, int[] docIDs) throws IOException {
+        if (count == 0) {
+            return;
+        }
         int start = in.readVInt();
         for (int i = 0; i < count; i++) {
             docIDs[i] = start + i;

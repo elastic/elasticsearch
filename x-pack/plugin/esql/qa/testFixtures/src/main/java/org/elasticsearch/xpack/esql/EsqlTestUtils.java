@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -71,6 +73,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -106,6 +110,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -123,6 +128,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomArray;
@@ -148,9 +154,12 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -239,22 +248,22 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         @Override
-        public boolean exists(String field) {
+        public boolean exists(FieldName field) {
             return true;
         }
 
         @Override
-        public boolean isIndexed(String field) {
+        public boolean isIndexed(FieldName field) {
             return exists(field);
         }
 
         @Override
-        public boolean hasDocValues(String field) {
+        public boolean hasDocValues(FieldName field) {
             return exists(field);
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
+        public boolean hasExactSubfield(FieldName field) {
             return exists(field);
         }
 
@@ -264,32 +273,32 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public long count(String field) {
+        public long count(FieldName field) {
             return exists(field) ? -1 : 0;
         }
 
         @Override
-        public long count(String field, BytesRef value) {
+        public long count(FieldName field, BytesRef value) {
             return exists(field) ? -1 : 0;
         }
 
         @Override
-        public byte[] min(String field, DataType dataType) {
+        public byte[] min(FieldName field, DataType dataType) {
             return null;
         }
 
         @Override
-        public byte[] max(String field, DataType dataType) {
+        public byte[] max(FieldName field, DataType dataType) {
             return null;
         }
 
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldName field) {
             return false;
         }
 
         @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
         }
     }
@@ -340,23 +349,23 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public boolean exists(String field) {
-            return isConfigationSet(Config.EXISTS, field);
+        public boolean exists(FieldName field) {
+            return isConfigationSet(Config.EXISTS, field.string());
         }
 
         @Override
-        public boolean isIndexed(String field) {
-            return isConfigationSet(Config.INDEXED, field);
+        public boolean isIndexed(FieldName field) {
+            return isConfigationSet(Config.INDEXED, field.string());
         }
 
         @Override
-        public boolean hasDocValues(String field) {
-            return isConfigationSet(Config.DOC_VALUES, field);
+        public boolean hasDocValues(FieldName field) {
+            return isConfigationSet(Config.DOC_VALUES, field.string());
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
-            return isConfigationSet(Config.EXACT_SUBFIELD, field);
+        public boolean hasExactSubfield(FieldName field) {
+            return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
         }
 
         @Override
@@ -383,8 +392,20 @@ public final class EsqlTestUtils {
         null,
         mock(ClusterService.class),
         mock(IndexNameExpressionResolver.class),
-        null
+        null,
+        mockInferenceRunner()
     );
+
+    @SuppressWarnings("unchecked")
+    private static InferenceRunner mockInferenceRunner() {
+        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+        doAnswer(i -> {
+            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
+            return null;
+        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+
+        return inferenceRunner;
+    }
 
     private EsqlTestUtils() {}
 
@@ -461,6 +482,10 @@ public final class EsqlTestUtils {
         return new EnrichResolution();
     }
 
+    public static InferenceResolution emptyInferenceResolution() {
+        return InferenceResolution.EMPTY;
+    }
+
     public static SearchStats statsForExistingField(String... names) {
         return fieldMatchingExistOrMissing(true, names);
     }
@@ -474,8 +499,8 @@ public final class EsqlTestUtils {
             private final Set<String> fields = Set.of(names);
 
             @Override
-            public boolean exists(String field) {
-                return fields.contains(field) == exists;
+            public boolean exists(FieldName field) {
+                return fields.contains(field.string()) == exists;
             }
         };
     }
@@ -861,6 +886,19 @@ public final class EsqlTestUtils {
         assertNull("cancellation exceptions must be ignored", cancellationFailure);
         ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof RemoteTransportException)
             .ifPresent(transportFailure -> assertNull("remote transport exception must be unwrapped", transportFailure.getCause()));
+    }
+
+    public static <T> T singleValue(Collection<T> collection) {
+        assertThat(collection, hasSize(1));
+        return collection.iterator().next();
+    }
+
+    public static Attribute getAttributeByName(Collection<Attribute> attributes, String name) {
+        return attributes.stream().filter(attr -> attr.name().equals(name)).findAny().orElse(null);
+    }
+
+    public static Map<String, Object> jsonEntityToMap(HttpEntity entity) throws IOException {
+        return entityToMap(entity, XContentType.JSON);
     }
 
     public static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {

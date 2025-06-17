@@ -780,7 +780,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
-            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'completion', 'dissect'"));
         }
     }
 

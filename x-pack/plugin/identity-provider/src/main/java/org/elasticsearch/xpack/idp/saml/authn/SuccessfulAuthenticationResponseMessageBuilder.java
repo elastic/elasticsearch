@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 /**
@@ -214,28 +215,42 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
         final AttributeStatement statement = samlFactory.object(AttributeStatement.class, AttributeStatement.DEFAULT_ELEMENT_NAME);
         final List<Attribute> attributes = new ArrayList<>();
-        final Attribute roles = buildAttribute(serviceProvider.getAttributeNames().roles, "roles", user.getRoles());
+        final SamlServiceProvider.AttributeNames attributeNames = serviceProvider.getAttributeNames();
+        final Attribute roles = buildAttribute(attributeNames.roles, "roles", user.getRoles());
         if (roles != null) {
             attributes.add(roles);
         }
-        final Attribute principal = buildAttribute(serviceProvider.getAttributeNames().principal, "principal", user.getPrincipal());
+        final Attribute principal = buildAttribute(attributeNames.principal, "principal", user.getPrincipal());
         if (principal != null) {
             attributes.add(principal);
         }
-        final Attribute email = buildAttribute(serviceProvider.getAttributeNames().email, "email", user.getEmail());
+        final Attribute email = buildAttribute(attributeNames.email, "email", user.getEmail());
         if (email != null) {
             attributes.add(email);
         }
-        final Attribute name = buildAttribute(serviceProvider.getAttributeNames().name, "name", user.getName());
+        final Attribute name = buildAttribute(attributeNames.name, "name", user.getName());
         if (name != null) {
             attributes.add(name);
         }
         // Add custom attributes if provided
         if (customAttributes != null && customAttributes.getAttributes().isEmpty() == false) {
             for (Map.Entry<String, List<String>> entry : customAttributes.getAttributes().entrySet()) {
-                Attribute attribute = buildAttribute(entry.getKey(), null, entry.getValue());
-                if (attribute != null) {
-                    attributes.add(attribute);
+                final String attributeName = entry.getKey();
+                if (attributeNames.isAllowedExtension(attributeName)) {
+                    Attribute attribute = buildAttribute(attributeName, null, entry.getValue());
+                    if (attribute != null) {
+                        attributes.add(attribute);
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "the custom attribute ["
+                            + attributeName
+                            + "] is not permitted for the Service Provider ["
+                            + serviceProvider.getName()
+                            + "], allowed attribute names are ["
+                            + collectionToCommaDelimitedString(attributeNames.allowedExtensions)
+                            + "]"
+                    );
                 }
             }
         }

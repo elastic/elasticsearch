@@ -8,7 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 
 public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTests {
     /**
@@ -43,7 +50,36 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
 
         var plan = optimizedPlan(query);
 
-        // TODO: here
-        assert false;
+        var project = as(plan, Project.class);
+        var upperLimit = asLimit(project.child(), 1000, true);
+
+        var join1 = as(upperLimit.child(), Join.class);
+        var lookupRel1 = as(join1.right(), EsRelation.class);
+        var limit1 = asLimit(join1.left(), 1000, true);
+
+        AttributeSet lookupIndexFields1 = lookupRel1.outputSet();
+        var rightKeys1 = join1.config().rightFields();
+        var leftKeys1 = join1.config().leftFields();
+        // Left join key should be updated to use an attribute from the main index directly
+        assertTrue(leftKeys1.size() == 1 && leftKeys1.get(0).name() == "languages");
+        assertTrue(rightKeys1.size() == 1 && rightKeys1.get(0).name() == "language_code");
+        assertTrue(lookupIndexFields1.contains(rightKeys1.get(0)));
+
+        var join2 = as(limit1.child(), Join.class);
+        var lookupRel2 = as(join2.right(), EsRelation.class);
+        var limit2 = asLimit(join2.left(), 1000, false);
+
+        AttributeSet lookupIndexFields2 = lookupRel2.outputSet();
+        var rightKeys2 = join2.config().rightFields();
+        var leftKeys2 = join2.config().leftFields();
+        // Left join key should be updated to use an attribute from the main index directly
+        assertTrue(leftKeys2.size() == 1 && leftKeys2.get(0).name() == "languages");
+        assertTrue(rightKeys2.size() == 1 && rightKeys2.get(0).name() == "language_code");
+        assertTrue(lookupIndexFields2.contains(rightKeys2.get(0)));
+
+        var mainRel = as(limit2.child(), EsRelation.class);
+        AttributeSet mainFields = mainRel.outputSet();
+        assertTrue(mainFields.contains(leftKeys1.get(0)));
+        assertTrue(mainFields.contains(leftKeys2.get(0)));
     }
 }

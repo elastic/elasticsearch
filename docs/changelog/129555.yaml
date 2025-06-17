@@ -1,0 +1,5 @@
+pr: 129555
+summary: "[8.19] Upgrade to lucene 9.12.2"
+area: Search
+type: upgrade
+issues: []

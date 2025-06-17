@@ -25,7 +25,7 @@ public class EsqlBaseParser extends ParserConfig {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, EXPLAIN=6, 
+    LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, DEV_EXPLAIN=6, 
     COMPLETION=7, DISSECT=8, EVAL=9, GROK=10, LIMIT=11, ROW=12, SORT=13, STATS=14, 
     WHERE=15, DEV_INLINESTATS=16, DEV_RERANK=17, DEV_SAMPLE=18, FROM=19, DEV_TIME_SERIES=20, 
     DEV_FORK=21, JOIN_LOOKUP=22, DEV_JOIN_FULL=23, DEV_JOIN_LEFT=24, DEV_JOIN_RIGHT=25, 
@@ -108,7 +108,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   private static String[] makeLiteralNames() {
     return new String[] {
-      null, null, null, null, "'change_point'", "'enrich'", "'explain'", "'completion'", 
+      null, null, null, null, "'change_point'", "'enrich'", null, "'completion'", 
       "'dissect'", "'eval'", "'grok'", "'limit'", "'row'", "'sort'", "'stats'", 
       "'where'", null, null, null, "'from'", null, null, "'lookup'", null, 
       null, null, null, "'mv_expand'", "'drop'", "'keep'", null, null, "'rename'", 
@@ -129,11 +129,11 @@ public class EsqlBaseParser extends ParserConfig {
   private static String[] makeSymbolicNames() {
     return new String[] {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "ENRICH", 
-      "EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "ROW", "SORT", 
-      "STATS", "WHERE", "DEV_INLINESTATS", "DEV_RERANK", "DEV_SAMPLE", "FROM", 
-      "DEV_TIME_SERIES", "DEV_FORK", "JOIN_LOOKUP", "DEV_JOIN_FULL", "DEV_JOIN_LEFT", 
-      "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MV_EXPAND", "DROP", "KEEP", "DEV_INSIST", 
-      "DEV_RRF", "RENAME", "SHOW", "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", 
+      "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "ROW", 
+      "SORT", "STATS", "WHERE", "DEV_INLINESTATS", "DEV_RERANK", "DEV_SAMPLE", 
+      "FROM", "DEV_TIME_SERIES", "DEV_FORK", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
+      "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MV_EXPAND", "DROP", 
+      "KEEP", "DEV_INSIST", "DEV_RRF", "RENAME", "SHOW", "UNKNOWN_CMD", "CHANGE_POINT_LINE_COMMENT", 
       "CHANGE_POINT_MULTILINE_COMMENT", "CHANGE_POINT_WS", "ENRICH_POLICY_NAME", 
       "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", 
       "ENRICH_FIELD_MULTILINE_COMMENT", "ENRICH_FIELD_WS", "SETTING", "SETTING_LINE_COMMENT", 
@@ -3309,7 +3309,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class ExplainCommandContext extends ParserRuleContext {
-    public TerminalNode EXPLAIN() { return getToken(EsqlBaseParser.EXPLAIN, 0); }
+    public TerminalNode DEV_EXPLAIN() { return getToken(EsqlBaseParser.DEV_EXPLAIN, 0); }
     public SubqueryExpressionContext subqueryExpression() {
       return getRuleContext(SubqueryExpressionContext.class,0);
     }
@@ -3340,7 +3340,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(437);
-      match(EXPLAIN);
+      match(DEV_EXPLAIN);
       setState(438);
       subqueryExpression();
       }

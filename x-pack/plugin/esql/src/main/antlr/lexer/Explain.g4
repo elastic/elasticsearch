@@ -9,7 +9,7 @@ lexer grammar Explain;
 //
 // Explain
 //
-EXPLAIN : 'explain'           -> pushMode(EXPLAIN_MODE);
+DEV_EXPLAIN : {this.isDevVersion()}? 'explain'           -> pushMode(EXPLAIN_MODE);
 
 mode EXPLAIN_MODE;
 EXPLAIN_LP : LP -> type(LP), pushMode(DEFAULT_MODE);

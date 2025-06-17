@@ -5,7 +5,7 @@ null
 null
 'change_point'
 'enrich'
-'explain'
+null
 'completion'
 'dissect'
 'eval'
@@ -147,7 +147,7 @@ MULTILINE_COMMENT
 WS
 CHANGE_POINT
 ENRICH
-EXPLAIN
+DEV_EXPLAIN
 COMPLETION
 DISSECT
 EVAL

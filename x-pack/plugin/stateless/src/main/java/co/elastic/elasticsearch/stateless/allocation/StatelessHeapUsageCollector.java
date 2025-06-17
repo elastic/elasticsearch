@@ -21,12 +21,12 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ShardHeapUsageCollector;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.service.ClusterService;
 
 import java.util.Map;
 
-public class StatelessHeapUsageCollector implements ShardHeapUsageCollector {
+public class StatelessHeapUsageCollector implements EstimatedHeapUsageCollector {
 
     private final Stateless stateless;
 

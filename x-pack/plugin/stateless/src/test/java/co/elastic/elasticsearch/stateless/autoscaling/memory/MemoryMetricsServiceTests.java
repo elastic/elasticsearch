@@ -832,7 +832,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertFalse(service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId).hasNodeLeft());
     }
 
-    public void testShardHeapMemoryCalculations() {
+    public void testEstimatedHeapMemoryCalculations() {
         ClusterState clusterState1 = randomInitialTwoNodeClusterState(4);
         var discoveryNodes = clusterState1.getNodes();
         var node0 = discoveryNodes.get("node_0");
@@ -852,7 +852,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         // We receive a shard mappings update from node 0
         service.updateShardsMappingSize(new HeapMemoryUsage(2, randomMemoryMetrics(node0, clusterState1)));
 
-        // Node 0 shard heap estimate should have increased
+        // Node 0 heap estimate should have increased
         final long node0EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
@@ -865,7 +865,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         // We receive a shard mappings update from node 1
         service.updateShardsMappingSize(new HeapMemoryUsage(1, randomMemoryMetrics(node1, clusterState1)));
 
-        // Node 1 shard heap estimate should have increased
+        // Node 1 heap estimate should have increased
         final long node1EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
@@ -885,7 +885,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             )
         );
 
-        // Node 0 shard heap estimate should have increased
+        // Node 0 heap estimate should have increased
         final long node0EstimateAfterMergeEstimate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
@@ -899,7 +899,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         final long indexingOperationsHeapMemoryRequirements = randomLongBetween(1_000, 100_000);
         service.updateIndexingOperationsHeapMemoryRequirements(indexingOperationsHeapMemoryRequirements);
 
-        // All nodes' shard heap estimate should have increased
+        // All nodes' heap estimate should have increased
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));

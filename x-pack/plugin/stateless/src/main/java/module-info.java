@@ -17,6 +17,8 @@
 
 import co.elastic.elasticsearch.stateless.allocation.StatelessHeapUsageCollector;
 
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
+
 module org.elasticsearch.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
@@ -58,5 +60,5 @@ module org.elasticsearch.stateless {
     provides org.elasticsearch.action.search.OnlinePrewarmingServiceProvider
         with
             co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
-    provides org.elasticsearch.cluster.ShardHeapUsageCollector with StatelessHeapUsageCollector;
+    provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;
 }

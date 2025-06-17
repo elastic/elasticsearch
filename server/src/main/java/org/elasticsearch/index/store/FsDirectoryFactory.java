@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
@@ -35,6 +36,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -171,6 +173,40 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
+            // Force normal read advice for stored field temp fdt files:
+            // (tmp fdt files should only exist when index sorting is enabled)
+            if (LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt")) {
+                ensureOpen();
+                ensureCanRead(name);
+                var niofsDelegate = super.openInput(name, context);
+                var ioContext = context;
+                return new FilterIndexInput(niofsDelegate.toString(), niofsDelegate) {
+
+                    IndexInput directIOInput;
+
+                    @Override
+                    public IndexInput clone() {
+                        // HACK: only StoredFieldsWriter#checkIntegrity() will invoking this clone method for fdt tmp file.
+                        if (directIOInput == null) {
+                            try {
+                                directIOInput = directIODelegate.openInput(name, ioContext);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        }
+                        return directIOInput.clone();
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        super.close();
+                        if (directIOInput != null) {
+                            directIOInput.close();
+                        }
+                    }
+                };
+            }
+
             if (useDelegate(name, context)) {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 ensureOpen();
@@ -181,13 +217,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // we might run into trouble with files that are pendingDelete in one directory but still
                 // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
                 // and intersect for perf reasons.
-
-                // Force normal read advice for stored field temp fdt files:
-                // (tmp fdt files should only exist when index sorting is enabled)
-                if (LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt")) {
-                    context = context.withReadAdvice(ReadAdvice.NORMAL);
-                }
-
                 return delegate.openInput(name, context);
             } else {
                 return super.openInput(name, context);

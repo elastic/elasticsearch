@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -118,6 +121,7 @@ import static org.hamcrest.Matchers.nullValue;
  * And assert that the result exists and is equal to "value".
  */
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class LookupJoinTypesIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
@@ -361,6 +365,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private void initData(String group) {
         Collection<TestConfig> configs = testConfigurations.get(group).configs.values();
         int docId = 0;
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(configs.size());
         for (TestConfig config : configs) {
             String doc = String.format(Locale.ROOT, """
                 {
@@ -368,9 +373,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                   "other": "value"
                 }
                 """, lookupPropertyFor(config));
-            index(config.indexName(), "" + (++docId), doc);
-            refresh(config.indexName());
+            var indexRequest = client().prepareIndex().setIndex(config.indexName()).setId("" + (++docId)).setSource(doc, XContentType.JSON);
+            indexRequests.add(indexRequest);
         }
+        indexRandom(true, indexRequests);
         List<String> mainProperties = configs.stream().map(this::mainPropertyFor).distinct().collect(Collectors.toList());
         index("index", "1", String.format(Locale.ROOT, """
             {

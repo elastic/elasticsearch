@@ -258,11 +258,12 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             ),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
     }
 
     private static ClusterInfo createClusterInfo(Map<String, DiskUsage> diskUsage, Map<String, Long> shardSizes) {
-        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
+        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of(), Map.of());
     }
 }

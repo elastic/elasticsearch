@@ -292,12 +292,7 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : evalCommand
-    | whereCommand
-    | limitCommand
-    | statsCommand
-    | sortCommand
-    | dissectCommand
+    : processingCommand
     ;
 
 rrfCommand
@@ -313,5 +308,5 @@ completionCommand
     ;
 
 sampleCommand
-    : DEV_SAMPLE probability=decimalValue
+    : DEV_SAMPLE probability=constant
     ;

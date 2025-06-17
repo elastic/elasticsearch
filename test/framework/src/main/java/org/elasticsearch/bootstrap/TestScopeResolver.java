@@ -21,6 +21,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
+
 public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
 
     private static final Logger logger = LogManager.getLogger(TestScopeResolver.class);
@@ -31,6 +34,12 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
 
         var location = callerCodeSource.getLocation().toString();
         var scope = scopeMap.get(location);
+        if (scope == null) {
+            if (callerClass.getPackageName().startsWith("org.bouncycastle")) {
+                scope = new PolicyManager.PolicyScope(PLUGIN, "security", ALL_UNNAMED);
+                logger.debug("Assuming bouncycastle is part of the security plugin");
+            }
+        }
         if (scope == null) {
             logger.warn("Cannot identify a scope for class [{}], location [{}]", callerClass.getName(), location);
             return PolicyManager.PolicyScope.unknown(location);

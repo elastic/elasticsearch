@@ -1217,13 +1217,27 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testErrorMessageForUnknownColumn() {
-        var e = expectThrows(VerificationException.class, () -> run("row a = 1 | eval x = b"));
-        assertThat(e.getMessage(), containsString("Unknown column [b]"));
+        expectThrows(VerificationException.class, containsString("Unknown column [b]"), () -> run("row a = 1 | eval x = b"));
     }
 
     public void testErrorMessageForEmptyParams() {
-        var e = expectThrows(ParsingException.class, () -> run("row a = 1 | eval x = ?"));
-        assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
+        expectThrows(ParsingException.class, containsString("Not enough actual parameters 0"), () -> run("row a = 1 | eval x = ?"));
+    }
+
+    public void testErrorMessageForUnknownIndex() {
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-index]"),
+            () -> run("from no-such-index", randomPragmas(), null, randomBoolean())
+        );
+    }
+
+    public void testErrorMessageForUnknownIndexInPatternList() {
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-index]"),
+            () -> run("from test,no-such-index", randomPragmas(), null, randomBoolean())
+        );
     }
 
     public void testEmptyIndex() {

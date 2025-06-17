@@ -800,7 +800,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication1,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
 
@@ -820,7 +825,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
     }

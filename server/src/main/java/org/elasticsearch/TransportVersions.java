@@ -299,6 +299,7 @@ public class TransportVersions {
     public static final TransportVersion NONE_CHUNKING_STRATEGY = def(9_097_0_00);
     public static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = def(9_098_0_00);
     public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_099_0_00);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

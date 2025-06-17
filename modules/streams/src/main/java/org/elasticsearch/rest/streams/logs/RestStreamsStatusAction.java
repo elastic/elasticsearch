@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.Collections;
@@ -27,7 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestStreamsStatusAction extends BaseRestHandler {
 
-    public static final Set<String> SUPPORTED_PARAMS = Collections.singleton(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+    public static final Set<String> SUPPORTED_PARAMS = Collections.singleton(RestUtils.REST_TIMEOUT_PARAM);
 
     @Override
     public String getName() {
@@ -41,8 +42,12 @@ public class RestStreamsStatusAction extends BaseRestHandler {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        StreamsStatusAction.Request statusRequest = new StreamsStatusAction.Request(RestUtils.getMasterNodeTimeout(request));
-        return restChannel -> client.execute(StreamsStatusAction.INSTANCE, statusRequest, new RestToXContentListener<>(restChannel));
+        StreamsStatusAction.Request statusRequest = new StreamsStatusAction.Request(RestUtils.getAckTimeout(request));
+        return restChannel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            StreamsStatusAction.INSTANCE,
+            statusRequest,
+            new RestToXContentListener<>(restChannel)
+        );
     }
 
     @Override

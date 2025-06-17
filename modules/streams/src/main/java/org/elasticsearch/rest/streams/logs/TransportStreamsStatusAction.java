@@ -11,11 +11,10 @@ package org.elasticsearch.rest.streams.logs;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
@@ -28,9 +27,9 @@ import org.elasticsearch.transport.TransportService;
  * Transport action to retrieve the status of logs streams in a project / cluster.
  * Results are broken down by stream type. Currently only logs streams are implemented.
  */
-public class TransportStreamsStatusAction extends TransportMasterNodeReadAction<StreamsStatusAction.Request, StreamsStatusAction.Response> {
-
-    private final ProjectResolver projectResolver;
+public class TransportStreamsStatusAction extends TransportLocalProjectMetadataAction<
+    StreamsStatusAction.Request,
+    StreamsStatusAction.Response> {
 
     @Inject
     public TransportStreamsStatusAction(
@@ -42,33 +41,29 @@ public class TransportStreamsStatusAction extends TransportMasterNodeReadAction<
     ) {
         super(
             StreamsStatusAction.INSTANCE.name(),
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            StreamsStatusAction.Request::new,
-            StreamsStatusAction.Response::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            transportService.getTaskManager(),
+            clusterService,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
         );
-        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected ClusterBlockException checkBlock(StreamsStatusAction.Request request, ProjectState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    @Override
+    protected void localClusterStateOperation(
         Task task,
         StreamsStatusAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<StreamsStatusAction.Response> listener
-    ) throws Exception {
-        ProjectId projectId = projectResolver.getProjectId();
-        StreamsMetadata streamsState = state.projectState(projectId).metadata().custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
+    ) {
+        StreamsMetadata streamsState = state.metadata().custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
         boolean logsEnabled = streamsState.isLogsEnabled();
         StreamsStatusAction.Response response = new StreamsStatusAction.Response(logsEnabled);
         listener.onResponse(response);
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(StreamsStatusAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

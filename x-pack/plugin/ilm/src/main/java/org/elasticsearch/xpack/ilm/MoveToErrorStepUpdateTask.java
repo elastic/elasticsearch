@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -38,6 +39,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
     private final Exception cause;
 
     public MoveToErrorStepUpdateTask(
+        ProjectId projectId,
         Index index,
         String policy,
         Step.StepKey currentStepKey,
@@ -46,7 +48,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
         BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
         Consumer<ProjectState> stateChangeConsumer
     ) {
-        super(index, currentStepKey);
+        super(projectId, index, currentStepKey);
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;

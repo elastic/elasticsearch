@@ -408,7 +408,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             originHeaders,
             asyncExecutionId,
             request.keepAlive()
-        );
+        ) {
+            @Override
+            public Status getStatus() {
+                return new EsqlQueryStatus(asyncExecutionId);
+            }
+        };
     }
 
     @Override

@@ -1158,7 +1158,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         RLike rlike = (RLike) filter.condition();
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
-        expectError("from a | where foo like 12", "mismatched input '12'");
+        expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
         expectError("from a | where foo rlike 12", "mismatched input '12'");
 
         expectError(
@@ -3482,7 +3482,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSample() {
-        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
         expectError("FROM test | SAMPLE .1 2", "line 1:23: extraneous input '2' expecting <EOF>");
         expectError("FROM test | SAMPLE .1 \"2\"", "line 1:23: extraneous input '\"2\"' expecting <EOF>");
         expectError("FROM test | SAMPLE 1", "line 1:20: mismatched input '1' expecting {DECIMAL_LITERAL, '+', '-'}");

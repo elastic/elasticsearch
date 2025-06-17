@@ -1,0 +1,5 @@
+pr: 129546
+summary: Upgrade to Lucene 10.2.2
+area: Search
+type: upgrade
+issues: []

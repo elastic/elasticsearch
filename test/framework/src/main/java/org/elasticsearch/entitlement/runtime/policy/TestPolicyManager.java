@@ -13,13 +13,18 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import static java.util.Objects.requireNonNull;
+
 public class TestPolicyManager extends PolicyManager {
+
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
 
@@ -29,15 +34,19 @@ public class TestPolicyManager extends PolicyManager {
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
 
+    final Collection<String> testOnlyClasspath;
+
     public TestPolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Collection<Path>> pluginSourcePaths,
-        PathLookup pathLookup
+        PathLookup pathLookup,
+        Collection<String> testOnlyClasspath
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        this.testOnlyClasspath = testOnlyClasspath;
         reset();
     }
 
@@ -70,10 +79,13 @@ public class TestPolicyManager extends PolicyManager {
         if (isActive == false) {
             return true;
         }
-        if (isTriviallyAllowingTestCode && isTestCaseClass(requestingClass)) {
+        if (isEntitlementClass(requestingClass)) {
             return true;
         }
-        if (isTestFrameworkClass(requestingClass) || isEntitlementClass(requestingClass)) {
+        if (isTestFrameworkClass(requestingClass)) {
+            return true;
+        }
+        if (isTriviallyAllowingTestCode && isTestCode(requestingClass)) {
             return true;
         }
         return super.isTriviallyAllowed(requestingClass);
@@ -84,6 +96,9 @@ public class TestPolicyManager extends PolicyManager {
             && (requestingClass.getName().contains("Test") == false);
     }
 
+    @Deprecated // TODO: reevaluate whether we want this.
+    // If we can simply check for dependencies the gradle worker has that aren't
+    // declared in the gradle config (namely org.gradle) that would be simpler.
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
         String packageName = requestingClass.getPackageName();
         for (String prefix : TEST_FRAMEWORK_PACKAGE_PREFIXES) {
@@ -94,13 +109,25 @@ public class TestPolicyManager extends PolicyManager {
         return false;
     }
 
-    private boolean isTestCaseClass(Class<?> requestingClass) {
-        for (Class<?> candidate = requestingClass; candidate != null; candidate = candidate.getDeclaringClass()) {
+    private boolean isTestCode(Class<?> requestingClass) {
+        // TODO: Cache this? It's expensive
+        for (Class<?> candidate = requireNonNull(requestingClass); candidate != null; candidate = candidate.getDeclaringClass()) {
             if (ESTestCase.class.isAssignableFrom(candidate)) {
                 return true;
             }
         }
-        return false;
+        ProtectionDomain protectionDomain = requestingClass.getProtectionDomain();
+        CodeSource codeSource = protectionDomain.getCodeSource();
+        if (codeSource == null) {
+            // This can happen for JDK classes
+            return false;
+        }
+        String needle = codeSource.getLocation().getPath();
+        if (needle.endsWith("/")) {
+            needle = needle.substring(0, needle.length() - 1);
+        }
+        boolean result = testOnlyClasspath.contains(needle);
+        return result;
     }
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {

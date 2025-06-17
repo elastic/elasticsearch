@@ -29,11 +29,14 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public class TestEntitlementBootstrap {
 
@@ -45,11 +48,18 @@ public class TestEntitlementBootstrap {
      * Activates entitlement checking in tests.
      */
     public static void bootstrap(Path tempDir) throws IOException {
+        if (isEnabledForTest() == false) {
+            return;
+        }
         TestPathLookup pathLookup = new TestPathLookup(List.of(tempDir));
         policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+    }
+
+    public static boolean isEnabledForTest() {
+        return Boolean.getBoolean("es.entitlement.enableForTests");
     }
 
     public static void setActive(boolean newValue) {
@@ -61,7 +71,9 @@ public class TestEntitlementBootstrap {
     }
 
     public static void reset() {
-        policyManager.reset();
+        if (policyManager != null) {
+            policyManager.reset();
+        }
     }
 
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
@@ -79,13 +91,22 @@ public class TestEntitlementBootstrap {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
+        String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");
+        Set<String> testOnlyClassPath;
+        if (testOnlyPathProperty == null) {
+            testOnlyClassPath = Set.of();
+        } else {
+            testOnlyClassPath = Arrays.stream(testOnlyPathProperty.split(":")).collect(Collectors.toCollection(TreeSet::new));
+        }
+
         return new TestPolicyManager(
             HardcodedEntitlements.serverPolicy(null, null),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
             pluginSourcePaths,
-            pathLookup
+            pathLookup,
+            testOnlyClassPath
         );
     }
 

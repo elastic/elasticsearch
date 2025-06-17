@@ -76,8 +76,9 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? kind=LIKE pattern=string
-    | valueExpression (NOT)? kind=RLIKE pattern=string
+    : valueExpression (NOT)? LIKE string                               #likeExpression
+    | valueExpression (NOT)? RLIKE string                              #rlikeExpression
+    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
     ;
 
 matchBooleanExpression

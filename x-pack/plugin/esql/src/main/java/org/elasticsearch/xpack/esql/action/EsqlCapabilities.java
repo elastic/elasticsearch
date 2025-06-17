@@ -928,7 +928,7 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
 
@@ -965,7 +965,12 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V3(Build.current().isSnapshot());
+        SAMPLE_V3(Build.current().isSnapshot()),
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

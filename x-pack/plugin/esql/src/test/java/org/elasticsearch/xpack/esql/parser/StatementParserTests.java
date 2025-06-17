@@ -104,6 +104,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
@@ -3457,8 +3458,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
         expectError("FROM test | SAMPLE .1 2", "line 1:23: extraneous input '2' expecting <EOF>");
         expectError("FROM test | SAMPLE .1 \"2\"", "line 1:23: extraneous input '\"2\"' expecting <EOF>");
-        expectError("FROM test | SAMPLE 1", "line 1:20: mismatched input '1' expecting {DECIMAL_LITERAL, '+', '-'}");
-        expectError("FROM test | SAMPLE", "line 1:19: mismatched input '<EOF>' expecting {DECIMAL_LITERAL, '+', '-'}");
+        expectError(
+            "FROM test | SAMPLE 1",
+            "line 1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
+        );
+        expectThrows(
+            ParsingException.class,
+            startsWith("line 1:19: mismatched input '<EOF>' expecting {"),
+            () -> statement("FROM test | SAMPLE")
+        );
     }
 
     static Alias alias(String name, Expression value) {

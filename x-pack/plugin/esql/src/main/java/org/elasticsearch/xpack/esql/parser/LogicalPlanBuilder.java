@@ -745,10 +745,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> visitRerankOptions(new Rerank(source, p, queryText, rerankFields), ctx.commandOptions());
     }
 
-    private Rerank visitRerankOptions(Rerank rerankBuilder, EsqlBaseParser.CommandOptionsContext ctx) {
+    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.CommandOptionsContext ctx) {
         if (ctx == null) {
-            return rerankBuilder;
+            return rerank;
         }
+
+        Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
 
         for (var option : ctx.commandOption()) {
             String optionName = visitIdentifier(option.identifier());
@@ -765,7 +767,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        return rerankBuilder;
+        return rerankBuilder.build();
     }
 
     @Override

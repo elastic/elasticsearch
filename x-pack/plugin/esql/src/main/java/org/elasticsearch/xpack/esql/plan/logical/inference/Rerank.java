@@ -194,4 +194,26 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
         }
         return lazyOutput;
     }
+
+    public static class Builder {
+        private Rerank rerank;
+
+        public Builder(Rerank rerank) {
+            this.rerank = rerank;
+        }
+
+        public Rerank build() {
+            return rerank;
+        }
+
+        public Builder withInferenceId(Expression inferenceId) {
+            this.rerank = this.rerank.withInferenceId(inferenceId);
+            return this;
+        }
+
+        public Builder withScoreAttribute(Attribute scoreAttribute) {
+            this.rerank = this.rerank.withScoreAttribute(scoreAttribute);
+            return this;
+        }
+    }
 }

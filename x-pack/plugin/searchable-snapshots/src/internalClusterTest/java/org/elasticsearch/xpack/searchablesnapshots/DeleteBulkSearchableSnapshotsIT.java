@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -17,15 +20,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.List;
 
+@TimeoutSuite(millis = 200 * TimeUnits.MINUTE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = DeleteBulkSearchableSnapshotsIT.NUMBER_OF_NODES)
 public class DeleteBulkSearchableSnapshotsIT extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
-    private static final int NUMBER_OF_NODES = 3;
+    static final int NUMBER_OF_NODES = 1;
     // Configure the cache to be able to hold thousands of regions
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(80);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofGb(3);
@@ -38,6 +45,7 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseFrozenSearchableSnapsho
             builder.put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE);
             builder.put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE);
         }
+        builder.put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), 6000);
         return builder.build();
     }
 
@@ -46,7 +54,7 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseFrozenSearchableSnapsho
 
         String indexName = randomIdentifier();
         createIndex(indexName);
-        indexRandom(true, indexName, 10_000);
+        indexRandom(true, indexName, 1_000);
 
         String repositoryName = randomIdentifier();
         createRepository(repositoryName, "fs");
@@ -54,7 +62,7 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseFrozenSearchableSnapsho
         String snapshotName = randomIdentifier();
         SnapshotInfo snapshot = createSnapshot(repositoryName, snapshotName, List.of(indexName));
 
-        int numberOfIndices = 2_000;
+        int numberOfIndices = 5_000;
         logger.info("Mounting {} searchable snapshots", numberOfIndices);
         final String indexPrefix = randomIdentifier() + "_";
         for (int i = 0; i < numberOfIndices; i++) {

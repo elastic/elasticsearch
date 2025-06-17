@@ -1200,7 +1200,9 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot());
+        KNN_FUNCTION(Build.current().isSnapshot()),
+
+        LIKE_WITH_LIST_OF_PATTERNS;
 
         private final boolean enabled;
 

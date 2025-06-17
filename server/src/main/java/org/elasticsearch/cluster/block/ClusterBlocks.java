@@ -576,6 +576,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             out.writeMap(indices, (o, s) -> writeBlockSet(s, o));
             if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
                 writeBlockSet(projectGlobal, out);
+            } else {
+                assert projectGlobal.isEmpty() : "Any MP-enabled cluster must be past TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK";
             }
         }
     }

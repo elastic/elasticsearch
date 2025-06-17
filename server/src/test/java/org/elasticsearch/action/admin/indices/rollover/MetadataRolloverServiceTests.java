@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -638,7 +640,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 false
             );
             long after = testThreadPool.absoluteTimeInMillis();
-
+            Settings rolledOverIndexSettings = rolloverResult.clusterState()
+                .metadata()
+                .index(rolloverResult.rolloverIndexName())
+                .getSettings();
+            Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
+            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata()).keySet()) {
+                assertTrue(rolledOverIndexSettingNames.contains(settingName));
+            }
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
@@ -708,7 +717,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 true
             );
             long after = testThreadPool.absoluteTimeInMillis();
-
+            Settings rolledOverIndexSettings = rolloverResult.clusterState()
+                .metadata()
+                .index(rolloverResult.rolloverIndexName())
+                .getSettings();
+            Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
+            for (String settingName : dataStream.getSettings().keySet()) {
+                assertFalse(rolledOverIndexSettingNames.contains(settingName));
+            }
             var epochMillis = System.currentTimeMillis();
             String sourceIndexName = DataStream.getDefaultFailureStoreName(dataStream.getName(), dataStream.getGeneration(), epochMillis);
             String newIndexName = DataStream.getDefaultFailureStoreName(dataStream.getName(), dataStream.getGeneration() + 1, epochMillis);

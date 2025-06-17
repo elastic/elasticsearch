@@ -1325,6 +1325,19 @@ count:long  |  message:keyword
 3           |  Connected to 10.1.0.3
 ;
 
+multiIndexStatsOfMultiTypedField
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+
+FROM apps, apps_short
+| STATS s = sum(id::integer)
+;
+
+s:long
+210
+;
+
 multiIndexMultiColumnTypesRename
 required_capability: union_types
 required_capability: metadata_fields

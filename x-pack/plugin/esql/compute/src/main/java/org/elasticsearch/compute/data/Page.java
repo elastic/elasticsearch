@@ -83,7 +83,7 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException(
+                throw new IllegalStateException(
                     "Block [" + block + "] does not have same position count: " + block.getPositionCount() + " != " + prev.positionCount
                 );
             }

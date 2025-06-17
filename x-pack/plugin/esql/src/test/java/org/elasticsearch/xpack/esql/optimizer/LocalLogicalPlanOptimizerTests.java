@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -56,6 +58,7 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -586,6 +589,27 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[],[SUM($$integer_long_field$converted_to$long{f$}#5,true[BOOLEAN]) AS sum(integer_long_field::long)#3]]
+     *   \_Filter[ISNOTNULL($$integer_long_field$converted_to$long{f$}#5)]
+     *     \_EsRelation[test*][!integer_long_field, $$integer_long_field$converted..]
+     */
+    public void testUnionTypesInferNonNullAggConstraint() {
+        LogicalPlan coordinatorOptimized = plan("FROM test* | STATS sum(integer_long_field::long)", analyzerWithUnionTypeMapping());
+        var plan = localPlan(coordinatorOptimized, TEST_SEARCH_STATS);
+
+        var limit = asLimit(plan, 1000);
+        var agg = as(limit.child(), Aggregate.class);
+        var filter = as(agg.child(), Filter.class);
+        var relation = as(filter.child(), EsRelation.class);
+
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        var unionTypeField = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("$$integer_long_field$converted_to$long", unionTypeField.name());
+        assertEquals("integer_long_field", unionTypeField.fieldName().string());
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
@@ -596,12 +620,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         return empty;
     }
 
-    private LogicalPlan plan(String query) {
+    private LogicalPlan plan(String query, Analyzer analyzer) {
         var analyzed = analyzer.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
         return optimized;
+    }
+
+    private LogicalPlan plan(String query) {
+        return plan(query, analyzer);
     }
 
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
@@ -614,6 +642,25 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlan localPlan(String query) {
         return localPlan(plan(query), TEST_SEARCH_STATS);
+    }
+
+    private static Analyzer analyzerWithUnionTypeMapping() {
+        InvalidMappedField unionTypeField = new InvalidMappedField(
+            "integer_long_field",
+            Map.of("integer", Set.of("test1"), "long", Set.of("test2"))
+        );
+
+        EsIndex test = new EsIndex(
+            "test*",
+            Map.of("integer_long_field", unionTypeField),
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
+        );
+        IndexResolution getIndexResult = IndexResolution.valid(test);
+
+        return new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
+            TEST_VERIFIER
+        );
     }
 
     @Override

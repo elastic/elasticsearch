@@ -468,3 +468,6 @@ tests:
 - class: org.elasticsearch.upgrades.IndexingIT
   method: testIndexing {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/128125
+- class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
+  method: test21AcceptsCustomPathInDocker
+  issue: https://github.com/elastic/elasticsearch/issues/128114

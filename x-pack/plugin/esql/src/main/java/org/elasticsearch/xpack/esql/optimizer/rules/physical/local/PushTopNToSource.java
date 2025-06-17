@@ -189,8 +189,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     break;
                 }
             }
-            // TODO: We can push down partial sorts where `pushableSorts.size() < orders.size()`, but that should involve benchmarks
-            if (pushableSorts.size() > 0 && pushableSorts.size() == orders.size()) {
+            if (pushableSorts.isEmpty() == false) {
                 return new PushableCompoundExec(evalExec, queryExec, pushableSorts);
             }
         }

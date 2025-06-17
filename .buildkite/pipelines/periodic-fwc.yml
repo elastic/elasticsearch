@@ -10,6 +10,6 @@ steps:
       buildDirectory: /dev/shm/bk
     matrix:
       setup:
-        FWC_VERSION: ["8.18.0", "8.18.1"]
+        FWC_VERSION: ["8.18.0", "8.18.1", "8.18.2"]
     env:
       FWC_VERSION: $FWC_VERSION

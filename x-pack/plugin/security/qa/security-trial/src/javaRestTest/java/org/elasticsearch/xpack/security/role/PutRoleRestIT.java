@@ -9,19 +9,24 @@ package org.elasticsearch.xpack.security.role;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.names;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
+public class PutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testPutManyValidRoles() throws Exception {
         Map<String, Object> responseMap = upsertRoles("""
             {"roles": {"test1": {"cluster": ["all"],"indices": [{"names": ["*"],"privileges": ["all"]}]}, "test2":
@@ -311,5 +316,54 @@ public class BulkPutRoleRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             );
         }
+    }
+
+    public void testPutRoleWithInvalidManageRolesPrivilege() throws Exception {
+        final String badRoleName = "bad-role";
+
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> names().contains(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        final String expectedExceptionMessage = "unknown index privilege ["
+            + unknownPrivilege
+            + "]. a privilege must be either "
+            + "one of the predefined fixed indices privileges ["
+            + Strings.collectionToCommaDelimitedString(IndexPrivilege.names().stream().sorted().collect(Collectors.toList()))
+            + "] or a pattern over one of the available index"
+            + " actions";
+
+        final ResponseException exception = expectThrows(ResponseException.class, () -> upsertRoles(String.format("""
+            {
+                "roles": {
+                    "%s": {
+                        "global": {
+                            "role": {
+                                "manage": {
+                                    "indices": [
+                                        {
+                                            "names": ["allowed-index-prefix-*"],
+                                            "privileges": ["%s"]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }""", badRoleName, unknownPrivilege)));
+
+        assertThat(exception.getMessage(), containsString(expectedExceptionMessage));
+        assertEquals(400, exception.getResponse().getStatusLine().getStatusCode());
+        assertRoleDoesNotExist(badRoleName);
+    }
+
+    private void assertRoleDoesNotExist(final String roleName) throws Exception {
+        final ResponseException roleNotFound = expectThrows(
+            ResponseException.class,
+            () -> adminClient().performRequest(new Request("GET", "/_security/role/" + roleName))
+        );
+        assertEquals(404, roleNotFound.getResponse().getStatusLine().getStatusCode());
     }
 }

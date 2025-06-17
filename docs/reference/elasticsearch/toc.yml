@@ -34,7 +34,7 @@ toc:
   - file: jvm-settings.md
   - file: roles.md
   - file: security-privileges.md
-  - file: ../esql.md
+  - file: ../query-languages/esql.md
     children:
       - file: ../query-languages/esql/esql-syntax-reference.md
         children:
@@ -43,10 +43,10 @@ toc:
             children:
               - file: ../query-languages/esql/commands/source-commands.md
               - file: ../query-languages/esql/commands/processing-commands.md
-          - file: ../../query-languages/esql/esql-functions-operators.md
+          - file: ../query-languages/esql/esql-functions-operators.md
             children:
-              - file: ../../query-languages/esql/functions-operators/aggregation-functions.md
-              - file: ../../query-languages/esql/functions-operators/grouping-functions.md
+              - file: ../query-languages/esql/functions-operators/aggregation-functions.md
+              - file: ../query-languages/esql/functions-operators/grouping-functions.md
               - file: ../query-languages/esql/functions-operators/conditional-functions-and-expressions.md
               - file: ../query-languages/esql/functions-operators/date-time-functions.md
               - file: ../query-languages/esql/functions-operators/ip-functions.md
@@ -70,7 +70,7 @@ toc:
           - file: ../query-languages/esql/esql-multivalued-fields.md
       - file: ../query-languages/esql/limitations.md
       - file: ../query-languages/esql/esql-examples.md
-  - file: ../eql.md
+  - file: ../query-languages/eql.md
     children:
       - file: ../query-languages/eql/eql-syntax.md
       - file: ../query-languages/eql/eql-function-ref.md

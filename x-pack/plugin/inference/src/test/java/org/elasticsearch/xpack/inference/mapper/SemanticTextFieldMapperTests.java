@@ -587,14 +587,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         )
                     )
                 );
-                assertThat(
-                    exc.getMessage(),
-                    containsString(
-                        "Cannot update parameter [model_settings] "
-                            + "from [service=null, task_type=sparse_embedding] "
-                            + "to [service=null, task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
-                    )
-                );
+                assertThat(exc.getMessage(), containsString("cannot be changed from type [sparse_vector] to [dense_vector]"));
             }
         }
     }

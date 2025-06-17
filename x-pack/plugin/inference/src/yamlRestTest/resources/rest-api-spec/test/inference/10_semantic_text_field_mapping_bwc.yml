@@ -27,7 +27,7 @@ setup:
             "service": "text_embedding_test_service",
             "service_settings": {
               "model": "my_model",
-              "dimensions": 10,
+              "dimensions": 4,
               "similarity": "cosine",
               "api_key": "abc64"
             },
@@ -723,7 +723,7 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
-      catch: /Incompatible index options/
+      catch: /Cannot update parameter \[index_options\]/
       indices.put_mapping:
         index: test-index-options
         body:

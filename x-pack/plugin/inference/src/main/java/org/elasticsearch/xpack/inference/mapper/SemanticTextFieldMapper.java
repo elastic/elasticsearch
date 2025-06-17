@@ -211,7 +211,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
             XContentBuilder::field,
             Objects::toString
-        ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeIndexOptions);
+        ).acceptsNull();
 
         @SuppressWarnings("unchecked")
         private final Parameter<ChunkingSettings> chunkingSettings = new Parameter<>(
@@ -293,10 +293,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
             semanticMergeWith = copySettings(semanticMergeWith, mapperMergeContext);
 
-            var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
-            var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
-            var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
-            inferenceFieldBuilder = c -> mergedInferenceField;
+            // We make sure to merge the inference field first to catch any model conflicts
+            try {
+                var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
+                var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
+                var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
+                inferenceFieldBuilder = c -> mergedInferenceField;
+            } catch (Exception e) {
+                // Wrap errors in nicer messages that hide inference field internals
+                String errorMessage = e.getMessage() != null
+                    ? e.getMessage().replaceAll(SemanticTextField.getEmbeddingsFieldName(""), "")
+                    : "";
+                throw new IllegalArgumentException(errorMessage, e);
+            }
 
             super.merge(semanticMergeWith, conflicts, mapperMergeContext);
             conflicts.check();
@@ -1235,30 +1244,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
         conflicts.addConflict("model_settings", "");
         return false;
-    }
-
-    private static boolean canMergeIndexOptions(SemanticTextIndexOptions previous, SemanticTextIndexOptions current, Conflicts conflicts) {
-        if (Objects.equals(previous, current)) {
-            return true;
-        }
-
-        if (previous == null || current == null) {
-            return true;
-        }
-
-        if (previous.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-            DenseVectorFieldMapper.DenseVectorIndexOptions previousDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) previous
-                .indexOptions();
-            DenseVectorFieldMapper.DenseVectorIndexOptions currentDenseOptions = (DenseVectorFieldMapper.DenseVectorIndexOptions) current
-                .indexOptions();
-            boolean updatable = previousDenseOptions.updatableTo(currentDenseOptions);
-            if (updatable == false) {
-                conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible index options");
-            }
-            return updatable;
-        }
-
-        return true;
     }
 
     private static SemanticTextIndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {

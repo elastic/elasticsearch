@@ -32,6 +32,8 @@ fi
 
 echo "Getting build manifest from [$MANIFEST_URL]"
 
+# Note: we use eval to perform variable substitution for the curl arguments, and command substitution to
+# set the output variable. Double quotes are not enough in this case.
 MANIFEST="$(eval "curl -s $MANIFEST_URL")"
 if [[ -z "$MANIFEST" ]]; then
    echo "Cannot get the build manifest from [$MANIFEST_URL]"

@@ -21,8 +21,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-
 public class IbmWatsonxChatCompletionRequest implements IbmWatsonxRequest {
     private final IbmWatsonxChatCompletionModel model;
     private final UnifiedChatInput chatInput;
@@ -42,7 +40,6 @@ public class IbmWatsonxChatCompletionRequest implements IbmWatsonxRequest {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         decorateWithAuth(httpPost);
 
@@ -60,13 +57,13 @@ public class IbmWatsonxChatCompletionRequest implements IbmWatsonxRequest {
 
     @Override
     public Request truncate() {
-        // No truncation for IBM Watsonx chat completions
+        // No truncation for IBM watsonx chat completions
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // No truncation for IBM Watsonx chat completions
+        // No truncation for IBM watsonx chat completions
         return null;
     }
 

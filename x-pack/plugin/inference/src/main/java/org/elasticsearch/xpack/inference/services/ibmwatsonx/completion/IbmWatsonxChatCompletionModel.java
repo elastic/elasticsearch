@@ -16,7 +16,6 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -75,7 +74,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         var overriddenServiceSettings = new IbmWatsonxChatCompletionServiceSettings(
             originalModelServiceSettings.uri(),
             originalModelServiceSettings.apiVersion(),
-            originalModelServiceSettings.modelId(),
+            request.model(),
             originalModelServiceSettings.projectId(),
             originalModelServiceSettings.rateLimitSettings()
         );
@@ -105,11 +104,6 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
     }
 
     @Override
-    public IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings() {
-        return super.rateLimitServiceSettings();
-    }
-
-    @Override
     public IbmWatsonxChatCompletionServiceSettings getServiceSettings() {
         return (IbmWatsonxChatCompletionServiceSettings) super.getServiceSettings();
     }
@@ -132,7 +126,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM Watsonx models.
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM watsonx models.
      * @return the completion action
      */
     public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {

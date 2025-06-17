@@ -31,19 +31,18 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
     private static final String API_COMPLETIONS_PATH = "https://abc.com/ml/v1/text/chat?version=apiVersion";
 
     public void testCreateRequest_WithStreaming() throws IOException, URISyntaxException {
-        var request = createRequest("secret", randomAlphaOfLength(15), "model", true);
-        var httpRequest = request.createHttpRequest();
+        assertCreateRequestWithStreaming(true);
+    }
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get("stream"), is(true));
+    public void testCreateRequest_WithNoStreaming() throws IOException, URISyntaxException {
+        assertCreateRequestWithStreaming(false);
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() throws IOException, URISyntaxException {
         String input = randomAlphaOfLength(5);
-        var request = createRequest("secret", input, "model", true);
+        String model = randomAlphaOfLength(5);
+
+        var request = createRequest(randomAlphaOfLength(5), input, model, true);
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(API_COMPLETIONS_PATH));
 
@@ -55,14 +54,14 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap, aMapWithSize(5));
 
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
-        assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("model"), is(model));
         assertThat(requestMap.get("n"), is(1));
         assertTrue((Boolean) requestMap.get("stream"));
         assertNull(requestMap.get("stream_options"));
     }
 
     public void testTruncationInfo_ReturnsNull() throws URISyntaxException {
-        var request = createRequest("secret", randomAlphaOfLength(5), "model", true);
+        var request = createRequest(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5), true);
         assertNull(request.getTruncationInfo());
     }
 
@@ -77,7 +76,7 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
             new URI("abc.com"),
             "apiVersion",
             model,
-            "projectId",
+            randomAlphaOfLength(5),
             apiKey
         );
         return new IbmWatsonxChatCompletionWithoutAuthRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
@@ -92,5 +91,16 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
         public void decorateWithAuth(HttpPost httpPost) {
             httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
         }
+    }
+
+    private void assertCreateRequestWithStreaming(boolean isStreaming) throws URISyntaxException, IOException {
+        var request = createRequest(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5), isStreaming);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.get("stream"), is(isStreaming));
     }
 }

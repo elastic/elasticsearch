@@ -31,7 +31,7 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
 
     private static ResponseHandler createIbmWatsonxResponseHandler() {
         return new IbmWatsonxResponseHandler(
-            "IBM Watsonx rerank",
+            "IBM watsonx rerank",
             (request, response) -> IbmWatsonxRankedResponseEntity.fromResponse(response)
         );
     }

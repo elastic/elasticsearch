@@ -918,7 +918,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "watsonxai",
-                       "name": "IBM Watsonx",
+                       "name": "IBM watsonx",
                        "task_types": ["text_embedding", "completion", "chat_completion"],
                        "configurations": {
                            "project_id": {
@@ -940,7 +940,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                            },
                            "api_version": {
-                               "description": "The IBM Watsonx API version ID to use.",
+                               "description": "The IBM watsonx API version ID to use.",
                                "label": "API Version",
                                "required": true,
                                "sensitive": false,

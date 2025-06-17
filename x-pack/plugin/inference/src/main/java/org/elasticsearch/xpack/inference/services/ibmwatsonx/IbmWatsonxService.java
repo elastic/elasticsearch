@@ -72,14 +72,14 @@ public class IbmWatsonxService extends SenderService {
 
     public static final String NAME = "watsonxai";
 
-    private static final String SERVICE_NAME = "IBM Watsonx";
+    private static final String SERVICE_NAME = "IBM watsonx";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.COMPLETION,
         TaskType.CHAT_COMPLETION
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
-        "IBM Watsonx chat completions",
+        "IBM watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
@@ -375,7 +375,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The IBM Watsonx API version ID to use.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The IBM watsonx API version ID to use.")
                         .setLabel("API Version")
                         .setRequired(true)
                         .setSensitive(false)

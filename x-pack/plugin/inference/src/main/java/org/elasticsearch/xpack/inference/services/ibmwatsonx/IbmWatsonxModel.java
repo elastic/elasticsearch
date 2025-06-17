@@ -16,15 +16,12 @@ import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
     private final IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings;
-
-    protected URI uri;
 
     public IbmWatsonxModel(
         ModelConfigurations configurations,
@@ -56,7 +53,7 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(uri);
+        return Objects.hash(this.rateLimitServiceSettings);
     }
 
     @Override

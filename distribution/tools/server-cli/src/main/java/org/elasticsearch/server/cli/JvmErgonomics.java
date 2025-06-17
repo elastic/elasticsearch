@@ -28,6 +28,8 @@ import java.util.regex.Pattern;
  */
 final class JvmErgonomics {
 
+    static final double DIRECT_MEMORY_TO_HEAP_FACTOR = 0.5;
+
     private JvmErgonomics() {
         throw new AssertionError("No instances intended");
     }
@@ -44,7 +46,7 @@ final class JvmErgonomics {
         final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);
         final long maxDirectMemorySize = JvmOption.extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
-            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
+            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + (long) (DIRECT_MEMORY_TO_HEAP_FACTOR * heapSize));
         }
 
         final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(heapSize);

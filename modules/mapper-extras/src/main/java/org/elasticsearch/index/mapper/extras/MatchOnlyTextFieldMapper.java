@@ -70,6 +70,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.TextFieldMapper.Builder.multiFieldsNotStoredByDefaultIndexVersionCheck;
+
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
  * {@link IndexOptions#DOCS} and runs positional queries by looking at the
@@ -101,12 +103,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final TextParams.Analyzers analyzers;
+        private final boolean withinMultiField;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.current(), indexAnalyzers);
-        }
-
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean withinMultiField) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -115,6 +114,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
+            this.withinMultiField = withinMultiField;
         }
 
         @Override
@@ -140,18 +140,21 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
-            return new MatchOnlyTextFieldMapper(
-                leafName(),
-                Defaults.FIELD_TYPE,
-                tft,
-                builderParams(this, context),
-                context.isSourceSynthetic(),
-                this
-            );
+            final boolean storeSource;
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
+                storeSource = context.isSourceSynthetic()
+                    && withinMultiField == false
+                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            } else {
+                storeSource = context.isSourceSynthetic();
+            }
+            return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.isWithinMultiField())
+    );
 
     public static class MatchOnlyTextFieldType extends StringFieldType {
 
@@ -406,6 +409,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final int positionIncrementGap;
     private final boolean storeSource;
     private final FieldType fieldType;
+    private final boolean withinMultiField;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -424,6 +428,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storeSource = storeSource;
+        this.withinMultiField = builder.withinMultiField;
     }
 
     @Override
@@ -433,7 +438,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, withinMultiField).init(this);
     }
 
     @Override

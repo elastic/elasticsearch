@@ -423,7 +423,7 @@ public class TransportBulkActionTests extends ESTestCase {
         });
     }
 
-    public void testDispatchesToWriteCoordinationThreadPoolOnce() {
+    public void testDispatchesToWriteCoordinationThreadPoolOnce() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         ThreadPoolStats.Stats stats = threadPool.stats()
@@ -435,10 +435,22 @@ public class TransportBulkActionTests extends ESTestCase {
         assertThat(stats.completed(), equalTo(0L));
         ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
         future.actionGet();
-        stats = threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION)).findAny().get();
-        // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the index
-        // is created.
-        assertThat(stats.completed(), equalTo(2L));
+
+        assertBusy(() -> {
+            // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the
+            // index
+            // is created.
+            assertThat(
+                threadPool.stats()
+                    .stats()
+                    .stream()
+                    .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+                    .findAny()
+                    .get()
+                    .completed(),
+                equalTo(2L)
+            );
+        });
     }
 
     public void testRejectCoordination() {

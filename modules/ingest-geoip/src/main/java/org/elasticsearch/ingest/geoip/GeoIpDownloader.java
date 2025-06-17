@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -98,7 +97,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private final Supplier<Boolean> atLeastOneGeoipProcessorSupplier;
 
     private final ProjectId projectId;
-    private final ProjectResolver projectResolver;
 
     GeoIpDownloader(
         Client client,
@@ -115,11 +113,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Supplier<TimeValue> pollIntervalSupplier,
         Supplier<Boolean> eagerDownloadSupplier,
         Supplier<Boolean> atLeastOneGeoipProcessorSupplier,
-        ProjectId projectId,
-        ProjectResolver projectResolver
+        ProjectId projectId
     ) {
         super(id, type, action, description, parentTask, headers);
-        this.client = client;
+        this.client = client.projectClient(projectId);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -128,7 +125,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
         this.projectId = projectId;
-        this.projectResolver = projectResolver;
     }
 
     void setState(GeoIpTaskState state) {
@@ -302,7 +298,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     void runDownloader() {
         // by the time we reach here, the state will never be null
         assert state != null;
-        assertProjectContext();
 
         if (isCancelled() || isCompleted()) {
             return;
@@ -328,7 +323,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
      * scheduled run.
      */
     public void requestReschedule() {
-        assertProjectContext();
         if (isCancelled() || isCompleted()) {
             return;
         }
@@ -356,7 +350,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     protected void onCancelled() {
-        assertProjectContext();
         if (scheduled != null) {
             scheduled.cancel();
         }
@@ -373,15 +366,4 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
         }
     }
-
-    /**
-     * This is to ensure the downloader is always executed with the correct project context.
-     * The correct project id is required in the thread context so it is propagated to downstream
-     * requests to modify the correct persistent task state.
-     */
-    private void assertProjectContext() {
-        assert projectResolver.getProjectId() != null;
-        assert projectResolver.getProjectId().equals(projectId);
-    }
-
 }

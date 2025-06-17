@@ -191,7 +191,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     ) {
         ProjectId projectId = projectResolver.getProjectId();
         return new GeoIpDownloader(
-            client.projectClient(projectId),
+            client,
             httpClient,
             clusterService,
             threadPool,
@@ -205,8 +205,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             () -> pollInterval,
             () -> eagerDownload,
             () -> atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false),
-            projectId,
-            projectResolver
+            projectId
         );
     }
 

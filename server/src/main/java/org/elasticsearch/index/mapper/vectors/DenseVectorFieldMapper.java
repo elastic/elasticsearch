@@ -1373,11 +1373,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     abstract static class QuantizedIndexOptions extends IndexOptions {
-        final RescoreVector rescoreVector;
+        public static final byte DEFAULT_INDEX_BITS = (byte) 1;
+        public static final byte DEFAULT_QUERY_BITS = (byte) 4;
 
-        QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector) {
+        final RescoreVector rescoreVector;
+        final byte indexBits;
+        final byte queryBits;
+
+        QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector, byte indexBits, byte queryBits) {
             super(type);
             this.rescoreVector = rescoreVector;
+            this.indexBits = indexBits;
+            this.queryBits = queryBits;
+        }
+
+        QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector) {
+            this(type, rescoreVector, DEFAULT_INDEX_BITS, DEFAULT_QUERY_BITS);
         }
     }
 

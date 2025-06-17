@@ -24,6 +24,7 @@ PUT my-index
 }
 ```
 
+{applies_to}`stack: preview 9.1`
 With any new indices created, token pruning will be turned on by default with appropriate defaults. You can control this behaviour using the optional `index_options` parameters for the field:
 
 ```console
@@ -58,8 +59,8 @@ The following parameters are accepted by `sparse_vector` fields:
     * Exclude the field from [_source](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering).
     * Use [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
-index_options
-:   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your `sparse_query` vector, Elasticsearch will use the default options configured for the field, if any. The available options for the index options are:
+index_options {applies_to}`stack: preview 9.1`
+:   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md), Elasticsearch will use the default options configured for the field, if any.
 
 Parameters for `index_options` are:
 
@@ -87,7 +88,9 @@ Non-significant tokens can be defined as tokens that meet both of the following 
 * The weight/score is so low that the token is likely not very relevant to the original term
 
 Both the token frequency threshold and weight threshold must show the token is non-significant in order for the token to be pruned.
-This ensures the tokens that are kept are frequent enough and have very high scoring or very infrequent tokens that may not have as high of a score.
+This ensures that:
+* The tokens that are kept are frequent enough and have significant scoring.
+* Very infrequent tokens that may not have as high of a score are removed.
 
 
 ## Multi-value sparse vectors [index-multi-value-sparse-vectors]

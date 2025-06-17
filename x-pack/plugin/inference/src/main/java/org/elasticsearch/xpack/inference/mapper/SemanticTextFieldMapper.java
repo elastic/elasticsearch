@@ -1217,8 +1217,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     static boolean indexVersionDefaultsToBbqHnsw(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
-            || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        return indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X);
     }
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {

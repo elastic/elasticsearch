@@ -808,7 +808,10 @@ public final class Authentication implements ToXContentObject {
             if (managedBy != null) {
                 apiKeyField.put("managed_by", managedBy);
             } else {
-                apiKeyField.put("managed_by", isCloudApiKey() ? ManagedBy.CLOUD.getDisplayName() : ManagedBy.ELASTICSEARCH.getDisplayName());
+                apiKeyField.put(
+                    "managed_by",
+                    isCloudApiKey() ? ManagedBy.CLOUD.getDisplayName() : ManagedBy.ELASTICSEARCH.getDisplayName()
+                );
             }
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }

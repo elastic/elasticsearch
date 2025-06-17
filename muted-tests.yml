@@ -577,6 +577,15 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
   method: testIORateIsAdjustedForAllRunningMergeTasks
   issue: https://github.com/elastic/elasticsearch/issues/129531
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/129533
+- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
+  method: testSnapshotUpgrader
+  issue: https://github.com/elastic/elasticsearch/issues/98560
+- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
+  method: testBuiltInRolesSyncedOnClusterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/129534
 
 # Examples:
 #

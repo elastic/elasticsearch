@@ -146,9 +146,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 multipleLookupsAndProjects
 required_capability: join_lookup_v12
-required_capability: join_lookup_enable_pushdown_past_project
 # TODO: this test, but with a lookup index that has multiple matches per row to show the first LOOKUP's effect, too.
-# TODO: tests like this that will look up the exact subfield of a text field
 
 FROM employees
 | KEEP languages, emp_no

@@ -1522,7 +1522,6 @@ Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
 pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
-------
 
 [discrete]
 [[retrievers-examples-pinned-retriever]]

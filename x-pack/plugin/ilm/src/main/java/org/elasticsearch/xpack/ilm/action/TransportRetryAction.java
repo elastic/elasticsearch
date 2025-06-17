@@ -102,7 +102,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<RetryActionR
             }
             LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
             StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
-            indexLifecycleService.maybeRunAsyncAction(state.cluster(), idxMeta, retryStep);
+            indexLifecycleService.maybeRunAsyncAction(state, idxMeta, retryStep);
         }
     }
 

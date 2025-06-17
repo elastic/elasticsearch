@@ -1,5 +1,5 @@
 pr: 129581
 summary: "Support geohash, geotile and geohex grid types"
-area: "ES|QL, Geo"
+area: "ES|QL"
 type: enhancement
 issues: []

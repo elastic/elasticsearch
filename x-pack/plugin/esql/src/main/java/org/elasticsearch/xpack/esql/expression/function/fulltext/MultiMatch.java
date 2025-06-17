@@ -137,7 +137,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0") },
         description = """
             Use `MULTI_MATCH` to perform a
             [multi-match query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-multi-match-query)
@@ -145,7 +145,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             This query builds on the match query to allow multi-field queries.""",
         examples = {
             @Example(file = "multi-match-function", tag = "multi-match-with-field"),
-            @Example(file = "multi-match-function", tag = "multi-match-with-named-function-params") }
+            @Example(file = "multi-match-function", tag = "multi-match-with-named-function-params", applies_to = "stack: ga 9.1.0") }
     )
     public MultiMatch(
         Source source,
@@ -254,7 +254,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
                         + "See <<multi-match-types,multi_match types>>."
                 ), },
             description = "(Optional) Additional options for MultiMatch, "
-                + "passed as <<esql-function-named-params,function named parameters>>.{applies_to}`stack: coming`\"\n"
+                + "passed as <<esql-function-named-params,function named parameters>>.{applies_to}`stack: ga 9.1.0`\"\n"
                 + " See <<query-dsl-multi-match-query,multi-match query>> for more information.",
             optional = true
         ) Expression options

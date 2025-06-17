@@ -3,5 +3,5 @@
 **Parameters**
 
 `str`
-:   String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression. 
+:   String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression, or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`. 
 

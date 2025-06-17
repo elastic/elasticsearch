@@ -31,10 +31,9 @@ public class ToUpper extends ChangeCase {
         examples = @Example(file = "string", tag = "to_upper")
     )
     public ToUpper(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
-        String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression
-        """)
-    // TODO: Add "- a multi-valued column or expression {applies_to}`stack: 9.1`" to params description
-    Expression field, Configuration configuration) {
+        String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
+        or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.
+        """) Expression field, Configuration configuration) {
         super(source, field, configuration, Case.UPPER);
     }
 

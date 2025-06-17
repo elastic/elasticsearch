@@ -9,5 +9,5 @@
 :   Value to find in the provided field.
 
 `options`
-:   
+:   (Optional) Match additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). {applies_to}`stack: ga 9.1.0`
 

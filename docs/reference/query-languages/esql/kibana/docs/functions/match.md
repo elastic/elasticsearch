@@ -7,7 +7,8 @@ Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Quer
 Match can be used on fields from the text family like [text](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/text) and [semantic_text](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/semantic-text),
 as well as other field types like keyword, boolean, dates, and numeric types.
 
-Match can use [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params) to specify additional options for the match query.
+Match can use [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params) to specify additional options
+for the match query. {applies_to}`stack: ga 9.1.0`
 All [match query parameters](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query#match-field-params) are supported.
 
 For a simplified syntax, you can use the [match operator](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/operators#esql-match-operator) `:` operator instead of `MATCH`.

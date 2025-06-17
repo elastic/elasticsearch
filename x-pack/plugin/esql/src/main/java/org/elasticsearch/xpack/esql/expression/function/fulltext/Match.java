@@ -138,8 +138,9 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
@@ -147,7 +148,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
 
-            Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
+            for the match query. {applies_to}`stack: ga 9.1.0`
             All <<match-field-params,match query parameters>> are supported.
 
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
@@ -155,7 +157,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
-            @Example(file = "match-function", tag = "match-with-named-function-params") }
+            @Example(file = "match-function", tag = "match-with-named-function-params", applies_to = "stack: ga 9.1.0") }
     )
     public Match(
         Source source,
@@ -171,6 +173,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         ) Expression matchQuery,
         @MapParam(
             name = "options",
+            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>. "
+                + "{applies_to}`stack: ga 9.1.0`",
             params = {
                 @MapParam.MapParamEntry(
                     name = "analyzer",

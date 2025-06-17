@@ -2,8 +2,7 @@
 
 ## `MATCH` [esql-match]
 ```{applies_to}
-stack: preview
-serverless: preview
+stack: preview 9.0.0, ga 9.1.0
 ```
 
 **Syntax**

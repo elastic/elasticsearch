@@ -139,6 +139,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
     private void setEnabled(boolean enabled) {
+        assert projectResolver.getProjectId() != null : "projectId must be set before enabling download";
         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
             // we should only start/stop task from single node, master is the best as it will go through it anyway
             return;
@@ -402,7 +403,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     // starts GeoIP downloader task for a single project
     private void startTask(ProjectId projectId, Runnable onFailure) {
-        assert projectId != null : "projectId must be set before starting geoIp download task";
         persistentTasksService.sendProjectStartRequest(
             projectId,
             getTaskId(projectId, projectResolver.supportsMultipleProjects()),

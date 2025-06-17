@@ -1,4 +1,4 @@
-# Reference
+# Elasticsearch
 
 ## Search and analyze your data
 ----------------------------

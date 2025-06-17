@@ -9,12 +9,10 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.FixForMultiProject;
 
 import java.io.IOException;
 
@@ -26,10 +24,7 @@ public interface RepositoryOperation {
     /**
      * Project for which repository belongs to.
      */
-    @FixForMultiProject(description = "default implementation is temporary")
-    default ProjectId projectId() {
-        return Metadata.DEFAULT_PROJECT_ID;
-    }
+    ProjectId projectId();
 
     /**
      * Name of the repository affected.

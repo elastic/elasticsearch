@@ -1202,7 +1202,12 @@ public class EsqlCapabilities {
          */
         KNN_FUNCTION(Build.current().isSnapshot()),
 
-        LIKE_WITH_LIST_OF_PATTERNS;
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -33,12 +33,12 @@ query
     ;
 
 sourceCommand
-    : explainCommand
-    | fromCommand
+    : fromCommand
     | rowCommand
     | showCommand
     // in development
     | {this.isDevVersion()}? timeSeriesCommand
+    | {this.isDevVersion()}? explainCommand
     ;
 
 processingCommand

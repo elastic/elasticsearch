@@ -62,6 +62,10 @@ public class Explain extends LeafPlan implements TelemetryAware {
     //
     // }
 
+    public LogicalPlan query() {
+        return query;
+    }
+
     @Override
     public List<Attribute> output() {
         return List.of(

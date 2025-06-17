@@ -434,7 +434,7 @@ public class EsqlSession {
         } else {
             patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
                 .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
-                .collect(Collectors.joining(", "));
+                .collect(Collectors.joining(","));
         }
         if (patternWithRemotes.isEmpty()) {
             return;
@@ -508,23 +508,8 @@ public class EsqlSession {
             }
         });
 
-        if (clustersWithResolvedIndices.size() > 1) {
-            // If we have multiple resolutions for the lookup index, we need to only leave the local resolution
-            String localIndexName = clustersWithResolvedIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            if (localIndexName == null) {
-                // Get the first index name instead
-                localIndexName = RemoteClusterAware.splitIndexName(clustersWithResolvedIndices.values().iterator().next())[1];
-            }
-            var localIndex = new EsIndex(index, newIndexResolution.get().mapping(), Map.of(localIndexName, IndexMode.LOOKUP));
-            newIndexResolution = IndexResolution.valid(
-                localIndex,
-                localIndex.concreteIndices(),
-                newIndexResolution.getUnavailableShards(),
-                newIndexResolution.unavailableClusters()
-            );
-        }
-
         return result.addLookupIndexResolution(index, newIndexResolution);
+
     }
 
     private void initializeClusterData(List<IndexPattern> indices, EsqlExecutionInfo executionInfo) {

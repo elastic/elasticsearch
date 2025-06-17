@@ -95,32 +95,32 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             checkRemoteJoin(this, failures);
         }
         // TODO: this is probably not necessary anymore as we check it in analysis stage?
-        right().forEachDown(EsRelation.class, esr -> {
-            var indexNameWithModes = esr.indexNameWithModes();
-            if (indexNameWithModes.size() != 1) {
-                failures.add(
-                    fail(
-                        esr,
-                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] indices",
-                        esr.indexPattern(),
-                        indexNameWithModes.size()
-                    )
-                );
-                return;
-            }
-            var indexAndMode = indexNameWithModes.entrySet().iterator().next();
-            if (indexAndMode.getValue() != IndexMode.LOOKUP) {
-                failures.add(
-                    fail(
-                        esr,
-                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] in [{}] mode",
-                        esr.indexPattern(),
-                        indexAndMode.getKey(),
-                        indexAndMode.getValue()
-                    )
-                );
-            }
-        });
+//        right().forEachDown(EsRelation.class, esr -> {
+//            var indexNameWithModes = esr.indexNameWithModes();
+//            if (indexNameWithModes.size() != 1) {
+//                failures.add(
+//                    fail(
+//                        esr,
+//                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] indices",
+//                        esr.indexPattern(),
+//                        indexNameWithModes.size()
+//                    )
+//                );
+//                return;
+//            }
+//            var indexAndMode = indexNameWithModes.entrySet().iterator().next();
+//            if (indexAndMode.getValue() != IndexMode.LOOKUP) {
+//                failures.add(
+//                    fail(
+//                        esr,
+//                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] in [{}] mode",
+//                        esr.indexPattern(),
+//                        indexAndMode.getKey(),
+//                        indexAndMode.getValue()
+//                    )
+//                );
+//            }
+//        });
     }
 
     private static void checkRemoteJoin(LogicalPlan plan, Failures failures) {

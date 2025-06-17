@@ -17,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;

@@ -4522,10 +4522,10 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class SampleCommandContext extends ParserRuleContext {
-    public DecimalValueContext probability;
+    public ConstantContext probability;
     public TerminalNode DEV_SAMPLE() { return getToken(EsqlBaseParser.DEV_SAMPLE, 0); }
-    public DecimalValueContext decimalValue() {
-      return getRuleContext(DecimalValueContext.class,0);
+    public ConstantContext constant() {
+      return getRuleContext(ConstantContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public SampleCommandContext(ParserRuleContext parent, int invokingState) {
@@ -4556,7 +4556,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(552);
       match(DEV_SAMPLE);
       setState(553);
-      ((SampleCommandContext)_localctx).probability = decimalValue();
+      ((SampleCommandContext)_localctx).probability = constant();
       }
     }
     catch (RecognitionException re) {
@@ -7521,7 +7521,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u0000\u0222\u0223\u0001\u0000\u0000\u0000\u0223\u0224\u0001"+
     "\u0000\u0000\u0000\u0224\u0225\u0003\u0084B\u0000\u0225\u0226\u0005O\u0000"+
     "\u0000\u0226\u0227\u0003<\u001e\u0000\u0227w\u0001\u0000\u0000\u0000\u0228"+
-    "\u0229\u0005\u0012\u0000\u0000\u0229\u022a\u0003\u0094J\u0000\u022ay\u0001"+
+    "\u0229\u0005\u0012\u0000\u0000\u0229\u022a\u0003\u008eG\u0000\u022ay\u0001"+
     "\u0000\u0000\u0000\u022b\u022c\u0006=\uffff\uffff\u0000\u022c\u022d\u0005"+
     "G\u0000\u0000\u022d\u0249\u0003z=\b\u022e\u0249\u0003\u0080@\u0000\u022f"+
     "\u0249\u0003|>\u0000\u0230\u0232\u0003\u0080@\u0000\u0231\u0233\u0005"+

@@ -18,6 +18,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 
@@ -49,20 +50,22 @@ public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap)
 
     public static Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(
         TestBuildInfo serverBuildInfo,
-        List<TestBuildInfo> pluginsBuildInfo
+        List<TestBuildInfo> pluginsBuildInfo,
+        Set<String> modularPlugins
     ) {
-
         Map<String, PolicyManager.PolicyScope> scopeMap = new TreeMap<>(); // Sorted to make it easier to read during debugging
         for (var pluginBuildInfo : pluginsBuildInfo) {
+            boolean isModular = modularPlugins.contains(pluginBuildInfo.component());
             for (var location : pluginBuildInfo.locations()) {
                 var codeSource = TestScopeResolver.class.getClassLoader().getResource(location.representativeClass());
                 if (codeSource == null) {
                     throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]");
                 }
                 try {
+                    String module = isModular ? location.module() : ALL_UNNAMED;
                     scopeMap.put(
                         getCodeSource(codeSource, location.representativeClass()),
-                        PolicyManager.PolicyScope.plugin(pluginBuildInfo.component(), location.module())
+                        PolicyManager.PolicyScope.plugin(pluginBuildInfo.component(), module)
                     );
                 } catch (MalformedURLException e) {
                     throw new IllegalArgumentException("Cannot locate class [" + location.representativeClass() + "]", e);

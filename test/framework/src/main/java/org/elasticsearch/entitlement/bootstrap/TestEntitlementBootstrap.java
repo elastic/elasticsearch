@@ -40,6 +40,7 @@ import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
@@ -92,10 +93,14 @@ public class TestEntitlementBootstrap {
     private static TestPolicyManager createPolicyManager(Path tempDir, Path configDir) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
-        var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo);
         List<String> pluginNames = pluginsTestBuildInfo.stream().map(TestBuildInfo::component).toList();
 
         var pluginDescriptors = parsePluginsDescriptors(pluginNames);
+        Set<String> modularPlugins = pluginDescriptors.stream()
+            .filter(PluginDescriptor::isModular)
+            .map(PluginDescriptor::getName)
+            .collect(toSet());
+        var scopeResolver = TestScopeResolver.createScopeResolver(serverTestBuildInfo, pluginsTestBuildInfo, modularPlugins);
         var pluginsData = pluginDescriptors.stream()
             .map(descriptor -> new TestPluginData(descriptor.getName(), descriptor.isModular(), false))
             .toList();

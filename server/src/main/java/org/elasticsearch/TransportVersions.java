@@ -208,6 +208,8 @@ public class TransportVersions {
     public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = def(8_841_0_58);
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19 = def(8_841_0_59);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
+    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_ADDED_8_19 = def(8_841_0_61);
+
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -322,6 +324,7 @@ public class TransportVersions {
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
+    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_ADDED = def(9_111_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -388,7 +391,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_0_3;
+    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_0_2;
 
     /**
      * Sorted list of all versions defined in this class

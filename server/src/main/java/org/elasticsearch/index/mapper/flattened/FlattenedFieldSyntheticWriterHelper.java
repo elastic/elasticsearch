@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A helper class that reconstructs the field including keys and values
@@ -57,14 +58,27 @@ import java.util.Objects;
  */
 public class FlattenedFieldSyntheticWriterHelper {
 
+    private record Path(String[] path) {
+        Path() {
+            this(new String[0]);
+        }
+
+        boolean isProperPrefix(String[] other) {
+            if (path.length >= other.length) {
+                return false;
+            }
+            for (int i = 0; i < path.length; i++) {
+                if (path[i].equals(other[i]) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
     private record Prefix(List<String> prefix) {
 
         Prefix() {
             this(Collections.emptyList());
-        }
-
-        Prefix(final String key) {
-            this(key.split("\\."));
         }
 
         Prefix(String[] keyAsArray) {
@@ -141,10 +155,6 @@ public class FlattenedFieldSyntheticWriterHelper {
             this(Collections.emptyList());
         }
 
-        Suffix(final String key) {
-            this(key.split("\\."));
-        }
-
         Suffix(final String[] keyAsArray) {
             this(List.of(keyAsArray).subList(keyAsArray.length - 1, keyAsArray.length));
         }
@@ -169,23 +179,28 @@ public class FlattenedFieldSyntheticWriterHelper {
 
     private static class KeyValue {
 
-        public static final KeyValue EMPTY = new KeyValue(null, new Prefix(), new Suffix());
+        public static final KeyValue EMPTY = new KeyValue(null, new Prefix(), new Suffix(), new Path());
         private final String value;
         private final Prefix prefix;
         private final Suffix suffix;
+        private final Path fullPath;
 
-        private KeyValue(final String value, final Prefix prefix, final Suffix suffix) {
+        private KeyValue(final String value, final Prefix prefix, final Suffix suffix, final Path fullPath) {
             this.value = value;
             this.prefix = prefix;
             this.suffix = suffix;
+            this.fullPath = fullPath;
         }
 
         KeyValue(final BytesRef keyValue) {
-            this(FlattenedFieldParser.extractKey(keyValue).utf8ToString(), FlattenedFieldParser.extractValue(keyValue).utf8ToString());
+            this(
+                FlattenedFieldParser.extractKey(keyValue).utf8ToString().split("\\."),
+                FlattenedFieldParser.extractValue(keyValue).utf8ToString()
+            );
         }
 
-        private KeyValue(final String key, final String value) {
-            this(value, new Prefix(key), new Suffix(key));
+        private KeyValue(final String[] key, final String value) {
+            this(value, new Prefix(key), new Suffix(key), new Path(key));
         }
 
         public Suffix suffix() {
@@ -208,6 +223,10 @@ public class FlattenedFieldSyntheticWriterHelper {
         @Override
         public int hashCode() {
             return Objects.hash(this.value, this.prefix, this.suffix);
+        }
+
+        public boolean pathEquals(final KeyValue other) {
+            return prefix.equals(other.prefix) && suffix.equals(other.suffix);
         }
 
         @Override
@@ -235,52 +254,74 @@ public class FlattenedFieldSyntheticWriterHelper {
         this.sortedKeyedValues = sortedKeyedValues;
     }
 
+    private String concatPath(Prefix prefix, String leaf) {
+        StringBuilder builder = new StringBuilder();
+        for (String part : prefix.prefix) {
+            builder.append(part);
+            builder.append(".");
+        }
+        builder.append(leaf);
+        return builder.toString();
+    }
+
     public void write(final XContentBuilder b) throws IOException {
         KeyValue curr = new KeyValue(sortedKeyedValues.next());
-        KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();
-        values.add(curr.value());
-        for (BytesRef nextValue = sortedKeyedValues.next(); nextValue != null; nextValue = sortedKeyedValues.next()) {
-            KeyValue next = new KeyValue(nextValue);
-            writeObject(b, curr, next, curr.start(prev), curr.end(next), values);
-            values.add(next.value());
-            prev = curr;
+        List<String> openObjects = new ArrayList<>();
+        String leafInSameObjectWithSamePrefix = null;
+
+        KeyValue next;
+        do {
+            values.add(curr.value());
+            BytesRef nextValue = sortedKeyedValues.next();
+            next = nextValue == null ? KeyValue.EMPTY : new KeyValue(nextValue);
+
+            // Invariants
+            //  - values contains all keys with the same path, up to and including curr
+            //  - an objects at greater depth than openObjects have been closed
+            //    - curr prefix must be greater than or equal to openObjects
+
+
+            // curr prefix is at least as long as openObjects
+            var startPrefix = curr.prefix.diff(new Prefix(openObjects));
+
+            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.get(0).equals(leafInSameObjectWithSamePrefix)) {
+                // a scalar with the same start of path as current prefix exists, need to write combined paths
+
+                // create combined leaf
+                if (curr.pathEquals(next) == false) {
+                    String combinedPath = concatPath(startPrefix, curr.suffix.suffix.get(0));
+                    writeField(b, values, combinedPath);
+                    values.clear();
+                }
+                // do not reset leafInSAmeObject
+            } else {
+                // traverse into object
+                openObjects = new ArrayList<>(curr.prefix.prefix);
+                startObject(b, startPrefix.prefix);
+
+                if (curr.pathEquals(next) == false) {
+                    var leaf =  curr.suffix().suffix.get(0);
+                    writeField(b, values, leaf);
+                    values.clear();
+                    leafInSameObjectWithSamePrefix = leaf;
+                }
+            }
+
+            var openPrefix = new Prefix(openObjects);
+            var endPrefix = openPrefix.diff(openPrefix.shared(next.prefix));
+            int numObjectsToClose = endPrefix.prefix.size();
+            for (int i = 0; i < numObjectsToClose; i++) {
+                openObjects.removeLast();
+            }
+            endObject(b, numObjectsToClose);
+
             curr = next;
-        }
-        if (values.isEmpty() == false) {
-            writeObject(b, curr, KeyValue.EMPTY, curr.start(prev), curr.end(KeyValue.EMPTY), values);
-        }
+        } while (next.equals(KeyValue.EMPTY) == false);
     }
 
-    private static void writeObject(
-        final XContentBuilder b,
-        final KeyValue currKeyValue,
-        final KeyValue nextKeyValue,
-        final Prefix startPrefix,
-        final Prefix endPrefix,
-        final List<String> values
-    ) throws IOException {
-        startObject(b, startPrefix.prefix);
-        if (currKeyValue.suffix.equals(nextKeyValue.suffix) == false) {
-            writeNestedObject(b, values, currKeyValue.suffix().suffix);
-        }
-        endObject(b, endPrefix.prefix);
-    }
-
-    private static void writeNestedObject(final XContentBuilder b, final List<String> values, final List<String> currSuffix)
-        throws IOException {
-        for (int i = 0; i < currSuffix.size() - 1; i++) {
-            b.startObject(currSuffix.get(i));
-        }
-        writeField(b, values, currSuffix);
-        for (int i = 0; i < currSuffix.size() - 1; i++) {
-            b.endObject();
-        }
-        values.clear();
-    }
-
-    private static void endObject(final XContentBuilder b, final List<String> objects) throws IOException {
-        for (final String ignored : objects) {
+    private static void endObject(final XContentBuilder b, int numObjectsToClose) throws IOException {
+        for (int i = 0; i < numObjectsToClose; i++) {
             b.endObject();
         }
     }
@@ -291,9 +332,9 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private static void writeField(XContentBuilder b, List<String> values, List<String> currSuffix) throws IOException {
+    private static void writeField(XContentBuilder b, List<String> values, String leaf) throws IOException {
         if (values.size() > 1) {
-            b.field(currSuffix.get(currSuffix.size() - 1), values);
+            b.field(leaf, values);
         } else {
             // NOTE: here we make the assumption that fields with just one value are not arrays.
             // Flattened fields have no mappings, and even if we had mappings, there is no way
@@ -301,7 +342,7 @@ public class FlattenedFieldSyntheticWriterHelper {
             // As a result, there is no way to know, after reading a single value, if that value
             // is the value for a single-valued field or a multi-valued field (array) with just
             // one value (array of size 1).
-            b.field(currSuffix.get(currSuffix.size() - 1), values.get(0));
+            b.field(leaf, values.get(0));
         }
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,7 +45,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         Function<DriverContext, LookupFromIndexService> lookupService,
         DataType inputDataType,
         String lookupIndex,
-        String matchField,
+        FieldAttribute.FieldName matchField,
         List<NamedExpression> loadFields,
         Source source
     ) implements OperatorFactory {
@@ -55,7 +56,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 + " input_type="
                 + inputDataType
                 + " match_field="
-                + matchField
+                + matchField.string()
                 + " load_fields="
                 + loadFields
                 + " inputChannel="
@@ -74,7 +75,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupService.apply(driverContext),
                 inputDataType,
                 lookupIndex,
-                matchField,
+                matchField.string(),
                 loadFields,
                 source
             );

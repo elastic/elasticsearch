@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
@@ -59,7 +60,8 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
             threadPool,
             mock(ActionFilters.class),
             mockModelRegistry,
-            mockInferenceServiceRegistry
+            mockInferenceServiceRegistry,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
 

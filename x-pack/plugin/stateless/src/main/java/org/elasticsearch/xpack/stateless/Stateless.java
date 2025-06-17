@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.allocation.ShardHeapAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessBalancingWeightsFactory;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
@@ -1155,7 +1156,8 @@ public class Stateless extends Plugin
             StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING,
-            StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED
+            StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED,
+            ShardHeapAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SHARD_HEAP_LOW_WATERMARK
         );
     }
 
@@ -1598,7 +1600,7 @@ public class Stateless extends Plugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return List.of(new StatelessAllocationDecider());
+        return List.of(new StatelessAllocationDecider(), new ShardHeapAllocationDecider(clusterSettings));
     }
 
     @Override

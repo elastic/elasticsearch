@@ -559,6 +559,12 @@ tests:
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
   issue: https://github.com/elastic/elasticsearch/issues/129481
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testFullPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/129510
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {knn-function.KnnSearchWithKOption SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129512
 
 # Examples:
 #

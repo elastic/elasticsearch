@@ -148,8 +148,7 @@ public class IngestGeoIpPlugin extends Plugin
             services.client(),
             new HttpClient(),
             services.clusterService(),
-            services.threadPool(),
-            services.projectResolver()
+            services.threadPool()
         );
         geoIpDownloaderTaskExecutor.init();
 

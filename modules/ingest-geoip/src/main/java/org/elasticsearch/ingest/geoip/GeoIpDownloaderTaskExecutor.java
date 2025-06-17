@@ -108,13 +108,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
-    GeoIpDownloaderTaskExecutor(
-        Client client,
-        HttpClient httpClient,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ProjectResolver projectResolver
-    ) {
+    GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
         super(GEOIP_DOWNLOADER, threadPool.generic());
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
         this.httpClient = httpClient;
@@ -124,7 +118,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
-        this.projectResolver = projectResolver;
+        this.projectResolver = client.projectResolver();
     }
 
     /**

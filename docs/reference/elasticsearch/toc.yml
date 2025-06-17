@@ -1,5 +1,6 @@
 toc:
   - file: index.md
+  - file: rest-apis.md
   - file: configuration-reference/index.md
     children:
       - file: configuration-reference/circuit-breaker-settings.md

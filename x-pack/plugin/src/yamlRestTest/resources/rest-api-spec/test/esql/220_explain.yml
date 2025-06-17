@@ -44,7 +44,7 @@ explainRow:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'EXPLAIN [row a = 1]'
+          query: 'EXPLAIN (row a = 1)'
 
   - length: { columns: 3 }
   - length: { values: 1 }
@@ -63,7 +63,7 @@ explainQuery:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'EXPLAIN [from test | where color == "red" | eval b = 20]'
+          query: 'EXPLAIN (from test | where color == "red" | eval b = 20)'
 
   - length: { columns: 3 }
   - length: { values: 1 }
@@ -82,7 +82,7 @@ explainDownstream:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'EXPLAIN [row a = 1] | eval b = 2'
+          query: 'EXPLAIN (row a = 1) | eval b = 2'
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }

@@ -3358,11 +3358,11 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class SubqueryExpressionContext extends ParserRuleContext {
-    public TerminalNode OPENING_BRACKET() { return getToken(EsqlBaseParser.OPENING_BRACKET, 0); }
+    public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
     public QueryContext query() {
       return getRuleContext(QueryContext.class,0);
     }
-    public TerminalNode CLOSING_BRACKET() { return getToken(EsqlBaseParser.CLOSING_BRACKET, 0); }
+    public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
     @SuppressWarnings("this-escape")
     public SubqueryExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -3390,11 +3390,11 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(440);
-      match(OPENING_BRACKET);
+      match(LP);
       setState(441);
       query(0);
       setState(442);
-      match(CLOSING_BRACKET);
+      match(RP);
       }
     }
     catch (RecognitionException re) {
@@ -7461,8 +7461,8 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0001\u0000\u0000\u0000\u01b1\u01b2\u00034\u001a\u0000\u01b2\u01b3\u0005"+
     ":\u0000\u0000\u01b3\u01b4\u0003\u008eG\u0000\u01b4U\u0001\u0000\u0000"+
     "\u0000\u01b5\u01b6\u0005\u0006\u0000\u0000\u01b6\u01b7\u0003X,\u0000\u01b7"+
-    "W\u0001\u0000\u0000\u0000\u01b8\u01b9\u0005a\u0000\u0000\u01b9\u01ba\u0003"+
-    "\u0002\u0001\u0000\u01ba\u01bb\u0005b\u0000\u0000\u01bbY\u0001\u0000\u0000"+
+    "W\u0001\u0000\u0000\u0000\u01b8\u01b9\u0005c\u0000\u0000\u01b9\u01ba\u0003"+
+    "\u0002\u0001\u0000\u01ba\u01bb\u0005d\u0000\u0000\u01bbY\u0001\u0000\u0000"+
     "\u0000\u01bc\u01bd\u0005!\u0000\u0000\u01bd\u01be\u0005\u0088\u0000\u0000"+
     "\u01be[\u0001\u0000\u0000\u0000\u01bf\u01c0\u0005\u0005\u0000\u0000\u01c0"+
     "\u01c3\u0005&\u0000\u0000\u01c1\u01c2\u0005J\u0000\u0000\u01c2\u01c4\u0003"+

@@ -40,6 +40,7 @@ import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
@@ -78,6 +79,21 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
+    }
+
+    protected void minimalMappingWithExplicitDefaults(XContentBuilder b) throws IOException {
+        b.field("type", "sparse_vector");
+        b.startObject("index_options");
+        {
+            b.field("prune", true);
+            b.startObject("pruning_config");
+            {
+                b.field("tokens_freq_ratio_threshold", TokenPruningConfig.DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD);
+                b.field("tokens_weight_threshold", TokenPruningConfig.DEFAULT_TOKENS_WEIGHT_THRESHOLD);
+            }
+            b.endObject();
+        }
+        b.endObject();
     }
 
     protected void minimalMappingWithExplicitIndexOptions(XContentBuilder b) throws IOException {
@@ -193,6 +209,19 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
+    }
+
+    public void testDefaultsWithIncludeDefaults() throws Exception {
+        XContentBuilder orig = JsonXContent.contentBuilder().startObject();
+        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        orig.endObject();
+
+        XContentBuilder withDefaults = JsonXContent.contentBuilder().startObject();
+        createMapperService(fieldMapping(this::minimalMappingWithExplicitDefaults)).documentMapper().mapping()
+            .toXContent(withDefaults, INCLUDE_DEFAULTS);
+        withDefaults.endObject();
+
+        assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
     }
 
     public void testMappingWithoutIndexOptionsUsesDefaults() throws Exception {

@@ -24,7 +24,11 @@ PUT my-index
 }
 ```
 
-{applies_to}`stack: preview 9.1`
+## Token pruning
+```{applies_to}
+stack: preview 9.1
+```
+
 With any new indices created, token pruning will be turned on by default with appropriate defaults. You can control this behaviour using the optional `index_options` parameters for the field:
 
 ```console

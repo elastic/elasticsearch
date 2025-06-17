@@ -146,7 +146,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, IndexOptions value) {
-            return includeDefaults || (value == null || IndexOptions.isDefaultOptions(value, indexVersion)) == false;
+            return (
+                indexVersionSupportsDefaultPruningConfig(indexVersion) && (
+                    includeDefaults || (value == null || IndexOptions.isDefaultOptions(value, indexVersion)) == false
+                )
+            );
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 129170
+summary: Add Support for LIKE (LIST)
+area: ES|QL
+type: enhancement
+issues: []

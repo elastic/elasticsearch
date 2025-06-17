@@ -11,11 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -87,7 +85,6 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
-import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -423,7 +420,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private static MinimalServiceSettings getModelSettingsForInferenceResultType(
-        InferenceResultType inferenceResultType, @Nullable DenseVectorFieldMapper.ElementType denseVectorElementType
+        InferenceResultType inferenceResultType,
+        @Nullable DenseVectorFieldMapper.ElementType denseVectorElementType
     ) {
         return switch (inferenceResultType) {
             case NONE -> null;

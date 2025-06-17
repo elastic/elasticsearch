@@ -27,6 +27,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestStreamsStatusAction extends BaseRestHandler {
 
+    public static final Set<String> SUPPORTED_PARAMS = Collections.singleton(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+
     @Override
     public String getName() {
         return "streams_status_action";
@@ -39,15 +41,12 @@ public class RestStreamsStatusAction extends BaseRestHandler {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return restChannel -> client.execute(
-            StreamsStatusAction.INSTANCE,
-            new StreamsStatusAction.Request(RestUtils.getMasterNodeTimeout(request)),
-            new RestToXContentListener<>(restChannel)
-        );
+        StreamsStatusAction.Request statusRequest = new StreamsStatusAction.Request(RestUtils.getMasterNodeTimeout(request));
+        return restChannel -> client.execute(StreamsStatusAction.INSTANCE, statusRequest, new RestToXContentListener<>(restChannel));
     }
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Collections.singleton(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+        return SUPPORTED_PARAMS;
     }
 }

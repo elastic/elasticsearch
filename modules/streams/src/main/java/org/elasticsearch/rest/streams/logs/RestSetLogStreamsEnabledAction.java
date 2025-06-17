@@ -24,6 +24,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
+
+    public static final Set<String> SUPPORTED_PARAMS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
+
     @Override
     public String getName() {
         return "streams_logs_set_enabled_action";
@@ -38,20 +41,23 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final boolean enabled = request.path().endsWith("_enable");
         assert enabled || request.path().endsWith("_disable");
+
+        LogsStreamsActivationToggleAction.Request activationRequest = new LogsStreamsActivationToggleAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
+            RestUtils.getAckTimeout(request),
+            enabled
+        );
+
         return restChannel -> client.execute(
             LogsStreamsActivationToggleAction.INSTANCE,
-            new LogsStreamsActivationToggleAction.Request(
-                RestUtils.getMasterNodeTimeout(request),
-                RestUtils.getAckTimeout(request),
-                enabled
-            ),
+            activationRequest,
             new RestToXContentListener<>(restChannel)
         );
     }
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
+        return SUPPORTED_PARAMS;
     }
 
 }

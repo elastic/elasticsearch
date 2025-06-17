@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -131,7 +132,8 @@ public class IndexLifecycleService
     }
 
     public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
-        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, indexMetadata.getLifecyclePolicyName(), nextStepKey);
+        final var state = clusterState.projectState();
+        lifecycleRunner.maybeRunAsyncAction(state, indexMetadata, indexMetadata.getLifecyclePolicyName(), nextStepKey);
     }
 
     /**
@@ -184,7 +186,8 @@ public class IndexLifecycleService
 
         // TODO multi-project: this probably needs a per-project iteration
         @FixForMultiProject
-        final ProjectMetadata projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        final ProjectState state = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final ProjectMetadata projectMetadata = state.metadata();
         final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentILMMode(projectMetadata);
@@ -211,7 +214,7 @@ public class IndexLifecycleService
                                     policyName,
                                     stepKey.name()
                                 );
-                                lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                                lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
                                 // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                                 safeToStop = false;
                             } else {
@@ -223,7 +226,7 @@ public class IndexLifecycleService
                                 );
                             }
                         } else {
-                            lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                            lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
                         }
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
@@ -462,7 +465,8 @@ public class IndexLifecycleService
     @FixForMultiProject
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         @FixForMultiProject
-        final var projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        final var state = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final var projectMetadata = state.metadata();
         IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
 
         OperationMode currentMode = currentILMMode(projectMetadata);
@@ -499,9 +503,9 @@ public class IndexLifecycleService
                                 stepKey.name()
                             );
                             if (fromClusterStateChange) {
-                                lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                                lifecycleRunner.runPolicyAfterStateChange(state.projectId(), policyName, idxMeta);
                             } else {
-                                lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
+                                lifecycleRunner.runPeriodicStep(state, policyName, idxMeta);
                             }
                             // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                             safeToStop = false;
@@ -515,9 +519,9 @@ public class IndexLifecycleService
                         }
                     } else {
                         if (fromClusterStateChange) {
-                            lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                            lifecycleRunner.runPolicyAfterStateChange(state.projectId(), policyName, idxMeta);
                         } else {
-                            lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
+                            lifecycleRunner.runPeriodicStep(state, policyName, idxMeta);
                         }
                     }
                 } catch (Exception e) {

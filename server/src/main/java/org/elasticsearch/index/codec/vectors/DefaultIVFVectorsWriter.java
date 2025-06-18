@@ -17,7 +17,9 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -60,22 +62,34 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         BinarizedFloatVectorValues binarizedByteVectorValues = new BinarizedFloatVectorValues(floatVectorValues, quantizer);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
-
+        int[] docIds = null;
+        int[] clusterOrds = null;
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             binarizedByteVectorValues.centroid = centroid;
-            // TODO: add back in sorting vectors by distance to centroid
             IntArrayList cluster = assignmentsByCluster[c];
             // TODO align???
             offsets[c] = postingsOutput.getFilePointer();
             int size = cluster.size();
+            if (docIds == null || docIds.length < size) {
+                docIds = new int[size];
+                clusterOrds = new int[size];
+            }
+            for (int j = 0; j < size; j++) {
+                docIds[j] = floatVectorValues.ordToDoc(cluster.get(j));
+                clusterOrds[j] = j;
+            }
+            final int[] finalDocs = docIds;
+            final int[] finalOrds = clusterOrds;
+            // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
+            new IntSorter(clusterOrds, i -> finalDocs[i]).sort(0, size);
             postingsOutput.writeVInt(size);
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), size, postingsOutput);
-            writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
+            docIdsWriter.writeDocIds(j -> finalDocs[finalOrds[j]], size, postingsOutput);
+            writePostingList(cluster, finalOrds, postingsOutput, binarizedByteVectorValues);
         }
 
         if (logger.isDebugEnabled()) {
@@ -115,8 +129,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         );
     }
 
-    private void writePostingList(IntArrayList cluster, IndexOutput postingsOutput, BinarizedFloatVectorValues binarizedByteVectorValues)
-        throws IOException {
+    private void writePostingList(
+        IntArrayList cluster,
+        int[] sortedOrds,
+        IndexOutput postingsOutput,
+        BinarizedFloatVectorValues binarizedByteVectorValues
+    ) throws IOException {
         int limit = cluster.size() - ES91OSQVectorsScorer.BULK_SIZE + 1;
         int cidx = 0;
         OptimizedScalarQuantizer.QuantizationResult[] corrections =
@@ -124,7 +142,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // Write vectors in bulks of ES91OSQVectorsScorer.BULK_SIZE.
         for (; cidx < limit; cidx += ES91OSQVectorsScorer.BULK_SIZE) {
             for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                int ord = cluster.get(cidx + j);
+                int ord = cluster.get(sortedOrds[cidx + j]);
                 byte[] binaryValue = binarizedByteVectorValues.vectorValue(ord);
                 // write vector
                 postingsOutput.writeBytes(binaryValue, 0, binaryValue.length);
@@ -148,8 +166,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
         // write tail
         for (; cidx < cluster.size(); cidx++) {
-            int ord = cluster.get(cidx);
-            // write vector
+            int ord = cluster.get(sortedOrds[cidx]);
             byte[] binaryValue = binarizedByteVectorValues.vectorValue(ord);
             OptimizedScalarQuantizer.QuantizationResult correction = binarizedByteVectorValues.getCorrectiveTerms(ord);
             writeQuantizedValue(postingsOutput, binaryValue, correction);
@@ -288,7 +305,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     // TODO unify with OSQ format
-    static class BinarizedFloatVectorValues {
+    private static class BinarizedFloatVectorValues {
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final byte[] binarized;
         private final byte[] initQuantized;
@@ -368,6 +385,39 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;
+        }
+    }
+
+    static class IntSorter extends IntroSorter {
+        int pivot = -1;
+        private final int[] arr;
+        private final IntToIntFunction func;
+
+        IntSorter(int[] arr, IntToIntFunction func) {
+            this.arr = arr;
+            this.func = func;
+        }
+
+        @Override
+        protected void setPivot(int i) {
+            pivot = func.apply(arr[i]);
+        }
+
+        @Override
+        protected int comparePivot(int j) {
+            return Integer.compare(pivot, func.apply(arr[j]));
+        }
+
+        @Override
+        protected int compare(int a, int b) {
+            return Integer.compare(func.apply(arr[a]), func.apply(arr[b]));
+        }
+
+        @Override
+        protected void swap(int i, int j) {
+            final int tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
         }
     }
 }

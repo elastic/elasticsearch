@@ -316,6 +316,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         String name = handler.nameOf(attribute);
 
         try {
+            // TODO: Support geo-grid query pushdown
             Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
             return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
         } catch (IllegalArgumentException e) {

@@ -297,17 +297,19 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableSpatialAttribute(left(), pushdownPredicates) && right().foldable()
-            || isPushableSpatialAttribute(right(), pushdownPredicates) && left().foldable()
+        return isPushableSpatialAttribute(left(), pushdownPredicates) && isPushableLiteralAttribute(right())
+            || isPushableSpatialAttribute(right(), pushdownPredicates) && isPushableLiteralAttribute(left())
                 ? TranslationAware.Translatable.YES
                 : TranslationAware.Translatable.NO;
 
     }
 
     private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
-        return exp instanceof FieldAttribute fa
-            && DataType.isSpatialAndGrid(fa.dataType())
-            && fa.getExactInfo().hasExact()
-            && p.isIndexed(fa);
+        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
+    }
+
+    private static boolean isPushableLiteralAttribute(Expression exp) {
+        // TODO: Support pushdown of geo-grid queries where the constant is a geo-grid-id literal
+        return DataType.isSpatial(exp.dataType()) && exp.foldable();
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -107,7 +108,7 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
     private static final List<PushDownLimitTestCase<? extends UnaryPlan>> NON_PUSHABLE_LIMIT_TEST_CASES = List.of(
         new PushDownLimitTestCase<>(
             Filter.class,
-            (plan, attr) -> new Filter(EMPTY, plan, new Equals(EMPTY, attr, new Literal(EMPTY, "right", TEXT))),
+            (plan, attr) -> new Filter(EMPTY, plan, new Equals(EMPTY, attr, new Literal(EMPTY, BytesRefs.toBytesRef("right"), TEXT))),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.condition(), optimizedPlan.condition());

@@ -53,7 +53,7 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
         this(
             source,
             child,
-            new Literal(Source.EMPTY, DEFAULT_INFERENCE_ID, DataType.KEYWORD),
+            Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID),
             queryText,
             rerankFields,
             new UnresolvedAttribute(Source.EMPTY, MetadataAttribute.SCORE)

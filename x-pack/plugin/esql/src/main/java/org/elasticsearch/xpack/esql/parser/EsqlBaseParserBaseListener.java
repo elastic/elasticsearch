@@ -781,6 +781,42 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterInferenceCommandOptions(EsqlBaseParser.InferenceCommandOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInferenceCommandOptions(EsqlBaseParser.InferenceCommandOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInferenceCommandOption(EsqlBaseParser.InferenceCommandOptionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInferenceCommandOption(EsqlBaseParser.InferenceCommandOptionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInferenceCommandOptionValue(EsqlBaseParser.InferenceCommandOptionValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInferenceCommandOptionValue(EsqlBaseParser.InferenceCommandOptionValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx) { }
   /**
    * {@inheritDoc}

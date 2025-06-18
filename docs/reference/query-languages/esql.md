@@ -6,8 +6,6 @@ mapped_pages:
 
 # {{esql}} reference [esql-language]
 
-foo bar baz testy test
-
 :::{note}
 This section provides detailed **reference information** about the {{esql}} language, including syntax, functions, and operators.
 

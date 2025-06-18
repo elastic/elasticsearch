@@ -58,7 +58,7 @@ public class TestEntitlementBootstrap {
             return;
         }
         TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
-        policyManager = createPolicyManager(tempDir, configDir);
+        policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
@@ -90,7 +90,7 @@ public class TestEntitlementBootstrap {
         }
     }
 
-    private static TestPolicyManager createPolicyManager(Path tempDir, Path configDir) throws IOException {
+    private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
         List<String> pluginNames = pluginsTestBuildInfo.stream().map(TestBuildInfo::component).toList();
@@ -120,7 +120,6 @@ public class TestEntitlementBootstrap {
         }
         Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
 
-        PathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");

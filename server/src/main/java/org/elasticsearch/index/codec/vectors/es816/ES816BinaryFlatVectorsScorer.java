@@ -59,6 +59,9 @@ class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
         float[] target
     ) throws IOException {
         if (vectorValues instanceof BinarizedByteVectorValues binarizedVectors) {
+            assert binarizedVectors.getQuantizer() != null
+                : "BinarizedByteVectorValues must have a quantizer for ES816BinaryFlatVectorsScorer";
+            assert binarizedVectors.size() > 0 : "BinarizedByteVectorValues must have at least one vector for ES816BinaryFlatVectorsScorer";
             BinaryQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
             // FIXME: precompute this once?

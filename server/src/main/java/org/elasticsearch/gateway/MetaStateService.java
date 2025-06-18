@@ -11,7 +11,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
@@ -22,6 +21,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -84,7 +85,23 @@ public class MetaStateService {
      */
     public void unreferenceAll() throws IOException {
         Manifest.FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        MetadataStateFormat.cleanupOldFiles(GLOBAL_STATE_FILE_PREFIX, Long.MAX_VALUE, nodeEnv.nodeDataPaths(), NIOFSDirectory::new);
+        cleanUpGlobalStateFiles();
+    }
+
+    private void cleanUpGlobalStateFiles() throws IOException {
+        for (Path location : nodeEnv.nodeDataPaths()) {
+            logger.trace("cleanupOldFiles: cleaning up {} for global state files", location);
+            final Path stateLocation = location.resolve(MetadataStateFormat.STATE_DIR_NAME);
+            try (var paths = Files.list(stateLocation)) {
+                paths.filter(file -> file.getFileName().toString().startsWith(GLOBAL_STATE_FILE_PREFIX)).forEach(file -> {
+                    try {
+                        Files.deleteIfExists(file);
+                    } catch (IOException e) {
+                        logger.trace("failed to delete global state file: {}", file);
+                    }
+                });
+            }
+        }
     }
 
     /**

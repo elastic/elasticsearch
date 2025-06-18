@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -351,28 +350,11 @@ public abstract class MetadataStateFormat<T> {
      * @param locations         state paths.
      */
     public void cleanupOldFiles(final long currentGeneration, final Path[] locations) {
-        cleanupOldFiles(prefix, currentGeneration, locations, this::newDirectory);
-    }
-
-    /**
-     * Clean ups all state files not matching passed generation.
-     *
-     * @param prefix filename prefix for filtering state files.
-     * @param currentGeneration state generation to keep.
-     * @param locations         state paths.
-     * @param directoryFunc function to create a {@link Directory} for the given path.
-     */
-    public static void cleanupOldFiles(
-        final String prefix,
-        final long currentGeneration,
-        final Path[] locations,
-        final CheckedFunction<Path, Directory, IOException> directoryFunc
-    ) {
-        final String fileNameToKeep = getStateFileName(prefix, currentGeneration);
+        final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
-            try (Directory stateDir = directoryFunc.apply(stateLocation)) {
+            try (Directory stateDir = newDirectory(stateLocation)) {
                 for (String file : stateDir.listAll()) {
                     if (file.startsWith(prefix) && file.equals(fileNameToKeep) == false) {
                         deleteFileIgnoreExceptions(stateLocation, stateDir, file);
@@ -384,14 +366,6 @@ public abstract class MetadataStateFormat<T> {
         }
     }
 
-    /**
-     * Finds state file with maximum id.
-     *
-     * @param prefix    - filename prefix
-     * @param locations - paths to directories with state folder
-     * @return maximum id of state file or -1 if no such files are found
-     * @throws IOException if IOException occurs
-     */
     long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
@@ -430,10 +404,6 @@ public abstract class MetadataStateFormat<T> {
     }
 
     public String getStateFileName(long generation) {
-        return getStateFileName(prefix, generation);
-    }
-
-    public static String getStateFileName(String prefix, long generation) {
         return prefix + generation + STATE_FILE_EXTENSION;
     }
 

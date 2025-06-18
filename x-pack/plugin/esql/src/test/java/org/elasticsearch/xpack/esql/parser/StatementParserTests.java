@@ -3174,7 +3174,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported with LOOKUP JOIN"
             );
         }
         {
@@ -3183,7 +3183,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with LOOKUP JOIN"
             );
         }
 
@@ -3414,6 +3414,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
+
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        expectError(
+            "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
+            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
+        );
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -3539,6 +3545,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
+
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        expectError(
+            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH inferenceId",
+            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
+        );
     }
 
     public void testCompletionUsingFieldAsPrompt() {
@@ -3589,6 +3601,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | COMPLETION completion=prompt WITH", "line 1:46: mismatched input '<EOF>' expecting {");
 
         expectError("FROM foo* | COMPLETION completion=prompt", "line 1:41: mismatched input '<EOF>' expecting {");
+
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        expectError(
+            "FROM " + fromPatterns + " | COMPLETION prompt_field WITH inferenceId",
+            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
+        );
     }
 
     public void testSample() {

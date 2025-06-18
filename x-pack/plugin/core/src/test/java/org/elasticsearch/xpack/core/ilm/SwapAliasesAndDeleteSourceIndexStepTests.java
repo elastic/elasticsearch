@@ -64,7 +64,13 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             case 3 -> createSourceIndexAlias = createSourceIndexAlias == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new SwapAliasesAndDeleteSourceIndexStep(key, nextKey, instance.getClientWithoutProject(), indexNameSupplier, createSourceIndexAlias);
+        return new SwapAliasesAndDeleteSourceIndexStep(
+            key,
+            nextKey,
+            instance.getClientWithoutProject(),
+            indexNameSupplier,
+            createSourceIndexAlias
+        );
     }
 
     public void testPerformAction() {

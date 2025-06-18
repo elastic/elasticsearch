@@ -56,7 +56,12 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
     @Override
     public ForceMergeStep copyInstance(ForceMergeStep instance) {
-        return new ForceMergeStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject(), instance.getMaxNumSegments());
+        return new ForceMergeStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClientWithoutProject(),
+            instance.getMaxNumSegments()
+        );
     }
 
     public void testPerformActionComplete() throws Exception {

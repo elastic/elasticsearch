@@ -75,7 +75,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security*";
     public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
 
-
     /** Index pattern for Universal Profiling */
     public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
     public static final String UNIVERSAL_PROFILING_BACKING_INDICES = ".profiling-*";

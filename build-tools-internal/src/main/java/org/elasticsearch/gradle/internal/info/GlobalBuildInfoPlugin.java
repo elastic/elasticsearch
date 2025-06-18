@@ -204,7 +204,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private List<DevelopmentBranch> getDevelopmentBranches() {
-        String branchesFileLocation = project.getProviders().gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
+        String branchesFileLocation = project.getProviders()
+            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
             .getOrElse(DEFAULT_BRANCHES_FILE_URL);
         LOGGER.info("Reading branches.json from {}", branchesFileLocation);
         byte[] branchesBytes;

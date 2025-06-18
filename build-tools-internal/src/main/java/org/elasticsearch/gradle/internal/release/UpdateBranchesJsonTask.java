@@ -133,8 +133,7 @@ public class UpdateBranchesJsonTask extends DefaultTask {
 
     private List<DevelopmentBranch> readBranches(File branchesFile) {
         if (branchesFile.isFile() == false) {
-            throw new InvalidUserDataException("File branches.json has not been found in " +
-                    branchesFile.getAbsolutePath());
+            throw new InvalidUserDataException("File branches.json has not been found in " + branchesFile.getAbsolutePath());
         }
 
         try {

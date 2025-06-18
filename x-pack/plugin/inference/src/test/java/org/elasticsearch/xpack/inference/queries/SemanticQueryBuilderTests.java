@@ -188,14 +188,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     protected IndexReaderManager getIndexReaderManager() {
         return new IndexReaderManager() {
             @Override
-            protected void initIndexWriter(RandomIndexWriter indexWriter) {
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
                 Document document = new Document();
                 document.add(new TextField("semantic.inference.chunks.embeddings", "a b x y", Field.Store.NO));
-                try {
-                    indexWriter.addDocument(document);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                indexWriter.addDocument(document);
             }
         };
     }

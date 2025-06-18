@@ -234,6 +234,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             )
                         )
                     );
+                    return;
                 }
 
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(

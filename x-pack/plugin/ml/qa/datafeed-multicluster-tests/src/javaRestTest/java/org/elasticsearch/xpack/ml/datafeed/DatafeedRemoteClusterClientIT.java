@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams;
+package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
@@ -26,13 +26,15 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * A test to check that remote_cluster_client errors are correctly reported when a datafeed job is started.
  * The local datafeed job references a remote index in a local anomaly detection job. When the
  * remote_cluster_client role is missing in the local cluster. This prevents remote indices from being
  * resolved to their cluster names.
  *
- * Written to address github issue 121149.
+ * @see <a href="https://github.com/elastic/elasticsearch/issues/121149">GitHub issue 121149</a>
  */
 public class DatafeedRemoteClusterClientIT extends ESRestTestCase {
     public static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
@@ -160,37 +162,17 @@ public class DatafeedRemoteClusterClientIT extends ESRestTestCase {
                     "start": "2019-04-07T18:22:16Z"
                 }
                 """);
-            try {
-                localClient.performRequest(startRequest);
-                assertTrue("This request should fail", false);
-            } catch (ResponseException e) {
-                String[] messages = e.getMessage().split("\n");
-                assertTrue(Pattern.matches("""
-                    .*Datafeed \\[test_datafeed\\] is configured with a remote index pattern\\(s\\) \
-                    \\[remote_cluster:remote_index\\] but the current node \\[local_cluster-0\\] \
-                    is not allowed to connect to remote clusters. Please enable node.remote_cluster_client \
-                    for all machine learning nodes and master-eligible nodes.*""", messages[1]));
-            }
+            ResponseException e = assertThrows(ResponseException.class, () -> localClient.performRequest(startRequest));
+            assertThat(e.getMessage(), containsString("""
+                Datafeed [test_datafeed] is configured with a remote index pattern(s) \
+                [remote_cluster:remote_index] but the current node [local_cluster-0] \
+                is not allowed to connect to remote clusters. Please enable node.remote_cluster_client \
+                for all machine learning nodes and master-eligible nodes"""));
         }
     }
 
     @Override
     protected String getTestRestCluster() {
         return localCluster.getHttpAddresses();
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveDataStreamsUponCompletion() {
-        return true;
     }
 }

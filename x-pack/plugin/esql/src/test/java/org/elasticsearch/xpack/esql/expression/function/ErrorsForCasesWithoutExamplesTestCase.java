@@ -72,7 +72,6 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         List<Set<DataType>> validPerPosition = AbstractFunctionTestCase.validPerPosition(valid);
         Iterable<List<DataType>> testCandidates = testCandidates(cases, valid)::iterator;
         for (List<DataType> signature : testCandidates) {
-            logger.debug("checking {}", signature);
             List<Expression> args = new ArrayList<>(signature.size());
             for (DataType type : signature) {
                 args.add(randomLiteral(type));

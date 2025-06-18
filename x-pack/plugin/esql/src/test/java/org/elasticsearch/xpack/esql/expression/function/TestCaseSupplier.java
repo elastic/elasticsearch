@@ -1452,6 +1452,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
         }
 
+        public TestCase(List<TypedData> data) {
+            this(data, null, null, null, null, null, null, null, null, false);
+        }
+
         /**
          * Build a test case for type errors.
          *

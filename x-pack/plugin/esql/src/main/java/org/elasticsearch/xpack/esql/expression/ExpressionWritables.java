@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
+import org.elasticsearch.xpack.esql.expression.function.inference.RerankFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
@@ -119,6 +120,7 @@ public class ExpressionWritables {
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
         entries.addAll(vector());
+        entries.addAll(inferenceFunctions());
         return entries;
     }
 
@@ -261,6 +263,13 @@ public class ExpressionWritables {
     private static List<NamedWriteableRegistry.Entry> vector() {
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
             return List.of(Knn.ENTRY);
+        }
+        return List.of();
+    }
+
+    private static List<NamedWriteableRegistry.Entry> inferenceFunctions() {
+        if (EsqlCapabilities.Cap.RERANK_FUNCTION.isEnabled()) {
+            return List.of(RerankFunction.ENTRY);
         }
         return List.of();
     }

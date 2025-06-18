@@ -928,6 +928,11 @@ public class EsqlCapabilities {
         RERANK(Build.current().isSnapshot()),
 
         /**
+         * Support for RERANK as a function
+         */
+        RERANK_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for COMPLETION command
          */
         COMPLETION,

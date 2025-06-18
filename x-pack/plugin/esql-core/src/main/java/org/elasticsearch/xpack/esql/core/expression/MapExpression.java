@@ -115,12 +115,20 @@ public class MapExpression extends Expression {
         return Objects.hash(entryExpressions);
     }
 
+    public Expression getOrDefault(Object key, Expression defaultValue) {
+        return containsKey(key) ? get(key) : defaultValue;
+    }
+
+    public boolean containsKey(Object key) {
+        return keyFoldedMap.containsKey(key) || keyFoldedMap.containsKey(getKeyAsBytesRef(key));
+    }
+
     public Expression get(Object key) {
         if (key instanceof Expression) {
             return map.get(key);
         } else {
             // the key(literal) could be converted to BytesRef by ConvertStringToByteRef
-            return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(new BytesRef(key.toString()));
+            return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(getKeyAsBytesRef(key));
         }
     }
 
@@ -141,5 +149,9 @@ public class MapExpression extends Expression {
     public String toString() {
         String str = entryExpressions.stream().map(String::valueOf).collect(Collectors.joining(", "));
         return "{ " + str + " }";
+    }
+
+    private BytesRef getKeyAsBytesRef(Object key) {
+        return new BytesRef(key.toString());
     }
 }

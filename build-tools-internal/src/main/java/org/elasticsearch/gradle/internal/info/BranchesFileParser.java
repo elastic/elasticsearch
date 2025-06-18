@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.info;
 
 import com.fasterxml.jackson.databind.JsonNode;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.gradle.Version;
@@ -36,12 +35,7 @@ public class BranchesFileParser {
         try {
             JsonNode json = objectMapper.readTree(bytes);
             for (JsonNode node : json.get("branches")) {
-                branches.add(
-                    new DevelopmentBranch(
-                        node.get("branch").asText(),
-                        Version.fromString(node.get("version").asText())
-                    )
-                );
+                branches.add(new DevelopmentBranch(node.get("branch").asText(), Version.fromString(node.get("version").asText())));
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse content of branches.json", e);

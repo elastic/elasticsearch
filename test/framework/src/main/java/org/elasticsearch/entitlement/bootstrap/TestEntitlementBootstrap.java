@@ -122,12 +122,12 @@ public class TestEntitlementBootstrap {
 
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        String testOnlyPathProperty = System.getProperty("es.entitlement.testOnlyPath");
+        String testOnlyPathString = System.getenv("es.entitlement.testOnlyPath");
         Set<String> testOnlyClassPath;
-        if (testOnlyPathProperty == null) {
+        if (testOnlyPathString == null) {
             testOnlyClassPath = Set.of();
         } else {
-            testOnlyClassPath = Arrays.stream(testOnlyPathProperty.split(":")).collect(toCollection(TreeSet::new));
+            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(":")).collect(toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

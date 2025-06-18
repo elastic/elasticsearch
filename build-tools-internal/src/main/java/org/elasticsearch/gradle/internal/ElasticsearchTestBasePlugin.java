@@ -27,6 +27,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -182,7 +183,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
                 FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
                 FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
-                nonInputProperties.systemProperty("es.entitlement.testOnlyPath", testOnlyFiles::getAsPath);
+                test.environment("es.entitlement.testOnlyPath", project.provider(testOnlyFiles::getAsPath));
             }
 
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());

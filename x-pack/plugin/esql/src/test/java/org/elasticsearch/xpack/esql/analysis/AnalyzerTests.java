@@ -3167,6 +3167,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRandomSampleProbability() {
+        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+
         var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
         assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
 

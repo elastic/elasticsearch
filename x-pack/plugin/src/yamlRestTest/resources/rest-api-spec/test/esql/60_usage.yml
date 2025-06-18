@@ -123,7 +123,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 21 }
+  - length: { esql.features: 22 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -143,6 +143,7 @@ setup:
   - set: {esql.features.lookup: lookup_counter}
   - set: {esql.features.change_point: change_point_counter}
   - set: {esql.features.inlinestats: inlinestats_counter}
+  - set: {esql.features.sample: sample_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}

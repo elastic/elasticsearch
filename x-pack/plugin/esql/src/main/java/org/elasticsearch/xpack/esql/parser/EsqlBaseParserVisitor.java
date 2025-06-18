@@ -627,6 +627,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -674,10 +680,4 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
 }

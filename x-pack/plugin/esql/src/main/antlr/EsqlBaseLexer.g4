@@ -70,6 +70,7 @@ LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
@@ -91,7 +92,6 @@ DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION
 DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
 DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 DEV_RERANK :       {this.isDevVersion()}? 'rerank'        -> pushMode(EXPRESSION_MODE);
-DEV_SAMPLE :       {this.isDevVersion()}? 'sample'        -> pushMode(EXPRESSION_MODE);
 
 // list of all JOIN commands
 DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);

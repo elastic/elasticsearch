@@ -54,11 +54,11 @@ processingCommand
     | joinCommand
     | changePointCommand
     | completionCommand
+    | sampleCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? rerankCommand
-    | {this.isDevVersion()}? sampleCommand
     ;
 
 whereCommand
@@ -356,6 +356,10 @@ changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
+sampleCommand
+    : SAMPLE probability=constant
+    ;
+
 //
 // In development
 //
@@ -389,8 +393,4 @@ rerankCommand
 
 completionCommand
     : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
-    ;
-
-sampleCommand
-    : DEV_SAMPLE probability=constant
     ;

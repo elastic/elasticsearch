@@ -64,10 +64,10 @@ public record IndicesOptions(
      * Controls the way the target indices will be handled.
      * @param allowUnavailableTargets, if false when any of the concrete targets requested does not exist, throw an error
      */
-    public record ConcreteTargetOptions(boolean allowUnavailableTargets) implements ToXContentFragment {
+    public record ConcreteTargetOptions(boolean allowUnavailableTargets, boolean reportFailuresToResolve) implements ToXContentFragment {
         public static final String IGNORE_UNAVAILABLE = "ignore_unavailable";
-        public static final ConcreteTargetOptions ALLOW_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(true);
-        public static final ConcreteTargetOptions ERROR_WHEN_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(false);
+        public static final ConcreteTargetOptions ALLOW_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(true, false);
+        public static final ConcreteTargetOptions ERROR_WHEN_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(false, false);
 
         public static ConcreteTargetOptions fromParameter(Object ignoreUnavailableString, ConcreteTargetOptions defaultOption) {
             if (ignoreUnavailableString == null && defaultOption != null) {
@@ -1295,7 +1295,7 @@ public record IndicesOptions(
             );
         }
         return IndicesOptions.builder()
-            .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
+            .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable, false))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(generalOptions)
             .build();

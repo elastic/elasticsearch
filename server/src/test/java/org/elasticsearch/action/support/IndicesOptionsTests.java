@@ -333,7 +333,7 @@ public class IndicesOptionsTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
+        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean(), randomBoolean());
         WildcardOptions wildcardOptions = new WildcardOptions(
             randomBoolean(),
             randomBoolean(),
@@ -374,7 +374,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
+        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean(), randomBoolean());
 
         IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(concreteTargetOptions)

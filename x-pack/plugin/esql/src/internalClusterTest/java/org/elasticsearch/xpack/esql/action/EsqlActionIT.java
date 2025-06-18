@@ -1184,9 +1184,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         return new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE).id(id).source("@timestamp", ts, "count", count);
     }
 
-    public void testOverlappingIndexPatterns() throws Exception {
-        String[] indexNames = { "test_overlapping_index_patterns_1", "test_overlapping_index_patterns_2" };
-
+    public void testOverlappingIndexPatterns() {
         assertAcked(
             client().admin()
                 .indices()
@@ -1228,7 +1226,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run("from no-such-index", randomPragmas(), null, randomBoolean())
+            () -> run("from no-such-index", randomPragmas(), null, false)
         );
     }
 
@@ -1236,7 +1234,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run("from test,no-such-index", randomPragmas(), null, randomBoolean())
+            () -> run("from test,no-such-index", randomPragmas(), null, false)
         );
     }
 

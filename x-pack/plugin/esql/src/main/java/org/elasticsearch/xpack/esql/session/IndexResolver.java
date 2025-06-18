@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +57,7 @@ public class IndexResolver {
     public static final String UNMAPPED = "unmapped";
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
-        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true, true))
         .wildcardOptions(
             IndicesOptions.WildcardOptions.builder()
                 .matchOpen(true)
@@ -154,9 +155,13 @@ public class IndexResolver {
         );
 
         Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
+        Set<IndexNotFoundException> unavailableIndices = new HashSet<>();
         for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
-            if (failure.getException() instanceof NoShardAvailableActionException e) {
-                unavailableShards.add(e);
+            switch (failure.getException()) {
+                case NoShardAvailableActionException nsaae -> unavailableShards.add(nsaae);
+                case IndexNotFoundException infe -> unavailableIndices.add(infe);
+                default -> {
+                    /* do nothing */}
             }
         }
 
@@ -171,7 +176,7 @@ public class IndexResolver {
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
-        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableIndices, unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

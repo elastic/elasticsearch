@@ -57,6 +57,7 @@ processingCommand
     | joinCommand
     | changePointCommand
     | completionCommand
+    | sampleCommand
     | forkCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
@@ -64,7 +65,6 @@ processingCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? rrfCommand
-    | {this.isDevVersion()}? sampleCommand
     ;
 
 whereCommand
@@ -258,6 +258,10 @@ enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
+sampleCommand
+    : SAMPLE probability=constant
+    ;
+
 //
 // In development
 //
@@ -308,8 +312,4 @@ rerankCommand
 
 completionCommand
     : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
-    ;
-
-sampleCommand
-    : DEV_SAMPLE probability=constant
     ;

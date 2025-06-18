@@ -520,9 +520,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129447
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/129453
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
@@ -577,6 +574,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testInvalidJoinPatterns
   issue: https://github.com/elastic/elasticsearch/issues/129598
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/129453
+- class: org.elasticsearch.server.cli.MachineDependentHeapTests
+  method: testMlOnlyOptions
+  issue: https://github.com/elastic/elasticsearch/issues/129236
 
 # Examples:
 #

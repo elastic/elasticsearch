@@ -260,9 +260,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             if (bridgeJarConfig == null) {
                 bridgeJarPart = "";
             } else {
-                bridgeJarConfig.defaultDependencies(d -> {
-                    d.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge", "configuration", "default")));
-                });
                 test.getInputs().files(bridgeJarConfig);
                 bridgeJarPart = File.pathSeparator + bridgeJarConfig.getSingleFile().getAbsolutePath();
             }

@@ -251,15 +251,21 @@ A bug introduced in **8.12.0** causes the Connectors docker image to error out i
 
 See [Known issues](/release-notes/known-issues.md) for any issues affecting all connectors.
 
-#### UUIDs are not correctly deserialised causing problems with ingesting documents into Elasticsearch
+#### UUIDs are not correctly deserialized, causing problems with ingesting documents into Elasticsearch
 
 MongoDB has special handling of UUID type: there is a legacy and a modern approach. You can read [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html) about the details.
 
 With 8.18.3 better handling of standard UUID representation has been implemented - now MongoDB connector is able to properly deserialise them into valid UUIDs. However, for legacy UUIDs or older versions of the connector you might need to adjust the connection string to specify the UUID representation.
 
-For example, if you are using modern UUID representation, adding `uuidRepresentation=standard` query parameter into the URL in the `host` Rich Configurable Field will make the connector properly handle UUIDs. With this change the full `host` Rich Configurable Field value could look like this: `mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority&uuidRepresentation=standard`
+For example, if you are using the modern UUID representation, adding the `uuidRepresentation=standard` query parameter to the MongoDB connection URI in the `host` Rich Configurable Field will allow the connector to properly handle UUIDs. With this change, the full `host` Rich Configurable Field value could look like this:`mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority&uuidRepresentation=standard`
 
-If you are using, for example, legacy C# representation of UUIDs, then you should add `uuidRepresentation=csharpLegacy`, for Java it'll be `uuidRepresentation=javaLegacy` and for Python it'll be `uuidRepresentation=pythonLegacy`. Full explanation can be found in [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html#configuring-a-uuid-representation).
+If you’re using a legacy UUID representation, you should adjust the connection URI accordingly. For example:
+
+- C#: `uuidRepresentation=csharpLegacy`
+- Java: `uuidRepresentation=javaLegacy`
+- Python: `uuidRepresentation=pythonLegacy`
+
+You can find a full explanation in the [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html#configuring-a-uuid-representation).
 
 ### Troubleshooting [es-connectors-mongodb-client-troubleshooting]
 

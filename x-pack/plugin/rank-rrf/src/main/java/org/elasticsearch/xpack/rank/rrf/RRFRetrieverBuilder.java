@@ -250,7 +250,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
+                // TODO: This is a incomplete solution as it does not address other incomplete copy issues
+                // (such as dropping the retriever name and min score)
                 rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, rankWindowSize, rankConstant);
+                rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             } else {
                 // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());

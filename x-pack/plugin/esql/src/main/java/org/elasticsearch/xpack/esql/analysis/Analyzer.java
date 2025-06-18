@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -317,7 +319,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = (String) plan.policyName().fold(FoldContext.small() /* TODO remove me */);
+            final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -400,7 +402,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
-            String inferenceId = plan.inferenceId().fold(FoldContext.small()).toString();
+            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
             ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
 
             if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
@@ -430,7 +432,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // the parser passes the string wrapped in a literal
             Source source = lookup.source();
             Expression tableNameExpression = lookup.tableName();
-            String tableName = lookup.tableName().toString();
+            String tableName = BytesRefs.toString(tableNameExpression.fold(FoldContext.small() /* TODO remove me */));
             Map<String, Map<String, Column>> tables = context.configuration().tables();
             LocalRelation localRelation = null;
 
@@ -1396,6 +1398,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
             }
+            if (f instanceof VectorFunction vectorFunction) {
+                return processVectorFunction(f);
+            }
             return f;
         }
 
@@ -1559,18 +1564,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
+            String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
             String message = LoggerMessageFormat.format(
+                null,
                 "Cannot convert string [{}] to [{}], error [{}]",
-                value.fold(FoldContext.small() /* TODO remove me */),
+                name,
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
+            return new UnresolvedAttribute(value.source(), name, message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                TemporalAmount result = maybeParseTemporalAmount(from.fold(FoldContext.small() /* TODO remove me */).toString().strip());
+                TemporalAmount result = maybeParseTemporalAmount(
+                    BytesRefs.toString(from.fold(FoldContext.small() /* TODO remove me */)).strip()
+                );
                 if (result == null) {
                     return from;
                 }
@@ -1595,6 +1604,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unresolvedAttribute(from, target.toString(), e);
             }
         }
+
+        private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
+            List<Expression> args = vectorFunction.arguments();
+            List<Expression> newArgs = new ArrayList<>();
+            for (Expression arg : args) {
+                if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
+                    Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
+                    if (folded instanceof List) {
+                        Literal denseVector = new Literal(arg.source(), folded, DataType.DENSE_VECTOR);
+                        newArgs.add(denseVector);
+                        continue;
+                    }
+                }
+                newArgs.add(arg);
+            }
+
+            return vectorFunction.replaceChildren(newArgs);
+        }
+
     }
 
     /**
@@ -1615,20 +1643,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             unionFieldAttributes = new ArrayList<>();
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(LogicalPlan plan) {
+            Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
-            plan.forEachUp(EsRelation.class, rel -> {
+            if (plan instanceof EsRelation rel) {
+                unionFieldAttributes.clear();
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
                         unionFieldAttributes.add(fa);
                     }
                 }
-            });
+            }
 
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
-        }
-
-        private LogicalPlan doRule(LogicalPlan plan) {
-            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
@@ -1637,8 +1666,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return e;
             });
+
             // If no union fields were generated, return the plan as is
-            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
+            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes.get()) {
                 return plan;
             }
 
@@ -1719,7 +1749,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                            fa.fieldName(),
+                            fa.fieldName().string(),
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions

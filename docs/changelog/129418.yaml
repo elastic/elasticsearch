@@ -1,0 +1,5 @@
+pr: 129418
+summary: Update traces duration mappings with appropriate unit type
+area: Ingest Node
+type: enhancement
+issues: []

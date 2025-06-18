@@ -27,7 +27,7 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
 
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, int nProbe) {
-        return new IVFKnnFloatVectorQuery(field, query, k, queryFilter, nProbe);
+        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, nProbe);
     }
 
     @Override

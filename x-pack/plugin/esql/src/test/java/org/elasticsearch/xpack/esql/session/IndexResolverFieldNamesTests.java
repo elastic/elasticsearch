@@ -30,6 +30,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("from test | inlinestats max(salary) by gender", ALL_FIELDS);
     }
 
@@ -38,6 +39,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("from test metadata _index, _id, _version | inlinestats max(salary)", ALL_FIELDS);
     }
 
@@ -303,6 +305,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLimitZero_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS COUNT(*), MAX(salary) BY gender
@@ -317,6 +320,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDocsDropHeight_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             FROM employees
             | DROP height
@@ -332,6 +336,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDocsDropHeightWithWildcard_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS MAX(salary) BY gender
@@ -498,6 +503,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSortWithLimitOne_DropHeight_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("from employees | inlinestats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
@@ -797,6 +803,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testFilterById_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("FROM apps metadata _id | INLINESTATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
@@ -1267,6 +1274,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testProjectDropPattern_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats max(foo) by bar
@@ -1349,6 +1357,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testCountAllAndOtherStatGrouped_WithInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats c = count(*), min = min(emp_no) by languages
@@ -1387,6 +1396,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testCountAllWithEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1399,6 +1409,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepAfterEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1411,6 +1422,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepBeforeEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1423,6 +1435,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsBeforeEval_AndInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1434,6 +1447,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsBeforeInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | stats min = min(salary) by languages
@@ -1442,6 +1456,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepBeforeInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
         assertFieldNames("""
             from test
             | keep languages, salary
@@ -1994,7 +2009,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
             | KEEP a, b, c, d, x
-            """, Set.of("a", "a.*", "c", "c.*", "d", "d.*", "e", "e.*", "x", "x.*", "y", "y.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkFieldsWithKeepBeforeFork() {
@@ -2002,13 +2017,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
 
         assertFieldNames("""
             FROM test
-            | KEEP a, b, c, d, x
+            | KEEP a, b, c, d, x, y
             | WHERE a > 2000
             | EVAL b = a + 100
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
-            """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "d", "d.*", "e", "e.*", "x", "x.*", "y", "y.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkFieldsWithNoProjection() {
@@ -2041,41 +2056,17 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
-        assertFieldNames(
-            """
-                FROM test
-                | KEEP a, b, abc, def, z, xyz
-                | ENRICH enrich_policy ON abc
-                | EVAL b = a + 100
-                | LOOKUP JOIN my_lookup_index ON def
-                | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
-                       (STATS x = count(*), y=min(z))
-                | LOOKUP JOIN my_lookup_index ON xyz
-                | WHERE x > y OR _fork == "fork1"
-                """,
-            Set.of(
-                "x",
-                "y",
-                "_fork",
-                "a",
-                "c",
-                "abc",
-                "b",
-                "def",
-                "z",
-                "xyz",
-                "def.*",
-                "_fork.*",
-                "y.*",
-                "x.*",
-                "xyz.*",
-                "z.*",
-                "abc.*",
-                "a.*",
-                "c.*",
-                "b.*"
-            )
-        );
+        assertFieldNames("""
+            FROM test
+            | KEEP a, b, abc, def, z, xyz
+            | ENRICH enrich_policy ON abc
+            | EVAL b = a + 100
+            | LOOKUP JOIN my_lookup_index ON def
+            | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
+                   (STATS x = count(*), y=min(z))
+            | LOOKUP JOIN my_lookup_index ON xyz
+            | WHERE x > y OR _fork == "fork1"
+            """, ALL_FIELDS);
     }
 
     public void testForkWithStatsInAllBranches() {
@@ -2089,7 +2080,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (EVAL z = a * b | STATS m = max(z))
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("a", "a.*", "b", "b.*", "c", "c.*", "z", "z.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkWithStatsAndWhere() {

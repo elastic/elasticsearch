@@ -1,0 +1,5 @@
+pr: 128176
+summary: Implement SAML custom attributes support for Identity Provider
+area: Authentication
+type: enhancement
+issues: []

@@ -425,7 +425,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+        SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+    );
 
     private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
         List<Iterable<IndexableField>> documents = new ArrayList<>();

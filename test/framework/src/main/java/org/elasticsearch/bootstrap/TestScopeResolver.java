@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
+public record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
 
     private static final Logger logger = LogManager.getLogger(TestScopeResolver.class);
 
@@ -38,7 +38,7 @@ record TestScopeResolver(Map<String, PolicyManager.PolicyScope> scopeMap) {
         return scope;
     }
 
-    static Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(
+    public static Function<Class<?>, PolicyManager.PolicyScope> createScopeResolver(
         TestBuildInfo serverBuildInfo,
         List<TestBuildInfo> pluginsBuildInfo
     ) {

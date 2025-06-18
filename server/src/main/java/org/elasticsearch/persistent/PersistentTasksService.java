@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -55,7 +56,51 @@ public class PersistentTasksService {
     /**
      * Notifies the master node to create new persistent task and to assign it to a node. Accepts operation timeout as optional parameter
      */
+    @Deprecated(forRemoval = true)  // Use the explict cluster/project version instead
     public <Params extends PersistentTaskParams> void sendStartRequest(
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
+        sendStartRequest(null, taskId, taskName, taskParams, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node to create new cluster persistent task and to assign it to a node.
+     * Accepts operation timeout as optional parameter
+     */
+    public <Params extends PersistentTaskParams> void sendClusterStartRequest(
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
+        assertClusterScope();
+        assert PersistentTasksExecutorRegistry.isClusterScopedTask(taskName) : taskName + " is not a cluster scoped task";
+        sendStartRequest(null, taskId, taskName, taskParams, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node to create new project level persistent task and to assign it to a node.
+     * Accepts operation timeout as optional parameter
+     */
+    public <Params extends PersistentTaskParams> void sendProjectStartRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
+        assert PersistentTasksExecutorRegistry.isClusterScopedTask(taskName) == false : taskName + " is not a project scoped task";
+        sendStartRequest(Objects.requireNonNull(projectId), taskId, taskName, taskParams, timeout, listener);
+    }
+
+    private <Params extends PersistentTaskParams> void sendStartRequest(
+        @Nullable final ProjectId projectId,
         final String taskId,
         final String taskName,
         final Params taskParams,
@@ -65,6 +110,7 @@ public class PersistentTasksService {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         execute(
+            projectId,
             new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
             StartPersistentTaskAction.INSTANCE,
             wrappedListener
@@ -79,6 +125,7 @@ public class PersistentTasksService {
      * {@code null}, the persistent task is considered as successfully completed.
      * Accepts operation timeout as optional parameter
      */
+    @Deprecated(forRemoval = true)  // Use the explict cluster/project version instead
     public void sendCompletionRequest(
         final String taskId,
         final long taskAllocationId,
@@ -87,7 +134,68 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
+        sendCompletionRequest(null, taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node about the completion of a persistent task.
+     * <p>
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendClusterCompletionRequest(
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        assertClusterScope();
+        sendCompletionRequest(null, taskId, taskAllocationId, taskFailure, localAbortReason, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node about the completion of a project level persistent task.
+     * <p>
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendProjectCompletionRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        sendCompletionRequest(
+            Objects.requireNonNull(projectId),
+            taskId,
+            taskAllocationId,
+            taskFailure,
+            localAbortReason,
+            timeout,
+            listener
+        );
+    }
+
+    private void sendCompletionRequest(
+        @Nullable final ProjectId projectId,
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final @Nullable TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         execute(
+            projectId,
             new CompletionPersistentTaskAction.Request(
                 Objects.requireNonNull(timeout),
                 taskId,
@@ -122,6 +230,7 @@ public class PersistentTasksService {
      * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
      * Accepts operation timeout as optional parameter
      */
+    @Deprecated(forRemoval = true)  // Use the explict cluster/project version instead
     void sendUpdateStateRequest(
         final String taskId,
         final long taskAllocationID,
@@ -129,7 +238,55 @@ public class PersistentTasksService {
         final TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
+        sendUpdateStateRequest(null, taskId, taskAllocationID, taskState, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node that the state of a persistent task has changed.
+     * <p>
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
+     * Accepts operation timeout as optional parameter
+     */
+    void sendClusterUpdateStateRequest(
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        assertClusterScope();
+        sendUpdateStateRequest(null, taskId, taskAllocationID, taskState, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node that the state of a project level persistent task has changed.
+     * <p>
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
+     * Accepts operation timeout as optional parameter
+     */
+    void sendProjectUpdateStateRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        sendUpdateStateRequest(Objects.requireNonNull(projectId), taskId, taskAllocationID, taskState, timeout, listener);
+    }
+
+    private void sendUpdateStateRequest(
+        @Nullable final ProjectId projectId,
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         execute(
+            projectId,
             new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
             UpdatePersistentTaskStatusAction.INSTANCE,
             listener
@@ -140,7 +297,38 @@ public class PersistentTasksService {
      * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
      */
     public void sendRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
+        sendRemoveRequest(null, taskId, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
+     */
+    public void sendClusterRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
+        assertClusterScope();
+        sendRemoveRequest(null, taskId, timeout, listener);
+    }
+
+    /**
+     * Notifies the master node to remove a project level persistent task from the cluster state.
+     * Accepts operation timeout as optional parameter
+     */
+    public void sendProjectRemoveRequest(
+        final ProjectId projectId,
+        final String taskId,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        sendRemoveRequest(Objects.requireNonNull(projectId), taskId, timeout, listener);
+    }
+
+    private void sendRemoveRequest(
+        @Nullable final ProjectId projectId,
+        final String taskId,
+        final TimeValue timeout,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
         execute(
+            projectId,
             new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
             RemovePersistentTaskAction.INSTANCE,
             listener
@@ -153,12 +341,13 @@ public class PersistentTasksService {
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse> void execute(
+        @Nullable final ProjectId projectId,
         final Req request,
         final ActionType<Resp> action,
         final ActionListener<PersistentTask<?>> listener
     ) {
         try {
-            client.execute(action, request, listener.map(PersistentTaskResponse::getTask));
+            getDefaultOrProjectClient(projectId).execute(action, request, listener.map(PersistentTaskResponse::getTask));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -282,5 +471,28 @@ public class PersistentTasksService {
         default void onTimeout(TimeValue timeout) {
             onFailure(new IllegalStateException("Timed out when waiting for persistent task after " + timeout));
         }
+    }
+
+    private Client getDefaultOrProjectClient(@Nullable ProjectId projectId) {
+        if (projectId == null) {
+            return client;
+        }
+
+        final var currentProjectId = client.projectResolver().getProjectId();
+        if (projectId.equals(currentProjectId)) {
+            // The projectId will already be used in the client through thread context, so no need to set it again
+            return client;
+        } else {
+            // Execute will throw if the projectId conflicts with the one in the current context
+            return client.projectClient(projectId);
+        }
+    }
+
+    /**
+     * Asserts that the current request is called from cluster scope and not project scope.
+     */
+    private void assertClusterScope() {
+        ProjectResolver projectResolver = client.projectResolver();
+        assert projectResolver.getProjectId() == null || ProjectId.DEFAULT.equals(projectResolver.getProjectId());
     }
 }

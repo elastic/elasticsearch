@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -103,17 +103,17 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            final IngestGeoIpMetadata geoIpMeta = currentState.metadata()
-                .getProject()
-                .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+            final var project = currentState.metadata().getProject();
+            final IngestGeoIpMetadata geoIpMeta = project.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             logger.debug("deleting database configuration [{}]", databaseId);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
             databases.remove(databaseId);
 
-            Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, new IngestGeoIpMetadata(databases)))
+                .putProjectMetadata(
+                    ProjectMetadata.builder(project).putCustom(IngestGeoIpMetadata.TYPE, new IngestGeoIpMetadata(databases))
+                )
                 .build();
         }
 

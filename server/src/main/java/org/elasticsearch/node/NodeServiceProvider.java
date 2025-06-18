@@ -12,6 +12,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -74,7 +75,17 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         NodeClient client
     ) {
-        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final EstimatedHeapUsageCollector estimatedHeapUsageCollector = pluginsService.loadSingletonServiceProvider(
+            EstimatedHeapUsageCollector.class,
+            () -> EstimatedHeapUsageCollector.EMPTY
+        );
+        final InternalClusterInfoService service = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            estimatedHeapUsageCollector
+        );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
             clusterService.addListener(service);

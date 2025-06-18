@@ -1,6 +1,0 @@
-pr: 128161
-summary: Fix system data streams incorrectly showing up in the list of template validation
-  problems
-area: Data streams
-type: bug
-issues: []

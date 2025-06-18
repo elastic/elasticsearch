@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -91,14 +90,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     // Default for escape hatch:
     static final boolean OPTIMIZED_MERGE_ENABLE_DEFAULT;
-    static final FeatureFlag TSDB_DOC_VALUES_OPTIMIZED_MERGE = new FeatureFlag("tsdb_doc_values_optimized_merge");
     static final String OPTIMIZED_MERGE_ENABLED_NAME = ES819TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
 
     static {
-        boolean optimizedMergeDefault = TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled();
-        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(
-            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.toString(optimizedMergeDefault))
-        );
+        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
 
     final int skipIndexIntervalSize;

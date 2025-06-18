@@ -23,7 +23,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValuesDisabled() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+            IndexVersions.NEW_SPARSE_VECTOR,
             IndexVersion.current()
         );
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
@@ -34,7 +34,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testIsNotAggregatable() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+            IndexVersions.NEW_SPARSE_VECTOR,
             IndexVersion.current()
         );
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());

@@ -21,6 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
@@ -57,6 +59,7 @@ import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -230,54 +233,31 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 < freq2);
     }
 
-    private void buildDocForSparseVectorFieldMapping(XContentBuilder b, CheckedConsumer<XContentBuilder, IOException> supplier)
-        throws IOException {
-        b.startObject("_doc");
-        {
-            b.startArray("dynamic_date_formats");
-            {
-                b.value("strict_date_optional_time||epoch_millis");
-                b.value("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis");
-            }
-            b.endArray();
-
-            b.startArray("dynamic_templates");
-            b.endArray();
-
-            b.field("date_detection", true);
-            b.field("numeric_detection", false);
-
-            b.startObject("properties");
-            {
-                b.startObject("field");
-
-                supplier.accept(b);
-
-                b.endObject();
-            }
-            b.endObject();
-        }
-        b.endObject();
-    };
-
     public void testDefaultsWithAndWithoutIncludeDefaults() throws Exception {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        createMapperService(fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field").toXContent(orig, INCLUDE_DEFAULTS);
         orig.endObject();
 
         XContentBuilder withDefaults = JsonXContent.contentBuilder().startObject();
-        buildDocForSparseVectorFieldMapping(withDefaults, this::minimalMappingWithExplicitDefaults);
+        withDefaults.startObject("field");
+        minimalMappingWithExplicitDefaults(withDefaults);
+        withDefaults.endObject();
         withDefaults.endObject();
 
-        assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
+        assertToXContentEquivalent(BytesReference.bytes(withDefaults), BytesReference.bytes(orig), XContentType.JSON);
 
         XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).documentMapper()
-            .mapping()
+        createMapperService(fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field")
             .toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
         origWithoutDefaults.endObject();
 
-        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), Strings.toString(origWithoutDefaults));
+        XContentBuilder withoutDefaults = JsonXContent.contentBuilder().startObject();
+        withoutDefaults.startObject("field");
+        minimalMapping(withoutDefaults);
+        withoutDefaults.endObject();
+        withoutDefaults.endObject();
+
+        assertToXContentEquivalent(BytesReference.bytes(withoutDefaults), BytesReference.bytes(origWithoutDefaults), XContentType.JSON);
     }
 
     public void testDefaultsWithAndWithoutIncludeDefaultsOlderIndexVersion() throws Exception {
@@ -288,26 +268,30 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         );
 
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field")
+            .toXContent(orig, INCLUDE_DEFAULTS);
         orig.endObject();
 
         XContentBuilder withDefaults = JsonXContent.contentBuilder().startObject();
-        buildDocForSparseVectorFieldMapping(withDefaults, this::minimalFieldMappingPreviousIndexVersion);
+        withDefaults.startObject("field");
+        minimalFieldMappingPreviousIndexVersion(withDefaults);
+        withDefaults.endObject();
         withDefaults.endObject();
 
-        assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
+        assertToXContentEquivalent(BytesReference.bytes(withDefaults), BytesReference.bytes(orig), XContentType.JSON);
 
         XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).documentMapper()
-            .mapping()
-            .toXContent(origWithoutDefaults, INCLUDE_DEFAULTS);
+        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field")
+            .toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
         origWithoutDefaults.endObject();
 
         XContentBuilder withoutDefaults = JsonXContent.contentBuilder().startObject();
-        buildDocForSparseVectorFieldMapping(withoutDefaults, this::minimalFieldMappingPreviousIndexVersion);
+        withoutDefaults.startObject("field");
+        minimalMapping(withoutDefaults);
+        withoutDefaults.endObject();
         withoutDefaults.endObject();
 
-        assertEquals(Strings.toString(withoutDefaults), Strings.toString(origWithoutDefaults));
+        assertToXContentEquivalent(BytesReference.bytes(withoutDefaults), BytesReference.bytes(origWithoutDefaults), XContentType.JSON);
     }
 
     public void testMappingWithExplicitIndexOptions() throws Exception {

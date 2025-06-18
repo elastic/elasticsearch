@@ -114,7 +114,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final String masterNode = internalCluster().startMasterOnlyNode();
-        awaitMasterNode(masterNode, masterNode);
+        awaitMasterNode();
         var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
 
         awaitFileSettingsWatcher();
@@ -195,7 +195,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final String masterNode = internalCluster().startMasterOnlyNode();
-        awaitMasterNode(masterNode, masterNode);
+        awaitMasterNode();
 
         Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();

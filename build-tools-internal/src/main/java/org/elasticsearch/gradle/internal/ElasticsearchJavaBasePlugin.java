@@ -233,7 +233,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 test.dependsOn(bridgeFiles);
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
-                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED," + modulesContainingEntitlementInstrumentation
+                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                        + modulesContainingEntitlementInstrumentation
                 );
             }
         });

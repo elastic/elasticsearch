@@ -11,6 +11,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -31,11 +32,9 @@ import java.nio.file.Path;
  * Naturally, there are very few candidates, because most code doesn't fail entitlement checks:
  * really just the entitlement self-test we do at startup. Hence, that's what we use here.
  * <p>
- * Even then, we cannot call this from someplace outside the server, because in other places,
- * we deliberately don't check entitlements on dependencies that aren't used in production,
- * and other places like {@code libs} don't depend on server at runtime. Hence, this test
- * must be in {@code server}, rather than {@code libs/entitlement}, even if the latter
- * seems like a more natural choice.
+ * Since we want to call the self-test, which is in the server, we can't call it
+ * from a place like the entitlement library tests, because those deliberately do not
+ * have a dependency on the server code. Hence, this test lives here in the server tests.
  *
  * @see WithoutEntitlementsMetaTests
  * @see WithEntitlementsOnTestCodeMetaTests
@@ -45,8 +44,13 @@ public class EntitlementMetaTests extends ESTestCase {
         Elasticsearch.entitlementSelfTest();
     }
 
+    /**
+     * Unless {@link WithEntitlementsOnTestCode} is specified, sensitive methods <em>can</em>
+     * be called from test code.
+     */
     @SuppressForbidden(reason = "Testing that a forbidden API is allowed under these circumstances")
     public void testForbiddenActionAllowedInTestCode() throws IOException {
+        // If entitlements were enforced, this would throw.
         Path.of(".").toRealPath();
     }
 }

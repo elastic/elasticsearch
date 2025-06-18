@@ -17,19 +17,27 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Tests {@link WithoutEntitlements}.
+ * A version of {@link EntitlementMetaTests} that tests {@link WithoutEntitlements}.
  *
  * @see EntitlementMetaTests
  * @see WithEntitlementsOnTestCodeMetaTests
  */
 @WithoutEntitlements
 public class WithoutEntitlementsMetaTests extends ESTestCase {
+    /**
+     * Without enforcement of entitlements, {@link Elasticsearch#entitlementSelfTest} will fail and throw.
+     */
     public void testSelfTestFails() {
         assertThrows(IllegalStateException.class, Elasticsearch::entitlementSelfTest);
     }
 
+    /**
+     * A forbidden action called from test code should be allowed,
+     * with or without {@link WithoutEntitlements}.
+     */
     @SuppressForbidden(reason = "Testing that a forbidden API is allowed under these circumstances")
     public void testForbiddenActionAllowed() throws IOException {
+        // If entitlements were enforced, this would throw
         Path.of(".").toRealPath();
     }
 }

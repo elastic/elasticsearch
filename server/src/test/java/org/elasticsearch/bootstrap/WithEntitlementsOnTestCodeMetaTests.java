@@ -17,13 +17,17 @@ import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 import java.nio.file.Path;
 
 /**
- * Tests {@link WithEntitlementsOnTestCode}.
+ * A version of {@link EntitlementMetaTests} that tests {@link WithEntitlementsOnTestCode}.
  *
  * @see EntitlementMetaTests
  * @see WithoutEntitlementsMetaTests
  */
 @WithEntitlementsOnTestCode
 public class WithEntitlementsOnTestCodeMetaTests extends ESTestCase {
+    /**
+     * {@link WithEntitlementsOnTestCode} should not affect this, since the sensitive method
+     * is called from server code. The self-test should pass as usual.
+     */
     public void testSelfTestPasses() {
         Elasticsearch.entitlementSelfTest();
     }

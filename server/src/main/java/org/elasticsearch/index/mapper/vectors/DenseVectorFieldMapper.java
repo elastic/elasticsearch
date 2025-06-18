@@ -1830,7 +1830,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean earlyExit;
 
 
-        Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
+        public Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
             this(m, efConstruction, confidenceInterval, rescoreVector, DEFAULT_EARLY_EXIT);
         }
 

@@ -600,7 +600,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
             null,
-            new ErrorResponseParser("$.error.message", "inference_id"),
             new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
         );
 
@@ -618,9 +617,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "response": {
                     "json_parser": {
                         "text_embeddings": "$.result.embeddings[*].embedding"
-                    },
-                    "error_parser": {
-                        "path": "$.error.message"
                     }
                 },
                 "input_type": {

@@ -28,6 +28,7 @@ import org.hamcrest.Matcher;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
@@ -250,6 +251,105 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             );
             assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(513L), List.of(192L), List.of(32L))));
             assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(512L), List.of(128L), List.of(32L))));
+
+            outputPage.releaseBlocks();
+        }
+    }
+
+    /**
+     * When in intermediate/final mode, it will receive intermediate outputs that may have to be discarded
+     * (TopN in the datanode but not acceptable in the coordinator).
+     * <p>
+     *     This test ensures that such discarding works correctly.
+     * </p>
+     */
+    public void testTopNNullsIntermediateDiscards() {
+        boolean ascOrder = randomBoolean();
+        var groups = new Long[] { 0L, 10L, 20L, 30L, 40L, 50L };
+        if (ascOrder) {
+            Arrays.sort(groups, Comparator.reverseOrder());
+        }
+        var groupChannel = 0;
+
+        // Supplier of operators to ensure that they're identical, simulating a datanode/coordinator connection
+        Function<AggregatorMode, Operator> makeAggWithMode = (mode) -> {
+            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
+            var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
+
+            return new HashAggregationOperator.HashAggregationOperatorFactory(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, false, 3))),
+                mode,
+                List.of(
+                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
+                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
+                ),
+                randomPageSize(),
+                null
+            ).get(driverContext());
+        };
+
+        // The operator that will collect all the results
+        try (var collectingOperator = makeAggWithMode.apply(AggregatorMode.FINAL)) {
+            // First datanode, sending a suitable TopN set of data
+            try (var datanodeOperator = makeAggWithMode.apply(AggregatorMode.INITIAL)) {
+                var page = new Page(
+                    BlockUtils.fromList(
+                        blockFactory(),
+                        List.of(
+                            List.of(groups[4], 1L),
+                            List.of(groups[3], 2L),
+                            List.of(groups[2], 4L)
+                        )
+                    )
+                );
+                datanodeOperator.addInput(page);
+                datanodeOperator.finish();
+
+                var outputPage = datanodeOperator.getOutput();
+                collectingOperator.addInput(outputPage);
+            }
+
+            // Second datanode, sending an outdated TopN, as the coordinator has better top values already
+            try (var datanodeOperator = makeAggWithMode.apply(AggregatorMode.INITIAL)) {
+                var page = new Page(
+                    BlockUtils.fromList(
+                        blockFactory(),
+                        List.of(
+                            List.of(groups[5], 8L),
+                            List.of(groups[3], 16L),
+                            List.of(groups[1], 32L) // This group is worse than the worst group in the coordinator
+                        )
+                    )
+                );
+                datanodeOperator.addInput(page);
+                datanodeOperator.finish();
+
+                var outputPage = datanodeOperator.getOutput();
+                collectingOperator.addInput(outputPage);
+            }
+
+            collectingOperator.finish();
+
+            var outputPage = collectingOperator.getOutput();
+
+            var groupsBlock = (LongBlock) outputPage.getBlock(0);
+            var sumBlock = (LongBlock) outputPage.getBlock(1);
+            var maxBlock = (LongBlock) outputPage.getBlock(2);
+
+            assertThat(groupsBlock.getPositionCount(), equalTo(3));
+            assertThat(sumBlock.getPositionCount(), equalTo(3));
+            assertThat(maxBlock.getPositionCount(), equalTo(3));
+
+            assertThat(groupsBlock.getTotalValueCount(), equalTo(3));
+            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
+            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
+
+            assertThat(
+                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
+                equalTo(Arrays.asList(List.of(groups[5]), List.of(groups[4]), List.of(groups[3])))
+            );
+            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(8L), List.of(1L), List.of(18L))));
+            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(8L), List.of(1L), List.of(16L))));
 
             outputPage.releaseBlocks();
         }

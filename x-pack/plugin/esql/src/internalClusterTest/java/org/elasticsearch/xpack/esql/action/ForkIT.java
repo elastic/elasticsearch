@@ -32,7 +32,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         createAndPopulateIndices();
     }
 

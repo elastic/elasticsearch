@@ -255,7 +255,7 @@ See [Known issues](/release-notes/known-issues.md) for any issues affecting all 
 
 MongoDB has special handling of UUID type: there is a legacy and a modern approach. You can read [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html) about the details.
 
-With 8.18.3 better handling of standard UUID representation has been implemented - now MongoDB connector is able to properly deserialise them into valid UUIDs. However, for legacy UUIDs or older versions of the connector you might need to adjust the connection string to specify the UUID representation.
+With connector framework version 9.0.3, we improved how standard UUIDs are handled. Now, the MongoDB connector can correctly deserialize UUIDs into valid Elasticsearch values. However, for legacy UUIDs or older connector versions, you might need to adjust the connection string to specify the UUID representation.
 
 For example, if you are using the modern UUID representation, adding the `uuidRepresentation=standard` query parameter to the MongoDB connection URI in the `host` Rich Configurable Field will allow the connector to properly handle UUIDs. With this change, the full `host` Rich Configurable Field value could look like this:`mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority&uuidRepresentation=standard`
 

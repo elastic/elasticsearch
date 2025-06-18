@@ -80,16 +80,20 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
             );
     }
 
+    @Deprecated(forRemoval = true)
+    public static OperationMode currentSLMMode(final ClusterState state) {
+        return currentSLMMode(state.metadata().getProject());
+    }
+
     /**
      * Returns the current ILM mode based on the given cluster state. It first checks the newer
      * storage mechanism ({@link LifecycleOperationMetadata#getSLMOperationMode()}) before falling
      * back to {@link SnapshotLifecycleMetadata#getOperationMode()}. If neither exist, the default
      * value for an empty state is used.
      */
-    @SuppressWarnings("deprecated")
-    public static OperationMode currentSLMMode(final ClusterState state) {
-        SnapshotLifecycleMetadata oldMetadata = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
-        LifecycleOperationMetadata currentMetadata = state.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
+    public static OperationMode currentSLMMode(ProjectMetadata project) {
+        SnapshotLifecycleMetadata oldMetadata = project.custom(SnapshotLifecycleMetadata.TYPE);
+        LifecycleOperationMetadata currentMetadata = project.custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElse(

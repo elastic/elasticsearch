@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -46,6 +47,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * formula.
  */
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
+    public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature(
+        "rrf_retriever.multi_fields_query_format_support"
+    );
 
     public static final String NAME = "rrf";
 
@@ -218,6 +222,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && query != null) {
+            // TODO: Refactor duplicate code
             // Using the multi-fields query format
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {

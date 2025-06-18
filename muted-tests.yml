@@ -514,9 +514,6 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsAbsolutPathAccess
   issue: https://github.com/elastic/elasticsearch/issues/129168
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testCaseInsensitiveEquality {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129422
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129447
@@ -565,18 +562,27 @@ tests:
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/129534
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testEqualityOrTooBig {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129545
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testInvalidJoinPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/129598
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/129453
+- class: org.elasticsearch.server.cli.MachineDependentHeapTests
+  method: testMlOnlyOptions
+  issue: https://github.com/elastic/elasticsearch/issues/129236
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/129644
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/129645
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/129646
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/129651
 
 # Examples:
 #

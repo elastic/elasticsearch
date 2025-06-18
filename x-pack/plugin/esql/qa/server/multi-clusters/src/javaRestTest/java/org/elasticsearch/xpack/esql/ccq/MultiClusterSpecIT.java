@@ -304,7 +304,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             }
             final String remoteIndices;
             if (onlyRemotes) {
-                remoteIndices = Arrays.stream(localIndices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
+                remoteIndices = Arrays.stream(localIndices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
+                    .collect(Collectors.joining(","));
             } else {
                 remoteIndices = Arrays.stream(localIndices)
                     .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
@@ -318,7 +320,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");
             if (onlyRemotes) {
-                parts[1] = Arrays.stream(indices).map(index -> "*:" + index.trim()).collect(Collectors.joining(","));
+                parts[1] = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
+                    .collect(Collectors.joining(","));
             } else {
                 parts[1] = Arrays.stream(indices)
                     .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))

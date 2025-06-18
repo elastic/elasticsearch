@@ -207,7 +207,13 @@ public class Mapper {
             // Once we reached FragmentExec, we stuff our Enrich under it
             if (f instanceof FragmentExec) {
                 hasFragment.set(true);
-                return new FragmentExec(logical);
+                // FIXME: hack to remove duplicate limits. This is probably not the right way to do it.
+                return new FragmentExec(logical.transformUp(Limit.class, l -> {
+                    if (l.duplicated()) {
+                        return l.child();
+                    }
+                    return l;
+                }));
             }
             if (f instanceof EnrichExec enrichExec) {
                 // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
@@ -220,6 +226,9 @@ public class Mapper {
                 } else {
                     return unaryExec.child();
                 }
+            }
+            if (f instanceof LookupJoinExec lj) {
+                return lj.right();
             }
             // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
             return f;

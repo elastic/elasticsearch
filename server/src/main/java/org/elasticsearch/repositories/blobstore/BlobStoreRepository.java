@@ -2476,6 +2476,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // someone switched the repo contents out from under us
                         RepositoriesService.updateRepositoryUuidInMetadata(
                             clusterService,
+                            getProjectId(),
                             metadata.name(),
                             loaded,
                             new ThreadedActionListener<>(threadPool.generic(), listener.map(v -> loaded))
@@ -3115,7 +3116,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {
-        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(state).repository(metadata.name());
+        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(state.getMetadata().getProject(getProjectId()))
+            .repository(metadata.name());
         assert repositoryMetadata != null || lifecycle.stoppedOrClosed()
             : "did not find metadata for repo [" + metadata.name() + "] in state [" + lifecycleState() + "]";
         return repositoryMetadata;

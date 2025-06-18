@@ -571,7 +571,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     private Repository createRepository(ProjectId projectId) {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final Repository repository = new FsRepository(
             projectId,
             repositoryMetadata,

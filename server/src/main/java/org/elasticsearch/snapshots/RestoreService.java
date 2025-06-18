@@ -602,7 +602,9 @@ public final class RestoreService implements ClusterStateApplier {
                 return;
             }
 
-            for (Repository repository : repositoriesService.getRepositories().values()) {
+            @FixForMultiProject
+            final var projectId = ProjectId.DEFAULT;
+            for (Repository repository : repositoriesService.getProjectRepositories(projectId).values()) {
                 // We only care about BlobStoreRepositories because they're the only ones that can contain a searchable snapshot, and we
                 // only care about ones with missing UUIDs. It's possible to have the UUID change from under us if, e.g., the repository was
                 // wiped by an external force, but in this case any searchable snapshots are lost anyway so it doesn't really matter.

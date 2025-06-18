@@ -12,7 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
@@ -45,7 +47,9 @@ public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Em
 
         @Override
         protected void doExecute(Task task, PutInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
-            repositoriesService.registerInternalRepository(request.getName(), request.getType());
+            @FixForMultiProject
+            final var projectId = ProjectId.DEFAULT;
+            repositoriesService.registerInternalRepository(projectId, request.getName(), request.getType());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
     }

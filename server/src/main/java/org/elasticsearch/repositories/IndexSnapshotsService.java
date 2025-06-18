@@ -13,8 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
@@ -28,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public class IndexSnapshotsService {
@@ -136,8 +137,9 @@ public class IndexSnapshotsService {
     }
 
     private Repository getRepository(String repositoryName) {
-        final Map<String, Repository> repositories = repositoriesService.getRepositories();
-        return repositories.get(repositoryName);
+        @FixForMultiProject
+        final var projectId = ProjectId.DEFAULT;
+        return repositoriesService.repositoryOrNull(projectId, repositoryName);
     }
 
     private static class FetchShardSnapshotContext {

@@ -39,6 +39,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -153,6 +154,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -3523,12 +3525,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
             case SNAPSHOT -> {
-                final String repo = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot().getRepository();
+                final Snapshot snapshot = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot();
+                final ProjectId projectId = snapshot.getProjectId();
+                final String repo = snapshot.getRepository();
                 executeRecovery(
                     "from snapshot",
                     recoveryState,
                     recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(repo), l)
+                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
                 );
             }
             case LOCAL_SHARDS -> {

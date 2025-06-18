@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -60,7 +62,9 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
             RepositoriesService.validateRepositoryName(repositoryRequest.name());
-            repositoriesService.validateRepositoryCanBeCreated(repositoryRequest);
+            @FixForMultiProject
+            final var projectId = ProjectId.DEFAULT;
+            repositoriesService.validateRepositoryCanBeCreated(projectId, repositoryRequest);
         }
 
         return repositories;
@@ -72,8 +76,14 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         ClusterState state = prevState.state();
 
+        @FixForMultiProject
+        final var projectId = ProjectId.DEFAULT;
         for (var request : requests) {
-            RepositoriesService.RegisterRepositoryTask task = new RepositoriesService.RegisterRepositoryTask(repositoriesService, request);
+            RepositoriesService.RegisterRepositoryTask task = new RepositoriesService.RegisterRepositoryTask(
+                repositoriesService,
+                projectId,
+                request
+            );
             state = task.execute(state);
         }
 
@@ -83,7 +93,11 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         toDelete.removeAll(entities);
 
         for (var repositoryToDelete : toDelete) {
-            var task = new RepositoriesService.UnregisterRepositoryTask(RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT, repositoryToDelete);
+            var task = new RepositoriesService.UnregisterRepositoryTask(
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                projectId,
+                repositoryToDelete
+            );
             state = task.execute(state);
         }
 

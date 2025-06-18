@@ -354,25 +354,43 @@ public class ClusterChangedEvent {
                 && previousMetadata.hasProject(ProjectId.DEFAULT)
                 && currentMetadata.projects().size() == 1
                 && currentMetadata.hasProject(ProjectId.DEFAULT))) {
-            return ProjectsDelta.EMPTY;
+            return ProjectsDelta.NO_CHANGE_DEFAULT_PROJECT;
         }
 
-        final Set<ProjectId> added = Collections.unmodifiableSet(
-            Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
-        );
-        final Set<ProjectId> removed = Collections.unmodifiableSet(
-            Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet())
-        );
+        final Set<ProjectId> currentProjectIds = currentMetadata.projects().keySet();
+        final Set<ProjectId> previousProjectIds = previousMetadata.projects().keySet();
+
+        final var added = new HashSet<ProjectId>();
+        final var common = new HashSet<ProjectId>();
+        for (var projectId : currentProjectIds) {
+            if (previousProjectIds.contains(projectId)) {
+                common.add(projectId);
+            } else {
+                added.add(projectId);
+            }
+        }
+
+        final Set<ProjectId> removed = Sets.difference(previousProjectIds, currentProjectIds);
         // TODO: Enable the following assertions once tests no longer add or remove default projects
         // assert added.contains(ProjectId.DEFAULT) == false;
         // assert removed.contains(ProjectId.DEFAULT) == false;
-        return new ProjectsDelta(added, removed);
+
+        if (added.isEmpty() && removed.isEmpty()) {
+            return new ProjectsDelta(Set.of(), Set.of(), currentProjectIds);
+        } else {
+            return new ProjectsDelta(
+                Collections.unmodifiableSet(added),
+                Collections.unmodifiableSet(removed),
+                Collections.unmodifiableSet(common)
+            );
+        }
     }
 
-    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {
-        private static final ProjectsDelta EMPTY = new ProjectsDelta(Set.of(), Set.of());
+    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed, Set<ProjectId> common) {
 
-        public boolean isEmpty() {
+        private static final ProjectsDelta NO_CHANGE_DEFAULT_PROJECT = new ProjectsDelta(Set.of(), Set.of(), Set.of(ProjectId.DEFAULT));
+
+        public boolean hasNoChange() {
             return added.isEmpty() && removed.isEmpty();
         }
     }

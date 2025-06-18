@@ -530,7 +530,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             .metadata(Metadata.builder(state0.metadata()).put(ReservedStateMetadata.builder("test").build()))
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", state1, state0);
-        assertTrue(event.projectDelta().isEmpty());
+        assertTrue(event.projectDelta().hasNoChange());
 
         // Add projects
         final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);

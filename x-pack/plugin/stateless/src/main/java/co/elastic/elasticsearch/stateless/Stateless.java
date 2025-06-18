@@ -112,6 +112,7 @@ import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelo
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
@@ -756,6 +757,9 @@ public class Stateless extends Plugin
             createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, threadPool)
         );
         components.add(metadataReshardIndexService);
+        var splitSourceService = new SplitSourceService(clusterService, indicesService, objectStoreService);
+        components.add(splitSourceService);
+
         return components;
     }
 

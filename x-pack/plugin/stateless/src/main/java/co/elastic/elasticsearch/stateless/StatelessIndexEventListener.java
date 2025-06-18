@@ -263,6 +263,12 @@ class StatelessIndexEventListener implements IndexEventListener {
             }
 
             if (batchedCompoundCommit != null) {
+                assert batchedCompoundCommit.shardId().equals(indexShard.shardId())
+                    || indexShard.routingEntry()
+                        .recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource
+                        && reshardSplitRecoverySource.getSourceShardId().equals(batchedCompoundCommit.shardId())
+                    : batchedCompoundCommit.shardId() + " vs " + indexShard.shardId();
+
                 statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, indexingShardState.otherBlobs());
             }
             statelessCommitService.addConsumerForNewUploadedBcc(indexShard.shardId(), info -> {

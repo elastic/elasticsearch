@@ -49,7 +49,7 @@ public class RecursiveChunkerTests extends ESTestCase {
     public void testChunkInputRequiresOneSplit() {
         List<String> separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(10, separators);
-        String input = generateTestText(2, List.of(separators.getFirst()));
+        String input = generateTestText(2, List.of(separators.get(0)));
 
         assertExpectedChunksGenerated(
             input,
@@ -61,11 +61,11 @@ public class RecursiveChunkerTests extends ESTestCase {
     public void testChunkInputRequiresMultipleSplits() {
         var separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(15, separators);
-        String input = generateTestText(4, List.of(separators.get(1), separators.getFirst(), separators.get(1)));
+        String input = generateTestText(4, List.of(separators.get(1), separators.get(0), separators.get(1)));
 
         var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length();
         var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(1).length();
-        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + separators.getFirst().length() + separators.get(1).length();
+        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + separators.get(0).length() + separators.get(1).length();
         assertExpectedChunksGenerated(
             input,
             settings,
@@ -83,11 +83,12 @@ public class RecursiveChunkerTests extends ESTestCase {
         RecursiveChunkingSettings settings = generateChunkingSettings(25, separators);
         // Generate a test text such that after each split a valid chunk is found that contains a subsequent separator. This tests that we
         // do not continue to split once the chunk size is valid even if there are more separators present in the text.
-        String input = generateTestText(5, List.of(separators.get(1), separators.getFirst(), separators.get(2), separators.get(1)));
+        String input = generateTestText(5, List.of(separators.get(1), separators.get(0), separators.get(2), separators.get(1)));
 
         var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(1).length();
-        var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 4 + separators.get(1).length() + separators.getFirst().length()
-            + separators.get(2).length();
+        var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 4 + separators.get(1).length() + separators.get(0).length() + separators
+            .get(2)
+            .length();
         assertExpectedChunksGenerated(
             input,
             settings,
@@ -102,11 +103,11 @@ public class RecursiveChunkerTests extends ESTestCase {
     public void testChunkInputRequiresBackupChunkingStrategy() {
         var separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(10, separators);
-        String input = generateTestText(4, List.of("", separators.getFirst(), ""));
+        String input = generateTestText(4, List.of("", separators.get(0), ""));
 
         var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length();
         var expectedSecondChunkOffsetEnd = TEST_SENTENCE.length() * 2;
-        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + separators.getFirst().length();
+        var expectedThirdChunkOffsetEnd = TEST_SENTENCE.length() * 3 + separators.get(0).length();
         assertExpectedChunksGenerated(
             input,
             settings,

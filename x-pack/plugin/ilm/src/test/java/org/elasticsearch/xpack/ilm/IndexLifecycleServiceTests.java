@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -169,13 +170,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
-            .indices(indices)
-            .persistentSettings(settings(IndexVersion.current()).build())
-            .build();
+            .indices(indices);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
@@ -208,13 +207,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
-            .indices(indices)
-            .persistentSettings(settings(IndexVersion.current()).build())
-            .build();
+            .indices(indices);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -264,13 +261,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
-            .indices(indices)
-            .persistentSettings(settings(IndexVersion.current()).build())
-            .build();
+            .indices(indices);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -312,13 +307,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
-            .indices(indices)
-            .persistentSettings(settings(IndexVersion.current()).build())
-            .build();
+            .indices(indices);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -429,11 +422,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         Map<String, IndexMetadata> indices = Map.of(index1.getName(), i1indexMetadata, index2.getName(), i2indexMetadata);
 
-        Metadata metadata = Metadata.builder()
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
-            .indices(indices)
-            .persistentSettings(settings(IndexVersion.current()).build())
-            .build();
+            .indices(indices);
 
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s").build();
         var clusterSettings = new ClusterSettings(
@@ -443,7 +434,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         DiscoveryNode node = clusterService.localNode();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, currentState);
@@ -539,9 +530,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             SingleNodeShutdownMetadata.Type.SIGTERM,
             SingleNodeShutdownMetadata.Type.REPLACE
         )) {
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Set.of()));
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(Set.of()));
+            final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(true));
+            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(true));
 
             IndexMetadata nonDangerousIndex = IndexMetadata.builder("no_danger")
                 .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
@@ -583,14 +575,12 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
             Map<String, IndexMetadata> indices = Map.of("no_danger", nonDangerousIndex, "danger", dangerousIndex);
 
-            Metadata metadata = Metadata.builder()
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
-                .indices(indices)
-                .persistentSettings(settings(IndexVersion.current()).build())
-                .build();
-
             state = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(metadata)
+                .putProjectMetadata(
+                    ProjectMetadata.builder(project)
+                        .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                        .indices(indices)
+                )
                 .nodes(
                     DiscoveryNodes.builder()
                         .localNodeId(nodeId)
@@ -613,8 +603,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
 
             // No danger yet, because no node is shutting down
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Set.of()));
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(Set.of()));
+            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(true));
+            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(true));
 
             state = ClusterState.builder(state)
                 .metadata(
@@ -638,12 +628,12 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 )
                 .build();
 
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(Set.of()));
+            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(true));
             // No danger, because this is a "RESTART" type shutdown
             assertThat(
                 "restart type shutdowns are not considered dangerous",
                 IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
-                equalTo(Set.of())
+                equalTo(true)
             );
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
@@ -673,7 +663,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
 
             // The dangerous index should be calculated as being in danger now
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(Set.of("danger")));
+            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(false));
         }
     }
 }

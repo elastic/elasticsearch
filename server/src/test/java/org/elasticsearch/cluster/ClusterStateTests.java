@@ -920,11 +920,15 @@ public class ClusterStateTests extends ESTestCase {
             .metadata(metadata)
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .putCustom(ProjectsStateRegistry.TYPE,
+            .putCustom(
+                ProjectsStateRegistry.TYPE,
                 ProjectsStateRegistry.builder()
-                    .putProjectSettings(projectId1,
-                        Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build())
-                    .build())
+                    .putProjectSettings(
+                        projectId1,
+                        Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
+                    )
+                    .build()
+            )
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)

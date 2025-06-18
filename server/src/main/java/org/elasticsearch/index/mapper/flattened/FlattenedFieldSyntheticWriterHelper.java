@@ -261,7 +261,7 @@ public class FlattenedFieldSyntheticWriterHelper {
         final List<String> values
     ) throws IOException {
         startObject(b, startPrefix.prefix);
-        if (currKeyValue.suffix.equals(nextKeyValue.suffix) == false) {
+        if (currKeyValue.prefix.equals(nextKeyValue.prefix) == false || currKeyValue.suffix.equals(nextKeyValue.suffix) == false) {
             writeNestedObject(b, values, currKeyValue.suffix().suffix);
         }
         endObject(b, endPrefix.prefix);

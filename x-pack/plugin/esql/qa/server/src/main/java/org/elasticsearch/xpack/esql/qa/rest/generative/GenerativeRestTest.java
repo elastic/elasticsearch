@@ -55,7 +55,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
 
         // Awaiting fixes for correctness
-        "Expecting the following columns \\[.*\\], got" // https://github.com/elastic/elasticsearch/issues/129000
+        "Expecting the following columns \\[.*\\], got", // https://github.com/elastic/elasticsearch/issues/129000
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

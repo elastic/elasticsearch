@@ -40,6 +40,12 @@ import static org.elasticsearch.index.codec.vectors.DocIdsWriter.DEFAULT_MAX_POI
 
 public class DocIdsWriterTests extends LuceneTestCase {
 
+    public void testNoDocs() throws Exception {
+        try (Directory dir = newDirectory()) {
+            test(dir, new int[0]);
+        }
+    }
+
     public void testRandom() throws Exception {
         int numIters = atLeast(100);
         try (Directory dir = newDirectory()) {

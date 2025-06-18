@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -317,7 +318,7 @@ public class DateDiff extends EsqlScalarFunction {
 
         if (unit.foldable()) {
             try {
-                Part datePartField = Part.resolve(((BytesRef) unit.fold(toEvaluator.foldCtx())).utf8ToString());
+                Part datePartField = Part.resolve(BytesRefs.toString(unit.fold(toEvaluator.foldCtx())));
                 return constantFactory.build(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());

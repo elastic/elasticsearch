@@ -2097,7 +2097,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
 
         protected FullTextFunctionTestCase(Class<? extends FullTextFunction> fullTextFunction) {
-            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(1, 10));
+            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(5, 10));
         }
 
         public Class<? extends FullTextFunction> fullTextFunction() {

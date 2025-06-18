@@ -52,7 +52,7 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
     }
 
     private Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return Literal.keyword(EMPTY, value);
     }
 
     private Attribute scoreAttribute() {

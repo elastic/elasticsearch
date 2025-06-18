@@ -74,7 +74,7 @@ public class SemanticTextHighlighter implements Highlighter {
             return null;
         }
         SemanticTextFieldType fieldType = (SemanticTextFieldType) fieldContext.fieldType;
-        if (fieldType.getEmbeddingsField() == null) {
+        if (fieldType.getModelSettings() == null || fieldType.getEmbeddingsField() == null) {
             // nothing indexed yet
             return null;
         }

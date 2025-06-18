@@ -32,7 +32,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,7 +90,7 @@ public class KnnTests extends AbstractFunctionTestCase {
                 List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
                 values.add(
                     new TestCaseSupplier.TypedData(
-                        new MapExpression(Source.EMPTY, List.of(new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD))),
+                        new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))),
                         UNSUPPORTED,
                         "options"
                     ).forceLiteral()

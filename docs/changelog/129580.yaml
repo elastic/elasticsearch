@@ -1,0 +1,6 @@
+pr: 129580
+summary: Check prefixes when constructing synthetic source for flattened fields
+area: Mapping
+type: bug
+issues:
+ - 129508

@@ -1,0 +1,6 @@
+pr: 129509
+summary: Fix NPE in `SemanticTextHighlighter`
+area: Search
+type: bug
+issues:
+ - 129501

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -63,6 +64,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
     private final InferenceAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutTrainedModelAliasAction(
@@ -72,7 +74,8 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
-        InferenceAuditor auditor
+        InferenceAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             PutTrainedModelAliasAction.NAME,
@@ -86,6 +89,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.auditor = auditor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -277,6 +281,6 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
 
     @Override
     protected ClusterBlockException checkBlock(PutTrainedModelAliasAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

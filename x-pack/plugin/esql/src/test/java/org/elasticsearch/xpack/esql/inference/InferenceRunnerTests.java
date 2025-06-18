@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -182,7 +181,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
     private static InferencePlan<?> mockInferencePlan(String inferenceId) {
         InferencePlan<?> plan = mock(InferencePlan.class);
-        when(plan.inferenceId()).thenReturn(new Literal(Source.EMPTY, inferenceId, DataType.KEYWORD));
+        when(plan.inferenceId()).thenReturn(Literal.keyword(Source.EMPTY, inferenceId));
         return plan;
     }
 }

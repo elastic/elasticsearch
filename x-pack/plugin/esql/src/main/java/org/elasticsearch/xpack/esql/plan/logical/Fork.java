@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware {
+public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
     private final List<Attribute> output;

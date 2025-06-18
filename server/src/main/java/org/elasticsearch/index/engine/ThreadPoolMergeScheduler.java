@@ -43,10 +43,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
+    /**
+     * This setting switches between the original {@link ElasticsearchConcurrentMergeScheduler}
+     * and the new {@link ThreadPoolMergeScheduler} merge scheduler implementations (the latter is switched ON by default).
+     * This setting is purposefully undocumented, because we expect that only the new {@link ThreadPoolMergeScheduler} implementation
+     * (which is enabled by default) be used from now on. Our users should not touch this setting in their deployments,
+     * unless consulting with engineering, because the original implementation should only be used (by setting this to {@code false})
+     * to get around unexpected issues with the new one.
+     * The setting is also <b>deprecated</b> in the hope that any unexpected issues with the new merge scheduler implementation are
+     * promptly resolved, such that, in the near future, there's never a need to switch to the original implementation,
+     * which will then be removed together with this setting.
+     */
     public static final Setting<Boolean> USE_THREAD_POOL_MERGE_SCHEDULER_SETTING = Setting.boolSetting(
         "indices.merge.scheduler.use_thread_pool",
         true,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
     private final ShardId shardId;
     private final MergeSchedulerConfig config;

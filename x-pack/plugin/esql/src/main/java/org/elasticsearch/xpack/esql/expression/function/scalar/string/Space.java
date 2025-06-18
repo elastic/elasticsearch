@@ -116,7 +116,7 @@ public class Space extends UnaryScalarFunction {
             Object folded = field.fold(toEvaluator.foldCtx());
             if (folded instanceof Integer num) {
                 checkNumber(num);
-                return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));
+                return toEvaluator.apply(Literal.keyword(source(), " ".repeat(num)));
             }
         }
 

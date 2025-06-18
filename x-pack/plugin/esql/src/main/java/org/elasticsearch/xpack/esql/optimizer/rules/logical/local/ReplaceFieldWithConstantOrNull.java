@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -56,9 +57,9 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
                 for (Attribute attribute : esRelation.output()) {
                     if (attribute instanceof FieldAttribute fa) {
                         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
-                        var val = localLogicalOptimizerContext.searchStats().constantValue(fa.fieldName());
+                        String val = localLogicalOptimizerContext.searchStats().constantValue(fa.fieldName());
                         if (val != null) {
-                            attrToConstant.put(attribute, Literal.of(attribute, val));
+                            attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
                         }
                     }
                 }

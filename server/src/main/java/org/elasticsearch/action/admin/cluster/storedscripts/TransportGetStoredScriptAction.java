@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -25,12 +26,15 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportGetStoredScriptAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             GetStoredScriptAction.NAME,
@@ -42,6 +46,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             GetStoredScriptResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -56,7 +61,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
 
     @Override
     protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
 }

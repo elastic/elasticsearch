@@ -49,8 +49,9 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
 
-        Mockito.when(client.projectClient(Mockito.any())).thenReturn(client);
-        Mockito.when(client.admin()).thenReturn(adminClient);
+        Client projectClient = Mockito.mock(Client.class);
+        Mockito.when(client.projectClient(Mockito.any())).thenReturn(projectClient);
+        Mockito.when(projectClient.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
     }
 

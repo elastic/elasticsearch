@@ -552,6 +552,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    */
@@ -715,16 +725,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
-   * @param ctx the parse tree
-   */
-  void enterSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
-   * @param ctx the parse tree
-   */
-  void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

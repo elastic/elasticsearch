@@ -15,8 +15,6 @@ steps:
               - oraclelinux-9
               - sles-12
               - sles-15
-              - ubuntu-1804
-              - ubuntu-2004
               - ubuntu-2204
               - ubuntu-2404
               - rocky-8
@@ -64,7 +62,6 @@ steps:
           setup:
             image:
               - almalinux-8-aarch64
-              - ubuntu-2004-aarch64
               - ubuntu-2404-aarch64
         agents:
           provider: aws

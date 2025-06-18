@@ -61,10 +61,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     /** How frequently we check disk usage (default: 5 seconds). */
     public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "indices.merge.disk.check_interval",
-        // disabled by default
-        // there's currently a problem where (aborting) merges are blocked when shards are closed (because disk space is insufficient)
-        // see: https://github.com/elastic/elasticsearch/issues/129335
-        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueSeconds(5),
         Property.Dynamic,
         Property.NodeScope
     );

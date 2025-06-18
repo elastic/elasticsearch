@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -310,7 +312,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = (String) plan.policyName().fold(FoldContext.small() /* TODO remove me */);
+            final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -393,7 +395,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
-            String inferenceId = plan.inferenceId().fold(FoldContext.small()).toString();
+            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
             ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
 
             if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
@@ -423,7 +425,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // the parser passes the string wrapped in a literal
             Source source = lookup.source();
             Expression tableNameExpression = lookup.tableName();
-            String tableName = lookup.tableName().toString();
+            String tableName = BytesRefs.toString(tableNameExpression.fold(FoldContext.small() /* TODO remove me */));
             Map<String, Map<String, Column>> tables = context.configuration().tables();
             LocalRelation localRelation = null;
 
@@ -1361,18 +1363,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
-            String message = format(
+            String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
+            String message = LoggerMessageFormat.format(
+                null,
                 "Cannot convert string [{}] to [{}], error [{}]",
-                value.fold(FoldContext.small() /* TODO remove me */),
+                name,
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
+            return new UnresolvedAttribute(value.source(), name, message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                TemporalAmount result = maybeParseTemporalAmount(from.fold(FoldContext.small() /* TODO remove me */).toString().strip());
+                TemporalAmount result = maybeParseTemporalAmount(
+                    BytesRefs.toString(from.fold(FoldContext.small() /* TODO remove me */)).strip()
+                );
                 if (result == null) {
                     return from;
                 }

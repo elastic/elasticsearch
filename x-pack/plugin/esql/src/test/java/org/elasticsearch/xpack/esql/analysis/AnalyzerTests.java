@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
@@ -2112,7 +2113,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
 
         var lookup = as(limit.child(), Lookup.class);
-        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo("int_number_names"));
+        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo(BytesRefs.toBytesRef("int_number_names")));
         assertMap(lookup.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(
             lookup.localRelation().output().stream().map(Object::toString).toList(),
@@ -2863,7 +2864,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2879,7 +2880,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(qstr.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -3526,7 +3527,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return new Literal(EMPTY, BytesRefs.toBytesRef(value), DataType.KEYWORD);
     }
 
     static Literal literal(int value) {

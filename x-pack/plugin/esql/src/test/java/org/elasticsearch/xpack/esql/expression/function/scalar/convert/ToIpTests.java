@@ -143,8 +143,8 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
         return new MapExpression(
             Source.EMPTY,
             List.of(
-                new Literal(Source.EMPTY, "leading_zeros", DataType.KEYWORD),
-                new Literal(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT), DataType.KEYWORD)
+                Literal.keyword(Source.EMPTY, "leading_zeros"),
+                Literal.keyword(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT))
             )
         );
     }

@@ -1212,7 +1212,15 @@ public class EsqlCapabilities {
         /**
          * Support parameters for SAMPLE command.
          */
-        PARAMETER_FOR_SAMPLE(Build.current().isSnapshot());
+        PARAMETER_FOR_SAMPLE(Build.current().isSnapshot()),
+
+        /**
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS;
 
         private final boolean enabled;
 

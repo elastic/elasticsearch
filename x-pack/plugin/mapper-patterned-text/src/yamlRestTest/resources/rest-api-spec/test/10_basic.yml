@@ -45,7 +45,7 @@ Field caps:
         fields: [ foo ]
 
   - match: { fields.foo.text.searchable: true }
-  - match: { fields.foo.text.aggregatable: true }
+  - match: { fields.foo.text.aggregatable: false }
 
 ---
 Exist query:
@@ -266,26 +266,6 @@ Wildcard highlighting:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.foo: "Found 5 errors for service [cheddar1]" }
   - match: { hits.hits.0.highlight.foo.0: "Found <em>5</em> errors for service [cheddar1]" }
-
----
-Terms aggregation:
-  - do:
-      search:
-        index: test
-        body:
-          aggs:
-            term_agg:
-              terms:
-                field: foo
-
-  - match: { hits.total.value: 4 }
-  - length: { aggregations.term_agg.buckets: 3 }
-  - match: { aggregations.term_agg.buckets.0.key: "Found 5 errors for service [cheddar1]"}
-  - match: { aggregations.term_agg.buckets.0.doc_count: 1 }
-  - match: { aggregations.term_agg.buckets.1.key: "Found some errors for cheddar data service"}
-  - match: { aggregations.term_agg.buckets.1.doc_count: 1 }
-  - match: { aggregations.term_agg.buckets.2.key: "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]"}
-  - match: { aggregations.term_agg.buckets.2.doc_count: 1 }
 
 ---
 tsdb:

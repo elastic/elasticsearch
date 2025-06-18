@@ -64,7 +64,9 @@ public class PatternedTextFieldType extends StringFieldType {
     private final TextFieldMapper.TextFieldType textFieldType;
 
     PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
-        super(name, true, false, true, tsi, meta);
+        // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
+        // This does not stop its child .template type from being aggregatable.
+        super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
     }

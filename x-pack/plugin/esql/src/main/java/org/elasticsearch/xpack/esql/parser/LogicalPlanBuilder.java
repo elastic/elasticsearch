@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -173,7 +175,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -204,21 +206,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
-                if (item.getValue() instanceof String == false) {
+                if (item.getValue() instanceof BytesRef == false) {
                     throw new ParsingException(
                         source(ctx),
                         "Invalid value for dissect append_separator: expected a string, but was [{}]",
                         item.getValue()
                     );
                 }
-                appendSeparator = (String) item.getValue();
+                appendSeparator = BytesRefs.toString(item.getValue());
             }
             Source src = source(ctx);
 
@@ -386,13 +388,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
         if (val instanceof Integer i) {
             if (i < 0) {
-                throw new ParsingException(source, "Invalid value for LIMIT [" + val + "], expecting a non negative integer");
+                throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
             }
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         } else {
             throw new ParsingException(
                 source,
-                "Invalid value for LIMIT [" + val + ": " + val.getClass().getSimpleName() + "], expecting a non negative integer"
+                "Invalid value for LIMIT ["
+                    + BytesRefs.toString(val)
+                    + ": "
+                    + (expression(ctx.constant()).dataType() == KEYWORD ? "String" : val.getClass().getSimpleName())
+                    + "], expecting a non negative integer"
             );
         }
     }
@@ -474,7 +480,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
+                Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
                 null,
                 Map.of(),
@@ -556,7 +562,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
+        Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -658,7 +664,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
-            var literal = new Literal(source(ctx), "fork" + count++, KEYWORD);
+            var literal = Literal.keyword(source(ctx), "fork" + count++);
 
             // align _fork id across all fork branches
             Alias alias = null;
@@ -740,9 +746,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        Literal inferenceId = ctx.inferenceId != null
-            ? inferenceId(ctx.inferenceId)
-            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+        Literal inferenceId = ctx.inferenceId != null ? inferenceId(ctx.inferenceId) : Literal.keyword(source, Rerank.DEFAULT_INFERENCE_ID);
 
         return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }
@@ -761,7 +765,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
-            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
         }
 
         if (expression(ctx.parameter()) instanceof Literal literalParam) {
@@ -791,7 +795,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             throw new ParsingException(
                 source(ctx),
-                "invalid value for SAMPLE probability [" + val + "], expecting a number between 0 and 1, exclusive"
+                "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
             );
         }
     }

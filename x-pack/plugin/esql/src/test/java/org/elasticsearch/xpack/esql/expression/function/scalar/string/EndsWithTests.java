@@ -108,11 +108,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testLuceneQuery_AllLiterals_NonTranslatable() {
-        var function = new EndsWith(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, "test", DataType.KEYWORD),
-            new Literal(Source.EMPTY, "test", DataType.KEYWORD)
-        );
+        var function = new EndsWith(Source.EMPTY, Literal.keyword(Source.EMPTY, "test"), Literal.keyword(Source.EMPTY, "test"));
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
@@ -131,7 +127,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
         var function = new EndsWith(
             Source.EMPTY,
             new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
-            new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
+            Literal.keyword(Source.EMPTY, "a*b?c\\")
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));

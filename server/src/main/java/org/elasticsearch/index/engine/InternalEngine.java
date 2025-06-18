@@ -521,7 +521,7 @@ public class InternalEngine extends Engine {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
                 case "segments":
-                case "segments_stats":
+                case SEGMENTS_STATS_SOURCE:
                     break;
                 default:
                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";

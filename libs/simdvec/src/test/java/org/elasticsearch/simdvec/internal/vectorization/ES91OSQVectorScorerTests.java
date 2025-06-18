@@ -104,8 +104,26 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                         );
                         final ES91OSQVectorsScorer defaultScorer = defaultProvider().newES91OSQVectorsScorer(slice, dimensions);
                         final ES91OSQVectorsScorer panamaScorer = maybePanamaProvider().newES91OSQVectorsScorer(in, dimensions);
-                        defaultScorer.scoreBulk(query, result, similarityFunction, centroidDp, scores1);
-                        panamaScorer.scoreBulk(query, result, similarityFunction, centroidDp, scores2);
+                        defaultScorer.scoreBulk(
+                            query,
+                            result.lowerInterval(),
+                            result.upperInterval(),
+                            result.quantizedComponentSum(),
+                            result.additionalCorrection(),
+                            similarityFunction,
+                            centroidDp,
+                            scores1
+                        );
+                        panamaScorer.scoreBulk(
+                            query,
+                            result.lowerInterval(),
+                            result.upperInterval(),
+                            result.quantizedComponentSum(),
+                            result.additionalCorrection(),
+                            similarityFunction,
+                            centroidDp,
+                            scores2
+                        );
                         for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
                             if (scores1[j] > (maxDims * Short.MAX_VALUE)) {
                                 int diff = (int) (scores1[j] - scores2[j]);

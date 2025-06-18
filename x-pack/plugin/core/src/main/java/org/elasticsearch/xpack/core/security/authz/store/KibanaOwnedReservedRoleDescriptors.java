@@ -225,6 +225,8 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Fleet writes to this datastream for Agent status alerting feature
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent.status_change-*").privileges("all").build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Fleet publishes Agent metrics in kibana task runner

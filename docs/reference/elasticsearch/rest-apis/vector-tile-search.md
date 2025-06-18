@@ -15,6 +15,7 @@ You can learn how to:
 - [Create an index with geospatial fields](#create-an-index-with-geospatial-fields)
 - [Query geospatial data using a vector tile](#query-a-vector-tile-for-geospatial-data)
 - [Understand the structure of the API response](#example-response)
+- [Understand how the request is internally translated](#how-elasticsearch-translates-the-request-internally)
 
 ## Create an index with geospatial fields
 
@@ -266,4 +267,57 @@ tile contains the following data:
 }
 ```
 % NOTCONSOLE
+
+## How Elasticsearch translates the request internally
+
+{{es}} may translate a vector tile search API request with a
+`grid_agg` argument of `geotile` and an `exact_bounds` argument of `true`
+into the following search:
+
+```console
+GET my-index/_search
+{
+  "size": 10000,
+  "query": {
+    "geo_bounding_box": {
+      "my-geo-field": {
+        "top_left": {
+          "lat": -40.979898069620134,
+          "lon": -45
+        },
+        "bottom_right": {
+          "lat": -66.51326044311186,
+          "lon": 0
+        }
+      }
+    }
+  },
+  "aggregations": {
+    "grid": {
+      "geotile_grid": {
+        "field": "my-geo-field",
+        "precision": 11,
+        "size": 65536,
+        "bounds": {
+          "top_left": {
+            "lat": -40.979898069620134,
+            "lon": -45
+          },
+          "bottom_right": {
+            "lat": -66.51326044311186,
+            "lon": 0
+          }
+        }
+      }
+    },
+    "bounds": {
+      "geo_bounds": {
+        "field": "my-geo-field",
+        "wrap_longitude": false
+      }
+    }
+  }
+}
+```
+% TEST[continued]
 

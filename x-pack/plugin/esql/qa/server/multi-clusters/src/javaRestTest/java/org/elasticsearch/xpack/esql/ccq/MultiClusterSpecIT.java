@@ -148,7 +148,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
         assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
         // Tests that use capabilities not supported in CCS
-        assumeFalse("LOOKUP JOIN after stats not yet supported in CCS", LOOKUP_JOIN_AFTER_STATS_TESTS.contains(testName));
+        assumeFalse(
+            "LOOKUP JOIN after stats not yet supported in CCS",
+            LOOKUP_JOIN_AFTER_STATS_TESTS.stream().anyMatch(testName::contains)
+        );
     }
 
     @Override

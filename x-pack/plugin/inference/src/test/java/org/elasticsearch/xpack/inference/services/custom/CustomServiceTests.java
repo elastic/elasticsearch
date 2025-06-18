@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -16,6 +18,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -23,7 +26,6 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
@@ -31,7 +33,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
@@ -152,14 +153,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 CustomServiceSettings.REQUEST,
                 "request body",
                 CustomServiceSettings.RESPONSE,
-                new HashMap<>(
-                    Map.of(
-                        CustomServiceSettings.JSON_PARSER,
-                        createResponseParserMap(taskType),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
-                    )
-                )
+                new HashMap<>(Map.of(CustomServiceSettings.JSON_PARSER, createResponseParserMap(taskType)))
             )
         );
 
@@ -245,8 +239,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 QueryParameters.EMPTY,
                 "\"input\":\"${input}\"",
                 parser,
-                new RateLimitSettings(10_000),
-                new ErrorResponseParser("$.error.message", inferenceId)
+                new RateLimitSettings(10_000)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
@@ -254,8 +247,6 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static CustomModel createCustomModel(TaskType taskType, CustomResponseParser customResponseParser, String url) {
-        var inferenceId = "inference_id";
-
         return new CustomModel(
             "model_id",
             taskType,
@@ -267,8 +258,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 QueryParameters.EMPTY,
                 "\"input\":\"${input}\"",
                 customResponseParser,
-                new RateLimitSettings(10_000),
-                new ErrorResponseParser("$.error.message", inferenceId)
+                new RateLimitSettings(10_000)
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
@@ -279,6 +269,42 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         return taskType == TaskType.TEXT_EMBEDDING
             ? CustomServiceSettings.TextEmbeddingSettings.DEFAULT_FLOAT
             : CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
+    }
+
+    public void testInfer_ReturnsAnError_WithoutParsingTheResponseBody() throws IOException {
+        try (var service = createService(threadPool, clientManager)) {
+            String responseJson = "error";
+
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJson));
+
+            var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("test input"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_SEARCH,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    Strings.format(
+                        "Received an unsuccessful status code for request "
+                            + "from inference entity id [inference_id] status [400]. Error message: [%s]",
+                        responseJson
+                    )
+                )
+            );
+        }
     }
 
     public void testInfer_HandlesTextEmbeddingRequest_OpenAI_Format() throws IOException {

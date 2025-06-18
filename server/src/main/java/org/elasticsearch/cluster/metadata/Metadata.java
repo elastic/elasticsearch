@@ -404,6 +404,44 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
     }
 
+    /**
+     * Updates a single project in the metadata. This offers a more performant way of updating a single project compared to the Builder.
+     */
+    @FixForMultiProject // We should reconsider whether this method is valuable once we update Metadata.Builder to hold constructed projects
+    // instead of project builders.
+    public Metadata withUpdatedProject(ProjectMetadata updatedProject) {
+        final var existingProject = projectMetadata.get(updatedProject.id());
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + updatedProject.id() + "]. Use the builder instead"
+            );
+        }
+        if (updatedProject == existingProject) {
+            return this;
+        }
+        final Map<ProjectId, ProjectMetadata> updatedMap;
+        if (projects().size() == 1) {
+            updatedMap = Map.of(updatedProject.id(), updatedProject);
+        } else {
+            final var hashMap = new HashMap<>(projectMetadata);
+            hashMap.put(updatedProject.id(), updatedProject);
+            updatedMap = Collections.unmodifiableMap(hashMap);
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            updatedMap,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
+    }
+
     public long version() {
         return this.version;
     }
@@ -1477,6 +1515,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return builder.build();
     }
 
+    public Metadata copyAndUpdateProject(ProjectId projectId, Consumer<ProjectMetadata.Builder> updater) {
+        final var existingProject = projectMetadata.get(projectId);
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + projectId + "]. Use the builder instead"
+            );
+        }
+        final var builder = ProjectMetadata.builder(existingProject);
+        updater.accept(builder);
+        return withUpdatedProject(builder.build());
+    }
+
     public static class Builder {
 
         private String clusterUUID;
@@ -1734,18 +1784,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         @Deprecated(forRemoval = true)
-        public Builder removeProjectCustom(String type) {
-            getSingleProject().removeCustom(type);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder removeProjectCustomIf(BiPredicate<String, ? super ProjectCustom> p) {
-            getSingleProject().removeCustomIf(p);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
         public Builder projectCustoms(Map<String, ProjectCustom> projectCustoms) {
             projectCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
             getSingleProject().customs(projectCustoms);
@@ -1780,17 +1818,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         public Builder removeReservedState(ReservedStateMetadata metadata) {
             reservedStateMetadata.remove(metadata.namespace());
             return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
-            getSingleProject().indexGraveyard(indexGraveyard);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public IndexGraveyard indexGraveyard() {
-            return getSingleProject().indexGraveyard();
         }
 
         @Deprecated(forRemoval = true)

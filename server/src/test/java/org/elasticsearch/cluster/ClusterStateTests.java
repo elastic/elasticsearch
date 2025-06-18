@@ -208,6 +208,9 @@ public class ClusterStateTests extends ESTestCase {
                3LftaL7hgfXAsF60Gm6jcD:
                   another-index:
                      5,index read-only (api), blocks WRITE,METADATA_WRITE
+               WHyuJ0uqBYOPgHX9kYUXlZ:
+                  _project_global_:
+                     15,project is under deletion, blocks READ,WRITE,METADATA_READ,METADATA_WRITE
                tb5W0bx765nDVIwqJPw92G:
                   common-index:
                      9,index metadata (api), blocks METADATA_READ,METADATA_WRITE
@@ -316,6 +319,16 @@ public class ClusterStateTests extends ESTestCase {
                               "description": "index read-only (api)",
                               "levels": [ "write", "metadata_write"]
                             }
+                          }
+                        }
+                      },
+                      {
+                        "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
+                        "project_globals": {
+                          "15": {
+                            "retryable": false,
+                            "description": "project is under deletion",
+                            "levels": [ "read", "write", "metadata_read", "metadata_write"]
                           }
                         }
                       }
@@ -910,6 +923,7 @@ public class ClusterStateTests extends ESTestCase {
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
                     .addIndexBlock(projectId2, "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
                     .addIndexBlock(projectId1, "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+                    .addProjectGlobalBlock(ProjectId.fromId("WHyuJ0uqBYOPgHX9kYUXlZ"), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
             )
             .build();
     }
@@ -2135,9 +2149,13 @@ public class ClusterStateTests extends ESTestCase {
                 chunkCount += clusterState.blocks().indices(Metadata.DEFAULT_PROJECT_ID).size();
             } else {
                 for (var projectId : clusterState.metadata().projects().keySet()) {
+                    chunkCount += 2; // for writing project id
                     final Map<String, Set<ClusterBlock>> indicesBlocks = clusterState.blocks().indices(projectId);
                     if (indicesBlocks.isEmpty() == false) {
                         chunkCount += 2 + indicesBlocks.size();
+                    }
+                    if (clusterState.blocks().projectBlocks(projectId).projectGlobals().isEmpty() == false) {
+                        chunkCount += 1;
                     }
                 }
             }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -92,42 +90,15 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
         if (isRemote) {
-            checkRemoteJoin(this, failures);
+            checkRemoteJoin(failures);
         }
-        // TODO: this is probably not necessary anymore as we check it in analysis stage?
-//        right().forEachDown(EsRelation.class, esr -> {
-//            var indexNameWithModes = esr.indexNameWithModes();
-//            if (indexNameWithModes.size() != 1) {
-//                failures.add(
-//                    fail(
-//                        esr,
-//                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] indices",
-//                        esr.indexPattern(),
-//                        indexNameWithModes.size()
-//                    )
-//                );
-//                return;
-//            }
-//            var indexAndMode = indexNameWithModes.entrySet().iterator().next();
-//            if (indexAndMode.getValue() != IndexMode.LOOKUP) {
-//                failures.add(
-//                    fail(
-//                        esr,
-//                        "Lookup Join requires a single lookup mode index; [{}] resolves to [{}] in [{}] mode",
-//                        esr.indexPattern(),
-//                        indexAndMode.getKey(),
-//                        indexAndMode.getValue()
-//                    )
-//                );
-//            }
-//        });
     }
 
-    private static void checkRemoteJoin(LogicalPlan plan, Failures failures) {
+    private void checkRemoteJoin(Failures failures) {
         boolean[] agg = { false };
         boolean[] enrichCoord = { false };
 
-        plan.forEachUp(UnaryPlan.class, u -> {
+        this.forEachUp(UnaryPlan.class, u -> {
             if (u instanceof Aggregate) {
                 agg[0] = true;
             } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {

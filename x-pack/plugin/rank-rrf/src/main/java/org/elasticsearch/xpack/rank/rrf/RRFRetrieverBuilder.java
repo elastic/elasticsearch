@@ -116,9 +116,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         this.fields = fields == null ? List.of() : List.copyOf(fields);
         this.query = query;
         this.rankConstant = rankConstant;
-
-        // TODO: Validate simplified query format args here?
-        // Otherwise some of the validation is skipped when creating the retriever programmatically.
     }
 
     public int rankConstant() {
@@ -221,15 +218,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();
         if (resolvedIndices != null && query != null) {
-            // Using the simplified query format
+            // Using the multi-fields query format
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
             if (localIndicesMetadata.size() > 1) {
                 throw new IllegalArgumentException(
-                    "[" + NAME + "] does not support the simplified query format when querying multiple indices"
+                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying multiple indices"
                 );
             } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "[" + NAME + "] does not support the simplified query format when querying remote indices"
+                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying remote indices"
                 );
             }
 

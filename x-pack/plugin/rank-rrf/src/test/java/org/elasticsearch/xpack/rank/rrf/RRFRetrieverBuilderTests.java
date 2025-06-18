@@ -189,7 +189,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> rrfRetrieverBuilder.doRewrite(queryRewriteContext)
         );
-        assertEquals("[rrf] does not support the simplified query format when querying remote indices", iae.getMessage());
+        assertEquals("[rrf] cannot specify [query] when querying remote indices", iae.getMessage());
     }
 
     @Override

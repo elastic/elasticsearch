@@ -276,7 +276,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 "{\"input\":${input}}",
                 parser,
                 new RateLimitSettings(10_000),
-                batchSize
+                batchSize,
+                InputTypeTranslator.EMPTY_TRANSLATOR
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),

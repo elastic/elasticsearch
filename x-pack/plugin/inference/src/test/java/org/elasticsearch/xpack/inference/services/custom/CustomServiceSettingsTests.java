@@ -158,7 +158,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    11
+                    11,
+                    InputTypeTranslator.EMPTY_TRANSLATOR
                 )
             )
         );
@@ -587,7 +588,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 },
                 "rate_limit": {
                     "requests_per_minute": 10000
-                }
+                },
+                "batch_size": 10
             }
             """);
 
@@ -602,6 +604,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             null,
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            null,
             null,
             new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
         );
@@ -648,7 +651,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
             null,
-            11
+            11,
+            InputTypeTranslator.EMPTY_TRANSLATOR
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -666,6 +670,10 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     "json_parser": {
                         "text_embeddings": "$.result.embeddings[*].embedding"
                     }
+                },
+                "input_type": {
+                    "translation": {},
+                    "default": ""
                 },
                 "rate_limit": {
                     "requests_per_minute": 10000

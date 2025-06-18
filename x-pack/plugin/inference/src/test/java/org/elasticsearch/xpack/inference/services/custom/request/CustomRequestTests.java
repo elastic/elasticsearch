@@ -68,6 +68,7 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
             new RateLimitSettings(10_000),
+            null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
         );
 
@@ -130,6 +131,7 @@ public class CustomRequestTests extends ESTestCase {
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
             new RateLimitSettings(10_000),
+            null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
         );
 

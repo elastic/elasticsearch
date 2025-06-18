@@ -14,7 +14,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
@@ -36,7 +35,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -224,10 +222,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
 
             final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
-            if (extension == null
-                || extension.shouldMmap() == false
-                // Force normal read advice for stored field temp fdt files:
-                // (tmp fdt files should only exist when index sorting is enabled)
+            if (extension == null || extension.shouldMmap() == false
+            // Force normal read advice for stored field temp fdt files:
+            // (tmp fdt files should only exist when index sorting is enabled)
                 || (LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt"))) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing

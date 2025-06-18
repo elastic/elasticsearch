@@ -1,14 +1,35 @@
 pr: 129606
-summary: Make fork available in release builds
+summary: Release FORK in tech preview
 area: ES|QL
 type: feature
 issues: []
 highlight:
-  title: Make fork available in release builds
+  title: Release FORK in tech preview
   body: |-
-    related: https://github.com/elastic/elasticsearch/issues/121950
+    Fork is a foundational building block that allows multiple branches of execution.
+    Conceptually, fork is:
+    - a bifurcation of the stream, with all data going to each fork branch, followed by
+    - a merge of the branches, enhanced with a discriminator column called FORK:
 
-    This takes FORK out of snapshot. FORK will initially be available as a
-    tech preview feature. We want to make sure the grammar changes land this
-    week, so that they are made available in Kibana too before FF.
+    Example:
+
+    [source,yaml]
+    ----------------------------
+    FROM test
+    | FORK
+    ( WHERE content:"fox" )
+    ( WHERE content:"dog" )
+    | SORT _fork
+    ----------------------------
+
+    The FORK command add a discriminator column called `_fork`:
+
+    [source,yaml]
+    ----------------------------
+    | id  | content   | _fork |
+    |-----|-----------|-------|
+    | 3   | brown fox | fork1 |
+    | 4   | white dog | fork2 |
+    ----------------------------
+
   notable: true

@@ -158,7 +158,7 @@ public class BwcVersions implements Serializable {
             DevelopmentBranch previousMinorBranch = previousMinorBranches.get(i);
             result.put(
                 previousMinorBranch.version(),
-                new UnreleasedVersionInfo(previousMinorBranch.version(), previousMinorBranch.name(), ":distribution:bwc:minor" + (i+1))
+                new UnreleasedVersionInfo(previousMinorBranch.version(), previousMinorBranch.name(), ":distribution:bwc:minor" + (i + 1))
             );
         }
 
@@ -167,7 +167,7 @@ public class BwcVersions implements Serializable {
             DevelopmentBranch previousMajorBranch = previousMajorBranches.get(i);
             result.put(
                 previousMajorBranch.version(),
-                new UnreleasedVersionInfo(previousMajorBranch.version(), previousMajorBranch.name(), ":distribution:bwc:major" + (i+1))
+                new UnreleasedVersionInfo(previousMajorBranch.version(), previousMajorBranch.name(), ":distribution:bwc:major" + (i + 1))
             );
         }
 

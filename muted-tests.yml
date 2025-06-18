@@ -565,9 +565,6 @@ tests:
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/129534
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testEqualityOrTooBig {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129545
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517

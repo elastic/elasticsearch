@@ -634,8 +634,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            checkForRemoteClusters(p, source(target), "LOOKUP JOIN");
-            return new LookupJoin(source, p, right, joinFields);
+            boolean[] hasRemotes = { false };
+            p.forEachUp(UnresolvedRelation.class, r -> {
+                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
+                    if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
+                        hasRemotes[0] = true;
+                    }
+                }
+            });
+            return new LookupJoin(source, p, right, joinFields).setRemote(hasRemotes[0]);
         };
     }
 

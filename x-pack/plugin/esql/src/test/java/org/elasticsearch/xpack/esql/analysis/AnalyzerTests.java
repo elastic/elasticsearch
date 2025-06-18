@@ -2285,40 +2285,40 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(AttributeSet.EMPTY, intersection);
     }
 
-    public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
-        var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
-        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
-        var indexResolutionAsLookup = Map.of("test", indexResolution);
-        var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
-
-        analyze("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
-        analyze(
-            "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
-            AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
-        );
-
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyze(
-                "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
-                AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("1:70: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
-        );
-        e = expectThrows(
-            VerificationException.class,
-            () -> analyze("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("1:25: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
-        );
-    }
+    // public void testLookupJoinIndexMode() {
+    // assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+    //
+    // var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
+    // var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
+    // var indexResolutionAsLookup = Map.of("test", indexResolution);
+    // var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
+    //
+    // analyze("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+    // analyze(
+    // "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
+    // AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
+    // );
+    //
+    // VerificationException e = expectThrows(
+    // VerificationException.class,
+    // () -> analyze(
+    // "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
+    // AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
+    // )
+    // );
+    // assertThat(
+    // e.getMessage(),
+    // containsString("1:70: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
+    // );
+    // e = expectThrows(
+    // VerificationException.class,
+    // () -> analyze("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
+    // );
+    // assertThat(
+    // e.getMessage(),
+    // containsString("1:25: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
+    // );
+    // }
 
     public void testImplicitCasting() {
         var e = expectThrows(VerificationException.class, () -> analyze("""

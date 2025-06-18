@@ -174,7 +174,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
                     upperValue = asDateTime(upperString);
                 }
                 if (lowerValue instanceof BytesRef br) {
-                    lowerValue = BytesRefs.toBytesRef(br);
+                    lowerValue = BytesRefs.toString(br);
                 }
                 if (lowerValue instanceof String lowerString) {
                     lowerValue = asDateTime(lowerString);

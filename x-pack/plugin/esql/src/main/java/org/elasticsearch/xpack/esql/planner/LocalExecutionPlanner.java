@@ -624,8 +624,8 @@ public class LocalExecutionPlanner {
             // The input value will looks like
             // text_field: foo bar
             // multivalue_text_field:
-            //   - value 1
-            //   - value 2
+            // - value 1
+            // - value 2
             // integer_field: 132
             Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
                 .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());

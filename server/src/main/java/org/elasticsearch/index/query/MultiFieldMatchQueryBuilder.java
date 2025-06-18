@@ -10,18 +10,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.search.CombinedFieldQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostAttribute;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
@@ -30,9 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.search.QueryParserHelper;
-import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -293,7 +282,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
 
         validateSimilarity(context, fields);
 
-        Map<Analyzer, List<FieldAndBoost>> groups = new HashMap<>();
+        Map<Analyzer, List<String>> groups = new HashMap<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
@@ -307,41 +296,43 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
                 );
             }
 
-            float boost = entry.getValue() == null ? 1.0f : entry.getValue();
+            // TODO: handle per-field boosts.
 
             Analyzer analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             if (groups.containsKey(analyzer) == false) {
                 groups.put(analyzer, new ArrayList<>());
             }
-            groups.get(analyzer).add(new FieldAndBoost(fieldType, boost));
+            groups.get(analyzer).add(name);
         }
 
         // TODO: For now assume we have one group.
         assert groups.size() == 1;
 
-        List<Query> queries = new ArrayList<>();
-        for (Map.Entry<Analyzer, List<FieldAndBoost>> group : groups.entrySet()) {
-            var fieldsAndBoosts = group.getValue();
-
+        var disMax = new DisMaxQueryBuilder();
+        for (Map.Entry<Analyzer, List<String>> group : groups.entrySet()) {
+            /*
+            TODO
             String placeholderFieldName = fieldsAndBoosts.get(0).fieldType.name();
             boolean canGenerateSynonymsPhraseQuery = autoGenerateSynonymsPhraseQuery;
             for (FieldAndBoost fieldAndBoost : fieldsAndBoosts) {
                 TextSearchInfo textSearchInfo = fieldAndBoost.fieldType.getTextSearchInfo();
                 canGenerateSynonymsPhraseQuery &= textSearchInfo.hasPositions();
             }
+            */
 
-            var builder = new CombinedFieldsBuilder(fieldsAndBoosts, group.getKey(), canGenerateSynonymsPhraseQuery, context);
-            Query query = builder.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
-
-            query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-            if (query == null) {
-                query = zeroTermsQuery.asQuery();
-            }
-            queries.add(query);
+            disMax.add(new CombinedFieldsQueryBuilder(value, group.getValue().toArray(new String[0])));
         }
 
-        // TODO: combine queries.
-        return queries.getFirst();
+        /*
+        TODO
+        Query query = disMax.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
+        query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
+        if (query == null) {
+            query = zeroTermsQuery.asQuery();
+        }
+
+         */
+        return disMax.doToQuery(context);
     }
 
     private static void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
@@ -356,89 +347,6 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
         Similarity defaultSimilarity = context.getDefaultSimilarity();
         if ((defaultSimilarity instanceof LegacyBM25Similarity || defaultSimilarity instanceof BM25Similarity) == false) {
             throw new IllegalArgumentException("[" + NAME + "] queries can only be used with the [BM25] similarity");
-        }
-    }
-
-    private static final class FieldAndBoost {
-        final MappedFieldType fieldType;
-        final float boost;
-
-        FieldAndBoost(MappedFieldType fieldType, float boost) {
-            this.fieldType = Objects.requireNonNull(fieldType);
-            this.boost = boost;
-        }
-    }
-
-    private static class CombinedFieldsBuilder extends QueryBuilder {
-        private final List<FieldAndBoost> fields;
-        private final SearchExecutionContext context;
-
-        CombinedFieldsBuilder(
-            List<FieldAndBoost> fields,
-            Analyzer analyzer,
-            boolean autoGenerateSynonymsPhraseQuery,
-            SearchExecutionContext context
-        ) {
-            super(analyzer);
-            this.fields = fields;
-            setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
-            this.context = context;
-        }
-
-        @Override
-        protected Query createFieldQuery(TokenStream source, BooleanClause.Occur operator, String field, boolean quoted, int phraseSlop) {
-            if (source.hasAttribute(DisableGraphAttribute.class)) {
-                /*
-                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
-                 * paths explosion. See {@link org.elasticsearch.index.analysis.ShingleTokenFilterFactory} for details.
-                 */
-                setEnableGraphQueries(false);
-            }
-            try {
-                return super.createFieldQuery(source, operator, field, quoted, phraseSlop);
-            } finally {
-                setEnableGraphQueries(true);
-            }
-        }
-
-        @Override
-        public Query createPhraseQuery(String field, String queryText, int phraseSlop) {
-            throw new IllegalArgumentException("[multi_field_match] queries don't support phrases");
-        }
-
-        @Override
-        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
-            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
-            for (TermAndBoost termAndBoost : terms) {
-                assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term();
-                query.addTerm(bytes);
-            }
-            for (FieldAndBoost fieldAndBoost : fields) {
-                MappedFieldType fieldType = fieldAndBoost.fieldType;
-                float fieldBoost = fieldAndBoost.boost;
-                query.addField(fieldType.name(), fieldBoost);
-            }
-            return query.build();
-        }
-
-        @Override
-        protected Query newTermQuery(Term term, float boost) {
-            TermAndBoost termAndBoost = new TermAndBoost(term.bytes(), boost);
-            return newSynonymQuery(term.field(), new TermAndBoost[] { termAndBoost });
-        }
-
-        @Override
-        protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (FieldAndBoost fieldAndBoost : fields) {
-                Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
-                if (fieldAndBoost.boost != 1f) {
-                    query = new BoostQuery(query, fieldAndBoost.boost);
-                }
-                builder.add(query, BooleanClause.Occur.SHOULD);
-            }
-            return builder.build();
         }
     }
 

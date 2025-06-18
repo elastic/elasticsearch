@@ -114,6 +114,7 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
         }
         return state.blocks()
             .indicesBlockedException(
+                projectResolver.getProjectId(),
                 ClusterBlockLevel.METADATA_READ,
                 indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, WATCHER_INDEX_REQUEST)
             );

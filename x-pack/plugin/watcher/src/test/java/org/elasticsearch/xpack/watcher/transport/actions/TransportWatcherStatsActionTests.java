@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
@@ -91,7 +92,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             watcherLifeCycleService,
             executionService,
-            triggerService
+            triggerService,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
     }
 

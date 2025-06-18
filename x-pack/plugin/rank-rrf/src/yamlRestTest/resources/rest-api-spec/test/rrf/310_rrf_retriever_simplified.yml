@@ -1,0 +1,336 @@
+setup:
+  - requires:
+      cluster_features: [ "rrf_retriever.multi_fields_query_format_support" ]
+      reason: "RRF retriever multi-fields query format support"
+      test_runner_features: [ "contains" ]
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 128,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              dense_inference:
+                type: semantic_text
+                inference_id: dense-inference-id
+              sparse_inference:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              text_1:
+                type: text
+              text_2:
+                type: text
+              timestamp:
+                type: date
+              dense_vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+              sparse_vector:
+                type: sparse_vector
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index": {"_id": "1"}}
+          {
+            "keyword": "keyword match 1",
+            "dense_inference": "you know",
+            "sparse_inference": "for testing",
+            "text_1": "foo match 1",
+            "text_2": "x match 2",
+            "timestamp": "2000-03-30",
+            "dense_vector": [1],
+            "sparse_vector": {
+              "foo": 1.0
+            }
+          }
+          {"index": {"_id": "2"}}
+          {
+            "keyword": "keyword match 2",
+            "dense_inference": "ElasticSearch is an open source",
+            "sparse_inference": "distributed, RESTful, search engine",
+            "text_1": "bar match 3",
+            "text_2": "y match 4",
+            "timestamp": "2010-02-08",
+            "dense_vector": [2],
+            "sparse_vector": {
+              "bar": 1.0
+            }
+          }
+          {"index": {"_id": "3"}}
+          {
+            "keyword": "keyword match 3",
+            "dense_inference": "which is built on top of Lucene internally",
+            "sparse_inference": "and enjoys all the features it provides",
+            "text_1": "baz match 5",
+            "text_2": "z match 6",
+            "timestamp": "2024-08-08",
+            "dense_vector": [3],
+            "sparse_vector": {
+              "baz": 1.0
+            }
+          }
+
+---
+"Query all fields using the simplified format":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              query: "match"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }
+
+---
+"Per-field boosting is not supported":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2^3" ]
+              query: "foo"
+
+  - match: { error.root_cause.0.reason: "[rrf] does not support per-field weights in [fields]" }
+
+---
+"Can query keyword fields":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "keyword" ]
+              query: "keyword match 1"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Can query date fields":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "timestamp" ]
+              query: "2010-02-08"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Can query sparse vector fields":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "sparse_vector" ]
+              query: "foo"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Cannot query dense vector fields":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "dense_vector" ]
+              query: "foo"
+
+  - contains: { error.root_cause.0.reason: "[rrf] search failed - retrievers '[standard]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [dense_vector] of type [dense_vector] does not support match queries" }
+
+---
+"Filters are propagated":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              query: "match"
+              filter:
+                - term:
+                    keyword: "keyword match 1"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Wildcard index patterns that do not resolve to any index are handled gracefully":
+  - do:
+      search:
+        index: wildcard-*
+        body:
+          retriever:
+            rrf:
+              query: "match"
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
+"Multi-index searches are not allowed":
+  - do:
+      indices.create:
+        index: test-index-2
+
+  - do:
+      catch: bad_request
+      search:
+        index: [ test-index, test-index-2 ]
+        body:
+          retriever:
+            rrf:
+              query: "match"
+
+  - match: { error.root_cause.0.reason: "[rrf] cannot specify [query] when querying multiple indices" }
+
+  - do:
+      indices.put_alias:
+        index: test-index
+        name: test-alias
+  - do:
+      indices.put_alias:
+        index: test-index-2
+        name: test-alias
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-alias
+        body:
+          retriever:
+            rrf:
+              query: "match"
+
+  - match: { error.root_cause.0.reason: "[rrf] cannot specify [query] when querying multiple indices" }
+
+---
+"Wildcard field patterns that do not resolve to any field are handled gracefully":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "wildcard-*" ]
+              query: "match"
+
+  - match: { hits.total.value: 0 }
+  - length: { hits.hits: 0 }
+
+---
+"Cannot mix simplified query format with custom sub-retrievers":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              query: "foo"
+              retrievers:
+                - standard:
+                    query:
+                      match:
+                        keyword: "bar"
+
+  - contains: { error.root_cause.0.reason: "[rrf] cannot combine [retrievers] and [query]" }
+
+---
+"Missing required params":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2" ]
+
+  - contains: { error.root_cause.0.reason: "[rrf] [query] must be provided when [fields] is specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2" ]
+              query: ""
+
+  - contains: { error.root_cause.0.reason: "[rrf] [query] cannot be empty" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf: {}
+
+  - contains: { error.root_cause.0.reason: "[rrf] must provide [retrievers] or [query]" }

@@ -256,9 +256,9 @@ FROM hosts
 ;
 
 COUNT():long | category:keyword
+           2 | .*?DB.+?servers.*?
            2 | .*?Gateway.+?instances.*?
            5 | .*?Kubernetes.+?cluster.*?
-           2 | .*?servers.*?
            1 | null
 
 // Note: DB is removed from "DB servers", because the ml_standard
@@ -302,9 +302,9 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
-           3 | .*?Connected.+?to.*?
-           3 | .*?Connection.+?error.*?
-           1 | .*?Disconnected.*?
+3            | .*?Connected.+?to.+?👍🏽.+?😊.*?
+3            | .*?Connection.+?error.+?👍🏽.+?😊.*?
+1            | .*?Disconnected.+?👍🏽.+?😊.*?
 ;
 
 on REVERSE(CONCAT())
@@ -316,9 +316,9 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
-           1 | .*?detcennocsiD.*?
-           3 | .*?ot.+?detcennoC.*?
-           3 | .*?rorre.+?noitcennoC.*?
+1            | .*?😊.+?👍🏽.+?detcennocsiD.*?
+3            | .*?😊.+?👍🏽.+?ot.+?detcennoC.*?
+3            | .*?😊.+?👍🏽.+?rorre.+?noitcennoC.*?
 ;
 
 and then TO_LOWER

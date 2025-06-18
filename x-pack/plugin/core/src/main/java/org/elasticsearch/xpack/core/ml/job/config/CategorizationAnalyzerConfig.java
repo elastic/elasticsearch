@@ -210,6 +210,23 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             .build();
     }
 
+    /**
+     * Create a <code>categorization_analyzer</code> that will be used by the ES|QL categorize function.
+     * The only difference from the DSL analyzer is the tokenizer (standard instead of ml_standard).
+     * This means the results are slightly different from the categorize text aggregation and the ML job,
+     * however you can use these tokens for looking up messages in indices generated with the standard
+     * tokenizer. The latter is considered more important.
+     */
+    public static CategorizationAnalyzerConfig buildStandardEsqlCategorizationAnalyzer(List<String> categorizationFilters) {
+
+        return new CategorizationAnalyzerConfig.Builder().addCharFilter("first_line_with_letters")
+            .addCategorizationFilters(categorizationFilters)
+            .setTokenizer("standard")
+            .addDateWordsTokenFilter()
+            .addLimitFilter()
+            .build();
+    }
+
     private final String analyzer;
     private final List<NameOrDefinition> charFilters;
     private final NameOrDefinition tokenizer;

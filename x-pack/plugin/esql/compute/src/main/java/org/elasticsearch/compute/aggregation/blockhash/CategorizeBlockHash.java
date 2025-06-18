@@ -48,9 +48,8 @@ import java.util.Objects;
  */
 public class CategorizeBlockHash extends BlockHash {
 
-    private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(
-        List.of()
-    );
+    private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig
+        .buildStandardEsqlCategorizationAnalyzer(List.of());
     private static final int NULL_ORD = 0;
 
     private final int channel;

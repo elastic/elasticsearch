@@ -250,15 +250,12 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       indices.create:
         index: sparse_vector_pruning_test
         body:
           mappings:
             properties:
-              text:
-                type: text
               ml.tokens:
                 type: sparse_vector
 
@@ -266,15 +263,28 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
-      indices.get_mapping:
+      indices.get_field_mapping:
         index: sparse_vector_pruning_test
+        fields: ml.tokens
+        include_defaults: true
 
   # the index_options with pruning defaults will be serialized here explicitly
-  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.prune: true }
-  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 5.0 }
-  - match: { sparse_vector_pruning_test.mappings.properties.ml.properties.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
+  - match: { sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options.prune: true }
+  - match: { sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options.pruning_config.tokens_freq_ratio_threshold: 5.0 }
+  - match: { sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options.pruning_config.tokens_weight_threshold: 0.4 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      indices.get_field_mapping:
+        index: sparse_vector_pruning_test
+        fields: ml.tokens
+
+  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options.prune
+  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options.pruning_config.tokens_freq_ratio_threshold
+  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options.pruning_config.tokens_weight_threshold
+  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options
 
 ---
 "Check sparse_vector token pruning index_options prune missing do not allow config":

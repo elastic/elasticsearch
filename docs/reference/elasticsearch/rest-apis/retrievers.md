@@ -41,6 +41,9 @@ The following retrievers are available:
 `text_similarity_reranker`
 :   A [retriever](#text-similarity-reranker-retriever) that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
+`pinned` {applies_to}`stack: GA 9.1`
+:   A [retriever](#pinned-retriever) that always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+
 `rule`
 :   A [retriever](#rule-retriever) that applies contextual [Searching with query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries.
 
@@ -276,7 +279,7 @@ Each entry specifies the following parameters:
 `normalizer`
 :   (Optional, String)
 
-    Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
+    - Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
@@ -285,6 +288,7 @@ Each entry specifies the following parameters:
         score = (score - min) / (max - min)
         ```
 
+    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
@@ -920,7 +924,57 @@ GET movies/_search
 1. The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
 2. The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
 
+## Pinned Retriever [pinned-retriever]
+```yaml {applies_to}
+stack: ga 9.1
+```
 
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the [pinned query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md), but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.
+
+#### Parameters [pinned-retriever-parameters]
+
+`ids`
+:   (Optional, array of strings)
+
+    A list of document IDs to pin at the top of the results, in the order provided.
+
+`docs`
+:   (Optional, array of objects)
+
+    A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`retriever`
+:   (Optional, retriever object)
+
+    A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
+
+Either `ids` or `docs` must be specified.
+
+### Example using `docs` [pinned-retriever-example-documents]
+
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 ## Common usage guidelines [retriever-common-parameters]
 
@@ -945,6 +999,3 @@ When a retriever is specified as part of a search, the following elements are no
 * [`terminate_after`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-terminate-after)
 * [`sort`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
 * [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) use a [rescorer retriever](#rescorer-retriever) instead
-
-
-

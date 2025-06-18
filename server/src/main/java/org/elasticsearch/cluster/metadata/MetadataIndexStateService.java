@@ -65,6 +65,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -350,6 +351,12 @@ public class MetadataIndexStateService {
                     + snapshottingIndices
                     + ". Try again after snapshot finishes or cancel the currently running snapshot."
             );
+        }
+
+        // Check if index closing conflicts with ongoing resharding
+        Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(currentProjectState, indicesToClose);
+        if (reshardingIndices.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot close indices that are being resharded: " + reshardingIndices);
         }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
@@ -937,6 +944,22 @@ public class MetadataIndexStateService {
                         )
                     );
                     logger.debug("verification of shards before closing {} succeeded but index is being snapshot in the meantime", index);
+                    continue;
+                }
+
+                // Check if index closing conflicts with ongoing resharding
+                Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(currentProjectState, Set.of(index));
+                if (reshardingIndices.isEmpty() == false) {
+                    closingResults.put(
+                        result.getKey(),
+                        new IndexResult(
+                            result.getKey(),
+                            new IllegalStateException(
+                                "verification of shards before closing " + index + " succeeded but index is being resharded in the meantime"
+                            )
+                        )
+                    );
+                    logger.debug("verification of shards before closing {} succeeded but index is being resharded in the meantime", index);
                     continue;
                 }
 

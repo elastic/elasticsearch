@@ -25,6 +25,7 @@
           "description" : ""
         }
       ],
+      "license" : "PLATINUM",
       "variadic" : false,
       "returnType" : "cartesian_shape"
     },
@@ -49,6 +50,7 @@
           "description" : ""
         }
       ],
+      "license" : "PLATINUM",
       "variadic" : false,
       "returnType" : "geo_shape"
     }

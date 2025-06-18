@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -39,8 +39,8 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.getProject().index(index);
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexMetadata indexMetadata = state.metadata().index(index);
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true, null);
@@ -49,7 +49,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
 
         FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
         request.setIndices(new String[] { index.getName() });
-        getClient().execute(
+        getClient(state.projectId()).execute(
             FollowStatsAction.INSTANCE,
             request,
             ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure)

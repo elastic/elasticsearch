@@ -25,7 +25,15 @@ public class SingleValueQueryNegateTests extends ESTestCase {
         var sv = new SingleValueQuery(new MatchAll(Source.EMPTY), "foo", useSyntheticSourceDelegate);
         assertThat(
             sv.negate(Source.EMPTY),
-            equalTo(new SingleValueQuery(new NotQuery(Source.EMPTY, new MatchAll(Source.EMPTY)), "foo", useSyntheticSourceDelegate))
+            equalTo(
+                new SingleValueQuery(
+                    new NotQuery(Source.EMPTY, new MatchAll(Source.EMPTY)),
+                    "foo",
+                    useSyntheticSourceDelegate
+                        ? SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                        : SingleValueQuery.UseSyntheticSourceDelegate.NO
+                )
+            )
         );
     }
 

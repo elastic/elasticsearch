@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -319,7 +318,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotIn() throws IOException {
+    public static void renderNotIn() throws Exception {
         renderNegatedOperator(
             constructorWithFunctionInfo(In.class),
             "IN",

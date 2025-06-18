@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +25,7 @@ public class CastOperatorTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void renderDocs() throws IOException {
+    public static void renderDocs() throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }

@@ -216,7 +216,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return factory(initShardContexts(), mapperService("index1").fieldType("long"), ElementType.LONG);
     }
 
@@ -262,7 +262,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
             shardContexts,
-            ctx -> new MatchAllDocsQuery(),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             DataPartitioning.SHARD,
             1,// randomIntBetween(1, 10),
             pageSize,
@@ -1290,7 +1290,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             List.of(shardContext),
-            ctx -> new MatchAllDocsQuery(),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
@@ -1449,7 +1449,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
                 contexts,
-                ctx -> new MatchAllDocsQuery(),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,

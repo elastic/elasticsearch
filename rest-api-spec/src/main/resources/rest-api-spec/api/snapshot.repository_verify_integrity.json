@@ -5,7 +5,7 @@
       "description":"Verifies the integrity of the contents of a snapshot repository"
     },
     "stability":"experimental",
-    "visibility":"private",
+    "visibility":"public",
     "headers": {
       "accept": [
         "application/json"

@@ -1,6 +1,0 @@
-pr: 126310
-summary: Add Issuer to failed SAML Signature validation logs when available
-area: Security
-type: enhancement
-issues:
- - 111022

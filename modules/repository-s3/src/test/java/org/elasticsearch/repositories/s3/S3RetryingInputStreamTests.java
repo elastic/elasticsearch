@@ -120,7 +120,7 @@ public class S3RetryingInputStreamTests extends ESTestCase {
     }
 
     public void testContentRangeValidation() throws IOException {
-        final byte[] bytes = randomByteArrayOfLength(between(100, 200));
+        final byte[] bytes = randomByteArrayOfLength(between(101, 200));
         final int position = between(0, 100);
         final int length = between(1, 100);
         try (var stream = createInputStream(bytes, position, length)) {

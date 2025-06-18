@@ -179,8 +179,8 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableFieldAttribute(ipField) && Expressions.foldable(matches);
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(ipField) && Expressions.foldable(matches) ? Translatable.YES : Translatable.NO;
     }
 
     @Override

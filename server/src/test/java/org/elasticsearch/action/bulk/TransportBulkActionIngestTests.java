@@ -107,6 +107,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
     private FeatureService mockFeatureService;
 
+    private static final ExecutorService writeCoordinationExecutor = new NamedDirectExecutorService("write_coordination");
     private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
     private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
 
@@ -160,7 +161,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 TransportBulkActionIngestTests.this.clusterService,
                 ingestService,
-                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool),
+                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
@@ -293,6 +294,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(eq(ThreadPool.Names.WRITE_COORDINATION))).thenReturn(writeCoordinationExecutor);
         when(threadPool.executor(eq(ThreadPool.Names.WRITE))).thenReturn(writeExecutor);
         when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE))).thenReturn(systemWriteExecutor);
         MockitoAnnotations.openMocks(this);

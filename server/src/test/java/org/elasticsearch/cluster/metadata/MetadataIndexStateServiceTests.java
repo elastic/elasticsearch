@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -45,6 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -162,6 +164,38 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         ).v1();
         assertIsOpened(index.getName(), updatedState, projectId);
         assertThat(updatedState.blocks().hasIndexBlockWithId(projectId, index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
+    public void testCloseRoutingTableWithReshardingIndex() {
+        ClusterState state = stateWithProject("testCloseRoutingTableWithReshardingIndex", projectId);
+
+        String indexName = "resharding-index";
+        ClusterBlock block = MetadataIndexStateService.createIndexClosingBlock();
+        state = addOpenedIndex(projectId, indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+
+        var updatedMetadata = IndexMetadata.builder(state.metadata().getProject(projectId).index(indexName))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(randomIntBetween(1, 5), 2))
+            .build();
+        state = ClusterState.builder(state)
+            .putProjectMetadata(ProjectMetadata.builder(state.metadata().getProject(projectId)).put(updatedMetadata, true))
+            .build();
+
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(projectId, indexName, block))
+            .build();
+
+        final Index index = state.metadata().getProject(projectId).index(indexName).getIndex();
+        final Tuple<ClusterState, List<IndexResult>> result = MetadataIndexStateService.closeRoutingTable(
+            state,
+            projectId,
+            Map.of(index, block),
+            Map.of(index, new IndexResult(index)),
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+        final ClusterState updatedState = result.v1();
+        assertIsOpened(index.getName(), updatedState, projectId);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(projectId, index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+        assertThat(result.v2().get(0).getException(), notNullValue());
     }
 
     public void testAddIndexClosedBlocks() {

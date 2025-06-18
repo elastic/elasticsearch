@@ -43,10 +43,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
+    /**
+     * This setting switches between the original {@link ElasticsearchConcurrentMergeScheduler}
+     * and the new {@link ThreadPoolMergeScheduler} merge scheduler implementations (the latter is switched ON by default).
+     * This setting is purposefully undocumented, because we expect that only the new {@link ThreadPoolMergeScheduler} implementation
+     * (which is enabled by default) be used from now on. Our users should not touch this setting in their deployments,
+     * unless consulting with engineering, because the original implementation should only be used (by setting this to {@code false})
+     * to get around unexpected issues with the new one.
+     * The setting is also <b>deprecated</b> in the hope that any unexpected issues with the new merge scheduler implementation are
+     * promptly resolved, such that, in the near future, there's never a need to switch to the original implementation,
+     * which will then be removed together with this setting.
+     */
     public static final Setting<Boolean> USE_THREAD_POOL_MERGE_SCHEDULER_SETTING = Setting.boolSetting(
         "indices.merge.scheduler.use_thread_pool",
         true,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
     private final ShardId shardId;
     private final MergeSchedulerConfig config;
@@ -55,7 +67,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
         16,
-        Comparator.comparingLong(MergeTask::estimatedMergeSize)
+        Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
     );
     private final Map<MergePolicy.OneMerge, MergeTask> runningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
@@ -67,6 +79,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private volatile boolean closed = false;
     private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
 
+    /**
+     * Creates a thread-pool-based merge scheduler that runs merges in a thread pool.
+     *
+     * @param shardId                        the shard id associated with this merge scheduler
+     * @param indexSettings                  used to obtain the {@link MergeSchedulerConfig}
+     * @param threadPoolMergeExecutorService the executor service used to execute merge tasks from this scheduler
+     * @param mergeMemoryEstimateProvider    provides an estimate for how much memory a merge will take
+     */
     public ThreadPoolMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
@@ -147,6 +167,16 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     protected void afterMerge(OnGoingMerge merge) {}
 
     /**
+     * A callback allowing for custom logic when a merge is queued.
+     */
+    protected void mergeQueued(OnGoingMerge merge) {}
+
+    /**
+     * A callback allowing for custom logic after a merge is executed or aborted.
+     */
+    protected void mergeExecutedOrAborted(OnGoingMerge merge) {}
+
+    /**
      * A callback that's invoked when indexing should throttle down indexing in order to let merging to catch up.
      */
     protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
@@ -156,6 +186,34 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      * This is invoked sometime after {@link #enableIndexingThrottling(int, int, int)} was invoked in the first place.
      */
     protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
+
+    /**
+     * Returns true if scheduled merges should be skipped (aborted)
+     */
+    protected boolean shouldSkipMerge() {
+        return false;
+    }
+
+    /**
+     * Returns true if IO-throttling is enabled
+     */
+    protected boolean isAutoThrottle() {
+        return config.isAutoThrottle();
+    }
+
+    /**
+     * Returns the maximum number of active merges before being throttled
+     */
+    protected int getMaxMergeCount() {
+        return config.getMaxMergeCount();
+    }
+
+    /**
+     * Returns the maximum number of threads running merges before being throttled
+     */
+    protected int getMaxThreadCount() {
+        return config.getMaxThreadCount();
+    }
 
     /**
      * A callback for exceptions thrown while merging.
@@ -168,6 +226,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         try {
             MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
+            mergeQueued(mergeTask.onGoingMerge);
             return threadPoolMergeExecutorService.submitMergeTask(mergeTask);
         } finally {
             checkMergeTaskThrottling();
@@ -183,7 +242,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return new MergeTask(
             mergeSource,
             merge,
-            isAutoThrottle && config.isAutoThrottle(),
+            isAutoThrottle && isAutoThrottle(),
             "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId,
             estimateMergeMemoryBytes
         );
@@ -193,12 +252,12 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         long submittedMergesCount = submittedMergeTaskCount.get();
         long doneMergesCount = doneMergeTaskCount.get();
         int runningMergesCount = runningMergeTasks.size();
-        int configuredMaxMergeCount = config.getMaxMergeCount();
+        int configuredMaxMergeCount = getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
         if (activeMerges > configuredMaxMergeCount
-            // only throttle indexing if disk IO is un-throttled, and we still can't keep up with the merge load
-            && threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec()
+            // only throttle indexing if disk IO is un-throttled (if enabled), and we still can't keep up with the merge load
+            && (config.isAutoThrottle() == false || threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec())
             && shouldThrottleIncomingMerges.get() == false) {
             // maybe enable merge task throttling
             synchronized (shouldThrottleIncomingMerges) {
@@ -219,15 +278,21 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // exposed for tests
     // synchronized so that {@code #closed}, {@code #runningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     synchronized Schedule schedule(MergeTask mergeTask) {
-        assert mergeTask.isRunning() == false;
+        assert mergeTask.hasStartedRunning() == false;
         if (closed) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
             return Schedule.ABORT;
-        } else if (runningMergeTasks.size() < config.getMaxThreadCount()) {
+        } else if (shouldSkipMerge()) {
+            if (verbose()) {
+                message(String.format(Locale.ROOT, "skipping merge task %s", mergeTask));
+            }
+            return Schedule.ABORT;
+        } else if (runningMergeTasks.size() < getMaxThreadCount()) {
             boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return Schedule.RUN;
         } else {
+            assert mergeTask.hasStartedRunning() == false;
             backloggedMergeTasks.add(mergeTask);
             return Schedule.BACKLOG;
         }
@@ -243,8 +308,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         maybeSignalAllMergesDoneAfterClose();
     }
 
-    private void mergeTaskDone() {
+    private void mergeTaskDone(OnGoingMerge merge) {
         doneMergeTaskCount.incrementAndGet();
+        mergeExecutedOrAborted(merge);
         checkMergeTaskThrottling();
     }
 
@@ -255,7 +321,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private synchronized void enqueueBackloggedTasks() {
-        int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - runningMergeTasks.size();
+        int maxBackloggedTasksToEnqueue = getMaxThreadCount() - runningMergeTasks.size();
         // enqueue all backlogged tasks when closing, as the queue expects all backlogged tasks to always be enqueued back
         while (closed || maxBackloggedTasksToEnqueue-- > 0) {
             MergeTask backloggedMergeTask = backloggedMergeTasks.poll();
@@ -350,8 +416,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.rateLimiter.setMBPerSec(ByteSizeValue.ofBytes(ioRateLimitBytesPerSec).getMbFrac());
         }
 
-        public boolean isRunning() {
-            return mergeStartTimeNS.get() > 0L;
+        /**
+         * Returns {@code true} if this task is currently running, or was run in the past.
+         * An aborted task (see {@link #abort()}) is considered as NOT run.
+         */
+        public boolean hasStartedRunning() {
+            boolean isRunning = mergeStartTimeNS.get() > 0L;
+            assert isRunning != false || rateLimiter.getTotalBytesWritten() == 0L;
+            return isRunning;
         }
 
         /**
@@ -362,7 +434,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          */
         @Override
         public void run() {
-            assert isRunning() == false;
+            assert hasStartedRunning() == false;
             assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the merge task";
             try {
@@ -408,7 +480,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 try {
                     mergeTaskFinishedRunning(this);
                 } finally {
-                    mergeTaskDone();
+                    mergeTaskDone(onGoingMerge);
                 }
                 try {
                     // kick-off any follow-up merge
@@ -427,7 +499,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          * (by the {@link org.apache.lucene.index.IndexWriter}) to any subsequent merges.
          */
         void abort() {
-            assert isRunning() == false;
+            assert hasStartedRunning() == false;
             assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge()) == false
                 : "cannot abort a merge task that's already running";
             if (verbose()) {
@@ -452,14 +524,21 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s end abort", this));
                 }
-                mergeTaskDone();
+                mergeTaskDone(onGoingMerge);
             }
         }
 
-        long estimatedMergeSize() {
+        /**
+         * Before the merge task started running, this returns the estimated required disk space for the merge to complete
+         * (i.e. the estimated disk space size of the resulting segment following the merge).
+         * While the merge is running, the returned estimation is updated to take into account the data that's already been written.
+         * After the merge completes, the estimation returned here should ideally be close to "0".
+         */
+        long estimatedRemainingMergeSize() {
             // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
             // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
-            return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+            long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+            return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
         }
 
         public long getMergeMemoryEstimateBytes() {

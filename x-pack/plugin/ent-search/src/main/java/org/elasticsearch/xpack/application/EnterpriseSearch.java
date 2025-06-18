@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
@@ -178,6 +179,7 @@ import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAct
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportTestQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
+import org.elasticsearch.xpack.application.rules.retriever.RuleQueryRankDoc;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -359,6 +361,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     }
 
     @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(new NamedWriteableRegistry.Entry(RankDoc.class, RuleQueryRankDoc.NAME, RuleQueryRankDoc::new));
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -469,8 +476,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         analyticsTemplateRegistry.initialize();
 
@@ -479,8 +485,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         connectorTemplateRegistry.initialize();
 

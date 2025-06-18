@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,9 +24,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
+    @BeforeClass
+    public static void init() {
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
+
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(22));
+        assertThat(services.size(), equalTo(24));
 
         var providers = providers(services);
 
@@ -39,6 +46,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "custom",
                     "deepseek",
                     "elastic",
                     "elasticsearch",
@@ -49,12 +57,13 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "mistral",
                     "openai",
                     "streaming_completion_test_service",
+                    "completion_test_service",
                     "test_reranking_service",
                     "test_service",
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -70,7 +79,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(16));
+        assertThat(services.size(), equalTo(17));
 
         var providers = providers(services);
 
@@ -83,6 +92,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "custom",
                     "elasticsearch",
                     "googleaistudio",
                     "googlevertexai",
@@ -93,7 +103,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "sagemaker"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -101,7 +111,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(7));
+        assertThat(services.size(), equalTo(9));
 
         var providers = providers(services);
 
@@ -111,11 +121,13 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "alibabacloud-ai-search",
                     "cohere",
+                    "custom",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
                     "test_reranking_service",
-                    "voyageai"
+                    "voyageai",
+                    "hugging_face"
                 ).toArray()
             )
         );
@@ -123,7 +135,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        assertThat(services.size(), equalTo(14));
 
         var providers = providers(services);
 
@@ -137,10 +149,15 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "custom",
                     "deepseek",
                     "googleaistudio",
                     "openai",
-                    "streaming_completion_test_service"
+                    "streaming_completion_test_service",
+                    "completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "mistral"
                 ).toArray()
             )
         );
@@ -148,16 +165,30 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(4));
+        assertThat(services.size(), equalTo(8));
 
         var providers = providers(services);
 
-        assertThat(providers, containsInAnyOrder(List.of("deepseek", "elastic", "openai", "streaming_completion_test_service").toArray()));
+        assertThat(
+            providers,
+            containsInAnyOrder(
+                List.of(
+                    "deepseek",
+                    "elastic",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "googlevertexai",
+                    "mistral"
+                ).toArray()
+            )
+        );
     }
 
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(6));
+        assertThat(services.size(), equalTo(7));
 
         var providers = providers(services);
 
@@ -166,6 +197,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
+                    "custom",
                     "elastic",
                     "elasticsearch",
                     "hugging_face",

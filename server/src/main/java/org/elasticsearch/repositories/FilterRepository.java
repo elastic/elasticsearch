@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -42,6 +43,11 @@ public class FilterRepository implements Repository {
 
     public Repository getDelegate() {
         return in;
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return in.getProjectId();
     }
 
     @Override

@@ -59,6 +59,22 @@ class ValuesBytesRefAggregator {
         return new GroupingState(bigArrays);
     }
 
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
     public static void combine(GroupingState state, int groupId, BytesRef v) {
         state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
     }
@@ -130,8 +146,8 @@ class ValuesBytesRefAggregator {
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
-        private final LongLongHash values;
-        private BytesRefHash bytes;
+        final LongLongHash values;
+        BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
             LongLongHash _values = null;

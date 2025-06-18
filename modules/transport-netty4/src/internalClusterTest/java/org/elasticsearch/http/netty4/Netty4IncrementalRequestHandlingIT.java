@@ -61,10 +61,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpBodyTracer;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -107,6 +107,8 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpMethod.POST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_AGE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
@@ -120,12 +122,13 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        builder.put(
-            HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
-            ByteSizeValue.of(MAX_CONTENT_LENGTH, ByteSizeUnit.BYTES)
-        );
-        return builder.build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // reduce max content length just to cut down test duration
+            .put(SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), ByteSizeValue.of(MAX_CONTENT_LENGTH, ByteSizeUnit.BYTES))
+            // disable time-based expiry of channel stats since we assert that the total request size accumulates
+            .put(SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_AGE.getKey(), TimeValue.MAX_VALUE)
+            .build();
     }
 
     // ensure empty http content has single 0 size chunk
@@ -205,7 +208,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
 
             assertFalse(handler.isClosed());
 
@@ -215,7 +217,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             assertEquals(requestTransmittedLength, handler.readUntilClose());
 
             assertTrue(handler.isClosed());
-            assertEquals(0, handler.stream.bufSize());
         }
     }
 
@@ -232,7 +233,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.isClosed());
 
             // terminate connection on server and wait resources are released
@@ -241,7 +241,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             handler.channel.request().getHttpChannel().close();
             assertThat(safeGet(exceptionFuture), instanceOf(ClosedChannelException.class));
             assertTrue(handler.isClosed());
-            assertBusy(() -> assertEquals(0, handler.stream.bufSize()));
         }
     }
 
@@ -257,7 +256,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.isClosed());
 
             // terminate connection on server and wait resources are released
@@ -269,7 +267,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             final var exception = asInstanceOf(RuntimeException.class, safeGet(exceptionFuture));
             assertEquals(ServerRequestHandler.SIMULATED_EXCEPTION_MESSAGE, exception.getMessage());
             safeAwait(handler.closedLatch);
-            assertBusy(() -> assertEquals(0, handler.stream.bufSize()));
         }
     }
 
@@ -310,7 +307,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 });
                 handler.readBytes(partSize);
             }
-            assertTrue(handler.stream.hasLast());
+            assertTrue(handler.receivedLastChunk);
         }
     }
 
@@ -436,7 +433,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 clientContext.channel().writeAndFlush(httpRequest(opaqueId, contentSize));
                 clientContext.channel().writeAndFlush(randomContent(contentSize, true));
                 final var handler = clientContext.awaitRestChannelAccepted(opaqueId);
-                handler.readAllBytes();
+                assertEquals(contentSize, handler.readAllBytes());
                 handler.sendResponse(new RestResponse(RestStatus.OK, ""));
                 assertEquals(totalBytesSent, clientContext.transportStatsRequestBytesSize());
             }

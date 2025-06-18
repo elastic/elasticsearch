@@ -33,10 +33,13 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -46,11 +49,15 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
+import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -58,22 +65,26 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -85,17 +96,21 @@ import java.nio.ByteOrder;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
@@ -105,24 +120,80 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
 
+    public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
+
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
+
+    /**
+     * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
+     */
+    public enum FilterHeuristic {
+        /**
+         * This heuristic searches the entire graph, doing vector comparisons in all immediate neighbors
+         * but only collects vectors that match the filtering criteria.
+         */
+        FANOUT {
+            static final KnnSearchStrategy FANOUT_STRATEGY = new KnnSearchStrategy.Hnsw(0);
+
+            @Override
+            public KnnSearchStrategy getKnnSearchStrategy() {
+                return FANOUT_STRATEGY;
+            }
+        },
+        /**
+         * This heuristic will only compare vectors that match the filtering criteria.
+         */
+        ACORN {
+            static final KnnSearchStrategy ACORN_STRATEGY = new KnnSearchStrategy.Hnsw(60);
+
+            @Override
+            public KnnSearchStrategy getKnnSearchStrategy() {
+                return ACORN_STRATEGY;
+            }
+        };
+
+        public abstract KnnSearchStrategy getKnnSearchStrategy();
+    }
+
+    public static final Setting<FilterHeuristic> HNSW_FILTER_HEURISTIC = Setting.enumSetting(FilterHeuristic.class, s -> {
+        IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (version.onOrAfter(IndexVersions.DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC)) {
+            return FilterHeuristic.ACORN.toString();
+        }
+        return FilterHeuristic.FANOUT.toString();
+    },
+        "index.dense_vector.hnsw_filter_heuristic",
+        fh -> {},
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic,
+        Setting.Property.Dynamic
+    );
 
     private static boolean hasRescoreIndexVersion(IndexVersion version) {
         return version.onOrAfter(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             || version.between(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 
+    private static boolean allowsZeroRescore(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
+            || version.between(
+                IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
+    }
+
+    private static boolean defaultOversampleForBBQ(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ)
+            || version.between(IndexVersions.DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+    }
+
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
-    public static final IndexVersion DEFAULT_TO_INT8 = DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
+    public static final IndexVersion DEFAULT_TO_INT8 = IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
-    public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS = IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS;
-    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS =
-        IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS;
-    public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = IndexVersions.DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
     public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
@@ -185,7 +256,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
         private final Parameter<VectorSimilarity> similarity;
 
-        private final Parameter<IndexOptions> indexOptions;
+        private final Parameter<DenseVectorIndexOptions> indexOptions;
 
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -196,7 +267,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
-            final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
+            final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -300,7 +371,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder indexOptions(IndexOptions indexOptions) {
+        public Builder indexOptions(DenseVectorIndexOptions indexOptions) {
             this.indexOptions.setValue(indexOptions);
             return this;
         }
@@ -320,7 +391,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexed.getValue(),
                     similarity.getValue(),
                     indexOptions.getValue(),
-                    meta.getValue()
+                    meta.getValue(),
+                    context.isSourceSynthetic()
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
@@ -1236,10 +1308,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    public abstract static class IndexOptions implements ToXContent {
+    public abstract static class DenseVectorIndexOptions implements IndexOptions {
         final VectorIndexType type;
 
-        IndexOptions(VectorIndexType type) {
+        DenseVectorIndexOptions(VectorIndexType type) {
             this.type = type;
         }
 
@@ -1263,7 +1335,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return validElementType;
         }
 
-        abstract boolean updatableTo(IndexOptions update);
+        public abstract boolean updatableTo(DenseVectorIndexOptions update);
 
         public boolean validateDimension(int dim) {
             return validateDimension(dim, true);
@@ -1277,9 +1349,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return supportsDimension;
         }
 
-        abstract boolean doEquals(IndexOptions other);
+        abstract boolean doEquals(DenseVectorIndexOptions other);
 
         abstract int doHashCode();
+
+        public VectorIndexType getType() {
+            return type;
+        }
 
         @Override
         public final boolean equals(Object other) {
@@ -1289,7 +1365,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (other == null || other.getClass() != getClass()) {
                 return false;
             }
-            IndexOptions otherOptions = (IndexOptions) other;
+            DenseVectorIndexOptions otherOptions = (DenseVectorIndexOptions) other;
             return Objects.equals(type, otherOptions.type) && doEquals(otherOptions);
         }
 
@@ -1299,7 +1375,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    abstract static class QuantizedIndexOptions extends IndexOptions {
+    abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
         final RescoreVector rescoreVector;
 
         QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector) {
@@ -1311,7 +1387,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public enum VectorIndexType {
         HNSW("hnsw", false) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 if (mNode == null) {
@@ -1338,7 +1414,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         INT8_HNSW("int8_hnsw", true) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
@@ -1373,7 +1449,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         },
         INT4_HNSW("int4_hnsw", true) {
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
@@ -1409,7 +1485,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         FLAT("flat", false) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new FlatIndexOptions();
             }
@@ -1426,7 +1502,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         INT8_FLAT("int8_flat", true) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
@@ -1452,7 +1528,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         INT4_FLAT("int4_flat", true) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
@@ -1478,7 +1554,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         BBQ_HNSW("bbq_hnsw", true) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 if (mNode == null) {
@@ -1492,7 +1568,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
-                    if (rescoreVector == null && indexVersion.onOrAfter(DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ)) {
+                    if (rescoreVector == null && defaultOversampleForBBQ(indexVersion)) {
                         rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
                 }
@@ -1512,11 +1588,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         },
         BBQ_FLAT("bbq_flat", true) {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
-                    if (rescoreVector == null && indexVersion.onOrAfter(DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ)) {
+                    if (rescoreVector == null && defaultOversampleForBBQ(indexVersion)) {
                         rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
                 }
@@ -1533,10 +1609,59 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return dims >= BBQ_MIN_DIMS;
             }
+        },
+        BBQ_IVF("bbq_ivf", true) {
+            @Override
+            public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
+                int clusterSize = IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+                if (clusterSizeNode != null) {
+                    clusterSize = XContentMapValues.nodeIntegerValue(clusterSizeNode);
+                    if (clusterSize < MIN_VECTORS_PER_CLUSTER || clusterSize > MAX_VECTORS_PER_CLUSTER) {
+                        throw new IllegalArgumentException(
+                            "cluster_size must be between "
+                                + MIN_VECTORS_PER_CLUSTER
+                                + " and "
+                                + MAX_VECTORS_PER_CLUSTER
+                                + ", got: "
+                                + clusterSize
+                        );
+                    }
+                }
+                RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                if (rescoreVector == null) {
+                    rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                }
+                Object nProbeNode = indexOptionsMap.remove("default_n_probe");
+                int nProbe = -1;
+                if (nProbeNode != null) {
+                    nProbe = XContentMapValues.nodeIntegerValue(nProbeNode);
+                    if (nProbe < 1 && nProbe != -1) {
+                        throw new IllegalArgumentException(
+                            "default_n_probe must be at least 1 or exactly -1, got: " + nProbe + " for field [" + fieldName + "]"
+                        );
+                    }
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new BBQIVFIndexOptions(clusterSize, nProbe, rescoreVector);
+            }
+
+            @Override
+            public boolean supportsElementType(ElementType elementType) {
+                return elementType == ElementType.FLOAT;
+            }
+
+            @Override
+            public boolean supportsDimension(int dims) {
+                return true;
+            }
         };
 
-        static Optional<VectorIndexType> fromString(String type) {
-            return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
+        public static Optional<VectorIndexType> fromString(String type) {
+            return Stream.of(VectorIndexType.values())
+                .filter(vectorIndexType -> vectorIndexType != VectorIndexType.BBQ_IVF || IVF_FORMAT.isEnabled())
+                .filter(vectorIndexType -> vectorIndexType.name.equals(type))
+                .findFirst();
         }
 
         private final String name;
@@ -1547,7 +1672,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.quantized = quantized;
         }
 
-        abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion);
+        public abstract DenseVectorIndexOptions parseIndexOptions(
+            String fieldName,
+            Map<String, ?> indexOptionsMap,
+            IndexVersion indexVersion
+        );
 
         public abstract boolean supportsElementType(ElementType elementType);
 
@@ -1555,6 +1684,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean isQuantized() {
             return quantized;
+        }
+
+        public String getName() {
+            return name;
         }
 
         @Override
@@ -1592,7 +1725,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean doEquals(IndexOptions o) {
+        boolean doEquals(DenseVectorIndexOptions o) {
             Int8FlatIndexOptions that = (Int8FlatIndexOptions) o;
             return Objects.equals(confidenceInterval, that.confidenceInterval) && Objects.equals(rescoreVector, that.rescoreVector);
         }
@@ -1603,16 +1736,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW)
                 || update.type.equals(VectorIndexType.INT8_HNSW)
                 || update.type.equals(VectorIndexType.INT4_HNSW)
-                || update.type.equals(VectorIndexType.INT4_FLAT);
+                || update.type.equals(VectorIndexType.BBQ_HNSW)
+                || update.type.equals(VectorIndexType.INT4_FLAT)
+                || update.type.equals(VectorIndexType.BBQ_FLAT);
         }
     }
 
-    static class FlatIndexOptions extends IndexOptions {
+    static class FlatIndexOptions extends DenseVectorIndexOptions {
 
         FlatIndexOptions() {
             super(VectorIndexType.FLAT);
@@ -1635,12 +1770,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             return true;
         }
 
         @Override
-        public boolean doEquals(IndexOptions o) {
+        public boolean doEquals(DenseVectorIndexOptions o) {
             return o instanceof FlatIndexOptions;
         }
 
@@ -1650,12 +1785,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class Int4HnswIndexOptions extends QuantizedIndexOptions {
+    public static class Int4HnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
         private final float confidenceInterval;
 
-        Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
+        public Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
             super(VectorIndexType.INT4_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1685,7 +1820,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean doEquals(IndexOptions o) {
+        public boolean doEquals(DenseVectorIndexOptions o) {
             Int4HnswIndexOptions that = (Int4HnswIndexOptions) o;
             return m == that.m
                 && efConstruction == that.efConstruction
@@ -1714,13 +1849,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
-            boolean updatable = update.type.equals(this.type);
-            if (updatable) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
+            boolean updatable = false;
+            if (update.type.equals(VectorIndexType.INT4_HNSW)) {
                 Int4HnswIndexOptions int4HnswIndexOptions = (Int4HnswIndexOptions) update;
                 // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
                 // quantization could not behave as expected with different confidence intervals (and quantiles) to be created
                 updatable = int4HnswIndexOptions.m >= this.m && confidenceInterval == int4HnswIndexOptions.confidenceInterval;
+            } else if (update.type.equals(VectorIndexType.BBQ_HNSW)) {
+                updatable = ((BBQHnswIndexOptions) update).m >= m;
             }
             return updatable;
         }
@@ -1755,7 +1892,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean doEquals(IndexOptions o) {
+        public boolean doEquals(DenseVectorIndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Int4FlatIndexOptions that = (Int4FlatIndexOptions) o;
@@ -1773,12 +1910,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             // TODO: add support for updating from flat, hnsw, and int8_hnsw and updating params
             return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW)
                 || update.type.equals(VectorIndexType.INT8_HNSW)
-                || update.type.equals(VectorIndexType.INT4_HNSW);
+                || update.type.equals(VectorIndexType.INT4_HNSW)
+                || update.type.equals(VectorIndexType.BBQ_HNSW)
+                || update.type.equals(VectorIndexType.BBQ_FLAT);
         }
 
     }
@@ -1818,7 +1957,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean doEquals(IndexOptions o) {
+        public boolean doEquals(DenseVectorIndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Int8HnswIndexOptions that = (Int8HnswIndexOptions) o;
@@ -1849,7 +1988,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             boolean updatable;
             if (update.type.equals(this.type)) {
                 Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
@@ -1860,13 +1999,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     || int8HnswIndexOptions.confidenceInterval != null
                         && confidenceInterval.equals(int8HnswIndexOptions.confidenceInterval);
             } else {
-                updatable = update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= this.m;
+                updatable = update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= this.m
+                    || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
             }
             return updatable;
         }
     }
 
-    static class HnswIndexOptions extends IndexOptions {
+    static class HnswIndexOptions extends DenseVectorIndexOptions {
         private final int m;
         private final int efConstruction;
 
@@ -1885,7 +2025,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
+        public boolean updatableTo(DenseVectorIndexOptions update) {
             boolean updatable = update.type.equals(this.type);
             if (updatable) {
                 // fewer connections would break assumptions on max number of connections (based on largest previous graph) during merge
@@ -1894,7 +2034,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return updatable
                 || (update.type.equals(VectorIndexType.INT8_HNSW) && ((Int8HnswIndexOptions) update).m >= m)
-                || (update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= m);
+                || (update.type.equals(VectorIndexType.INT4_HNSW) && ((Int4HnswIndexOptions) update).m >= m)
+                || (update.type.equals(VectorIndexType.BBQ_HNSW) && ((BBQHnswIndexOptions) update).m >= m);
         }
 
         @Override
@@ -1908,7 +2049,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean doEquals(IndexOptions o) {
+        public boolean doEquals(DenseVectorIndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
@@ -1943,12 +2084,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
-            return update.type.equals(this.type);
+        public boolean updatableTo(DenseVectorIndexOptions update) {
+            return update.type.equals(this.type) && ((BBQHnswIndexOptions) update).m >= this.m;
         }
 
         @Override
-        boolean doEquals(IndexOptions other) {
+        boolean doEquals(DenseVectorIndexOptions other) {
             BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
             return m == that.m && efConstruction == that.efConstruction && Objects.equals(rescoreVector, that.rescoreVector);
         }
@@ -1997,12 +2138,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean updatableTo(IndexOptions update) {
-            return update.type.equals(this.type);
+        public boolean updatableTo(DenseVectorIndexOptions update) {
+            return update.type.equals(this.type) || update.type.equals(VectorIndexType.BBQ_HNSW);
         }
 
         @Override
-        boolean doEquals(IndexOptions other) {
+        boolean doEquals(DenseVectorIndexOptions other) {
             return other instanceof BBQFlatIndexOptions;
         }
 
@@ -2035,6 +2176,54 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
+    static class BBQIVFIndexOptions extends QuantizedIndexOptions {
+        final int clusterSize;
+        final int defaultNProbe;
+
+        BBQIVFIndexOptions(int clusterSize, int defaultNProbe, RescoreVector rescoreVector) {
+            super(VectorIndexType.BBQ_IVF, rescoreVector);
+            this.clusterSize = clusterSize;
+            this.defaultNProbe = defaultNProbe;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT;
+            return new IVFVectorsFormat(clusterSize);
+        }
+
+        @Override
+        public boolean updatableTo(DenseVectorIndexOptions update) {
+            return update.type.equals(this.type);
+        }
+
+        @Override
+        boolean doEquals(DenseVectorIndexOptions other) {
+            BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
+            return clusterSize == that.clusterSize
+                && defaultNProbe == that.defaultNProbe
+                && Objects.equals(rescoreVector, that.rescoreVector);
+        }
+
+        @Override
+        int doHashCode() {
+            return Objects.hash(clusterSize, defaultNProbe, rescoreVector);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("cluster_size", clusterSize);
+            builder.field("default_n_probe", defaultNProbe);
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
     public record RescoreVector(float oversample) implements ToXContentObject {
         static final String NAME = "rescore_vector";
         static final String OVERSAMPLE = "oversample";
@@ -2050,7 +2239,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Invalid rescore_vector value. Missing required field " + OVERSAMPLE);
             }
             float oversampleValue = (float) XContentMapValues.nodeDoubleValue(oversampleNode);
-            if (oversampleValue == 0 && indexVersion.before(RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)) {
+            if (oversampleValue == 0 && allowsZeroRescore(indexVersion) == false) {
                 throw new IllegalArgumentException("oversample must be greater than 1");
             }
             if (oversampleValue < 1 && oversampleValue != 0) {
@@ -2081,7 +2270,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean indexed;
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
-        private final IndexOptions indexOptions;
+        private final DenseVectorIndexOptions indexOptions;
+        private final boolean isSyntheticSource;
 
         public DenseVectorFieldType(
             String name,
@@ -2090,8 +2280,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Integer dims,
             boolean indexed,
             VectorSimilarity similarity,
-            IndexOptions indexOptions,
-            Map<String, String> meta
+            DenseVectorIndexOptions indexOptions,
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.elementType = elementType;
@@ -2100,6 +2291,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -2128,6 +2320,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isAggregatable() {
             return false;
+        }
+
+        @Override
+        public boolean isVectorEmbedding() {
+            return true;
         }
 
         @Override
@@ -2202,15 +2399,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float oversample,
             Query filter,
             Float similarityThreshold,
-            BitSetProducer parentFilter
+            BitSetProducer parentFilter,
+            DenseVectorFieldMapper.FilterHeuristic heuristic
         ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             return switch (getElementType()) {
-                case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
+                case BYTE -> createKnnByteQuery(
+                    queryVector.asByteVector(),
+                    k,
+                    numCands,
+                    filter,
+                    similarityThreshold,
+                    parentFilter,
+                    knnSearchStrategy
+                );
                 case FLOAT -> createKnnFloatQuery(
                     queryVector.asFloatVector(),
                     k,
@@ -2218,9 +2425,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     oversample,
                     filter,
                     similarityThreshold,
-                    parentFilter
+                    parentFilter,
+                    knnSearchStrategy
                 );
-                case BIT -> createKnnBitQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
+                case BIT -> createKnnBitQuery(
+                    queryVector.asByteVector(),
+                    k,
+                    numCands,
+                    filter,
+                    similarityThreshold,
+                    parentFilter,
+                    knnSearchStrategy
+                );
             };
         }
 
@@ -2238,12 +2454,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int numCands,
             Query filter,
             Float similarityThreshold,
-            BitSetProducer parentFilter
+            BitSetProducer parentFilter,
+            KnnSearchStrategy searchStrategy
         ) {
             elementType.checkDimensions(dims, queryVector.length);
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
-                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter);
+                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
+                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2260,7 +2477,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int numCands,
             Query filter,
             Float similarityThreshold,
-            BitSetProducer parentFilter
+            BitSetProducer parentFilter,
+            KnnSearchStrategy searchStrategy
         ) {
             elementType.checkDimensions(dims, queryVector.length);
 
@@ -2269,8 +2487,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
-                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter);
+                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
+                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2288,7 +2506,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float queryOversample,
             Query filter,
             Float similarityThreshold,
-            BitSetProducer parentFilter
+            BitSetProducer parentFilter,
+            KnnSearchStrategy knnSearchStrategy
         ) {
             elementType.checkDimensions(dims, queryVector.length);
             elementType.checkVectorBounds(queryVector);
@@ -2321,9 +2540,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
-            Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, numCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter);
+            Query knnQuery;
+            if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                knnQuery = parentFilter != null
+                    ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        parentFilter,
+                        bbqIndexOptions.defaultNProbe
+                    )
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe);
+            } else {
+                knnQuery = parentFilter != null
+                    ? new ESDiversifyingChildrenFloatKnnVectorQuery(
+                        name(),
+                        queryVector,
+                        filter,
+                        adjustedK,
+                        numCands,
+                        parentFilter,
+                        knnSearchStrategy
+                    )
+                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
+            }
             if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),
@@ -2358,16 +2600,59 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public IndexOptions getIndexOptions() {
             return indexOptions;
         }
+
+        @Override
+        public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
+            if (elementType != ElementType.FLOAT) {
+                // Just float dense vector support for now
+                return null;
+            }
+
+            if (dims == null) {
+                // No data has been indexed yet
+                return BlockLoader.CONSTANT_NULLS;
+            }
+
+            if (indexed) {
+                return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims);
+            }
+
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated);
+            }
+
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.DenseVectorBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, dims);
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, null) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return null;
+                    }
+                    return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
+                }
+
+                @Override
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                    List<Object> result = super.fetchValues(source, doc, ignoredValues);
+                    assert result.size() == dims : "Unexpected number of dimensions; got " + result.size() + " but expected " + dims;
+                    return result;
+                }
+            };
+        }
     }
 
-    private final IndexOptions indexOptions;
+    private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
 
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams params,
-        IndexOptions indexOptions,
+        DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion
     ) {
         super(simpleName, mappedFieldType, params);
@@ -2412,7 +2697,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().indexed,
                 fieldType().similarity,
                 fieldType().indexOptions,
-                fieldType().meta()
+                fieldType().meta(),
+                fieldType().isSyntheticSource
             );
             Mapper update = new DenseVectorFieldMapper(
                 leafName(),
@@ -2514,7 +2800,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
-    private static IndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
+    private static DenseVectorIndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
         Object typeNode = indexOptionsMap.remove("type");

@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.IOException;
 

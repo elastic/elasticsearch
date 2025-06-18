@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -40,6 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -65,6 +67,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -82,7 +85,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final boolean INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats").isEnabled();
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
@@ -186,6 +189,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    private final List<Verifier.ExtraCheckers> extraCheckers = new ArrayList<>();
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
@@ -203,7 +208,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider())
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
+                extraCheckers
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -299,11 +305,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
+        entries.add(EsqlQueryStatus.ENTRY);
         entries.add(ExchangeSinkOperator.Status.ENTRY);
         entries.add(ExchangeSourceOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
+        entries.add(TimeSeriesSourceOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
         entries.add(ValuesSourceReaderOperator.Status.ENTRY);
@@ -331,5 +339,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        extraCheckers.addAll(loader.loadExtensions(Verifier.ExtraCheckers.class));
     }
 }

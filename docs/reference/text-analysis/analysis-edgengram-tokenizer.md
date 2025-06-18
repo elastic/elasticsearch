@@ -59,12 +59,12 @@ See [Limitations of the `max_gram` parameter](#max-gram-limits).
 
     Character classes may be any of the following:
 
-    * `letter` —      for example `a`, `b`, `ï` or `京`
-    * `digit` —       for example `3` or `7`
-    * `whitespace` —  for example `" "` or `"\n"`
-    * `punctuation` — for example `!` or `"`
-    * `symbol` —      for example `$` or `√`
-    * `custom` —      custom characters which need to be set using the `custom_token_chars` setting.
+    * `letter` —      for example `a`, `b`, `ï` or `京`
+    * `digit` —       for example `3` or `7`
+    * `whitespace` —  for example `" "` or `"\n"`
+    * `punctuation` — for example `!` or `"`
+    * `symbol` —      for example `$` or `√`
+    * `custom` —      custom characters which need to be set using the `custom_token_chars` setting.
 
 
 `custom_token_chars`

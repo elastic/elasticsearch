@@ -27,3 +27,10 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
      ```
 
   For information about editing your JVM settings, refer to [JVM settings](https://www.elastic.co/docs/reference/elasticsearch/jvm-settings).
+
+* Users upgrading from an Elasticsearch cluster that had previously been on a version between 7.10.0 and 7.12.1 may see that Watcher will not start on 9.x. The solution is to run the following commands in Kibana Dev Tools (or the equivalent using curl):
+     ```
+     DELETE _index_template/.triggered_watches
+     DELETE _index_template/.watches
+     POST /_watcher/_start
+     ```

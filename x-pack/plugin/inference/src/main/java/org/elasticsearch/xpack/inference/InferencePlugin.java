@@ -119,6 +119,7 @@ import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.custom.CustomService;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
@@ -148,8 +149,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.inference.CustomServiceFeatureFlag.CUSTOM_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 
@@ -276,13 +279,17 @@ public class InferencePlugin extends Plugin
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
+        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        inferenceServiceSettings.init(services.clusterService());
+
         // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
         var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
             settings,
             services.threadPool(),
             services.clusterService(),
             throttlerManager,
-            getSslService()
+            getSslService(),
+            inferenceServiceSettings.getConnectionTtl()
         );
 
         var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
@@ -291,9 +298,6 @@ public class InferencePlugin extends Plugin
             services.clusterService()
         );
         elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
-
-        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-        inferenceServiceSettings.init(services.clusterService());
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
@@ -340,22 +344,24 @@ public class InferencePlugin extends Plugin
         }
         inferenceServiceRegistry.set(serviceRegistry);
 
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var inferenceStats = InferenceStats.create(meterRegistry);
+        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
+
         var actionFilter = new ShardBulkInferenceActionFilter(
             services.clusterService(),
             serviceRegistry,
             modelRegistry.get(),
             getLicenseState(),
-            services.indexingPressure()
+            services.indexingPressure(),
+            inferenceStats
         );
         shardBulkInferenceActionFilter.set(actionFilter);
-
-        var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
         components.add(httpClientManager);
-        components.add(inferenceStats);
+        components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
         // if the rate limiting feature flags are enabled, otherwise provide noop implementation
@@ -378,7 +384,11 @@ public class InferencePlugin extends Plugin
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-        return List.of(
+        List<InferenceServiceExtension.Factory> conditionalServices = CUSTOM_SERVICE_FEATURE_FLAG.isEnabled()
+            ? List.of(context -> new CustomService(httpFactory.get(), serviceComponents.get()))
+            : List.of();
+
+        List<InferenceServiceExtension.Factory> availableServices = List.of(
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
@@ -397,6 +407,8 @@ public class InferencePlugin extends Plugin
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
+
+        return Stream.concat(availableServices.stream(), conditionalServices.stream()).toList();
     }
 
     @Override

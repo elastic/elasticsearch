@@ -19,7 +19,7 @@ import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -297,7 +297,10 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     @Override
     public void scoreBulk(
         byte[] q,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float[] scores
@@ -306,19 +309,49 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                score256Bulk(q, queryCorrections, similarityFunction, centroidDp, scores);
+                score256Bulk(
+                    q,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    centroidDp,
+                    scores
+                );
                 return;
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                score128Bulk(q, queryCorrections, similarityFunction, centroidDp, scores);
+                score128Bulk(
+                    q,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    centroidDp,
+                    scores
+                );
                 return;
             }
         }
-        super.scoreBulk(q, queryCorrections, similarityFunction, centroidDp, scores);
+        super.scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores
+        );
     }
 
     private void score128Bulk(
         byte[] q,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float[] scores
@@ -327,9 +360,9 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         int limit = FLOAT_SPECIES_128.loopBound(BULK_SIZE);
         int i = 0;
         long offset = in.getFilePointer();
-        float ay = queryCorrections.lowerInterval();
-        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-        float y1 = queryCorrections.quantizedComponentSum();
+        float ay = queryLowerInterval;
+        float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
+        float y1 = queryComponentSum;
         for (; i < limit; i += FLOAT_SPECIES_128.length()) {
             var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
             var lx = FloatVector.fromMemorySegment(
@@ -361,13 +394,13 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             // For euclidean, we need to invert the score and apply the additional correction, which is
             // assumed to be the squared l2norm of the centroid centered vectors.
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryCorrections.additionalCorrection()).add(1f);
+                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
                 res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
                 res.intoArray(scores, i);
             } else {
                 // For cosine and max inner product, we need to apply the additional correction, which is
                 // assumed to be the non-centered dot-product between the vector and the centroid
-                res = res.add(queryCorrections.additionalCorrection()).add(additionalCorrections).sub(centroidDp);
+                res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                 if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                     res.intoArray(scores, i);
                     // not sure how to do it better
@@ -385,7 +418,10 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void score256Bulk(
         byte[] q,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float[] scores
@@ -394,9 +430,9 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         int limit = FLOAT_SPECIES_256.loopBound(BULK_SIZE);
         int i = 0;
         long offset = in.getFilePointer();
-        float ay = queryCorrections.lowerInterval();
-        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-        float y1 = queryCorrections.quantizedComponentSum();
+        float ay = queryLowerInterval;
+        float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
+        float y1 = queryComponentSum;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
             var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
             var lx = FloatVector.fromMemorySegment(
@@ -428,13 +464,13 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             // For euclidean, we need to invert the score and apply the additional correction, which is
             // assumed to be the squared l2norm of the centroid centered vectors.
             if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryCorrections.additionalCorrection()).add(1f);
+                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
                 res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
                 res.intoArray(scores, i);
             } else {
                 // For cosine and max inner product, we need to apply the additional correction, which is
                 // assumed to be the non-centered dot-product between the vector and the centroid
-                res = res.add(queryCorrections.additionalCorrection()).add(additionalCorrections).sub(centroidDp);
+                res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                 if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                     res.intoArray(scores, i);
                     // not sure how to do it better

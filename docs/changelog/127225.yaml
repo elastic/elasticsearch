@@ -1,6 +1,0 @@
-pr: 127225
-summary: Fix count optimization with pushable union types
-area: ES|QL
-type: bug
-issues:
- - 127200

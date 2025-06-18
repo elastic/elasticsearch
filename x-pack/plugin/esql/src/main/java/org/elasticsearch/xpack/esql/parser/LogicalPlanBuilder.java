@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -88,6 +90,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -95,12 +98,10 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
- *
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -174,7 +175,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -205,21 +206,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
-                if (item.getValue() instanceof String == false) {
+                if (item.getValue() instanceof BytesRef == false) {
                     throw new ParsingException(
                         source(ctx),
                         "Invalid value for dissect append_separator: expected a string, but was [{}]",
                         item.getValue()
                     );
                 }
-                appendSeparator = (String) item.getValue();
+                appendSeparator = BytesRefs.toString(item.getValue());
             }
             Source src = source(ctx);
 
@@ -384,8 +385,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
+        Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Integer i) {
+            if (i < 0) {
+                throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
+            }
+            return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
+        } else {
+            throw new ParsingException(
+                source,
+                "Invalid value for LIMIT ["
+                    + BytesRefs.toString(val)
+                    + ": "
+                    + (expression(ctx.constant()).dataType() == KEYWORD ? "String" : val.getClass().getSimpleName())
+                    + "], expecting a non negative integer"
+            );
+        }
     }
 
     @Override
@@ -465,7 +480,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, DataType.KEYWORD),
+                Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
                 null,
                 Map.of(),
@@ -547,7 +562,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
+        Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -571,7 +586,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
             throw new ParsingException(
                 source(target),
-                "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                "invalid index pattern [{}], remote clusters are not supported with LOOKUP JOIN",
                 rightPattern
             );
         }
@@ -612,20 +627,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            p.forEachUp(UnresolvedRelation.class, r -> {
-                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
-                    if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
-                        throw new ParsingException(
-                            source(target),
-                            "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
-                            r.indexPattern().indexPattern()
-                        );
-                    }
-                }
-            });
-
+            checkForRemoteClusters(p, source(target), "LOOKUP JOIN");
             return new LookupJoin(source, p, right, joinFields);
         };
+    }
+
+    private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
+        plan.forEachUp(UnresolvedRelation.class, r -> {
+            for (var indexPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
+                if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
+                    throw new ParsingException(
+                        source,
+                        "invalid index pattern [{}], remote clusters are not supported with {}",
+                        r.indexPattern().indexPattern(),
+                        commandName
+                    );
+                }
+            }
+        });
     }
 
     @Override
@@ -636,8 +655,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Fork requires at least two branches");
         }
         return input -> {
+            checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans);
+            return new Fork(source(ctx), subPlans, List.of());
         };
     }
 
@@ -649,7 +669,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
-            var literal = new Literal(source(ctx), "fork" + count++, KEYWORD);
+            var literal = Literal.keyword(source(ctx), "fork" + count++);
 
             // align _fork id across all fork branches
             Alias alias = null;
@@ -731,7 +751,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitRerankFields(ctx.rerankFields()));
+        Literal inferenceId = ctx.inferenceId != null ? inferenceId(ctx.inferenceId) : Literal.keyword(source, Rerank.DEFAULT_INFERENCE_ID);
+
+        return p -> {
+            checkForRemoteClusters(p, source, "RERANK");
+            return new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
+        };
     }
 
     @Override
@@ -743,12 +768,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
             : visitQualifiedName(ctx.targetField);
 
-        return p -> new Completion(source, p, inferenceId, prompt, targetField);
+        return p -> {
+            checkForRemoteClusters(p, source, "COMPLETION");
+            return new Completion(source, p, inferenceId, prompt, targetField);
+        };
     }
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
-            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
         }
 
         if (expression(ctx.parameter()) instanceof Literal literalParam) {
@@ -771,21 +799,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
-        var probability = visitDecimalValue(ctx.probability);
-        Literal seed;
-        if (ctx.seed != null) {
-            seed = visitIntegerValue(ctx.seed);
-            if (seed.dataType() != DataType.INTEGER) {
-                throw new ParsingException(
-                    seed.source(),
-                    "seed must be an integer, provided [{}] of type [{}]",
-                    ctx.seed.getText(),
-                    seed.dataType()
-                );
-            }
+        Source source = source(ctx);
+        Object val = expression(ctx.probability).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Double probability && probability > 0.0 && probability < 1.0) {
+            return input -> new Sample(source, new Literal(source, probability, DataType.DOUBLE), input);
         } else {
-            seed = null;
+            throw new ParsingException(
+                source(ctx),
+                "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
+            );
         }
-        return plan -> new Sample(source(ctx), probability, seed, plan);
     }
 }

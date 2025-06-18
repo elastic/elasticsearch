@@ -40,6 +40,8 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:h3")
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -53,6 +55,7 @@ dependencies {
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('kql'))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -66,6 +69,10 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
 def generatedPath = "src/main/generated"
@@ -250,6 +257,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
+      toggleOffOn('begin generated imports', 'end generated imports')
     }
   }
 }
@@ -446,5 +454,22 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+
+  File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }

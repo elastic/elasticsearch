@@ -21,7 +21,7 @@ Re-analyzing *large* result sets will require a lot of time and memory. It is re
 * Suggesting "H5N1" when users search for "bird flu" to help expand queries
 * Suggesting keywords relating to stock symbol $ATI for use in an automated news classifier
 
-In these cases the words being selected are not simply the most popular terms in results. The most popular words tend to be very boring (*and, of, the, we, I, they* …​). The significant words are the ones that have undergone a significant change in popularity measured between a *foreground* and *background* set. If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user’s search results that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
+In these cases the words being selected are not simply the most popular terms in results. The most popular words tend to be very boring (*and, of, the, we, I, they* … ). The significant words are the ones that have undergone a significant change in popularity measured between a *foreground* and *background* set. If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user’s search results that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
 
 ## Basic use [_basic_use_2]
 

@@ -11,12 +11,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiCompletionPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload;
 
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -41,15 +41,18 @@ public class SageMakerSchemasTests extends ESTestCase {
     private static final SageMakerSchemas schemas = new SageMakerSchemas();
 
     public void testSupportedTaskTypes() {
-        assertThat(schemas.supportedTaskTypes(), containsInAnyOrder(TaskType.TEXT_EMBEDDING));
+        assertThat(
+            schemas.supportedTaskTypes(),
+            containsInAnyOrder(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+        );
     }
 
     public void testSupportedStreamingTasks() {
-        assertThat(schemas.supportedStreamingTasks(), empty());
+        assertThat(schemas.supportedStreamingTasks(), containsInAnyOrder(TaskType.COMPLETION, TaskType.CHAT_COMPLETION));
     }
 
     public void testSchemaFor() {
-        var payloads = Stream.of(new OpenAiTextEmbeddingPayload());
+        var payloads = Stream.of(new OpenAiTextEmbeddingPayload(), new OpenAiCompletionPayload());
         payloads.forEach(payload -> {
             payload.supportedTasks().forEach(taskType -> {
                 var model = mockModel(taskType, payload.api());
@@ -59,7 +62,7 @@ public class SageMakerSchemasTests extends ESTestCase {
     }
 
     public void testStreamSchemaFor() {
-        var payloads = Stream.<SageMakerStreamSchemaPayload>of(/* For when we add support for streaming payloads */);
+        var payloads = Stream.<SageMakerStreamSchemaPayload>of(new OpenAiCompletionPayload());
         payloads.forEach(payload -> {
             payload.supportedTasks().forEach(taskType -> {
                 var model = mockModel(taskType, payload.api());
@@ -77,10 +80,11 @@ public class SageMakerSchemasTests extends ESTestCase {
 
     public void testMissingTaskTypeThrowsException() {
         var knownPayload = new OpenAiTextEmbeddingPayload();
-        var unknownTaskType = TaskType.COMPLETION;
+        var unknownTaskType = TaskType.RERANK;
         var knownModel = mockModel(unknownTaskType, knownPayload.api());
         assertThrows(
-            "Task [completion] is not compatible for service [sagemaker] and api [openai]. Supported tasks: [text_embedding]",
+            "Task [rerank] is not compatible for service [sagemaker] and api [openai]. "
+                + "Supported tasks: [text_embedding, completion, chat_completion]",
             ElasticsearchStatusException.class,
             () -> schemas.schemaFor(knownModel)
         );
@@ -105,7 +109,10 @@ public class SageMakerSchemasTests extends ESTestCase {
     }
 
     public void testNamedWriteables() {
-        var namedWriteables = Stream.of(new OpenAiTextEmbeddingPayload().namedWriteables());
+        var namedWriteables = Stream.of(
+            new OpenAiTextEmbeddingPayload().namedWriteables(),
+            new OpenAiCompletionPayload().namedWriteables()
+        );
 
         var expectedNamedWriteables = Stream.concat(
             namedWriteables.flatMap(names -> names.map(entry -> entry.name)),

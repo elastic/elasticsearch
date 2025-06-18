@@ -19,6 +19,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -162,8 +164,8 @@ public class FilteredSearchExecutionContext extends SearchExecutionContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
-        return in.newSourceLoader(forceSyntheticSource);
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource) {
+        return in.newSourceLoader(filter, forceSyntheticSource);
     }
 
     @Override

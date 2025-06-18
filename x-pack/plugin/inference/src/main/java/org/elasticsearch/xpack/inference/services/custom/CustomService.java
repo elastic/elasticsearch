@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -52,8 +54,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 public class CustomService extends SenderService {
+
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
+    private static final Logger logger = LogManager.getLogger(CustomService.class);
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
@@ -114,7 +118,7 @@ public class CustomService extends SenderService {
 
         try {
             new CustomRequest(query, List.of("test input"), model).createHttpRequest();
-        } catch (Exception e) {
+        } catch (IllegalStateException e) {
             var validationException = new ValidationException();
             validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
             throw validationException;

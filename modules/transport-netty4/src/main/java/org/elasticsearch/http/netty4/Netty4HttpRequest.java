@@ -13,6 +13,7 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
@@ -39,6 +40,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
     private final int sequence;
     private final io.netty.handler.codec.http.HttpRequest nettyRequest;
+    private boolean hasContent;
     private HttpBody content;
     private final Map<String, List<String>> headers;
     private final AtomicBoolean released;
@@ -62,11 +64,21 @@ public class Netty4HttpRequest implements HttpRequest {
     ) {
         this.sequence = sequence;
         this.nettyRequest = nettyRequest;
+        this.hasContent = hasContentHeader(nettyRequest);
         this.content = content;
         this.headers = getHttpHeadersAsMap(nettyRequest.headers());
         this.released = released;
         this.inboundException = inboundException;
         this.queryStringDecoder = new QueryStringDecoder(nettyRequest.uri());
+    }
+
+    private static boolean hasContentHeader(io.netty.handler.codec.http.HttpRequest nettyRequest) {
+        return HttpUtil.isTransferEncodingChunked(nettyRequest) || HttpUtil.getContentLength(nettyRequest, 0L) > 0;
+    }
+
+    @Override
+    public boolean hasContent() {
+        return hasContent;
     }
 
     @Override
@@ -93,6 +105,7 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public void setBody(HttpBody body) {
         this.content = body.asFull();
+        this.hasContent = body.isEmpty() == false;
     }
 
     @Override

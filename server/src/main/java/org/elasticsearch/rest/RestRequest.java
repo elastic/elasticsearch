@@ -291,13 +291,9 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return isStreamedContent() || contentLength() > 0;
+        return httpRequest.hasContent();
     }
 
-    /**
-     * Returns content length in bytes. If length is unknown, for example,
-     * streamed content with chunked transfer-encoding then returns -1.
-     */
     public int contentLength() {
         return switch (httpRequest.body()) {
             case HttpBody.Full content -> content.bytes().length();

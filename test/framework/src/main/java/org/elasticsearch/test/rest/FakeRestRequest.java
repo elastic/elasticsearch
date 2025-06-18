@@ -118,6 +118,11 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
+        public boolean hasContent() {
+            return body.isEmpty() == false;
+        }
+
+        @Override
         public HttpResponse createResponse(RestStatus status, BytesReference unused) {
             Map<String, String> responseHeaders = new HashMap<>();
             return new HttpResponse() {

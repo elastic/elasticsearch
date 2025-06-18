@@ -909,6 +909,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public boolean hasContent() {
+                return hasContent;
+            }
+
+            @Override
             public HttpResponse createResponse(RestStatus status, BytesReference content) {
                 return null;
             }

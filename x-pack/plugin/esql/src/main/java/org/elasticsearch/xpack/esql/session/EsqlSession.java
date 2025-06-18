@@ -465,8 +465,10 @@ public class EsqlSession {
         IndexResolution newIndexResolution
     ) {
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, newIndexResolution.unavailableClusters());
-        if (newIndexResolution.isValid() == false || executionInfo.getClusters().isEmpty()) {
-            // If the index resolution is invalid, don't bother with the rest of the analysis
+        if (newIndexResolution.isValid() == false
+            || executionInfo.getClusters().isEmpty()
+            || executionInfo.isCrossClusterSearch() == false) {
+            // If the index resolution is invalid, or we're not dealing with CCS, don't bother with the rest of the analysis
             return result.addLookupIndexResolution(index, newIndexResolution);
         }
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
@@ -507,6 +509,24 @@ public class EsqlSession {
                 );
             }
         });
+
+        // If all indices resolve to the same name, we can use that for BWC
+        var indexNames = clustersWithResolvedIndices.values()
+            .stream()
+            .map(n -> RemoteClusterAware.splitIndexName(n)[1])
+            .collect(Collectors.toSet());
+        if (indexNames.size() == 1) {
+            String indexName = indexNames.iterator().next();
+            var newIndex = new EsIndex(index, newIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
+            newIndexResolution = IndexResolution.valid(
+                newIndex,
+                newIndex.concreteIndices(),
+                newIndexResolution.getUnavailableShards(),
+                newIndexResolution.unavailableClusters()
+            );
+        } else {
+            // TODO: validate remotes to be able to handle multiple indices in LOOKUP JOIN
+        }
 
         return result.addLookupIndexResolution(index, newIndexResolution);
 

@@ -736,23 +736,32 @@ public class LocalExecutionPlanner {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
-        var maybeEntry = localSourceExec.indexNameWithModes()
-            .entrySet()
-            .stream()
-            .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
-            .findFirst();
-
-        if (maybeEntry.isEmpty()) {
-            throw new IllegalArgumentException(
-                "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+        Map.Entry<String, IndexMode> entry;
+        if (localSourceExec.indexNameWithModes().size() == 1) {
+            entry = localSourceExec.indexNameWithModes().entrySet().iterator().next();
+        } else {
+            var maybeEntry = localSourceExec.indexNameWithModes()
+                .entrySet()
+                .stream()
+                .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
+                .findFirst();
+            entry = maybeEntry.orElseThrow(
+                () -> new IllegalArgumentException(
+                    "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+                )
             );
         }
-        var entry = maybeEntry.get();
 
         if (entry.getValue() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
-        String indexName = RemoteClusterAware.splitIndexName(entry.getKey())[1];
+        String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
+            throw new IllegalArgumentException(
+                "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+            );
+        }
+        String indexName = indexSplit[1];
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }

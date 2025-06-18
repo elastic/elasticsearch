@@ -136,7 +136,7 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
 
         private KeyValue(final String[] key, final String value) {
-            this(value, new Prefix(key), key[key.length-1]);
+            this(value, new Prefix(key), key[key.length - 1]);
         }
 
         public String leaf() {

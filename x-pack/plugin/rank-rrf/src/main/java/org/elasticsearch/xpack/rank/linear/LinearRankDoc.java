@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.DEFAULT_SCORE;
-import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_NORMALIZER;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
 
 public class LinearRankDoc extends RankDoc {

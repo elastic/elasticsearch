@@ -31,7 +31,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
     RetrieverBuilder retriever;
     float weight;
 
-    public LinearRetrieverComponent(RetrieverBuilder retrieverBuilder, Float weight, ScoreNormalizer normalizer) {
+    public LinearRetrieverComponent(RetrieverBuilder retrieverBuilder, Float weight) {
         assert retrieverBuilder != null;
         this.retriever = retrieverBuilder;
         this.weight = weight == null ? DEFAULT_WEIGHT : weight;
@@ -54,7 +54,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
         args -> {
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
             Float weight = (Float) args[1];
-            return new LinearRetrieverComponent(retrieverBuilder, weight, normalizer);
+            return new LinearRetrieverComponent(retrieverBuilder, weight);
         }
     );
 

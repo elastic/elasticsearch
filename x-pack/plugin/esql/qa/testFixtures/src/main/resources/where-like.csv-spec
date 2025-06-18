@@ -534,6 +534,458 @@ emp_no:integer | first_name:keyword
 10055          | Georgy    
 ;
 
+rlikeListEmptyArgWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike ("") 
+| KEEP emp_no, first_name;
+
+emp_no:integer | first_name:keyword    
+;
+
+rlikeListSingleArgWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name RLIKE ("Eberhardt.*")
+| KEEP emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt      
+;
+
+rlikeListTwoArgWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike ("Eberhardt.*", "testString.*") 
+| KEEP emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt       
+;
+
+rlikeListDocExample
+required_capability: rlike_with_list_of_patterns
+// tag::rlikeListDocExample[]
+ROW message = "foobar" 
+| WHERE message rlike ("foo.*", "bar.")
+// end::rlikeListDocExample[]
+;
+
+message:string
+foobar   
+;
+
+rlikeListThreeArgWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike ("Eberhardt.*", "Ot.*", "Part.") 
+| KEEP emp_no, first_name  
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+10013          | Eberhardt
+10029          | Otmar     
+;
+
+rlikeListMultipleWhere
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name RLIKE ("Eberhardt.*", "Ot.*", "Part.") 
+| WHERE first_name RLIKE ("Eberhard.", "Otm.*")
+| KEEP emp_no, first_name
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+10029          | Otmar
+;
+
+rlikeListAllWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike (".*") 
+| KEEP emp_no, first_name 
+| SORT emp_no 
+| LIMIT 2;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+;
+
+rlikeListOverlappingPatterns
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike ("Eber.*", "Eberhardt") 
+| KEEP emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;
+
+rlikeListCaseSensitive
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name RLIKE ("eberhardt", "EBERHARDT") 
+| KEEP emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;
+
+rlikeListSpecialCharacters
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike (".*ar.*", ".*eor.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10003          | Parto
+10011          | Mary
+10013          | Eberhardt
+10029          | Otmar
+10055          | Georgy
+10058          | Berhard
+10068          | Charlene
+10069          | Margareta
+10074          | Mokhtar
+10082          | Parviz
+10089          | Sudharsan
+10095          | Hilari
+;
+
+rlikeListEscapedWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike ("Eberhar\\*") 
+| KEEP emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;
+
+rlikeListNineOrMoreLetters
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike (".{9,}.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+10010          | Duangkaew
+10013          | Eberhardt
+10017          | Cristinel
+10025          | Prasadram
+10059          | Alejandro
+10069          | Margareta
+10089          | Sudharsan
+10092          | Valdiodio
+10098          | Sreekrishna
+;
+
+notRlikeListThreeArgWildcardNotOtherFilter
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name not rlike ("Eberhardt.*", "Ot.*", "Part.") and emp_no < 10010 
+| KEEP emp_no, first_name
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10004          | Chirstian
+10005          | Kyoichi
+10006          | Anneke
+10007          | Tzvetan
+10008          | Saniya
+10009          | Sumant   
+;
+
+rlikeListBeginningWithWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name rlike ("A.*", "B.*", "C.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10004          | Chirstian
+10006          | Anneke
+10014          | Berni
+10017          | Cristinel
+10023          | Bojan
+10049          | Basil
+10056          | Brendon
+10058          | Berhard
+10059          | Alejandro
+10060          | Breannda
+10062          | Anoosh
+10067          | Claudi
+10068          | Charlene
+10091          | Amabile
+10094          | Arumugam 
+;
+
+notRlikeListThreeArgWildcardOtherFirst
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE emp_no < 10010 and first_name not rlike ("Eberhardt.*", "Ot.*", "Part.") 
+| KEEP emp_no, first_name  
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10004          | Chirstian
+10005          | Kyoichi
+10006          | Anneke
+10007          | Tzvetan
+10008          | Saniya
+10009          | Sumant
+;
+
+notRlikeFiveOrLessLetters
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name not rlike (".{6,}.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+10011          | Mary
+10014          | Berni
+10021          | Ramzi
+10023          | Bojan
+10029          | Otmar
+10040          | Weiyi
+10041          | Uri
+10042          | Magy
+10045          | Moss
+10049          | Basil
+10057          | Ebbe
+10061          | Tse
+10063          | Gino
+10064          | Udi
+10066          | Kwee
+10071          | Hisao
+10073          | Shir
+10075          | Gao
+10076          | Erez
+10077          | Mona
+10078          | Danel
+10083          | Vishv
+10084          | Tuval
+10097          | Remzi
+;
+
+notRlikeListMultipleWhere
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name NOT RLIKE ("Eberhardt.*", "Ot.*", "Part.", "A.*", "B.*", "C.*", "D.*") 
+| WHERE first_name NOT RLIKE ("Eberhard.", "Otm.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*", "L.*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10008          | Saniya
+10009          | Sumant
+10011          | Mary
+10012          | Patricio
+10020          | Mayuko
+10021          | Ramzi
+10022          | Shahaf
+10024          | Suzette
+10025          | Prasadram
+10026          | Yongqiao
+10040          | Weiyi
+10041          | Uri
+10042          | Magy
+10043          | Yishay
+10044          | Mingsen
+10045          | Moss
+10047          | Zvonko
+10050          | Yinghua
+10053          | Sanjiv
+10054          | Mayumi
+10057          | Ebbe
+10061          | Tse
+10064          | Udi
+10065          | Satosi
+10069          | Margareta
+10070          | Reuven
+10073          | Shir
+10074          | Mokhtar
+10076          | Erez
+10077          | Mona
+10080          | Premal
+10081          | Zhongwei
+10082          | Parviz
+10083          | Vishv
+10084          | Tuval
+10086          | Somnath
+10087          | Xinglin
+10089          | Sudharsan
+10092          | Valdiodio
+10093          | Sailaja
+10097          | Remzi
+10098          | Sreekrishna
+10099          | Valter
+;
+
+notRlikeListNotField
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE NOT first_name RLIKE ("Eberhardt.*", "Ot.*", "Part.", "A.*", "B.*", "C.*", "D.*") 
+| WHERE first_name NOT RLIKE ("Eberhard.", "Otm.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*", "L.*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10008          | Saniya
+10009          | Sumant
+10011          | Mary
+10012          | Patricio
+10020          | Mayuko
+10021          | Ramzi
+10022          | Shahaf
+10024          | Suzette
+10025          | Prasadram
+10026          | Yongqiao
+10040          | Weiyi
+10041          | Uri
+10042          | Magy
+10043          | Yishay
+10044          | Mingsen
+10045          | Moss
+10047          | Zvonko
+10050          | Yinghua
+10053          | Sanjiv
+10054          | Mayumi
+10057          | Ebbe
+10061          | Tse
+10064          | Udi
+10065          | Satosi
+10069          | Margareta
+10070          | Reuven
+10073          | Shir
+10074          | Mokhtar
+10076          | Erez
+10077          | Mona
+10080          | Premal
+10081          | Zhongwei
+10082          | Parviz
+10083          | Vishv
+10084          | Tuval
+10086          | Somnath
+10087          | Xinglin
+10089          | Sudharsan
+10092          | Valdiodio
+10093          | Sailaja
+10097          | Remzi
+10098          | Sreekrishna
+10099          | Valter
+;
+
+notRlikeListAllWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name NOT RLIKE (".*") 
+| KEEP emp_no, first_name 
+| SORT emp_no 
+| LIMIT 2;
+
+emp_no:integer | first_name:keyword
+10030          | null
+10031          | null
+;
+
+notRlikeListWildcard
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE first_name NOT RLIKE ("A.*","B.*", "C.*", "D.*","E.*", "F.*", "G.*", "H.*", "I.*", "J.*", "K.*") 
+| KEEP emp_no, first_name  
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+10007          | Tzvetan
+10008          | Saniya
+10009          | Sumant
+10011          | Mary
+10012          | Patricio
+10019          | Lillian
+10020          | Mayuko
+10021          | Ramzi
+10022          | Shahaf
+10024          | Suzette
+10025          | Prasadram
+10026          | Yongqiao
+10029          | Otmar
+10040          | Weiyi
+10041          | Uri
+10042          | Magy
+10043          | Yishay
+10044          | Mingsen
+10045          | Moss
+10046          | Lucien
+10047          | Zvonko
+10050          | Yinghua
+10053          | Sanjiv
+10054          | Mayumi
+10061          | Tse
+10064          | Udi
+10065          | Satosi
+10069          | Margareta
+10070          | Reuven
+10073          | Shir
+10074          | Mokhtar
+10077          | Mona
+10080          | Premal
+10081          | Zhongwei
+10082          | Parviz
+10083          | Vishv
+10084          | Tuval
+10086          | Somnath
+10087          | Xinglin
+10089          | Sudharsan
+10092          | Valdiodio
+10093          | Sailaja
+10097          | Remzi
+10098          | Sreekrishna
+10099          | Valter
+;
+
+rlikeListWithUpperTurnedInsensitive
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("GEOR.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy     
+;
+
+rlikeListWithUpperTurnedInsensitiveMult
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("GEOR.*", "WE.*")  
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10040          | Weiyi
+10055          | Georgy   
+;
+
 likeAll
 from employees | where first_name like "*" and emp_no > 10028 | sort emp_no | keep emp_no, first_name | limit 2;
 

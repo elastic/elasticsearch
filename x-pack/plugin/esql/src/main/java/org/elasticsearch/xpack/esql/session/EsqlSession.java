@@ -238,12 +238,15 @@ public class EsqlSession {
         if (explainMode) {
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "parsedPlan", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "optimizedLogicalPlan", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "optimizedPhysicalPlan", DataType.KEYWORD)
+                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
             );
-            List<Object> values = List.of(parsedPlanString, optimizedLogicalPlanString, physicalPlanString);
-            var blocks = BlockUtils.fromListRow(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
+            List<List<Object>> values = new ArrayList<>();
+            values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
+            values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+            values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
+            var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
             physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
         }
         // TODO: this could be snuck into the underlying listener

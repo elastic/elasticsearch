@@ -270,7 +270,13 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(null, List.of("abc", "123"), model);
         var exception = expectThrows(IllegalStateException.class, request::createHttpRequest);
-        assertThat(exception.getMessage(), is("Found placeholder [${task.key}] in field [header.Accept] after replacement call"));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Found placeholder [${task.key}] in field [header.Accept] after replacement call, "
+                    + "please check that all templates have a corresponding field definition."
+            )
+        );
     }
 
     public void testCreateRequest_ThrowsException_ForInvalidUrl() {

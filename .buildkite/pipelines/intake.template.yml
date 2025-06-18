@@ -72,6 +72,8 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+  - label: bc-upgrade
+    command: ".buildkite/scripts/run-bc-upgrade-tests.sh"
   - group: lucene-compat
     steps:
       - label: "{{matrix.LUCENE_VERSION}} / lucene-compat"

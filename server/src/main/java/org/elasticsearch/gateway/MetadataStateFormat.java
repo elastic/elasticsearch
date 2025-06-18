@@ -349,7 +349,7 @@ public abstract class MetadataStateFormat<T> {
      * @param currentGeneration state generation to keep.
      * @param locations         state paths.
      */
-    public void cleanupOldFiles(final long currentGeneration, final Path[] locations) {
+    public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
         final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
@@ -366,6 +366,14 @@ public abstract class MetadataStateFormat<T> {
         }
     }
 
+    /**
+     * Finds state file with maximum id.
+     *
+     * @param prefix    - filename prefix
+     * @param locations - paths to directories with state folder
+     * @return maximum id of state file or -1 if no such files are found
+     * @throws IOException if IOException occurs
+     */
     long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {

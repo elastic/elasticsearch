@@ -182,7 +182,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
                 FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
                 FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
-                test.environment("es.entitlement.testOnlyPath", project.provider(testOnlyFiles::getAsPath));
+                test.doFirst(task -> test.environment("es.entitlement.testOnlyPath", testOnlyFiles.getAsPath()));
             }
 
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());

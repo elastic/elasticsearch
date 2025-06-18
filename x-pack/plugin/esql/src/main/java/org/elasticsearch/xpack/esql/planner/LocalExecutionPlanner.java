@@ -620,6 +620,13 @@ public class LocalExecutionPlanner {
 
         EvalOperator.ExpressionEvaluator.Factory rowEncoderFactory;
         if (rerank.rerankFields().size() > 1) {
+            // If there is more than one field used for reranking we are encoded the input in a YAML doc, using field names as key.
+            // The input value will looks like
+            // text_field: foo bar
+            // multivalue_text_field:
+            //   - value 1
+            //   - value 2
+            // integer_field: 132
             Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
                 .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
 

@@ -790,7 +790,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", optionName);
         }
 
-        Expression optionValue = ctx.identifier() != null ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier())) : expression(ctx.constant());
+        Expression optionValue = ctx.identifier() != null
+            ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()))
+            : expression(ctx.constant());
 
         if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
             return scoreAttribute;

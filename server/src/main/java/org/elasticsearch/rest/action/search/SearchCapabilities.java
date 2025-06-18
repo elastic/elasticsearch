@@ -46,6 +46,13 @@ public final class SearchCapabilities {
 
     private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
 
+    private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
+
+    private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+    private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
+    private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -63,6 +70,11 @@ public final class SearchCapabilities {
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
+        capabilities.add(INDEX_SELECTOR_SYNTAX);
+        capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
+        capabilities.add(EXCLUDE_VECTORS_PARAM);
+        capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

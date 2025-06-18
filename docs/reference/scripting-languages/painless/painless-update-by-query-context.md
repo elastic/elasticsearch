@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-update-by-query-context.html
+products:
+  - id: painless
 ---
 
 # Update by query context [painless-update-by-query-context]

@@ -360,11 +360,13 @@ public final class IngestDocument {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof List<?> list) {
-            int index;
+            int index = -1;
             try {
                 index = Integer.parseInt(leafKey);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                if (ignoreMissing == false) {
+                    throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                }
             }
             if (index < 0 || index >= list.size()) {
                 if (ignoreMissing == false) {

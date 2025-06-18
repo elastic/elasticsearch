@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -61,11 +64,35 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
+
+    /**
+     * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
+     * we need to break the plan into sub plans and a main coordinator plan.
+     * The result pages from each sub plan will be funneled to the main coordinator plan.
+     * To achieve this, we wire each sub plan with a {@code ExchangeSinkExec} and add a {@code ExchangeSourceExec}
+     * to the main coordinator plan.
+     * There is an additional split of each sub plan into a data node plan and coordinator plan.
+     * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     */
+    public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
+        var subplans = new Holder<List<PhysicalPlan>>();
+        PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
+            subplans.set(
+                me.children()
+                    .stream()
+                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
+                    .toList()
+            );
+            return new ExchangeSourceExec(me.source(), me.output(), false);
+        });
+
+        return new Tuple<>(subplans.get(), mainPlan);
+    }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
@@ -97,7 +124,7 @@ public class PlannerUtils {
         final LocalMapper mapper = new LocalMapper();
         PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
         if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INITIAL); // force to emit intermediate outputs
+            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
         }
         return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
     }
@@ -214,13 +241,17 @@ public class PlannerUtils {
                         boolean matchesField = refsBuilder.removeIf(e -> fieldName.test(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refsBuilder.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField
+                            && refsBuilder.isEmpty()
+                            && translatable(exp, LucenePushdownPredicates.DEFAULT).finish() == TranslationAware.FinishedTranslatable.YES) {
                             matches.add(exp);
                         }
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).toQueryBuilder());
+                    requestFilters.add(
+                        TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, Predicates.combineAnd(matches)).toQueryBuilder()
+                    );
                 }
             });
         });
@@ -265,7 +296,9 @@ public class PlannerUtils {
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
-            case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
+            case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
+            case DENSE_VECTOR -> ElementType.FLOAT;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

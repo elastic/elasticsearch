@@ -12,6 +12,12 @@ dependencies {
   testImplementation project(':test:fixtures:minio-fixture')
   testImplementation project(':test:framework')
   testImplementation project(':server')
+
+  testImplementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
 }
 
 boolean useFixture = false

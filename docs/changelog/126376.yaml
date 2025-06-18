@@ -1,6 +1,0 @@
-pr: 126376
-summary: Set `keyUsage` for generated HTTP certificates and self-signed CA
-area: TLS
-type: bug
-issues:
- - 117769

@@ -66,7 +66,7 @@ dependencies {
   }
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}" // workaround for https://github.com/elastic/elasticsearch/issues/93714
- // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
+  // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -80,6 +80,7 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
+  runtimeOnly "com.nimbusds:content-type:2.3"
   api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
   if (isEclipse) {
     /*
@@ -128,7 +129,7 @@ dependencies {
   testImplementation('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
   testImplementation('commons-pool:commons-pool:1.6')
   testImplementation('commons-collections:commons-collections:3.2.2')
-  testImplementation('org.apache.mina:mina-core:2.0.17')
+  testImplementation("org.apache.mina:mina-core:${versions.apache_mina}")
   testImplementation('org.apache.directory.api:api-util:1.0.1')
   testImplementation('org.apache.directory.api:api-i18n:1.0.1')
   testImplementation('org.apache.directory.api:api-ldap-model:1.0.1')
@@ -183,6 +184,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /failureaccess.*/, to: 'guava'
+  mapping from: 'content-type', to: 'nimbus'
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -414,8 +416,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.xml.bind.UnmarshallerHandler',
     // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
     'org.cryptomator.siv.SivMode',
-    'com.nimbusds.common.contenttype.ContentType',
-    'com.nimbusds.common.contenttype.ContentType$Parameter',
     'javax.activation.ActivationDataFlavor',
     'javax.activation.DataContentHandler',
     'javax.activation.DataHandler',

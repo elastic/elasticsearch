@@ -200,7 +200,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
 
     @Override
     protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     /**
@@ -267,7 +267,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedProject,
-            matchingTemplate,
+            template,
             xContentRegistry,
             simulatedIndexName
         );

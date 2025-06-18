@@ -12,9 +12,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -155,7 +152,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                Nested nested = response.getAggregations().get("nested1");
+                SingleBucketAggregation nested = response.getAggregations().get("nested1");
                 assertThat(nested, notNullValue());
                 assertThat(nested.getName(), equalTo("nested1"));
                 assertThat(nested.getDocCount(), equalTo(25L));
@@ -170,7 +167,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 Terms.Bucket bucket = usernameBuckets.get(0);
                 assertThat(bucket.getKeyAsString(), equalTo("1"));
                 assertThat(bucket.getDocCount(), equalTo(6L));
-                ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
+                SingleBucketAggregation reverseNested = bucket.getAggregations().get("nested1_to_field1");
                 assertThat(((InternalAggregation) reverseNested).getProperty("_count"), equalTo(5L));
                 Terms tags = reverseNested.getAggregations().get("field1");
                 assertThat(((InternalAggregation) reverseNested).getProperty("field1"), sameInstance(tags));
@@ -336,10 +333,10 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                Nested nested = response.getAggregations().get("nested1");
+                SingleBucketAggregation nested = response.getAggregations().get("nested1");
                 assertThat(nested.getName(), equalTo("nested1"));
                 assertThat(nested.getDocCount(), equalTo(9L));
-                ReverseNested reverseNested = nested.getAggregations().get("nested1_to_root");
+                SingleBucketAggregation reverseNested = nested.getAggregations().get("nested1_to_root");
                 assertThat(reverseNested.getName(), equalTo("nested1_to_root"));
                 assertThat(reverseNested.getDocCount(), equalTo(4L));
                 nested = reverseNested.getAggregations().get("root_to_nested2");
@@ -368,7 +365,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                Nested nested = response.getAggregations().get("nested1");
+                SingleBucketAggregation nested = response.getAggregations().get("nested1");
                 assertThat(nested, notNullValue());
                 assertThat(nested.getName(), equalTo("nested1"));
                 assertThat(nested.getDocCount(), equalTo(27L));
@@ -382,7 +379,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 Terms.Bucket bucket = usernameBuckets.get(0);
                 assertThat(bucket.getKeyAsString(), equalTo("0"));
                 assertThat(bucket.getDocCount(), equalTo(12L));
-                ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
+                SingleBucketAggregation reverseNested = bucket.getAggregations().get("nested1_to_field1");
                 assertThat(reverseNested.getDocCount(), equalTo(5L));
                 Terms tags = reverseNested.getAggregations().get("field1");
                 List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
@@ -476,11 +473,11 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3"))),
             response -> {
 
-                Nested nested = response.getAggregations().get("nested2");
+                SingleBucketAggregation nested = response.getAggregations().get("nested2");
                 assertThat(nested, notNullValue());
                 assertThat(nested.getName(), equalTo("nested2"));
 
-                ReverseNested reverseNested = nested.getAggregations().get("incorrect");
+                SingleBucketAggregation reverseNested = nested.getAggregations().get("incorrect");
                 assertThat(reverseNested.getDocCount(), is(0L));
             }
         );
@@ -491,7 +488,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 .addAggregation(nested("incorrect1", "incorrect1").subAggregation(reverseNested("incorrect2").path("incorrect2"))),
             response -> {
 
-                Nested nested = response.getAggregations().get("incorrect1");
+                SingleBucketAggregation nested = response.getAggregations().get("incorrect1");
                 assertThat(nested, notNullValue());
                 assertThat(nested.getName(), equalTo("incorrect1"));
                 assertThat(nested.getDocCount(), is(0L));
@@ -630,7 +627,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
 
-                Nested nested0 = response.getAggregations().get("nested_0");
+                SingleBucketAggregation nested0 = response.getAggregations().get("nested_0");
                 assertThat(nested0.getDocCount(), equalTo(3L));
                 Terms terms = nested0.getAggregations().get("group_by_category");
                 assertThat(terms.getBuckets().size(), equalTo(3));
@@ -638,11 +635,11 @@ public class ReverseNestedIT extends ESIntegTestCase {
                     logger.info("Checking results for bucket {}", bucketName);
                     Terms.Bucket bucket = terms.getBucketByKey(bucketName);
                     assertThat(bucket.getDocCount(), equalTo(1L));
-                    ReverseNested toRoot = bucket.getAggregations().get("to_root");
+                    SingleBucketAggregation toRoot = bucket.getAggregations().get("to_root");
                     assertThat(toRoot.getDocCount(), equalTo(1L));
-                    Nested nested1 = toRoot.getAggregations().get("nested_1");
+                    SingleBucketAggregation nested1 = toRoot.getAggregations().get("nested_1");
                     assertThat(nested1.getDocCount(), equalTo(5L));
-                    Filter filterByBar = nested1.getAggregations().get("filter_by_sku");
+                    SingleBucketAggregation filterByBar = nested1.getAggregations().get("filter_by_sku");
                     assertThat(filterByBar.getDocCount(), equalTo(3L));
                     ValueCount barCount = filterByBar.getAggregations().get("sku_count");
                     assertThat(barCount.getValue(), equalTo(3L));
@@ -673,7 +670,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
 
-                Nested nested0 = response.getAggregations().get("nested_0");
+                SingleBucketAggregation nested0 = response.getAggregations().get("nested_0");
                 assertThat(nested0.getDocCount(), equalTo(3L));
                 Terms terms = nested0.getAggregations().get("group_by_category");
                 assertThat(terms.getBuckets().size(), equalTo(3));
@@ -681,17 +678,17 @@ public class ReverseNestedIT extends ESIntegTestCase {
                     logger.info("Checking results for bucket {}", bucketName);
                     Terms.Bucket bucket = terms.getBucketByKey(bucketName);
                     assertThat(bucket.getDocCount(), equalTo(1L));
-                    ReverseNested toRoot = bucket.getAggregations().get("to_root");
+                    SingleBucketAggregation toRoot = bucket.getAggregations().get("to_root");
                     assertThat(toRoot.getDocCount(), equalTo(1L));
-                    Nested nested1 = toRoot.getAggregations().get("nested_1");
+                    SingleBucketAggregation nested1 = toRoot.getAggregations().get("nested_1");
                     assertThat(nested1.getDocCount(), equalTo(5L));
-                    Filter filterByBar = nested1.getAggregations().get("filter_by_sku");
+                    SingleBucketAggregation filterByBar = nested1.getAggregations().get("filter_by_sku");
                     assertThat(filterByBar.getDocCount(), equalTo(3L));
-                    Nested nested2 = filterByBar.getAggregations().get("nested_2");
+                    SingleBucketAggregation nested2 = filterByBar.getAggregations().get("nested_2");
                     assertThat(nested2.getDocCount(), equalTo(8L));
-                    Filter filterBarColor = nested2.getAggregations().get("filter_sku_color");
+                    SingleBucketAggregation filterBarColor = nested2.getAggregations().get("filter_sku_color");
                     assertThat(filterBarColor.getDocCount(), equalTo(2L));
-                    ReverseNested reverseToBar = filterBarColor.getAggregations().get("reverse_to_sku");
+                    SingleBucketAggregation reverseToBar = filterBarColor.getAggregations().get("reverse_to_sku");
                     assertThat(reverseToBar.getDocCount(), equalTo(2L));
                     ValueCount barCount = reverseToBar.getAggregations().get("sku_count");
                     assertThat(barCount.getValue(), equalTo(2L));
@@ -713,11 +710,11 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                Nested nested = response.getAggregations().get("nested1");
+                SingleBucketAggregation nested = response.getAggregations().get("nested1");
                 Terms nestedTerms = nested.getAggregations().get("field2");
                 Terms.Bucket bucket = nestedTerms.getBuckets().iterator().next();
 
-                ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
+                SingleBucketAggregation reverseNested = bucket.getAggregations().get("nested1_to_field1");
                 Terms reverseNestedTerms = reverseNested.getAggregations().get("field1");
 
                 assertThat(((InternalAggregation) reverseNested).getProperty("field1"), sameInstance(reverseNestedTerms));

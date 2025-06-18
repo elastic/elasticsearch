@@ -90,6 +90,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.projectClient(any())).thenReturn(client);
         AdminClient adminClient = mock(AdminClient.class);
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);

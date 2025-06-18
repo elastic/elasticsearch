@@ -1,0 +1,5 @@
+pr: 126786
+summary: Account for time taken to write index buffers in `IndexingMemoryController`
+area: Distributed
+type: enhancement
+issues: []

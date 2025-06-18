@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataStream;
-
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -513,9 +511,9 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
-        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/delete" : null,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/get" : null,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/put" : null,
+        "indices:admin/data_stream/options/delete",
+        "indices:admin/data_stream/options/get",
+        "indices:admin/data_stream/options/put",
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -611,6 +609,7 @@ public class Constants {
         "indices:data/write/reindex",
         "indices:data/write/update",
         "indices:data/write/update/byquery",
+        "indices:monitor/data_stream/settings/get",
         "indices:monitor/data_stream/stats",
         "indices:monitor/field_usage_stats",
         "indices:monitor/fleet/global_checkpoints[s]",
@@ -642,6 +641,7 @@ public class Constants {
         "indices:admin/data_stream/index/reindex",
         "indices:admin/data_stream/reindex",
         "indices:admin/data_stream/reindex_cancel",
+        "indices:admin/data_stream/settings/update",
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",

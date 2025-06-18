@@ -47,6 +47,8 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
+
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
@@ -116,17 +118,24 @@ public interface LucenePushdownPredicates {
             // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
             return attr.field().isAggregatable();
         }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+            return false;
+        }
     };
 
     /**
-     * If we have access to SearchStats over a collection of shards, we can make more fine-grained decisions about what can be pushed down.
-     * This should open up more opportunities for lucene pushdown.
+     * If we have access to {@link SearchStats} over a collection of shards, we can make more fine-grained decisions about what can be
+     * pushed down. This should open up more opportunities for lucene pushdown.
      */
     static LucenePushdownPredicates from(SearchStats stats) {
+        // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
+        // C.f. https://github.com/elastic/elasticsearch/issues/128905
         return new LucenePushdownPredicates() {
             @Override
             public boolean hasExactSubfield(FieldAttribute attr) {
-                return stats.hasExactSubfield(attr.name());
+                return stats.hasExactSubfield(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override
@@ -134,12 +143,19 @@ public interface LucenePushdownPredicates {
                 // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
                 // But this could hide issues with fields that are not indexed but are aggregatable
                 // This is the original behaviour for ES|QL, but is it correct?
-                return attr.field().isAggregatable() || stats.isIndexed(attr.name()) && stats.hasDocValues(attr.name());
+                return attr.field().isAggregatable()
+                    || stats.isIndexed(new FieldAttribute.FieldName(attr.name()))
+                        && stats.hasDocValues(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override
             public boolean isIndexed(FieldAttribute attr) {
-                return stats.isIndexed(attr.name());
+                return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
             }
         };
     }

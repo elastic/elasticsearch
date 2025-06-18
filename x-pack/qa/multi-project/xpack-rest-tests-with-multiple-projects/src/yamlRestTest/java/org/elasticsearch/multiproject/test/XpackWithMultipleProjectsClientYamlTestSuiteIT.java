@@ -20,7 +20,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -44,7 +44,6 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -2,7 +2,7 @@
 
 ### ST DISJOINT
 Returns whether the two geometries or geometry columns are disjoint.
-This is the inverse of the [ST_INTERSECTS](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/spatial-functions#esql-st_intersects) function.
+This is the inverse of the [ST_INTERSECTS](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions#esql-st_intersects) function.
 In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
 
 ```esql

@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -251,7 +252,12 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
         var diskHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
         var repoHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
-        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, repoHealthInfoMap);
+        HealthInfo healthInfo = new HealthInfo(
+            diskHealthInfoMap,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            repoHealthInfoMap,
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
 
         var service = new HealthService(
             // The preflight indicator does not get data because the data is not fetched until after the preflight check

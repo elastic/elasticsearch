@@ -30,7 +30,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         return super.run(request);
     }
@@ -57,7 +57,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE and STATS commands"));
     }
 
     public void testMultipleTerm() {

@@ -349,7 +349,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     exception.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -368,7 +368,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -390,7 +390,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -412,7 +412,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
                 assertThat(
                     e.getMessage(),
-                    is("Model configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
+                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
                 );
             });
 
@@ -988,7 +988,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testInfer_ThrowsValidationErrorWhenInputTypeIsSpecifiedForProviderThatDoesNotAcceptTaskType() throws IOException {
+    public void testInfer_SendsRequest_ForTitanEmbeddingsModel() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -1006,37 +1006,33 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             "secret"
         );
 
-        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+        try (
+            var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool));
+            var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
+        ) {
+            var results = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
+            requestSender.enqueue(results);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
-            );
-            assertThat(
-                thrownException.getMessage(),
-                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for provider [amazontitan];")
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
 
-            verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.123F, 0.678F }))));
         }
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
     }
 
-    public void testInfer_SendsRequest_ForEmbeddingsModel() throws IOException {
+    public void testInfer_SendsRequest_ForCohereEmbeddingsModel() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);

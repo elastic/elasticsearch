@@ -53,7 +53,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
@@ -81,15 +80,14 @@ public class AmazonBedrockService extends SenderService {
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
-    private static final AmazonBedrockProvider PROVIDER_WITH_TASK_TYPE = AmazonBedrockProvider.COHERE;
-
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
         InputType.SEARCH,
         InputType.CLASSIFICATION,
         InputType.CLUSTERING,
         InputType.INTERNAL_INGEST,
-        InputType.INTERNAL_SEARCH
+        InputType.INTERNAL_SEARCH,
+        InputType.UNSPECIFIED
     );
 
     public AmazonBedrockService(
@@ -130,21 +128,8 @@ public class AmazonBedrockService extends SenderService {
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
-            // inputType is only allowed when provider=cohere for text embeddings
-            var provider = baseAmazonBedrockModel.provider();
-
-            if (Objects.equals(provider, PROVIDER_WITH_TASK_TYPE)) {
-                // input type parameter allowed, so verify it is valid if specified
-                ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
-            } else {
-                // input type parameter not allowed so throw validation error if it is specified and not internal
-                ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(
-                    inputType,
-                    validationException,
-                    Strings.format("Invalid value [%s] received. [%s] is not allowed for provider [%s]", inputType, "input_type", provider)
-                );
-            }
+        if (model instanceof AmazonBedrockModel) {
+            ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
         }
     }
 

@@ -17,6 +17,9 @@ mapped_pages:
 :::{include} ../_snippets/lists/processing-commands.md
 :::
 
+:::{include} ../_snippets/commands/layout/change_point.md
+:::
+
 :::{include} ../_snippets/commands/layout/dissect.md
 :::
 
@@ -45,6 +48,9 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/commands/layout/rename.md
+:::
+
+:::{include} ../_snippets/commands/layout/sample.md
 :::
 
 :::{include} ../_snippets/commands/layout/sort.md

@@ -11,8 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
+import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -22,9 +21,7 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
 
     @Override
     protected Completion createTestInstance() {
-        Source source = randomSource();
-        LogicalPlan child = randomChild(0);
-        return new Completion(source, child, randomInferenceId(), randomPrompt(), randomAttribute());
+        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
     }
 
     @Override
@@ -43,20 +40,15 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         return new Completion(instance.source(), child, inferenceId, prompt, targetField);
     }
 
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
-
     private Literal randomInferenceId() {
-        return new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD);
+        return Literal.keyword(Source.EMPTY, randomIdentifier());
     }
 
     private Expression randomPrompt() {
-        return randomBoolean() ? new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD) : randomAttribute();
+        return randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier()) : randomAttribute();
     }
 
     private Attribute randomAttribute() {
-        return FieldAttributeTests.createFieldAttribute(3, randomBoolean());
+        return ReferenceAttributeTests.randomReferenceAttribute(randomBoolean());
     }
 }

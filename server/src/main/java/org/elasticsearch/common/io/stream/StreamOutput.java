@@ -18,14 +18,15 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -131,12 +132,32 @@ public abstract class StreamOutput extends OutputStream {
      * Serializes a writable just like {@link Writeable#writeTo(StreamOutput)} would but prefixes it with the serialized size of the result.
      *
      * @param writeable {@link Writeable} to serialize
+     * @deprecated use {@link #writeWithSizePrefix} instead
      */
-    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+    @Deprecated
+    public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
         tmp.setTransportVersion(version);
         writeable.writeTo(tmp);
         writeBytesReference(tmp.bytes());
+    }
+
+    /**
+     * Serializes a writable just like {@link Writeable#writeTo(StreamOutput)} would but also compresses and prefixes it with the serialized
+     * size of the result.
+
+     *
+     * @param writeable {@link Writeable} to serialize
+     */
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+        final BytesStreamOutput tmp = new BytesStreamOutput();
+        try (var o = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp))) {
+            o.setTransportVersion(version);
+            writeable.writeTo(o);
+        }
+        var bytes = tmp.bytes();
+        this.writeInt(bytes.length());
+        bytes.writeTo(this);
     }
 
     /**
@@ -398,7 +419,8 @@ public abstract class StreamOutput extends OutputStream {
             writeInt(spare.length());
             write(spare.bytes(), 0, spare.length());
         } else {
-            BytesReference bytes = text.bytes();
+            var encoded = text.bytes();
+            BytesReference bytes = new BytesArray(encoded.bytes(), encoded.offset(), encoded.length());
             writeInt(bytes.length());
             bytes.writeTo(this);
         }

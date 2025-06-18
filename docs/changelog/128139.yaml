@@ -1,0 +1,5 @@
+pr: 128139
+summary: Skip indexing points for `seq_no` in tsdb and logsdb
+area: Mapping
+type: enhancement
+issues: []

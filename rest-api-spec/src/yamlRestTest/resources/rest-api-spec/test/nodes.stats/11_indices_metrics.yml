@@ -503,9 +503,9 @@
   - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
   - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
   - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 26624 }
-  - match: { nodes.$node_id.indices.indices.index1.mappings.total_count: 28 }
-  - is_true: nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead
-  - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - match: { "nodes.$node_id.indices.indices.${_project_id_prefix_}index1.mappings.total_count": 28 }
+  - is_true: "nodes.$node_id.indices.indices.${_project_id_prefix_}index1.mappings.total_estimated_overhead"
+  - match: { "nodes.$node_id.indices.indices.${_project_id_prefix_}index1.mappings.total_estimated_overhead_in_bytes": 28672 }
 
 ---
 "Lucene segment level fields stats":

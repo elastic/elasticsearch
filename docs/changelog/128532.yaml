@@ -1,0 +1,5 @@
+pr: 128532
+summary: "Prevent invalid privileges in manage roles privilege"
+area: "Authorization"
+type: bug
+issues: [127496]

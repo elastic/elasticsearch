@@ -11,6 +11,8 @@ import com.unboundid.util.NotNull;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,8 +20,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.BufferedReader;
@@ -46,6 +49,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,7 +111,7 @@ public abstract class DocsV3Support {
         return new OperatorsDocsSupport(name, testClass);
     }
 
-    static void renderDocs(String name, Class<?> testClass) throws IOException {
+    static void renderDocs(String name, Class<?> testClass) throws Exception {
         if (OPERATORS.containsKey(name)) {
             var docs = DocsV3Support.forOperators(name, testClass);
             docs.renderSignature();
@@ -126,7 +130,7 @@ public abstract class DocsV3Support {
         String name,
         Function<String, String> description,
         Class<?> testClass
-    ) throws IOException {
+    ) throws Exception {
         var docs = forOperators("not " + name.toLowerCase(Locale.ROOT), testClass);
         docs.renderDocsForNegatedOperators(ctor, description);
     }
@@ -272,12 +276,46 @@ public abstract class DocsV3Support {
         }
     }
 
+    /**
+     * This class is used to check if a license requirement method exists in the test class.
+     * This is used to add license requirement information to the generated documentation.
+     */
+    public static class LicenseRequirementChecker {
+        private Method staticMethod;
+        private Function<List<DataType>, License.OperationMode> fallbackLambda;
+
+        public LicenseRequirementChecker(Class<?> testClass) {
+            try {
+                staticMethod = testClass.getMethod("licenseRequirement", List.class);
+                if (License.OperationMode.class.equals(staticMethod.getReturnType()) == false
+                    || java.lang.reflect.Modifier.isStatic(staticMethod.getModifiers()) == false) {
+                    staticMethod = null; // Reset if the method doesn't match the signature
+                }
+            } catch (NoSuchMethodException e) {
+                staticMethod = null;
+            }
+
+            if (staticMethod == null) {
+                fallbackLambda = fieldTypes -> License.OperationMode.BASIC;
+            }
+        }
+
+        public License.OperationMode invoke(List<DataType> fieldTypes) throws Exception {
+            if (staticMethod != null) {
+                return (License.OperationMode) staticMethod.invoke(null, fieldTypes);
+            } else {
+                return fallbackLambda.apply(fieldTypes);
+            }
+        }
+    }
+
     protected final String category;
     protected final String name;
     protected final FunctionDefinition definition;
     protected final Logger logger;
     private final Supplier<Map<List<DataType>, DataType>> signatures;
     private TempFileWriter tempFileWriter;
+    private final LicenseRequirementChecker licenseChecker;
 
     protected DocsV3Support(String category, String name, Class<?> testClass, Supplier<Map<List<DataType>, DataType>> signatures) {
         this(category, name, null, testClass, signatures);
@@ -296,6 +334,7 @@ public abstract class DocsV3Support {
         this.logger = LogManager.getLogger(testClass);
         this.signatures = signatures;
         this.tempFileWriter = new DocsFileWriter();
+        this.licenseChecker = new LicenseRequirementChecker(testClass);
     }
 
     /** Used in tests to capture output for asserting on the content */
@@ -460,7 +499,7 @@ public abstract class DocsV3Support {
 
     protected abstract void renderSignature() throws IOException;
 
-    protected abstract void renderDocs() throws IOException;
+    protected abstract void renderDocs() throws Exception;
 
     static class FunctionDocsSupport extends DocsV3Support {
         private FunctionDocsSupport(String name, Class<?> testClass) {
@@ -488,7 +527,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        protected void renderDocs() throws IOException {
+        protected void renderDocs() throws Exception {
             if (definition == null) {
                 logger.info("Skipping rendering docs because the function '{}' isn't registered", name);
             } else {
@@ -497,7 +536,7 @@ public abstract class DocsV3Support {
             }
         }
 
-        private void renderDocs(FunctionDefinition definition) throws IOException {
+        private void renderDocs(FunctionDefinition definition) throws Exception {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             if (name.equals("case")) {
                 /*
@@ -536,7 +575,7 @@ public abstract class DocsV3Support {
             }
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
-            renderFullLayout(info.preview(), info.appliesTo(), hasExamples, hasAppendix, hasFunctionOptions);
+            renderFullLayout(info, hasExamples, hasAppendix, hasFunctionOptions);
             renderKibanaInlineDocs(name, null, info);
             renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic());
         }
@@ -627,16 +666,12 @@ public abstract class DocsV3Support {
             }
         }
 
-        private void renderFullLayout(
-            boolean preview,
-            FunctionAppliesTo[] functionAppliesTos,
-            boolean hasExamples,
-            boolean hasAppendix,
-            boolean hasFunctionOptions
-        ) throws IOException {
+        private void renderFullLayout(FunctionInfo info, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
+            throws IOException {
+            String headingMarkdown = "#".repeat(2 + info.depthOffset());
             StringBuilder rendered = new StringBuilder(
                 DOCS_WARNING + """
-                    ## `$UPPER_NAME$` [esql-$NAME$]
+                    $HEAD$ `$UPPER_NAME$` [esql-$NAME$]
                     $PREVIEW_CALLOUT$
                     **Syntax**
 
@@ -645,10 +680,11 @@ public abstract class DocsV3Support {
                     :class: text-center
                     :::
 
-                    """.replace("$NAME$", name)
+                    """.replace("$HEAD$", headingMarkdown)
+                    .replace("$NAME$", name)
                     .replace("$CATEGORY$", category)
                     .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
-                    .replace("$PREVIEW_CALLOUT$", makePreviewText(preview, functionAppliesTos))
+                    .replace("$PREVIEW_CALLOUT$", makePreviewText(info.preview(), info.appliesTo()))
             );
             for (String section : new String[] { "parameters", "description", "types" }) {
                 rendered.append(addInclude(section));
@@ -714,7 +750,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        public void renderDocs() throws IOException {
+        public void renderDocs() throws Exception {
             Constructor<?> ctor = constructorWithFunctionInfo(op.clazz());
             if (ctor != null) {
                 FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
@@ -725,7 +761,7 @@ public abstract class DocsV3Support {
             }
         }
 
-        void renderDocsForNegatedOperators(Constructor<?> ctor, Function<String, String> description) throws IOException {
+        void renderDocsForNegatedOperators(Constructor<?> ctor, Function<String, String> description) throws Exception {
             String baseName = name.toLowerCase(Locale.ROOT).replace("not ", "");
             OperatorConfig op = OPERATORS.get(baseName);
             assert op != null;
@@ -778,6 +814,11 @@ public abstract class DocsV3Support {
                 }
 
                 @Override
+                public int depthOffset() {
+                    return orig.depthOffset();
+                }
+
+                @Override
                 public FunctionType type() {
                     return orig.type();
                 }
@@ -793,7 +834,7 @@ public abstract class DocsV3Support {
         }
 
         void renderDocsForOperators(String name, String titleName, Constructor<?> ctor, FunctionInfo info, boolean variadic)
-            throws IOException {
+            throws Exception {
             renderKibanaInlineDocs(name, titleName, info);
 
             var params = ctor.getParameters();
@@ -831,6 +872,47 @@ public abstract class DocsV3Support {
                 rendered.append("\n");
                 logger.info("Writing detailed description for [{}]:\n{}", name, rendered);
                 writeToTempSnippetsDir("detailedDescription", rendered.toString());
+            }
+        }
+    }
+
+    /** Command specific docs generating, currently very empty since we only render kibana definition files */
+    public static class CommandsDocsSupport extends DocsV3Support {
+        private final LogicalPlan command;
+        private final XPackLicenseState licenseState;
+
+        public CommandsDocsSupport(String name, Class<?> testClass, LogicalPlan command, XPackLicenseState licenseState) {
+            super("commands", name, testClass, Map::of);
+            this.command = command;
+            this.licenseState = licenseState;
+        }
+
+        @Override
+        public void renderSignature() throws IOException {
+            // Unimplemented until we make command docs dynamically generated
+        }
+
+        @Override
+        public void renderDocs() throws Exception {
+            // Currently we only render kibana definition files, but we could expand to rendering much more if we decide to
+            renderKibanaCommandDefinition();
+        }
+
+        void renderKibanaCommandDefinition() throws Exception {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject()) {
+                builder.field(
+                    "comment",
+                    "This is generated by ESQL’s DocsV3Support. Do not edit it. See ../README.md for how to regenerate it."
+                );
+                builder.field("type", "command");
+                builder.field("name", name);
+                License.OperationMode license = licenseState.getOperationMode();
+                if (license != null && license != License.OperationMode.BASIC) {
+                    builder.field("license", license.toString());
+                }
+                String rendered = Strings.toString(builder.endObject());
+                logger.info("Writing kibana command definition for [{}]:\n{}", name, rendered);
+                writeToTempKibanaDir("definition", "json", rendered);
             }
         }
     }
@@ -997,7 +1079,7 @@ public abstract class DocsV3Support {
         FunctionInfo info,
         List<EsqlFunctionRegistry.ArgSignature> args,
         boolean variadic
-    ) throws IOException {
+    ) throws Exception {
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject()) {
             builder.field(
@@ -1017,6 +1099,10 @@ public abstract class DocsV3Support {
                 });
             }
             builder.field("name", name);
+            License.OperationMode license = licenseChecker.invoke(null);
+            if (license != null && license != License.OperationMode.BASIC) {
+                builder.field("license", license.toString());
+            }
             if (titleName != null && titleName.equals(name) == false) {
                 builder.field("titleName", titleName);
             }
@@ -1071,6 +1157,10 @@ public abstract class DocsV3Support {
                         builder.endObject();
                     }
                     builder.endArray();
+                    license = licenseChecker.invoke(sig.getKey());
+                    if (license != null && license != License.OperationMode.BASIC) {
+                        builder.field("license", license.toString());
+                    }
                     builder.field("variadic", variadic);
                     builder.field("returnType", sig.getValue().esNameIfPossible());
                     builder.endObject();

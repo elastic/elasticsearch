@@ -174,7 +174,7 @@ The following configuration fields are required to set up the connector:
 `ssl_ca`
 :   Content of SSL certificate. If SSL is disabled, the `ssl_ca` value will be ignored.
 
-    ::::{dropdown} **Expand** to see an example certificate
+    ::::{dropdown} Expand to see an example certificate
     ```
     -----BEGIN CERTIFICATE-----
     MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT

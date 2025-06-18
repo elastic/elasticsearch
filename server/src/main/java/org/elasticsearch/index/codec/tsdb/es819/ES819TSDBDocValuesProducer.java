@@ -52,7 +52,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
-    private final IntObjectHashMap<BinaryEntry> binaries;
+    final IntObjectHashMap<BinaryEntry> binaries;
     final IntObjectHashMap<SortedEntry> sorted;
     final IntObjectHashMap<SortedSetEntry> sortedSets;
     final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
@@ -1445,7 +1445,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long valuesLength;
     }
 
-    private static class BinaryEntry {
+    static class BinaryEntry {
         long dataOffset;
         long dataLength;
         long docsWithFieldOffset;

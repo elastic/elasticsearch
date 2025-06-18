@@ -302,7 +302,12 @@ public enum DataType {
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES));
+    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+
+    /**
+     * Fields with this type are dense vectors, represented as an array of double values.
+     */
+    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned
@@ -311,7 +316,8 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG)
+        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
     );
 
     private final String typeName;
@@ -560,6 +566,10 @@ public enum DataType {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
 
+    public static boolean isSpatialShape(DataType t) {
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
     public static boolean isSpatialGeo(DataType t) {
         return t == GEO_POINT || t == GEO_SHAPE;
     }
@@ -706,6 +716,29 @@ public enum DataType {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public static DataType suggestedCast(Set<DataType> originalTypes) {
+        if (originalTypes.isEmpty() || originalTypes.contains(UNSUPPORTED)) {
+            return null;
+        }
+        if (originalTypes.contains(DATE_NANOS) && originalTypes.contains(DATETIME) && originalTypes.size() == 2) {
+            return DATE_NANOS;
+        }
+        if (originalTypes.contains(AGGREGATE_METRIC_DOUBLE)) {
+            boolean allNumeric = true;
+            for (DataType type : originalTypes) {
+                if (type.isNumeric() == false && type != AGGREGATE_METRIC_DOUBLE) {
+                    allNumeric = false;
+                    break;
+                }
+            }
+            if (allNumeric) {
+                return AGGREGATE_METRIC_DOUBLE;
+            }
+        }
+
+        return KEYWORD;
     }
 
     /**

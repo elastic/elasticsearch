@@ -1,3 +1,4 @@
+* [preview] [`CHANGE_POINT`](../../commands/processing-commands.md#esql-change_point)
 * [`DISSECT`](../../commands/processing-commands.md#esql-dissect)
 * [`DROP`](../../commands/processing-commands.md#esql-drop)
 * [`ENRICH`](../../commands/processing-commands.md#esql-enrich)
@@ -8,6 +9,7 @@
 * [preview] [`LOOKUP JOIN`](../../commands/processing-commands.md#esql-lookup-join)
 * [preview] [`MV_EXPAND`](../../commands/processing-commands.md#esql-mv_expand)
 * [`RENAME`](../../commands/processing-commands.md#esql-rename)
+* [preview] [`SAMPLE`](../../commands/processing-commands.md#esql-sample)
 * [`SORT`](../../commands/processing-commands.md#esql-sort)
 * [`STATS`](../../commands/processing-commands.md#esql-stats-by)
 * [`WHERE`](../../commands/processing-commands.md#esql-where)

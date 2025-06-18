@@ -1,0 +1,6 @@
+pr: 128650
+summary: Update shardGenerations for all indices on snapshot finalization
+area: Snapshot/Restore
+type: enhancement
+issues:
+  - 108907

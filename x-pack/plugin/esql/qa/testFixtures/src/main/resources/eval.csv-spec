@@ -637,3 +637,154 @@ foo:keyword
 ;
 
 
+evalAfterAvgUsingSameName
+required_capability: remove_empty_attribute_in_merging_output
+from employees 
+| stats avg = avg(salary) 
+| eval avg = 12
+;
+
+avg:integer
+12
+;
+
+evalAfterStatsUsingSameName
+required_capability: remove_empty_attribute_in_merging_output
+from employees 
+| stats count = count(emp_no), median = median(salary), top_salaries = TOP(salary, 3, "desc")
+| keep median, top_salaries
+| rename top_salaries as median
+| eval median = 12
+;
+
+median:integer
+12
+;
+
+evalAfterStatsUsingSameName2
+required_capability: remove_empty_attribute_in_merging_output
+ROW foo = [10, 11, 12]
+| mv_expand foo
+| stats sum = sum(foo), max = max(foo)
+| rename sum as max
+| eval max = 13
+;
+
+max:integer
+13
+;
+
+evalAfterStatsUsingSameName3
+required_capability: remove_empty_attribute_in_merging_output
+from employees 
+| stats  foo = min(emp_no), bar = count_distinct(emp_no) 
+| rename bar AS bug_here, foo AS baz, baz AS bug_here 
+| eval bug_here = "something"
+;
+
+bug_here:keyword
+something
+;
+
+evalAfterAvgGroupingUsingSameName
+required_capability: retain_aggregate_when_grouping
+from employees
+| stats max = max(salary), avg = avg(salary) by g = gender 
+| keep max, g
+| eval max = 12, g = 3
+;
+
+max:integer | g:integer
+12          | 3
+12          | 3
+12          | 3
+;
+
+evalAfterGroupingUsingSameName
+required_capability: retain_aggregate_when_grouping
+row foo = [10,11,9], bar = [1,2,3]
+| mv_expand foo
+| mv_expand bar 
+| stats this = max(foo) by bar 
+| keep this 
+| eval this = 12
+;
+
+this:integer
+12
+12
+12
+;
+
+evalAfterGroupingUsingSameName2
+required_capability: retain_aggregate_when_grouping
+from employees 
+| stats count = count(emp_no) by gender, is_rehired 
+| keep count 
+| rename count as x 
+| keep x 
+| eval x = 12
+;
+
+x:integer
+12
+12
+12
+12
+12
+12
+12
+12
+12
+;
+
+evalAfterGroupingUsingSameName3
+required_capability: retain_aggregate_when_grouping
+row foo = 10 
+| stats field_1 = max(foo), this = count(*), field_2 = max(foo) by foo  
+| rename this AS field_2 
+| keep field_1, field_2  
+| eval field_2 = 1, field_1 = 1
+;
+
+field_2:integer | field_1:integer
+1               | 1
+;
+
+evalAfterGroupingUsingSameName4
+required_capability: retain_aggregate_when_grouping
+from employees
+| stats sum = sum(salary), max = max(salary) by g = gender
+| keep max, g
+| eval g = 12, max = 2
+;
+
+g:integer   | max:integer
+12          | 2
+12          | 2
+12          | 2
+;
+
+evalAfterGroupingUsingSameName5
+required_capability: retain_aggregate_when_grouping
+required_capability: enrich_load
+required_capability: join_lookup_v12
+from firewall_logs,threat_list,airports 
+| keep `message`, `name`, source.IP, `type`, message 
+| enrich languages_policy on message 
+| drop type 
+| dissect name "%{message}"
+| rename language_name as message 
+| lookup join message_types_lookup on message 
+| rename `source.IP` AS EkooZqOYHpD, `EkooZqOYHpD` AS `XzWnUOjttGQD` 
+| drop `XzWnUOjttGQD` | stats  type = count_distinct(name), `name` = count(*), JhbpKFAaRq = count(*) 
+| limit 5791 
+| keep name 
+| eval  `name` = true, nhIWDevxEtU = null, name = true, `name` = 1, sPMxyWXGSHm = "a", TewXimOwcBYr = true 
+| stats  `nhIWDevxEtU` = min(name) by name 
+| eval  dsjbDWegyVkg = false, name = null, name = 1, nhIWDevxEtU = null, iPIbTFddDK = 1, rUvqtgSl = 1
+;
+
+dsjbDWegyVkg:boolean    | name:integer  | nhIWDevxEtU:null  | iPIbTFddDK:integer    | rUvqtgSl:integer
+false                   | 1             | null              | 1                     | 1
+;

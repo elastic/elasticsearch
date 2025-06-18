@@ -184,6 +184,24 @@ cost:double | cluster:keyword | time_bucket:datetime
 22.75       | qa              | 2024-05-10T00:08:00.000Z
 ;
 
+min_over_time
+required_capability: metrics_command
+required_capability: min_over_time
+TS k8s | STATS cost=sum(min_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+cost:double | cluster:keyword | time_bucket:datetime    
+29.0        | prod            | 2024-05-10T00:19:00.000Z
+27.625      | qa              | 2024-05-10T00:06:00.000Z
+24.25       | qa              | 2024-05-10T00:09:00.000Z
+23.125      | staging         | 2024-05-10T00:08:00.000Z
+22.5        | prod            | 2024-05-10T00:13:00.000Z
+18.625      | qa              | 2024-05-10T00:04:00.000Z
+18.0        | qa              | 2024-05-10T00:11:00.000Z
+17.75       | qa              | 2024-05-10T00:01:00.000Z
+17.125      | qa              | 2024-05-10T00:22:00.000Z
+16.875      | qa              | 2024-05-10T00:20:00.000Z
+;
+
 max_of_avg_over_time
 required_capability: metrics_command
 required_capability: avg_over_time
@@ -218,4 +236,103 @@ avg_cost:double    | cluster:keyword | time_bucket:datetime
 8.805555555555555  | qa              | 2024-05-10T00:09:00.000Z
 8.71875            | prod            | 2024-05-10T00:22:00.000Z
 8.5625             | qa              | 2024-05-10T00:22:00.000Z
+;
+
+
+max_of_last_over_time
+required_capability: metrics_command
+required_capability: last_over_time
+TS k8s | STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+max_cost:double | cluster:keyword | time_bucket:datetime    
+12.5            | staging         | 2024-05-10T00:09:00.000Z
+12.375          | prod            | 2024-05-10T00:17:00.000Z
+12.375          | qa              | 2024-05-10T00:06:00.000Z
+12.375          | qa              | 2024-05-10T00:01:00.000Z
+12.25           | prod            | 2024-05-10T00:19:00.000Z
+12.125          | qa              | 2024-05-10T00:17:00.000Z
+12.125          | prod            | 2024-05-10T00:00:00.000Z
+12.0            | prod            | 2024-05-10T00:08:00.000Z
+12.0            | qa              | 2024-05-10T00:08:00.000Z
+11.875          | qa              | 2024-05-10T00:21:00.000Z
+;
+
+max_of_first_over_time
+required_capability: metrics_command
+required_capability: first_over_time
+TS k8s | STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+max_cost:double | cluster:keyword | time_bucket:datetime    
+12.375          | prod            | 2024-05-10T00:17:00.000Z
+12.375          | qa              | 2024-05-10T00:01:00.000Z
+12.25           | prod            | 2024-05-10T00:19:00.000Z
+12.125          | qa              | 2024-05-10T00:07:00.000Z
+12.125          | staging         | 2024-05-10T00:03:00.000Z
+11.875          | prod            | 2024-05-10T00:15:00.000Z
+11.875          | qa              | 2024-05-10T00:09:00.000Z
+11.75           | qa              | 2024-05-10T00:06:00.000Z
+11.625          | prod            | 2024-05-10T00:12:00.000Z
+11.5            | staging         | 2024-05-10T00:16:00.000Z
+;
+
+sum_over_time
+required_capability: metrics_command
+required_capability: sum_over_time
+
+TS k8s | STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT sum_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+sum_cost:double | cluster:keyword | time_bucket:datetime
+    67.625      | qa              | 2024-05-10T00:17:00.000Z
+    65.75       | staging         | 2024-05-10T00:09:00.000Z
+    48.125      | qa              | 2024-05-10T00:09:00.000Z
+    48.125      | qa              | 2024-05-10T00:06:00.000Z
+    41.25       | qa              | 2024-05-10T00:11:00.000Z
+    38.875      | qa              | 2024-05-10T00:04:00.000Z
+    38.0        | qa              | 2024-05-10T00:15:00.000Z
+    37.5        | prod            | 2024-05-10T00:09:00.000Z
+    36.75       | qa              | 2024-05-10T00:08:00.000Z
+    32.25       | qa              | 2024-05-10T00:18:00.000Z
+
+;
+
+count_over_time
+required_capability: metrics_command
+required_capability: count_over_time
+
+TS k8s 
+| STATS count=count(count_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+| SORT count DESC, time_bucket DESC, cluster 
+| LIMIT 10;
+
+count:long | cluster:keyword | time_bucket:datetime
+3          | staging         | 2024-05-10T00:22:00.000Z
+3          | prod            | 2024-05-10T00:20:00.000Z
+3          | prod            | 2024-05-10T00:19:00.000Z
+3          | prod            | 2024-05-10T00:18:00.000Z
+3          | qa              | 2024-05-10T00:18:00.000Z
+3          | staging         | 2024-05-10T00:18:00.000Z
+3          | prod            | 2024-05-10T00:17:00.000Z
+3          | qa              | 2024-05-10T00:17:00.000Z
+3          | qa              | 2024-05-10T00:15:00.000Z
+3          | staging         | 2024-05-10T00:15:00.000Z
+
+;
+count_distinct_over_time
+required_capability: metrics_command
+required_capability: distinct_over_time
+
+TS k8s | STATS distincts=count_distinct(count_distinct_over_time(network.cost)), distincts_imprecise=count_distinct(count_distinct_over_time(network.cost, 100)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT distincts DESC, time_bucket DESC, cluster | LIMIT 10;
+
+distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:datetime
+3              |3              | qa              | 2024-05-10T00:17:00.000Z
+3              |3              | qa              | 2024-05-10T00:15:00.000Z
+3              |3              | prod            | 2024-05-10T00:09:00.000Z
+3              |3              | qa              | 2024-05-10T00:09:00.000Z
+2              |2              | prod            | 2024-05-10T00:22:00.000Z
+2              |2              | staging         | 2024-05-10T00:22:00.000Z
+2              |2              | prod            | 2024-05-10T00:20:00.000Z
+2              |2              | prod            | 2024-05-10T00:18:00.000Z
+2              |2              | qa              | 2024-05-10T00:18:00.000Z
+2              |2              | staging         | 2024-05-10T00:18:00.000Z
+
 ;

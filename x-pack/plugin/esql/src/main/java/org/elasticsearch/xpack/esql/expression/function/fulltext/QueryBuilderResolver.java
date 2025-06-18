@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -76,7 +77,9 @@ public final class QueryBuilderResolver {
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
                 QueryBuilder builder = f.queryBuilder(), initial = builder;
-                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder() : builder;
+                builder = builder == null
+                    ? f.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
+                    : builder;
                 try {
                     builder = builder.rewrite(ctx);
                 } catch (IOException e) {

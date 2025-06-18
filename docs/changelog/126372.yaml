@@ -1,0 +1,5 @@
+pr: 126372
+summary: Add `IndexingPressureMonitor` to monitor large indexing operations
+area: CRUD
+type: enhancement
+issues: []

@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,7 +36,6 @@ public class DataStreamRestIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("indices.lifecycle.history_index_enabled", "false")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .keystore("bootstrap.password", "x-pack-test-password")
         .user("x_pack_rest_user", "x-pack-test-password")
         .systemProperty("es.queryable_built_in_roles_enabled", "false")

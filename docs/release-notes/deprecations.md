@@ -16,16 +16,27 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+```{applies_to}
+stack: coming 9.0.2
+```
+## 9.0.2 [elasticsearch-9.0.2-deprecations]
+
+No deprecations in this version.
+
+## 9.0.1 [elasticsearch-9.0.1-deprecations]
+
+No deprecations in this version.
+
 ## 9.0.0 [elasticsearch-900-deprecations]
 
 ES|QL:
-* Drop support for brackets from METADATA syntax [#119846](https://github.com/elastic/elasticsearch/pull/119846) (issue: {es-issue}115401[#115401])
+* Drop support for brackets from METADATA syntax [#119846](https://github.com/elastic/elasticsearch/pull/119846) (issue: [#115401](https://github.com/elastic/elasticsearch/issues/115401))
 
 Ingest Node:
 * Fix `_type` deprecation on simulate pipeline API [#116259](https://github.com/elastic/elasticsearch/pull/116259)
 
 Machine Learning:
-* Add deprecation warning for flush API [#121667](https://github.com/elastic/elasticsearch/pull/121667) (issue: {es-issue}121506[#121506])
+* Add deprecation warning for flush API [#121667](https://github.com/elastic/elasticsearch/pull/121667) (issue: [#121506](https://github.com/elastic/elasticsearch/issues/121506))
 * Removing index alias creation for deprecated transforms notification index [#117583](https://github.com/elastic/elasticsearch/pull/117583)
 * [Inference API] Deprecate elser service [#113216](https://github.com/elastic/elasticsearch/pull/113216)
 

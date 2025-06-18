@@ -262,9 +262,7 @@ public class PublicationTransportHandler {
     }
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node, TransportVersion version) {
-        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
-        boolean success = false;
-        try {
+        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
             final long uncompressedBytes;
             try (
                 StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
@@ -278,20 +276,15 @@ public class PublicationTransportHandler {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
-            serializationStatsTracker.serializedFullState(uncompressedBytes, result.length());
+            final int size = bytesStream.size();
+            serializationStatsTracker.serializedFullState(uncompressedBytes, size);
             logger.trace(
                 "serialized full cluster state version [{}] using transport version [{}] with size [{}]",
                 clusterState.version(),
                 version,
-                result.length()
+                size
             );
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                bytesStream.close();
-            }
+            return bytesStream.moveToBytesReference();
         }
     }
 
@@ -302,9 +295,7 @@ public class PublicationTransportHandler {
         TransportVersion version
     ) {
         final long clusterStateVersion = newState.version();
-        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
-        boolean success = false;
-        try {
+        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
             final long uncompressedBytes;
             try (
                 StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
@@ -322,20 +313,15 @@ public class PublicationTransportHandler {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
-            serializationStatsTracker.serializedDiff(uncompressedBytes, result.length());
+            final int size = bytesStream.size();
+            serializationStatsTracker.serializedDiff(uncompressedBytes, size);
             logger.trace(
                 "serialized cluster state diff for version [{}] using transport version [{}] with size [{}]",
                 clusterStateVersion,
                 version,
-                result.length()
+                size
             );
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                bytesStream.close();
-            }
+            return bytesStream.moveToBytesReference();
         }
     }
 

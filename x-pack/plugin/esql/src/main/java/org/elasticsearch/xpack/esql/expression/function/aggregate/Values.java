@@ -72,9 +72,15 @@ public class Values extends AggregateFunction implements ToAggregator {
             "long",
             "version" },
         preview = true,
-        description = "Returns all values in a group as a multivalued field. The order of the returned values isn’t guaranteed. "
-            + "If you need the values returned in order use <<esql-mv_sort>>.",
+        description = """
+            Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
+            If you need the values returned in order use
+            [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sort).""",
         appendix = """
+            ::::{tip}
+            Use [`TOP`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-top)
+            if you need to keep repeated values.
+            ::::
             ::::{warning}
             This can use a significant amount of memory and ES|QL doesn’t yet
             grow aggregations beyond memory. So this aggregation will work until

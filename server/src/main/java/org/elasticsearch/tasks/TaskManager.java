@@ -141,7 +141,14 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        Task task = request.createTask(
+            lastDiscoveryNodes.getLocalNodeId(),
+            taskIdGenerator.incrementAndGet(),
+            type,
+            action,
+            request.getParentTask(),
+            headers
+        );
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
@@ -736,11 +743,11 @@ public class TaskManager implements ClusterStateApplier {
             return curr;
         });
         if (tracker.registered.compareAndSet(false, true)) {
-            channel.addCloseListener(ActionListener.wrap(r -> {
+            channel.addCloseListener(ActionListener.running(() -> {
                 final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
                 assert removedTracker == tracker;
                 onChannelClosed(tracker);
-            }, e -> { assert false : new AssertionError("must not be here", e); }));
+            }));
         }
         return tracker;
     }

@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -159,7 +159,7 @@ public class AucRoc extends AbstractAucRoc {
         if (result.get() != null) {
             return;
         }
-        Filter classAgg = aggs.get(TRUE_AGG_NAME);
+        SingleBucketAggregation classAgg = aggs.get(TRUE_AGG_NAME);
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have the value [{}]",
@@ -169,7 +169,7 @@ public class AucRoc extends AbstractAucRoc {
             );
         }
         double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES_AGG_NAME));
-        Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
+        SingleBucketAggregation restAgg = aggs.get(NON_TRUE_AGG_NAME);
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] requires at least one [{}] to have a different value than [{}]",

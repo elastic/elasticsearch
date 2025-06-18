@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -130,20 +131,20 @@ public class IndexLifecycleService
             .addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
     }
 
-    public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
-        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, indexMetadata.getLifecyclePolicyName(), nextStepKey);
+    public void maybeRunAsyncAction(ProjectState state, IndexMetadata indexMetadata, StepKey nextStepKey) {
+        lifecycleRunner.maybeRunAsyncAction(state, indexMetadata, indexMetadata.getLifecyclePolicyName(), nextStepKey);
     }
 
     /**
      * Resolve the given phase, action, and name into a real {@link StepKey}. The phase is always
      * required, but the action and name are optional. If a name is specified, an action is also required.
      */
-    public StepKey resolveStepKey(ClusterState state, Index index, String phase, @Nullable String action, @Nullable String name) {
+    public StepKey resolveStepKey(ProjectMetadata project, Index index, String phase, @Nullable String action, @Nullable String name) {
         if (name == null) {
             if (action == null) {
-                return this.policyRegistry.getFirstStepForPhase(state, index, phase);
+                return this.policyRegistry.getFirstStepForPhase(project, index, phase);
             } else {
-                return this.policyRegistry.getFirstStepForPhaseAndAction(state, index, phase, action);
+                return this.policyRegistry.getFirstStepForPhaseAndAction(project, index, phase, action);
             }
         } else {
             assert action != null
@@ -153,7 +154,7 @@ public class IndexLifecycleService
     }
 
     /**
-     * Move the cluster state to an arbitrary step for the provided index.
+     * Move the project to an arbitrary step for the provided index.
      *
      * In order to avoid a check-then-set race condition, the current step key
      * is required in order to validate that the index is currently on the
@@ -161,26 +162,21 @@ public class IndexLifecycleService
      * thrown.
      * @throws IllegalArgumentException if the step movement cannot be validated
      */
-    public ClusterState moveClusterStateToStep(ClusterState currentState, Index index, StepKey currentStepKey, StepKey newStepKey) {
+    public ProjectMetadata moveIndexToStep(ProjectMetadata project, Index index, StepKey currentStepKey, StepKey newStepKey) {
         // We manually validate here, because any API must correctly specify the current step key
         // when moving to an arbitrary step key (to avoid race conditions between the
-        // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
+        // check-and-set). moveProjectToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
-        IndexLifecycleTransition.validateTransition(
-            currentState.getMetadata().getProject().index(index),
-            currentStepKey,
-            newStepKey,
-            policyRegistry
-        );
-        return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey, nowSupplier, policyRegistry, true);
+        IndexLifecycleTransition.validateTransition(project.index(index), currentStepKey, newStepKey, policyRegistry);
+        return IndexLifecycleTransition.moveIndexToStep(index, project, newStepKey, nowSupplier, policyRegistry, true);
     }
 
-    public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {
-        ClusterState newState = currentState;
+    public ProjectMetadata moveIndicesToPreviouslyFailedStep(ProjectMetadata currentProject, String[] indices) {
+        ProjectMetadata newProject = currentProject;
         for (String index : indices) {
-            newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(newState, index, nowSupplier, policyRegistry, false);
+            newProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(newProject, index, nowSupplier, policyRegistry, false);
         }
-        return newState;
+        return newProject;
     }
 
     // package private for testing
@@ -189,7 +185,8 @@ public class IndexLifecycleService
 
         // TODO multi-project: this probably needs a per-project iteration
         @FixForMultiProject
-        final ProjectMetadata projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        final ProjectState state = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final ProjectMetadata projectMetadata = state.metadata();
         final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentILMMode(projectMetadata);
@@ -216,7 +213,7 @@ public class IndexLifecycleService
                                     policyName,
                                     stepKey.name()
                                 );
-                                lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                                lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
                                 // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                                 safeToStop = false;
                             } else {
@@ -228,7 +225,7 @@ public class IndexLifecycleService
                                 );
                             }
                         } else {
-                            lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                            lifecycleRunner.maybeRunAsyncAction(state, idxMeta, policyName, stepKey);
                         }
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
@@ -467,7 +464,8 @@ public class IndexLifecycleService
     @FixForMultiProject
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         @FixForMultiProject
-        final var projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        final var state = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final var projectMetadata = state.metadata();
         IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
 
         OperationMode currentMode = currentILMMode(projectMetadata);
@@ -504,9 +502,9 @@ public class IndexLifecycleService
                                 stepKey.name()
                             );
                             if (fromClusterStateChange) {
-                                lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                                lifecycleRunner.runPolicyAfterStateChange(state.projectId(), policyName, idxMeta);
                             } else {
-                                lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
+                                lifecycleRunner.runPeriodicStep(state, policyName, idxMeta);
                             }
                             // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                             safeToStop = false;
@@ -520,9 +518,9 @@ public class IndexLifecycleService
                         }
                     } else {
                         if (fromClusterStateChange) {
-                            lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
+                            lifecycleRunner.runPolicyAfterStateChange(state.projectId(), policyName, idxMeta);
                         } else {
-                            lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
+                            lifecycleRunner.runPeriodicStep(state, policyName, idxMeta);
                         }
                     }
                 } catch (Exception e) {

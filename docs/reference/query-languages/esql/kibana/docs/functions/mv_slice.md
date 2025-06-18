@@ -3,7 +3,7 @@
 ### MV SLICE
 Returns a subset of the multivalued field using the start and end index values.
 This is most useful when reading from a function that emits multivalued columns
-in a known order like [`SPLIT`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/string-functions#esql-split) or [`MV_SORT`](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/functions-operators/mv-functions#esql-mv_sort).
+in a known order like [`SPLIT`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/string-functions#esql-split) or [`MV_SORT`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/mv-functions#esql-mv_sort).
 
 ```esql
 row a = [1, 2, 2, 3]

@@ -85,7 +85,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         super(
             clusterService,
@@ -97,7 +98,7 @@ public class MockSearchService extends SearchService {
             circuitBreakerService,
             executorSelector,
             tracer,
-            OnlinePrewarmingService.NOOP
+            onlinePrewarmingService
         );
     }
 

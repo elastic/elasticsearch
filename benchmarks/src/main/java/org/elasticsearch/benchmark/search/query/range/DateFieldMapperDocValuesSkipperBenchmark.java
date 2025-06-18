@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -29,6 +28,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -295,7 +295,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     /**
      * Runs the actual Lucene range query, optionally combining a {@link LongPoint} index query
      * with doc values ({@link SortedNumericDocValuesField}) via {@link IndexOrDocValuesQuery},
-     * and then wrapping it with an {@link IndexSortSortedNumericDocValuesRangeQuery} to utilize the index sort.
+     * and then wrapping it with an {@link XIndexSortSortedNumericDocValuesRangeQuery} to utilize the index sort.
      *
      * @param searcher            the Lucene {@link IndexSearcher}
      * @param rangeStartTimestamp lower bound of the timestamp range
@@ -316,7 +316,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
             )
             : SortedNumericDocValuesField.newSlowRangeQuery(TIMESTAMP_FIELD, rangeStartTimestamp, rangeEndTimestamp);
 
-        final Query query = new IndexSortSortedNumericDocValuesRangeQuery(
+        final Query query = new XIndexSortSortedNumericDocValuesRangeQuery(
             TIMESTAMP_FIELD,
             rangeStartTimestamp,
             rangeEndTimestamp,

@@ -1,6 +1,0 @@
-pr: 125659
-summary: Non existing synonyms sets do not fail shard recovery for indices
-area: "Analysis"
-type: bug
-issues:
- - 125603

@@ -71,6 +71,12 @@ public @interface FunctionInfo {
     String appendix() default "";
 
     /**
+     * Adjusts documentation heading level (0=standard, 1=subheading, etc).
+     * Used to create logical nesting between related functions.
+     */
+    int depthOffset() default 0;
+
+    /**
      * The position the function can appear in the language.
      */
     FunctionType type() default FunctionType.SCALAR;

@@ -58,7 +58,10 @@ import java.util.Objects;
  */
 public class FlattenedFieldSyntheticWriterHelper {
 
-    private record Prefix(List<String> prefix) {
+    private static final String PATH_SEPARATOR = ".";
+    private static final String PATH_SEPARATOR_PATTERN = "\\.";
+
+    private record Prefix(List<String> parts) {
 
         Prefix() {
             this(new ArrayList<>());
@@ -79,7 +82,7 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
 
         private Prefix diff(final Prefix other) {
-            return diff(this.prefix, other.prefix);
+            return diff(this.parts, other.parts);
         }
 
         private static Prefix diff(final List<String> a, final List<String> b) {
@@ -99,7 +102,7 @@ public class FlattenedFieldSyntheticWriterHelper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(this.prefix);
+            return Objects.hash(this.parts);
         }
 
         @Override
@@ -111,7 +114,7 @@ public class FlattenedFieldSyntheticWriterHelper {
                 return false;
             }
             Prefix other = (Prefix) obj;
-            return Objects.equals(this.prefix, other.prefix);
+            return Objects.equals(this.parts, other.parts);
         }
     }
 
@@ -130,7 +133,7 @@ public class FlattenedFieldSyntheticWriterHelper {
 
         KeyValue(final BytesRef keyValue) {
             this(
-                FlattenedFieldParser.extractKey(keyValue).utf8ToString().split("\\."),
+                FlattenedFieldParser.extractKey(keyValue).utf8ToString().split(PATH_SEPARATOR_PATTERN),
                 FlattenedFieldParser.extractValue(keyValue).utf8ToString()
             );
         }
@@ -184,8 +187,8 @@ public class FlattenedFieldSyntheticWriterHelper {
 
     private String concatPath(Prefix prefix, String leaf) {
         StringBuilder builder = new StringBuilder();
-        for (String part : prefix.prefix) {
-            builder.append(part).append(".");
+        for (String part : prefix.parts) {
+            builder.append(part).append(PATH_SEPARATOR);
         }
         builder.append(leaf);
         return builder.toString();
@@ -198,13 +201,13 @@ public class FlattenedFieldSyntheticWriterHelper {
         String lastScalarSingleLeaf = null;
         KeyValue next;
 
-        do {
+        while (curr.equals(KeyValue.EMPTY) == false) {
             values.add(curr.value());
             BytesRef nextValue = sortedKeyedValues.next();
             next = nextValue == null ? KeyValue.EMPTY : new KeyValue(nextValue);
 
             var startPrefix = curr.prefix.diff(openObjects);
-            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.getFirst().equals(lastScalarSingleLeaf)) {
+            if (startPrefix.parts.isEmpty() == false && startPrefix.parts.getFirst().equals(lastScalarSingleLeaf)) {
                 // In the open object, there is a leaf with a scalar value, which is also the first
                 // part of the current path. Instead of traversing down into the path and building objects,
                 // combine the path into a single leaf and add it as a field.
@@ -214,18 +217,18 @@ public class FlattenedFieldSyntheticWriterHelper {
                 }
             } else {
                 // Traverse down into path, writing object keys to output, and adding to the openObject context.
-                startObject(b, startPrefix.prefix, openObjects.prefix);
+                startObject(b, startPrefix.parts, openObjects.parts);
                 if (curr.pathEquals(next) == false) {
                     lastScalarSingleLeaf = curr.leaf();
                     writeField(b, values, curr.leaf());
                 }
             }
 
-            int numObjectsToEnd = Prefix.numObjectsToEnd(openObjects.prefix, next.prefix.prefix);
-            endObject(b, numObjectsToEnd, openObjects.prefix);
+            int numObjectsToEnd = Prefix.numObjectsToEnd(openObjects.parts, next.prefix.parts);
+            endObject(b, numObjectsToEnd, openObjects.parts);
 
             curr = next;
-        } while (next.equals(KeyValue.EMPTY) == false);
+        }
     }
 
     private static void endObject(final XContentBuilder b, int numObjectsToClose, List<String> openObjects) throws IOException {

@@ -225,7 +225,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
-        final List<byte[]> bytes = List.of("a.b" + '\0' + "10", "a.b.c" + '\0' + "20")
+        final List<byte[]> bytes = List.of("a.b.c" + '\0' + "10", "a.b.c.d" + '\0' + "20")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
@@ -243,7 +243,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         builder.flush();
 
         // THEN
-        assertEquals("{\"a\":{\"b\":\"10\",\"b.c\":\"20\"}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals("{\"a\":{\"b\":{\"c\":\"10\",\"c.d\":\"20\"}}}", baos.toString(StandardCharsets.UTF_8));
     }
 
     private class SortedSetSortedKeyedValues implements FlattenedFieldSyntheticWriterHelper.SortedKeyedValues {

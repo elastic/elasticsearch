@@ -207,18 +207,15 @@ public class FlattenedFieldSyntheticWriterHelper {
             BytesRef nextValue = sortedKeyedValues.next();
             next = nextValue == null ? KeyValue.EMPTY : new KeyValue(nextValue);
 
-            // curr prefix is at least as long as openObjects
             var startPrefix = curr.prefix.diff(new Prefix(openObjects));
-
-            boolean scalarObjectMismatch = startPrefix.prefix.isEmpty() == false
-                && startPrefix.prefix.getFirst().equals(leafInSameObjectWithSamePrefix);
-            if (scalarObjectMismatch == false) {
+            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.getFirst().equals(leafInSameObjectWithSamePrefix)) {
+                if (curr.pathEquals(next) == false) {
+                    String combinedPath = concatPath(startPrefix, curr.leaf());
+                    writeField(b, values, combinedPath);
+                }
+            } else {
                 startObject(b, startPrefix.prefix, openObjects);
-            }
-            if (curr.pathEquals(next) == false) {
-                if (scalarObjectMismatch) {
-                    writeField(b, values, concatPath(startPrefix, curr.leaf()));
-                } else {
+                if (curr.pathEquals(next) == false) {
                     leafInSameObjectWithSamePrefix = curr.leaf();
                     writeField(b, values, curr.leaf());
                 }

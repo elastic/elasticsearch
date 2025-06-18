@@ -13,31 +13,40 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.info.BranchesFileParser;
 import org.elasticsearch.gradle.internal.info.DevelopmentBranch;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
-import org.gradle.initialization.layout.BuildLayout;
 
-import javax.annotation.Nullable;
-import javax.inject.Inject;
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.annotation.Nullable;
+import javax.inject.Inject;
+
+/**
+ * Updates the branches.json file in the root of the repository
+ */
 public class UpdateBranchesJsonTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(UpdateBranchesJsonTask.class);
 
     private final Project project;
     private final ObjectMapper objectMapper;
+    private final BranchesFileParser branchesFileParser;
 
     @Nullable
     private DevelopmentBranch addBranch;
@@ -49,8 +58,8 @@ public class UpdateBranchesJsonTask extends DefaultTask {
     @Inject
     public UpdateBranchesJsonTask(Project project) {
         this.project = project;
-        // TODO jozala: is there a better way to pass ObjectMapper?
         this.objectMapper = new ObjectMapper();
+        this.branchesFileParser = new BranchesFileParser(objectMapper);
     }
 
     @Option(option = "add-branch", description = "Specifies the branch and corresponding version to add in format <branch>:<version>")
@@ -64,14 +73,14 @@ public class UpdateBranchesJsonTask extends DefaultTask {
     }
 
     @Option(option = "update-branch", description = "Specifies the branch and corresponding version to update in format <branch>:<version>")
-    public void setCurrent(String branchAndVersion) {
+    public void updateBranch(String branchAndVersion) {
         this.updateBranch = toDevelopmentBranch(branchAndVersion);
     }
 
     private DevelopmentBranch toDevelopmentBranch(String branchAndVersion) {
         String[] parts = branchAndVersion.split(":");
         if (parts.length != 2) {
-            throw new IllegalArgumentException("Expected branch and version in format <branch>:<version>");
+            throw new InvalidUserDataException("Expected branch and version in format <branch>:<version>");
         }
         return new DevelopmentBranch(parts[0], Version.fromString(parts[1]));
     }
@@ -81,16 +90,29 @@ public class UpdateBranchesJsonTask extends DefaultTask {
         File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
         List<DevelopmentBranch> developmentBranches = readBranches(branchesFile);
 
+        if (addBranch == null && removeBranch == null && updateBranch == null) {
+            throw new InvalidUserDataException("At least one of add-branch, remove-branch or update-branch must be specified");
+        }
+
         if (addBranch != null) {
             LOGGER.info("Adding branch {} with version {}", addBranch.name(), addBranch.version());
+            if (developmentBranches.stream().anyMatch(developmentBranch -> developmentBranch.name().equals(addBranch.name()))) {
+                throw new InvalidUserDataException("Branch " + addBranch.name() + " already exists");
+            }
             developmentBranches.add(addBranch);
         }
         if (removeBranch != null) {
             LOGGER.info("Removing branch {}", removeBranch);
+            if (developmentBranches.stream().noneMatch(developmentBranch -> developmentBranch.name().equals(removeBranch))) {
+                throw new InvalidUserDataException("Branch " + removeBranch + " does not exist");
+            }
             developmentBranches.removeIf(developmentBranch -> developmentBranch.name().equals(removeBranch));
         }
         if (updateBranch != null) {
             LOGGER.info("Updating branch {} with version {}", updateBranch.name(), updateBranch.version());
+            if (developmentBranches.stream().noneMatch(developmentBranch -> developmentBranch.name().equals(updateBranch.name()))) {
+                throw new InvalidUserDataException("Branch " + updateBranch.name() + " does not exist");
+            }
             developmentBranches.removeIf(developmentBranch -> developmentBranch.name().equals(updateBranch.name()));
             developmentBranches.add(updateBranch);
         }
@@ -107,29 +129,19 @@ public class UpdateBranchesJsonTask extends DefaultTask {
         }
         ((ObjectNode) jsonNode).replace("branches", updatedBranches);
         objectMapper.writeValue(branchesFile, jsonNode);
-
-        // TODO jozala: where to actually push this change to Git?
     }
 
-    private List<DevelopmentBranch> readBranches(File branchesFile) throws IOException {
-        // TODO jozala: move to some common space and reuse with GlobalBuildInfoPlugin
-        List<DevelopmentBranch> branches = new ArrayList<>();
-        try (InputStream is = new FileInputStream(branchesFile)) {
-            JsonNode json = objectMapper.readTree(is);
-            for (JsonNode node : json.get("branches")) {
-                branches.add(
-                        new DevelopmentBranch(
-                                node.get("branch").asText(),
-                                Version.fromString(node.get("version").asText())
-                        )
-                );
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    private List<DevelopmentBranch> readBranches(File branchesFile) {
+        if (branchesFile.isFile() == false) {
+            throw new InvalidUserDataException("File branches.json has not been found in " +
+                    branchesFile.getAbsolutePath());
         }
 
-        return branches;
+        try {
+            byte[] branchesBytes = Files.readAllBytes(branchesFile.toPath());
+            return branchesFileParser.parse(branchesBytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read branches.json from " + branchesFile.getPath(), e);
+        }
     }
-
-
 }

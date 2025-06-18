@@ -67,6 +67,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     private static Settings settings;
     private static TestCapturingThreadPool testThreadPool;
     private static NodeEnvironment nodeEnvironment;
+    private static boolean setThreadPoolMergeSchedulerSetting;
 
     @BeforeClass
     public static void installMockUsableSpaceFS() throws Exception {
@@ -86,7 +87,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             // the default of "5s" slows down testing
             .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount);
-        if (randomBoolean()) {
+        setThreadPoolMergeSchedulerSetting = randomBoolean();
+        if (setThreadPoolMergeSchedulerSetting) {
             settingsBuilder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
         }
         settings = settingsBuilder.build();
@@ -520,6 +522,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 }
             }, 5, TimeUnit.SECONDS);
         }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
+        }
     }
 
     public void testAbortingOrRunningMergeTaskHoldsUpBudget() throws Exception {
@@ -592,6 +600,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 }
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
         }
     }
 
@@ -731,6 +745,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
         }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
+        }
     }
 
     public void testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution() throws Exception {
@@ -867,6 +887,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
         }
     }
 
@@ -1018,6 +1044,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     is(availableInitialBudget + grantedUsableSpaceBuffer)
                 );
             });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
         }
     }
 

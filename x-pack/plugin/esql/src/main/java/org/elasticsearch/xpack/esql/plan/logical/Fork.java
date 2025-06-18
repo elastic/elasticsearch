@@ -141,7 +141,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                     && attr.dataType() == DataType.UNSUPPORTED
                     && names.contains(attrName) == false) {
                     unsupportedAttributes.add(attrName);
-                } else if (unsupportedAttributes.contains(attrName) == true && attr.dataType() != DataType.UNSUPPORTED) {
+                } else if (unsupportedAttributes.contains(attrName) && attr.dataType() != DataType.UNSUPPORTED) {
                     unsupportedAttributes.remove(attrName);
                 }
                 names.add(attrName);

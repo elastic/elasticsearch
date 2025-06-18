@@ -247,7 +247,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertToXContentEquivalent(BytesReference.bytes(withDefaults), BytesReference.bytes(orig), XContentType.JSON);
 
         XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field")
+        createMapperService(fieldMapping(this::minimalMapping)).mappingLookup()
+            .getMapper("field")
             .toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
         origWithoutDefaults.endObject();
 
@@ -268,7 +269,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         );
 
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field")
+        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).mappingLookup()
+            .getMapper("field")
             .toXContent(orig, INCLUDE_DEFAULTS);
         orig.endObject();
 
@@ -281,7 +283,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertToXContentEquivalent(BytesReference.bytes(withDefaults), BytesReference.bytes(orig), XContentType.JSON);
 
         XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field")
+        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).mappingLookup()
+            .getMapper("field")
             .toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
         origWithoutDefaults.endObject();
 

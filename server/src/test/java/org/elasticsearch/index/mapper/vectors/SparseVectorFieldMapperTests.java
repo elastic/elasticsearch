@@ -703,11 +703,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     public void testTypeQueryFinalizationWithRandomOptions() throws Exception {
         for (int i = 0; i < 20; i++) {
             runTestTypeQueryFinalization(
-                randomBoolean(), // usePreviousIndex
-                randomBoolean(), // useIndexOptionsDefaults
-                randomBoolean(), // explicitIndexOptionsDoNotPrune
-                randomBoolean(), // queryOverridesPruning
-                randomBoolean()  // queryOverrideExplicitFalse
+                randomBoolean(), // useIndexVersionBeforeIndexOptions
+                randomBoolean(), // useMapperDefaultIndexOptions
+                randomBoolean(), // setMapperIndexOptionsPruneToFalse
+                randomBoolean(), // queryOverridesPruningConfig
+                randomBoolean()  // queryOverridesPruneToBeFalse
             );
         }
     }
@@ -801,61 +801,62 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(clauses.size(), equalTo(clauseCount));
     }
 
+    /**
+     * Runs a test of the query finalization based on various parameters
+     * that provides
+     * @param useIndexVersionBeforeIndexOptions set to true to use a previous index version before mapper index_options
+     * @param useMapperDefaultIndexOptions set to false to use an explicit, non-default mapper index_options
+     * @param setMapperIndexOptionsPruneToFalse set to true to use prune:false in the mapper index_options
+     * @param queryOverridesPruningConfig set to true to designate the query will provide a pruning_config
+     * @param queryOverridesPruneToBeFalse if true and queryOverridesPruningConfig is true, the query will provide prune:false
+     * @throws IOException
+     */
     private void runTestTypeQueryFinalization(
-        boolean usePreviousIndex,
-        boolean useIndexOptionsDefaults,
-        boolean explicitIndexOptionsDoNotPrune,
-        boolean queryOverridesPruning,
-        boolean queryOverrideExplicitFalse
+        boolean useIndexVersionBeforeIndexOptions,
+        boolean useMapperDefaultIndexOptions,
+        boolean setMapperIndexOptionsPruneToFalse,
+        boolean queryOverridesPruningConfig,
+        boolean queryOverridesPruneToBeFalse
     ) throws IOException {
-        // get the index version of the test to use
-        // either a current version that supports index options, or
-        // a previous version that does now
-        IndexVersion version = getIndexVersionForTest(usePreviousIndex);
-
-        // create our mapper service
-        // if we set explicitIndexOptionsDoNotPrune, the index_options (if present)
-        // will explicitly include "prune: false"
-        MapperService mapperService = getMapperServiceForRandomizedFinalizationTest(
-            version,
-            useIndexOptionsDefaults,
-            explicitIndexOptionsDoNotPrune
+        MapperService mapperService = getMapperServiceForTest(
+            useIndexVersionBeforeIndexOptions,
+            useMapperDefaultIndexOptions,
+            setMapperIndexOptionsPruneToFalse
         );
 
         // check and see if the query should explicitly override the index_options
-        Boolean shouldQueryPrune = queryOverridesPruning ? (queryOverrideExplicitFalse == false) : null;
+        Boolean shouldQueryPrune = queryOverridesPruningConfig ? (queryOverridesPruneToBeFalse == false) : null;
 
         // get the pruning configuration for the query if it's overriding
-        TokenPruningConfig queryPruningConfig = queryOverridesPruning && queryOverrideExplicitFalse == false
-            ? new TokenPruningConfig()
-            : null;
+        TokenPruningConfig queryPruningConfig = Boolean.TRUE.equals(shouldQueryPrune) ? new TokenPruningConfig() : null;
 
         // our logic if the results should be pruned or not
         // we should _not_ prune if any of the following:
         // - the query explicitly overrides the options and `prune` is set to false
         // - the query does not override the pruning options and:
-        // - either we are using a previous index version
-        // - or the index_options explicitly sets `prune` to false
-        boolean resultShouldNotBePruned = ((queryOverridesPruning && queryOverrideExplicitFalse)
-            || (queryOverridesPruning == false && (usePreviousIndex || explicitIndexOptionsDoNotPrune)));
+        //     - either we are using a previous index version
+        //     - or the index_options explicitly sets `prune` to false
+        boolean resultShouldNotBePruned = (
+                (queryOverridesPruningConfig && queryOverridesPruneToBeFalse) ||
+                (queryOverridesPruningConfig == false && (useIndexVersionBeforeIndexOptions || setMapperIndexOptionsPruneToFalse))
+            );
 
         try {
             performTypeQueryFinalizationTest(mapperService, shouldQueryPrune, queryPruningConfig, resultShouldNotBePruned == false);
         } catch (AssertionError e) {
             String message = "performTypeQueryFinalizationTest failed using parameters: "
-                + "usePreviousIndex: "
-                + usePreviousIndex
-                + ", useIndexOptionsDefaults: "
-                + useIndexOptionsDefaults
-                + ", explicitIndexOptionsDoNotPrune: "
-                + explicitIndexOptionsDoNotPrune
-                + ", queryOverridesPruning: "
-                + queryOverridesPruning
-                + ", queryOverrideExplicitFalse: "
-                + queryOverrideExplicitFalse;
+                + "useIndexVersionBeforeIndexOptions: "
+                + useIndexVersionBeforeIndexOptions
+                + ", useMapperDefaultIndexOptions: "
+                + useMapperDefaultIndexOptions
+                + ", setMapperIndexOptionsPruneToFalse: "
+                + setMapperIndexOptionsPruneToFalse
+                + ", queryOverridesPruningConfig: "
+                + queryOverridesPruningConfig
+                + ", queryOverridesPruneToBeFalse: "
+                + queryOverridesPruneToBeFalse;
             throw new AssertionError(message, e);
         }
-
     }
 
     private IndexVersion getIndexVersionForTest(boolean usePreviousIndex) {
@@ -868,38 +869,29 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             : IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 
-    private SparseVectorFieldMapper.IndexOptions getIndexOptionsQueryFinalization(
+    private MapperService getMapperServiceForTest(
         boolean usePreviousIndex,
         boolean useIndexOptionsDefaults,
-        boolean explicitIndexOptionsDoNotPrune
-    ) {
+        boolean explicitIndexOptionsDoNotPrune) throws IOException
+    {
+        // get the index version of the test to use
+        // either a current version that supports index options, or a previous version that does not
+        IndexVersion indexVersion = getIndexVersionForTest(usePreviousIndex);
+
+        // if it's using the old index, we always use the minimal mapping without index_options
         if (usePreviousIndex) {
-            return null;
-        }
-
-        if (useIndexOptionsDefaults && explicitIndexOptionsDoNotPrune == false) {
-            return null;
-        }
-
-        return explicitIndexOptionsDoNotPrune
-            ? new SparseVectorFieldMapper.IndexOptions(false, null)
-            : new SparseVectorFieldMapper.IndexOptions(true, new TokenPruningConfig());
-    }
-
-    private MapperService getMapperServiceForRandomizedFinalizationTest(
-        IndexVersion indexVersion,
-        boolean useIndexOptionsDefaults,
-        boolean explicitIndexOptionsDoNotPrune
-    ) throws IOException {
-        if (useIndexOptionsDefaults && explicitIndexOptionsDoNotPrune == false) {
             return createMapperService(indexVersion, fieldMapping(this::minimalMapping));
         }
 
+        // if we set explicitIndexOptionsDoNotPrune, the index_options (if present) will explicitly include "prune: false"
         if (explicitIndexOptionsDoNotPrune) {
             return createMapperService(indexVersion, fieldMapping(this::mappingWithIndexOptionsPruneFalse));
         }
 
-        return createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+        // either return the default (minimal) mapping or one with an explicit pruning_config
+        return useIndexOptionsDefaults
+            ? createMapperService(indexVersion, fieldMapping(this::minimalMapping))
+            : createMapperService(indexVersion, fieldMapping(this::minimalMappingWithExplicitIndexOptions));
     }
 
     private static List<WeightedToken> QUERY_VECTORS = List.of(

@@ -586,6 +586,9 @@ tests:
 - class: org.elasticsearch.upgrades.RunningSnapshotIT
   method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/129646
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/129651
 
 # Examples:
 #

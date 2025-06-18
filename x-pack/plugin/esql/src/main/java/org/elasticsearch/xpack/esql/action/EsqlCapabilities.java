@@ -1197,6 +1197,9 @@ public class EsqlCapabilities {
          */
         KNN_FUNCTION(Build.current().isSnapshot()),
 
+        /**
+         * Support for the LIKE operator with a list of wildcards.
+         */
         LIKE_WITH_LIST_OF_PATTERNS,
 
         /**
@@ -1215,7 +1218,11 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+        /**
+         * Support for the RLIKE operator with a list of regexes.
+         */
+        RLIKE_WITH_LIST_OF_PATTERNS;
 
         private final boolean enabled;
 

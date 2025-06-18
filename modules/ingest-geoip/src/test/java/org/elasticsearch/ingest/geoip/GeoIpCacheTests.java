@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -140,23 +141,24 @@ public class GeoIpCacheTests extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(100);
         ProjectId projectId1 = randomUniqueProjectId();
         ProjectId projectId2 = randomUniqueProjectId();
-        String databasePath1 = "path/to/db1";
-        String databasePath2 = "path/to/db2";
+        // Turn the path strings into Paths to ensure that
+        Path databasePath1 = PathUtils.get("path/to/db1");
+        Path databasePath2 = PathUtils.get("path/to/db2");
         String ip1 = "127.0.0.1";
         String ip2 = "127.0.0.2";
 
         AbstractResponse response = mock(AbstractResponse.class);
-        cache.putIfAbsent(projectId1, ip1, databasePath1, ip -> response); // cache miss
-        cache.putIfAbsent(projectId1, ip2, databasePath1, ip -> response); // cache miss
-        cache.putIfAbsent(projectId2, ip1, databasePath1, ip -> response); // cache miss
-        cache.putIfAbsent(projectId1, ip1, databasePath2, ip -> response); // cache miss
-        cache.purgeCacheEntriesForDatabase(projectId1, PathUtils.get(databasePath1));
+        cache.putIfAbsent(projectId1, ip1, databasePath1.toString(), ip -> response); // cache miss
+        cache.putIfAbsent(projectId1, ip2, databasePath1.toString(), ip -> response); // cache miss
+        cache.putIfAbsent(projectId2, ip1, databasePath1.toString(), ip -> response); // cache miss
+        cache.putIfAbsent(projectId1, ip1, databasePath2.toString(), ip -> response); // cache miss
+        cache.purgeCacheEntriesForDatabase(projectId1, databasePath1);
         // should have purged entries for projectId1 and databasePath1...
-        assertNull(cache.get(projectId1, ip1, databasePath1));
-        assertNull(cache.get(projectId1, ip2, databasePath1));
+        assertNull(cache.get(projectId1, ip1, databasePath1.toString()));
+        assertNull(cache.get(projectId1, ip2, databasePath1.toString()));
         // ...but left the one for projectId2...
-        assertSame(response, cache.get(projectId2, ip1, databasePath1));
+        assertSame(response, cache.get(projectId2, ip1, databasePath1.toString()));
         // ...and for databasePath2:
-        assertSame(response, cache.get(projectId1, ip1, databasePath2));
+        assertSame(response, cache.get(projectId1, ip1, databasePath2.toString()));
     }
 }

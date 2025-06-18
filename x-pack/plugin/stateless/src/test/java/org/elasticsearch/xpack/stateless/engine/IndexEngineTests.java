@@ -48,6 +48,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.junit.After;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -86,6 +87,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndexEngineTests extends AbstractEngineTestCase {
+
+    @After
+    public void assertWarningHeaders() {
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
 
     public void testAsyncEnsureSync() throws Exception {
         TranslogReplicator replicator = mock(TranslogReplicator.class);

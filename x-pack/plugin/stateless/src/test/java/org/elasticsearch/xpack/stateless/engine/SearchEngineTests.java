@@ -124,6 +124,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertThat(getCurrentGeneration(searchEngine), equalTo(1L + 1L + flushes));
             assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testCommitNotificationsAfterCorruption() throws IOException {
@@ -165,6 +169,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 assertThat(getCurrentGeneration(searchEngine), equalTo(searchGenerationBeforeCorruption));
             }
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testFailEngineWithCorruption() throws IOException {
@@ -302,6 +310,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 );
             }
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoesNotRegisterListenersWithOldPrimaryTerm() throws Exception {
@@ -443,6 +455,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             );
             assertTrue(initialTermFourthGenerationCalled.get());
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     /**
@@ -516,6 +532,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             assertThat(checkIndex.checkIndex().clean, is(false));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testLatestUploadedTermAndGenUpdatedOnCommitNotification() throws IOException {
@@ -633,6 +653,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }
             IOUtils.close(commit1, commit2);
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     private StatelessCompoundCommit buildCompoundCommit(ShardId shardId, long primaryTerm, long ccGen) {

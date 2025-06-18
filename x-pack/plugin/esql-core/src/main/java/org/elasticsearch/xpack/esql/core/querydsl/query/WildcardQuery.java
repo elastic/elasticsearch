@@ -18,14 +18,11 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 
 public class WildcardQuery extends Query {
 

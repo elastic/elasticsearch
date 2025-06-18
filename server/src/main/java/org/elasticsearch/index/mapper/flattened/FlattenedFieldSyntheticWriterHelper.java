@@ -99,23 +99,6 @@ public class FlattenedFieldSyntheticWriterHelper {
             }
             return new Prefix(diff);
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(this.parts);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Prefix other = (Prefix) obj;
-            return Objects.equals(this.parts, other.parts);
-        }
     }
 
     private static class KeyValue {
@@ -208,9 +191,13 @@ public class FlattenedFieldSyntheticWriterHelper {
 
             var startPrefix = curr.prefix.diff(openObjects);
             if (startPrefix.parts.isEmpty() == false && startPrefix.parts.getFirst().equals(lastScalarSingleLeaf)) {
-                // In the open object, there is a leaf with a scalar value, which is also the first
-                // part of the current path. Instead of traversing down into the path and building objects,
-                // combine the path into a single leaf and add it as a field.
+                // In the currently open object, a previous key with a scalar value is a prefix of the current path. Instead of traversing
+                // the path and building nested objects, we concatenate the path into a single key and add it as a field. For example:
+                // Assume the current object contains "foo": 10 and "foo.bar": 20. Since key-value pairs are sorted, "foo" is processed
+                // first. When writing the field "foo", `lastScalarSingleLeaf` is set to "foo" because it has a scalar value. Next, when
+                // processing "foo.bar", we check if `lastScalarSingleLeaf` ("foo") is a prefix of "foo.bar". Since it is, this indicates a
+                // conflict: a scalar value and an object share the same key ("foo"). To disambiguate, we create a flat key "foo.bar"
+                // with the value 20 in the current object, rather than creating a nested object as usual.
                 if (curr.pathEquals(next) == false) {
                     String combinedPath = concatPath(startPrefix, curr.leaf());
                     writeField(b, values, combinedPath);

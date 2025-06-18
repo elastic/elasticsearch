@@ -151,6 +151,34 @@ public final class FirstOverTimeIntGroupingAggregatorFunction implements Groupin
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block timestampsUncast = page.getBlock(channels.get(0));
+    if (timestampsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock timestamps = (LongBlock) timestampsUncast;
+    Block valuesUncast = page.getBlock(channels.get(1));
+    if (valuesUncast.areAllValuesNull()) {
+      return;
+    }
+    IntBlock values = (IntBlock) valuesUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        FirstOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, groupPosition + positionOffset);
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock values,
       LongVector timestamps) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -189,6 +217,34 @@ public final class FirstOverTimeIntGroupingAggregatorFunction implements Groupin
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block timestampsUncast = page.getBlock(channels.get(0));
+    if (timestampsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock timestamps = (LongBlock) timestampsUncast;
+    Block valuesUncast = page.getBlock(channels.get(1));
+    if (valuesUncast.areAllValuesNull()) {
+      return;
+    }
+    IntBlock values = (IntBlock) valuesUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        FirstOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, groupPosition + positionOffset);
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, IntBlock values,
       LongVector timestamps) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -211,11 +267,6 @@ public final class FirstOverTimeIntGroupingAggregatorFunction implements Groupin
       var valuePosition = groupPosition + positionOffset;
       FirstOverTimeIntAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getInt(valuePosition));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -247,6 +298,11 @@ public final class FirstOverTimeIntGroupingAggregatorFunction implements Groupin
     FirstOverTimeIntAggregator.GroupingState inState = ((FirstOverTimeIntGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     FirstOverTimeIntAggregator.combineStates(state, groupId, inState, position);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

@@ -43,18 +43,13 @@ public class GroupingAggregator implements Releasable {
         if (mode.isInputPartial()) {
             return new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
-                }
-
-                @Override
                 public void add(int positionOffset, IntArrayBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
 
                 @Override
                 public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
 
                 @Override

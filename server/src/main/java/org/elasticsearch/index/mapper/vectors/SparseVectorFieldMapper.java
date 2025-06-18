@@ -143,12 +143,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         private IndexOptions getDefaultIndexOptions(IndexVersion indexVersion) {
-            return (
-                indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION) ||
-                indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
-            )
-                   ? IndexOptions.DEFAULT_PRUNING_INDEX_OPTIONS
-                   : null;
+            return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+                || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0))
+                    ? IndexOptions.DEFAULT_PRUNING_INDEX_OPTIONS
+                    : null;
         }
 
         private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, IndexOptions value) {
@@ -308,11 +306,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        BuilderParams builderParams
-    ) {
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
     }
 
@@ -412,13 +406,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     private static boolean indexVersionSupportsDefaultPruningConfig(IndexVersion indexVersion) {
         // default pruning for 9.1.0+ or 8.19.0+ is true for this index
-        return (
-            indexVersion != null &&
-            (
-                indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION) ||
-                indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
-            )
-        );
+        return (indexVersion != null
+            && (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+                || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)));
     }
 
     private static class SparseVectorValueFetcher implements ValueFetcher {
@@ -558,8 +548,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         public static boolean isDefaultOptions(IndexOptions indexOptions, IndexVersion indexVersion) {
             IndexOptions defaultIndexOptions = indexVersionSupportsDefaultPruningConfig(indexVersion)
-                                               ? DEFAULT_PRUNING_INDEX_OPTIONS
-                                               : null;
+                ? DEFAULT_PRUNING_INDEX_OPTIONS
+                : null;
 
             return Objects.equals(indexOptions, defaultIndexOptions);
         }

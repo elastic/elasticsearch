@@ -834,12 +834,10 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         // we should _not_ prune if any of the following:
         // - the query explicitly overrides the options and `prune` is set to false
         // - the query does not override the pruning options and:
-        //     - either we are using a previous index version
-        //     - or the index_options explicitly sets `prune` to false
-        boolean resultShouldNotBePruned = (
-                (queryOverridesPruningConfig && queryOverridesPruneToBeFalse) ||
-                (queryOverridesPruningConfig == false && (useIndexVersionBeforeIndexOptions || setMapperIndexOptionsPruneToFalse))
-            );
+        // - either we are using a previous index version
+        // - or the index_options explicitly sets `prune` to false
+        boolean resultShouldNotBePruned = ((queryOverridesPruningConfig && queryOverridesPruneToBeFalse)
+            || (queryOverridesPruningConfig == false && (useIndexVersionBeforeIndexOptions || setMapperIndexOptionsPruneToFalse)));
 
         try {
             performTypeQueryFinalizationTest(mapperService, shouldQueryPrune, queryPruningConfig, resultShouldNotBePruned == false);
@@ -872,8 +870,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     private MapperService getMapperServiceForTest(
         boolean usePreviousIndex,
         boolean useIndexOptionsDefaults,
-        boolean explicitIndexOptionsDoNotPrune) throws IOException
-    {
+        boolean explicitIndexOptionsDoNotPrune
+    ) throws IOException {
         // get the index version of the test to use
         // either a current version that supports index options, or a previous version that does not
         IndexVersion indexVersion = getIndexVersionForTest(usePreviousIndex);

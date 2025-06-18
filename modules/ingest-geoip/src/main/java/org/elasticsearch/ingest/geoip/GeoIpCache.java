@@ -173,13 +173,12 @@ public final class GeoIpCache {
         private static final long BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(CacheKey.class);
 
         private long sizeInBytes() {
-            return keySizeInBytes(ip, databasePath);
+            return keySizeInBytes(projectId, ip, databasePath);
         }
     }
 
     // visible for testing
-    static long keySizeInBytes(String ip, String databasePath) {
-        // TODO(pete): Add ProjectID size
-        return CacheKey.BASE_BYTES + RamUsageEstimator.sizeOf(ip) + RamUsageEstimator.sizeOf(databasePath);
+    static long keySizeInBytes(ProjectId projectId, String ip, String databasePath) {
+        return CacheKey.BASE_BYTES + projectId.sizeInBytes() + RamUsageEstimator.sizeOf(ip) + RamUsageEstimator.sizeOf(databasePath);
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +28,7 @@ public class ProjectId implements Writeable, ToXContent {
     public static final ProjectId DEFAULT = new ProjectId(DEFAULT_STRING);
     public static final Reader<ProjectId> READER = ProjectId::readFrom;
     private static final int MAX_LENGTH = 128;
+    private static final long BASE_BYTES_SIZE = RamUsageEstimator.shallowSizeOfInstance(ProjectId.class);
 
     private final String id;
 
@@ -112,5 +114,9 @@ public class ProjectId implements Writeable, ToXContent {
     @Override
     public int hashCode() {
         return Objects.hashCode(id);
+    }
+
+    public long sizeInBytes() {
+        return BASE_BYTES_SIZE + RamUsageEstimator.sizeOf(id);
     }
 }

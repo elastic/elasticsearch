@@ -54,8 +54,8 @@ public class GeoIpCacheTests extends ESTestCase {
         String ip2 = "127.0.0.2";
         String databasePath2 = "path/to/db";
         FakeResponse response2 = new FakeResponse(222);
-        long totalSize = GeoIpCache.keySizeInBytes(ip1, databasePath1) + GeoIpCache.keySizeInBytes(ip2, databasePath2) + response1
-            .sizeInBytes() + response2.sizeInBytes();
+        long totalSize = GeoIpCache.keySizeInBytes(projectId, ip1, databasePath1) + GeoIpCache.keySizeInBytes(projectId, ip2, databasePath2)
+            + response1.sizeInBytes() + response2.sizeInBytes();
 
         GeoIpCache justBigEnoughCache = GeoIpCache.createGeoIpCacheWithMaxBytes(ByteSizeValue.ofBytes(totalSize));
         justBigEnoughCache.putIfAbsent(projectId, ip1, databasePath1, ip -> response1);

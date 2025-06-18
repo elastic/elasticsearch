@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -202,8 +203,12 @@ public class Mapper {
 
     private PhysicalPlan mapToFragmentExec(LogicalPlan logical, PhysicalPlan child) {
         Holder<Boolean> hasFragment = new Holder<>(false);
+        Holder<Boolean> forceLocal = new Holder<>(false);
 
         var childTransformed = child.transformUp(f -> {
+            if (forceLocal.get()) {
+                return f;
+            }
             // Once we reached FragmentExec, we stuff our Enrich under it
             if (f instanceof FragmentExec) {
                 hasFragment.set(true);
@@ -216,12 +221,21 @@ public class Mapper {
                 }));
             }
             if (f instanceof EnrichExec enrichExec) {
-                // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
-                assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
-                return enrichExec.child();
+                assert enrichExec.mode() != Enrich.Mode.REMOTE : "Unexpected remote ENRICH when looking for fragment";
+                if (enrichExec.mode() == Enrich.Mode.ANY) {
+                    return enrichExec.child();
+                } else {
+                    forceLocal.set(true);
+                    return f;
+                }
             }
             if (f instanceof UnaryExec unaryExec) {
-                if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
+                if (f instanceof AggregateExec || f instanceof TopNExec) {
+                    // We can't make a fragment here...
+                    forceLocal.set(true);
+                    return f;
+                }
+                if (f instanceof LimitExec || f instanceof ExchangeExec) {
                     return f;
                 } else {
                     return unaryExec.child();
@@ -230,9 +244,12 @@ public class Mapper {
             if (f instanceof LookupJoinExec lj) {
                 return lj.right();
             }
-            // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
             return f;
         });
+
+        if (forceLocal.get()) {
+            return null;
+        }
 
         if (hasFragment.get()) {
             return childTransformed;

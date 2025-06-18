@@ -146,6 +146,7 @@ public class TestPolicyManager extends PolicyManager {
         "org.gradle",
 
         "org.jcodings", // A library loaded with SPI that tries to create a CharsetProvider
+        "com.google.common.jimfs", // Used on Windows
 
         // We shouldn't really need the rest of these. They should be discovered on the testOnlyClasspath.
         "com.carrotsearch.randomizedtesting",

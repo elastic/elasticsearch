@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -64,8 +65,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
 
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
-    private static final Literal DESC = new Literal(Source.EMPTY, "DESC", DataType.KEYWORD);
+    private static final Literal ASC = Literal.keyword(Source.EMPTY, "ASC");
+    private static final Literal DESC = Literal.keyword(Source.EMPTY, "DESC");
 
     private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
@@ -154,14 +155,14 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                     null,
                     INVALID_ORDER_ERROR,
                     sourceText(),
-                    ASC.value(),
-                    DESC.value(),
-                    ((BytesRef) order.fold(toEvaluator.foldCtx())).utf8ToString()
+                    BytesRefs.toString(ASC.value()),
+                    BytesRefs.toString(DESC.value()),
+                    BytesRefs.toString(order.fold(toEvaluator.foldCtx()))
                 )
             );
         }
         if (order != null && order.foldable()) {
-            ordering = ((BytesRef) order.fold(toEvaluator.foldCtx())).utf8ToString().equalsIgnoreCase((String) ASC.value());
+            ordering = BytesRefs.toString(order.fold(toEvaluator.foldCtx())).equalsIgnoreCase(BytesRefs.toString(ASC.value()));
         }
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
@@ -243,9 +244,9 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                     order,
                     INVALID_ORDER_ERROR,
                     sourceText(),
-                    ASC.value(),
-                    DESC.value(),
-                    ((BytesRef) order.fold(FoldContext.small() /* TODO remove me */)).utf8ToString()
+                    BytesRefs.toString(ASC.value()),
+                    BytesRefs.toString(DESC.value()),
+                    BytesRefs.toString(order.fold(FoldContext.small() /* TODO remove me */))
                 )
             );
         }
@@ -261,7 +262,9 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             } else if (obj instanceof String os) {
                 o = os;
             }
-            if (o == null || o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
+            if (o == null
+                || o.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false
+                    && o.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false) {
                 isValidOrder = false;
             }
         }

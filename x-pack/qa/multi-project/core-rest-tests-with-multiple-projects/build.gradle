@@ -22,6 +22,7 @@ dependencies {
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:lang-mustache')
   clusterModules project(':modules:parent-join')
+  clusterModules project(':modules:streams')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))

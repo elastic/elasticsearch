@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
@@ -39,9 +40,12 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 
 /**
  * Handles data stream modification requests.
@@ -54,6 +58,7 @@ public class MetadataDataStreamsService {
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
+    private final MasterServiceTaskQueue<UpdateSettingsTask> updateSettingsTaskQueue;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
@@ -116,6 +121,31 @@ public class MetadataDataStreamsService {
             }
         };
         this.updateOptionsTaskQueue = clusterService.createTaskQueue("modify-data-stream-options", Priority.NORMAL, updateOptionsExecutor);
+        ClusterStateTaskExecutor<UpdateSettingsTask> updateSettingsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateSettingsTask updateSettingsTask,
+                ClusterState clusterState
+            ) throws Exception {
+                DataStream dataStream = createDataStreamForUpdatedDataStreamSettings(
+                    updateSettingsTask.dataStreamName,
+                    updateSettingsTask.settingsOverrides,
+                    clusterState
+                );
+                Metadata projectMetadata = clusterState.metadata();
+                Metadata.Builder builder = Metadata.builder(projectMetadata);
+                builder.removeDataStream(updateSettingsTask.dataStreamName);
+                builder.put(dataStream);
+                ClusterState updatedClusterState = ClusterState.builder(clusterState).metadata(builder).build();
+                return new Tuple<>(updatedClusterState, updateSettingsTask);
+            }
+        };
+        this.updateSettingsTaskQueue = clusterService.createTaskQueue(
+            "update-data-stream-settings",
+            Priority.NORMAL,
+            updateSettingsExecutor
+        );
     }
 
     public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
@@ -337,6 +367,71 @@ public class MetadataDataStreamsService {
             dataStream.copy().setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build()).build()
         );
         return ClusterState.builder(currentState).metadata(builder.build()).build();
+    }
+
+    public void updateSettings(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String dataStreamName,
+        Settings settingsOverrides,
+        boolean dryRun,
+        ActionListener<DataStream> listener
+    ) {
+        if (dryRun) {
+            /*
+             * If this is a dry run, we'll do the settings validation and apply the changes to the data stream locally, but we won't run
+             * the task that actually updates the cluster state.
+             */
+            try {
+                DataStream updatedDataStream = createDataStreamForUpdatedDataStreamSettings(
+                    dataStreamName,
+                    settingsOverrides,
+                    clusterService.state()
+                );
+                listener.onResponse(updatedDataStream);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } else {
+            UpdateSettingsTask updateSettingsTask = new UpdateSettingsTask(
+                dataStreamName,
+                settingsOverrides,
+                clusterService,
+                ackTimeout,
+                listener
+            );
+            updateSettingsTaskQueue.submitTask("updating settings on data stream", updateSettingsTask, masterNodeTimeout);
+        }
+    }
+
+    /*
+     * This method validates that the settings won't cause any validation problems with existing templates. If successful, a copy of the
+     * data stream is returned with the new settings applied.
+     */
+    private DataStream createDataStreamForUpdatedDataStreamSettings(
+        String dataStreamName,
+        Settings settingsOverrides,
+        ClusterState clusterState
+    ) throws Exception {
+        Metadata metadata = clusterState.metadata();
+        Map<String, DataStream> dataStreamMap = metadata.dataStreams();
+        DataStream dataStream = dataStreamMap.get(dataStreamName);
+        Settings existingSettings = dataStream.getSettings();
+
+        Template.Builder templateBuilder = Template.builder();
+        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(settingsOverrides);
+        Settings mergedSettings = mergedSettingsBuilder.build();
+
+        final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, metadata);
+        ComposableIndexTemplate mergedTemplate = template.mergeSettings(mergedSettings);
+        MetadataIndexTemplateService.validateTemplate(
+            mergedTemplate.template().settings(),
+            mergedTemplate.template().mappings(),
+            indicesService
+        );
+
+        templateBuilder.settings(mergedSettingsBuilder);
+        return dataStream.copy().setSettings(mergedSettings).build();
     }
 
     private static void addBackingIndex(
@@ -561,6 +656,29 @@ public class MetadataDataStreamsService {
 
         public boolean targetFailureStore() {
             return targetFailureStore;
+        }
+    }
+
+    static class UpdateSettingsTask extends AckedBatchedClusterStateUpdateTask {
+        private final String dataStreamName;
+        private final Settings settingsOverrides;
+
+        UpdateSettingsTask(
+            String dataStreamName,
+            Settings settingsOverrides,
+            ClusterService clusterService,
+            TimeValue ackTimeout,
+            ActionListener<DataStream> listener
+        ) {
+            super(ackTimeout, listener.safeMap(response -> {
+                if (response.isAcknowledged()) {
+                    return clusterService.state().metadata().dataStreams().get(dataStreamName);
+                } else {
+                    throw new ElasticsearchException("Updating settings not accepted for unknown reasons");
+                }
+            }));
+            this.dataStreamName = dataStreamName;
+            this.settingsOverrides = settingsOverrides;
         }
     }
 }

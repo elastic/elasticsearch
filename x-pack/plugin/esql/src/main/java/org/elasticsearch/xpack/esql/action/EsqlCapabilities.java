@@ -955,7 +955,12 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION;
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support for LIKE operator with a list of patterns
+         */
+        LIKE_WITH_LIST_OF_PATTERNS;
 
         private final boolean enabled;
 

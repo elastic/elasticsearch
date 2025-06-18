@@ -201,7 +201,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
-        builder.projectsSettings(currentState.projectsSettings());
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());

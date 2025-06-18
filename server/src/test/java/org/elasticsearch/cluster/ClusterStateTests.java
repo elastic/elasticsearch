@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectsStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -801,15 +802,17 @@ public class ClusterStateTests extends ESTestCase {
                       }
                     ]
                   },
-                  "projects_settings": [
-                    {
-                      "id": "3LftaL7hgfXAsF60Gm6jcD",
-                      "settings": {
-                        "project.setting": "42",
-                        "project.setting2": "43"
+                  "projects_registry": {
+                    "projects": [
+                      {
+                        "id": "3LftaL7hgfXAsF60Gm6jcD",
+                        "settings": {
+                          "project.setting": "42",
+                          "project.setting2": "43"
+                        }
                       }
-                    }
-                  ]
+                    ]
+                  }
                 }
                 """,
             // Node 1
@@ -917,7 +920,11 @@ public class ClusterStateTests extends ESTestCase {
             .metadata(metadata)
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .putProjectSettings(projectId1, Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build())
+            .putCustom(ProjectsStateRegistry.TYPE,
+                ProjectsStateRegistry.builder()
+                    .putProjectSettings(projectId1,
+                        Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build())
+                    .build())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
@@ -2214,20 +2221,14 @@ public class ClusterStateTests extends ESTestCase {
                     chunkCount += 2 + snapshotDeletionsInProgress.getEntries().size();
                 } else if (custom instanceof SnapshotsInProgress snapshotsInProgress) {
                     chunkCount += 2 + snapshotsInProgress.asStream().count();
+                } else if (custom instanceof ProjectsStateRegistry projectsStateRegistry) {
+                    chunkCount += 2 + projectsStateRegistry.size();
                 } else {
                     // could be anything, we have to just try it
                     chunkCount += Iterables.size(
                         (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
                     );
                 }
-            }
-        }
-
-        // settings
-        if (metrics.contains(ClusterState.Metric.PROJECTS_SETTINGS)) {
-            Map<ProjectId, Settings> projectsSettings = clusterState.projectsSettings();
-            if (projectsSettings.isEmpty() == false) {
-                chunkCount += 2 + projectsSettings.size();
             }
         }
 

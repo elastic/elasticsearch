@@ -174,7 +174,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             // Force direct I/O for stored field temp fdt files, given that these are used once and then removed:
             // (tmp fdt files should only exist when index sorting is enabled)
             if (directIODelegate != null && LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt")) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 return openInputDirect(name, context);
             }
 

@@ -2113,7 +2113,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
-
     /**
      * Returns a list of the data stream's backing index names.
      */

@@ -21,6 +21,8 @@ _Demos:_ [Hands-on learning for Search](https://www.elastic.co/demo-gallery?solu
 
 _New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/virtual-events/architecting-search-apps-on-google-cloud)
 
+[API quickstarts](docs-content://solutions/search/api-quickstarts)
+
 ## Install, manage, and secure
 
 *   [Set up Elasticsearch](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md)
@@ -30,6 +32,7 @@ _New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/
 *   [Monitor a cluster](docs-content://deploy-manage/monitor/cloud-health-perf.md)
 *   [Troubleshooting](https://www.elastic.co/docs/troubleshoot/elasticsearch)
 *   [Enterprise Search server](https://www.elastic.co/docs/reference/search-connectors)
+*   [Optimizations](docs-content://deploy-manage/production-guidance/optimize-performance)
 
 ## Ingest data
 

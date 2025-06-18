@@ -391,6 +391,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 }
             }
         }
+        assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                        + "See the breaking changes documentation for the next major version."
+        );
     }
 
     private void assertSuccessfulOperation(final TestAction action, final Response response) {

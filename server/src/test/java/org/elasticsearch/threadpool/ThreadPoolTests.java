@@ -573,6 +573,7 @@ public class ThreadPoolTests extends ESTestCase {
                 ThreadPool.Names.GENERIC,
                 ThreadPool.Names.ANALYZE,
                 ThreadPool.Names.WRITE,
+                ThreadPool.Names.WRITE_COORDINATION,
                 ThreadPool.Names.SEARCH
             );
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);

@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -81,8 +80,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY,
-            TestProjectResolvers.mustExecuteFirst()
+            NamedXContentRegistry.EMPTY
         );
         ClusterState state = clusterService.state();
         ClusterServiceUtils.setState(

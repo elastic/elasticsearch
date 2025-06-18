@@ -95,8 +95,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         registry.initialize();
         return List.of();

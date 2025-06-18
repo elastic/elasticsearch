@@ -18,7 +18,6 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -30,8 +29,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
-import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.discretize;
-import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.packAsBinary;
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.packAsBinary;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to

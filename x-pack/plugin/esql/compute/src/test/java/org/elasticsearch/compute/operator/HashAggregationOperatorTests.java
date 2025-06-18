@@ -346,10 +346,10 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
             assertThat(
                 BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(Arrays.asList(List.of(groups[5]), List.of(groups[4]), List.of(groups[3])))
+                equalTo(Arrays.asList(List.of(groups[4]), List.of(groups[3]), List.of(groups[5])))
             );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(8L), List.of(1L), List.of(18L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(8L), List.of(1L), List.of(16L))));
+            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(1L), List.of(18L), List.of(8L))));
+            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(1L), List.of(16L), List.of(8L))));
 
             outputPage.releaseBlocks();
         }

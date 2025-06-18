@@ -49,7 +49,7 @@ import java.util.Objects;
 public class CategorizeBlockHash extends BlockHash {
 
     private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig
-        .buildStandardEsqlCategorizationAnalyzer(List.of());
+        .buildStandardEsqlCategorizationAnalyzer();
     private static final int NULL_ORD = 0;
 
     private final int channel;

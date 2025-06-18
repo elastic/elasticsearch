@@ -217,10 +217,9 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      * however you can use these tokens for looking up messages in indices generated with the standard
      * tokenizer. The latter is considered more important.
      */
-    public static CategorizationAnalyzerConfig buildStandardEsqlCategorizationAnalyzer(List<String> categorizationFilters) {
+    public static CategorizationAnalyzerConfig buildStandardEsqlCategorizationAnalyzer() {
 
         return new CategorizationAnalyzerConfig.Builder().addCharFilter("first_line_with_letters")
-            .addCategorizationFilters(categorizationFilters)
             .setTokenizer("standard")
             .addDateWordsTokenFilter()
             .addLimitFilter()

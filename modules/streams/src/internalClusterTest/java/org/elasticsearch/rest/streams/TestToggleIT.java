@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.StreamsMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.streams.logs.LogsStreamsActivationToggleAction;
 import org.elasticsearch.test.ESIntegTestCase;

@@ -868,6 +868,45 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             {"field":{"obj1":{"key":"foo"},"obj2":{"key":"bar"}}}"""));
     }
 
+    public void testSyntheticSourceWithScalarObjectMismatch() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1.key2", "foo");
+                b.startObject("key1");
+                {
+                    b.startObject("key2").field("key3", "bar").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":"foo","key2.key3":"bar"}}}"""));
+    }
+
+    public void testSyntheticSourceWithEmptyObject() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "foo");
+                b.startObject("key2").endObject();
+            }
+            b.endObject();
+        });
+        // Objects without any values are not included in the synthetic source
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":"foo"}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;

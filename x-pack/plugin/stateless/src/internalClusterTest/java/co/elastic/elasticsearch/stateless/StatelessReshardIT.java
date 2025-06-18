@@ -78,10 +78,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -89,7 +91,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
-
     public void testReshardTargetNumShardsIsValid() {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
@@ -135,7 +136,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
     }
 
-    public void testReshardWillRouteDocumentsToNewShard() throws Exception {
+    public void testReshardWillCopyDataAndRouteDocumentsToNewShard() throws Exception {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
 
@@ -153,6 +154,11 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, numDocs);
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) numDocs));
+
+        // We currently need to flush all indexed data in order for copy logic to see it.
+        // This will be included in later stages of resharding that currently don't exist.
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
 
         var initialIndexMetadata = clusterService().state().projectState().metadata().index(indexName);
         // before resharding there should be no resharding metadata
@@ -176,10 +182,15 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
 
-        // resharding data should eventually be removed after split executes
+        // resharding metadata should eventually be removed after split executes
         waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null).actionGet(
             SAFE_AWAIT_TIMEOUT
         );
+
+        // Logic to copy existing data to new shard exists
+        // but the logic to delete data that does not belong to the shard does not.
+        // So at this point every shard contains a full copy of documents from initial shard.
+        int totalNumberOfDocumentsInIndex = multiple * numDocs;
 
         // index documents until all the new shards have received at least one document
         final int[] docsPerShard = new int[multiple];
@@ -195,10 +206,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             numDocsRound2 += docsPerRequest;
         } while (shards < multiple);
 
+        totalNumberOfDocumentsInIndex += numDocsRound2;
+
         // include the original docs in the first shard
         docsPerShard[0] += numDocs;
 
-        // verify that each shard id contains the expected number of documents indexed into it
+        // Verify that each shard id contains the expected number of documents indexed into it.
+        // Note that stats won't include data copied from the source shard since they didn't go through the "normal" indexing logic.
         IndicesStatsResponse postReshardStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
 
         IntStream.range(0, multiple)
@@ -207,12 +221,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // index more documents to verify that a search query returns all indexed documents thus far
         final int numDocsRound3 = randomIntBetween(10, 100);
         indexDocs(indexName, numDocsRound3);
+        totalNumberOfDocumentsInIndex += numDocsRound3;
 
         refresh(indexName);
 
         assertHitCount(
             prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
-            numDocs + numDocsRound2 + numDocsRound3
+            totalNumberOfDocumentsInIndex
         );
 
         // verify that the index metadata returned matches the expected multiple of shards
@@ -225,6 +240,41 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
             equalTo(multiple)
         );
+    }
+
+    public void testReshardEmptyIndex() {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        final int multiple = randomIntBetween(2, 10);
+
+        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)));
+        checkNumberOfShardsSetting(indexNode, indexName, multiple);
+
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 0);
+
+        // All shards should be usable
+        var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
+        int docsPerRequest = randomIntBetween(10, 100);
+        int indexedDocs = 0;
+        do {
+            for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
+                indexedDocs += 1;
+                shards.remove(item.getResponse().getShardId().getId());
+            }
+        } while (shards.isEmpty() == false);
+
+        refresh(indexName);
+
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), indexedDocs);
     }
 
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
@@ -1069,6 +1119,12 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected boolean addMockFsRepository() {
+        // Use FS repository because it supports blob copy
+        return false;
     }
 
     private static long getCurrentPrimaryTerm(Index index, int shardId) {

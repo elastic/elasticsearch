@@ -350,9 +350,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> otherBlobs) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         assert recoveredBcc != null;
-        assert recoveredBcc.shardId().equals(shardId) : recoveredBcc.shardId() + " vs " + shardId;
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markBccRecovered(recoveredBcc, otherBlobs);
     }
 

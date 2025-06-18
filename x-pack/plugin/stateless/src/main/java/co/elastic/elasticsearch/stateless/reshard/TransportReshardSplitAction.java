@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
@@ -51,14 +52,20 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     private final TransportService transportService;
     private final Client client;
     private final Executor recoveryExecutor;
+    private final SplitSourceService splitSourceService;
 
     @Inject
-    public TransportReshardSplitAction(Client client, TransportService transportService, ActionFilters actionFilters) {
+    public TransportReshardSplitAction(
+        Client client,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SplitSourceService splitSourceService
+    ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.transportService = transportService;
-
-        recoveryExecutor = transportService.getThreadPool().generic();
+        this.recoveryExecutor = transportService.getThreadPool().generic();
+        this.splitSourceService = splitSourceService;
 
         transportService.registerRequestHandler(
             START_SPLIT_ACTION_NAME,
@@ -111,15 +118,21 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     private void handleStartSplitOnSource(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        transportService.sendChildRequest(
-            request.targetNode,
-            SPLIT_HANDOFF_ACTION_NAME,
-            request,
-            task,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
-        );
-
+        SubscribableListener.<Void>newForked(
+            l -> splitSourceService.setupTargetShard(request.shardId, request.sourcePrimaryTerm, request.targetPrimaryTerm, l)
+        )
+            .<ActionResponse>andThen(
+                (l, ignored) -> transportService.sendChildRequest(
+                    request.targetNode,
+                    SPLIT_HANDOFF_ACTION_NAME,
+                    request,
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(l, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                )
+            )
+            // we are only interested in success/failure, the response is empty
+            .addListener(listener.map(ignored -> ActionResponse.Empty.INSTANCE));
     }
 
     private void handleSplitHandoffOnTarget(Request request, ActionListener<Void> listener) {

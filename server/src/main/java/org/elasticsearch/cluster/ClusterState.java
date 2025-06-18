@@ -1331,19 +1331,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
-        private static final DiffableUtils.ValueSerializer<ProjectId, Settings> SETTINGS_SERIALIZER =
-            new DiffableUtils.DiffableValueSerializer<>() {
-                @Override
-                public Settings read(StreamInput in, ProjectId key) throws IOException {
-                    return Settings.readSettingsFromStream(in);
-                }
-
-                @Override
-                public Diff<Settings> readDiff(StreamInput in, ProjectId key) throws IOException {
-                    return Settings.readSettingsDiffFromStream(in);
-                }
-            };
-
         private final long toVersion;
 
         private final String fromUuid;

@@ -88,12 +88,14 @@ public class IngestGeoIpPlugin extends Plugin
         PersistentTaskPlugin,
         ActionPlugin,
         ReloadablePlugin {
+
     private static final Setting<Long> CACHE_SIZE_COUNT = Setting.longSetting(
         "ingest.geoip.cache_size",
         1000,
         0,
         Setting.Property.NodeScope
     );
+
     private static final Setting<ByteSizeValue> CACHE_SIZE_BYTES = Setting.byteSizeSetting(
         "ingest.geoip.cache_memory_size",
         ByteSizeValue.MINUS_ONE,

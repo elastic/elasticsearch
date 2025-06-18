@@ -54,10 +54,8 @@ public class GeoIpCacheTests extends ESTestCase {
         String ip2 = "127.0.0.2";
         String databasePath2 = "path/to/db";
         FakeResponse response2 = new FakeResponse(222);
-        long totalSize = GeoIpCache.keySizeInBytes(ip1, databasePath1) + response1.sizeInBytes() + GeoIpCache.keySizeInBytes(
-            ip2,
-            databasePath2
-        ) + response2.sizeInBytes();
+        long totalSize = GeoIpCache.keySizeInBytes(ip1, databasePath1) + GeoIpCache.keySizeInBytes(ip2, databasePath2) + response1
+            .sizeInBytes() + response2.sizeInBytes();
 
         GeoIpCache justBigEnoughCache = GeoIpCache.createGeoIpCacheWithMaxBytes(ByteSizeValue.ofBytes(totalSize));
         justBigEnoughCache.putIfAbsent(projectId, ip1, databasePath1, ip -> response1);
@@ -129,9 +127,17 @@ public class GeoIpCacheTests extends ESTestCase {
         assertEquals("bad", ex.getMessage());
     }
 
-    public void testInvalidInit() {
+    public void testInvalidInit_maxCount() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> GeoIpCache.createGeoIpCacheWithMaxCount(-1));
         assertEquals("geoip max cache size must be 0 or greater", ex.getMessage());
+    }
+
+    public void testInvalidInit_maxBytes() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> GeoIpCache.createGeoIpCacheWithMaxBytes(ByteSizeValue.MINUS_ONE)
+        );
+        assertEquals("geoip max cache size in bytes must be 0 or greater", ex.getMessage());
     }
 
     public void testGetCacheStats() {

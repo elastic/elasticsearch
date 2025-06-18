@@ -24,11 +24,11 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                // the default of "5s" slows down testing
-                .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // the default of "5s" slows down testing
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .build();
     }
 
     public void testShardCloseWhenDiskSpaceInsufficient() {

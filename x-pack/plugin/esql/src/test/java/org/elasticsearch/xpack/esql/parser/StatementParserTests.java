@@ -496,12 +496,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
             assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
             assertStringAsIndexPattern(".dot", command + " .dot");
-            String lineNumber = command.equals("FROM") ? "line 1:14: " : "line 1:12: ";
+
+            String lineNumber = command.equals("FROM") ? "line 1:14: " : "line 1:17: ";
             expectErrorWithLineNumber(
                 command + " cluster:\"index|pattern\"",
                 " cluster:\"index|pattern\"",
                 lineNumber,
-                "mismatched input '\"index|pattern\"' expecting UNQUOTED_SOURCE"
+                command.equals("FROM")
+                    ? "mismatched input '\"index|pattern\"' expecting UNQUOTED_SOURCE"
+                    : "missing UNQUOTED_SOURCE at '\"index|pattern\"'"
             );
             assertStringAsIndexPattern("*:index|pattern", command + " \"*:index|pattern\"");
             clusterAndIndexAsIndexPattern(command, "cluster:index");
@@ -519,29 +522,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " cluster:\"foo::data\"",
                     " cluster:\"foo::data\"",
                     lineNumber,
-                    "mismatched input '\"foo::data\"' expecting UNQUOTED_SOURCE"
+                    command.equals("FROM")
+                        ? "mismatched input '\"foo::data\"' expecting UNQUOTED_SOURCE"
+                        : "missing UNQUOTED_SOURCE at '\"foo::data\""
                 );
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::failures\"",
                     " cluster:\"foo::failures\"",
                     lineNumber,
-                    "mismatched input '\"foo::failures\"' expecting UNQUOTED_SOURCE"
+                    command.equals("FROM")
+                        ? "mismatched input '\"foo::failures\"' expecting UNQUOTED_SOURCE"
+                        : "missing UNQUOTED_SOURCE at '\"foo::failures\"'"
                 );
-                lineNumber = command.equals("FROM") ? "line 1:15: " : "line 1:13: ";
-                expectErrorWithLineNumber(
-                    command + " *, \"-foo\"::data",
-                    " *, \"-foo\"::data",
-                    lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
-                );
+                lineNumber = command.equals("FROM") ? "line 1:15: " : "line 1:18: ";
+                expectErrorWithLineNumber(command + " *, \"-foo\"::data", " *, \"-foo\"::data", lineNumber, "mismatched input '::'");
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
                 assertStringAsIndexPattern("*::data", command + " *::data");
-                lineNumber = command.equals("FROM") ? "line 1:79: " : "line 1:77: ";
+                lineNumber = command.equals("FROM") ? "line 1:79: " : "line 1:82: ";
                 expectErrorWithLineNumber(
                     command + " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::'"
                 );
                 assertStringAsIndexPattern(
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
@@ -635,22 +637,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
 
                 // Cluster name cannot be combined with selector yet.
-                var parseLineNumber = command.contains("FROM") ? 6 : 9;
+                int parseLineNumber = 6;
+                if (command.startsWith("METRICS")) {
+                    parseLineNumber = 9;
+                } else if (command.startsWith("ROW")) {
+                    parseLineNumber = 22;
+                }
+
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
 
                 // Index pattern cannot be quoted if cluster string is present.
+                var partialQuotingBeginOffset = parseLineNumber + 8;
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"foo\"::data",
-                    "line 1:14: ",
-                    "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
+                    "line 1:" + partialQuotingBeginOffset + ": ",
+                    command.startsWith("FROM")
+                        ? "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
+                        : "missing UNQUOTED_SOURCE at '\"foo\"'"
                 );
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"foo\"::failures",
-                    "line 1:14: ",
-                    "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
+                    "line 1:" + partialQuotingBeginOffset + ": ",
+                    command.startsWith("FROM")
+                        ? "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
+                        : "missing UNQUOTED_SOURCE at '\"foo\"'"
                 );
 
                 // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
@@ -699,8 +712,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"index,index2\"::failures",
-                    "line 1:14: ",
-                    "mismatched input '\"index,index2\"' expecting UNQUOTED_SOURCE"
+                    "line 1:" + partialQuotingBeginOffset + ": ",
+                    command.startsWith("FROM")
+                        ? "mismatched input '\"index,index2\"' expecting UNQUOTED_SOURCE"
+                        : "missing UNQUOTED_SOURCE at '\"index,index2\"'"
                 );
             }
         }
@@ -728,11 +743,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "-index",
                     "must not start with '_', '-', or '+'"
                 );
+
+                var partialQuotingBeginOffset = (command.startsWith("FROM") ? 6 : 9) + 23;
                 expectErrorWithLineNumber(
                     command,
                     "indexpattern, \"--index\"::data",
-                    "line 1:29: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "line 1:" + partialQuotingBeginOffset + ": ",
+                    "mismatched input '::'"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
@@ -767,11 +784,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>::data");
                 clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>::data");
                 // Throw on invalid date math
+                var partialQuotingBeginOffset = (command.startsWith("FROM") ? 6 : 9) + 25;
                 expectDateMathErrorWithLineNumber(
                     command,
                     "*, \"-<-logstash-{now/D}>\"::data",
-                    "line 1:31: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "line 1:" + partialQuotingBeginOffset + ": ",
+                    "mismatched input '::'"
                 );
                 expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
                 // Check that invalid selectors throw (they're resolved first in /_search, and always validated)
@@ -2529,7 +2547,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidRemoteClusterPattern() {
-        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {<EOF>, '|', ',', '[', 'metadata'}");
     }
 
     private LogicalPlan unresolvedRelation(String index) {
@@ -3229,10 +3247,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         {
             var fromPatterns = randomIndexPattern();
             // Generate a syntactically invalid (partial quoted) pattern.
-            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
+            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
+                // Since the join pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
                 "expecting UNQUOTED_SOURCE"
             );

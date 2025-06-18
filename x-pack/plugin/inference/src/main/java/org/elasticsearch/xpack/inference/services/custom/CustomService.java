@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -19,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -29,6 +28,8 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -48,6 +49,7 @@ import java.util.Map;
 import static org.elasticsearch.inference.TaskType.unsupportedTaskTypeErrorMsg;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -57,7 +59,6 @@ public class CustomService extends SenderService {
 
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
-    private static final Logger logger = LogManager.getLogger(CustomService.class);
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
@@ -86,12 +87,15 @@ public class CustomService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+            var chunkingSettings = extractChunkingSettings(config, taskType);
+
             CustomModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
                 serviceSettingsMap,
+                chunkingSettings,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -125,6 +129,14 @@ public class CustomService extends SenderService {
         }
     }
 
+    private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return null;
+    }
+
     @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
@@ -150,7 +162,8 @@ public class CustomService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secretSettings
+        @Nullable Map<String, Object> secretSettings,
+        @Nullable ChunkingSettings chunkingSettings
     ) {
         return createModel(
             inferenceEntityId,
@@ -158,6 +171,7 @@ public class CustomService extends SenderService {
             serviceSettings,
             taskSettings,
             secretSettings,
+            chunkingSettings,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -168,12 +182,13 @@ public class CustomService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
+        @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
         if (supportedTaskTypes.contains(taskType) == false) {
             throw new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         }
-        return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+        return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, chunkingSettings, context);
     }
 
     @Override
@@ -187,7 +202,16 @@ public class CustomService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModelWithoutLoggingDeprecations(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, secretSettingsMap);
+        var chunkingSettings = extractChunkingSettings(config, taskType);
+
+        return createModelWithoutLoggingDeprecations(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap,
+            chunkingSettings
+        );
     }
 
     @Override
@@ -195,7 +219,16 @@ public class CustomService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModelWithoutLoggingDeprecations(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null);
+        var chunkingSettings = extractChunkingSettings(config, taskType);
+
+        return createModelWithoutLoggingDeprecations(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            chunkingSettings
+        );
     }
 
     @Override
@@ -236,7 +269,27 @@ public class CustomService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
+        if (model instanceof CustomModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        var customModel = (CustomModel) model;
+        var overriddenModel = CustomModel.of(customModel, taskSettings);
+
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(SERVICE_NAME);
+        var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+            inputs.getInputs(),
+            customModel.getServiceSettings().getBatchSize(),
+            customModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
+
+        for (var request : batchedRequests) {
+            var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+        }
     }
 
     @Override

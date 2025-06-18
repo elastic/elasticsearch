@@ -120,13 +120,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  47252409b - remove node-level plan #117422
          *  43927169b - remove EsIndex mapping serialization #119580
          *  43402881b - remove unused fields from FieldAttribute #127854
+         *  43665025b - added time series field type to EsField
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43402881));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43665025L));
     }
 
     /**

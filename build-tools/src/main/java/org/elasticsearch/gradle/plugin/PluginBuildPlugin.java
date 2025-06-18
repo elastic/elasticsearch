@@ -144,25 +144,28 @@ public class PluginBuildPlugin implements Plugin<Project> {
     }
 
     private static void configurePublishing(Project project, PluginPropertiesExtension extension) {
-        if (project.getPlugins().hasPlugin(MavenPublishPlugin.class)) {
-            PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
-            MavenPublication elastic = publishingExtension.getPublications().maybeCreate("elastic", MavenPublication.class);
-            if (extension.isHasClientJar()) {
-                project.getTasks()
-                    .withType(Jar.class)
-                    .configureEach(jar -> jar.getArchiveBaseName().set(jar.getArchiveBaseName().get() + "-client"));
-                project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> {
-                    final BasePluginExtension basepluginExtension = project.getExtensions().getByType(BasePluginExtension.class);
-                    String archivesName = basepluginExtension.getArchivesName().get();
-                    pomTask.setDestination(
-                        new File(project.getBuildDir(), "/distributions/" + archivesName + "-client-" + project.getVersion() + ".pom")
-                    );
-                });
-                elastic.setArtifactId(extension.getName() + "-client");
-            } else {
-                elastic.setArtifactId(extension.getName());
-            }
-        }
+        project.getPlugins().withType(MavenPublishPlugin.class).configureEach(plugin -> {
+            project.afterEvaluate(project1 -> {
+                PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
+                MavenPublication elastic = publishingExtension.getPublications().maybeCreate("elastic", MavenPublication.class);
+                if (extension.isHasClientJar()) {
+                    project.getTasks()
+                        .withType(Jar.class)
+                        .configureEach(jar -> jar.getArchiveBaseName().set(jar.getArchiveBaseName().get() + "-client"));
+                    project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> {
+                        final BasePluginExtension basepluginExtension = project.getExtensions().getByType(BasePluginExtension.class);
+                        String archivesName = basepluginExtension.getArchivesName().get();
+                        pomTask.setDestination(
+                            new File(project.getBuildDir(), "/distributions/" + archivesName + "-client-" + project.getVersion() + ".pom")
+                        );
+                    });
+                    publishingExtension.getPublications().withType(MavenPublication.class).configureEach(publication -> {
+                        publication.setArtifactId(extension.getName() + "-client");
+                    });
+                    publishingExtension.repositories(repositories -> {});
+                }
+            });
+        });
     }
 
     private static void configureDependencies(final Project project) {

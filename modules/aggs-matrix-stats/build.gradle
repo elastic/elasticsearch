@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.publish'
 
 esplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'

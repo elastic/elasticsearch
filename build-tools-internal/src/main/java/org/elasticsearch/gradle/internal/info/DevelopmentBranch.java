@@ -11,4 +11,17 @@ package org.elasticsearch.gradle.internal.info;
 
 import org.elasticsearch.gradle.Version;
 
-public record DevelopmentBranch(String name, Version version) {}
+import java.util.Objects;
+
+/**
+ * Information about a development branch used in branches.json file
+ *
+ * @param name Name of the development branch
+ * @param version Elasticsearch version on the development branch
+ */
+public record DevelopmentBranch(String name, Version version) {
+    public DevelopmentBranch {
+        Objects.requireNonNull(name);
+        Objects.requireNonNull(version);
+    }
+}

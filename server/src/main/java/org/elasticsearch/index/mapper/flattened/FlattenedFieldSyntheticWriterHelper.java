@@ -210,48 +210,40 @@ public class FlattenedFieldSyntheticWriterHelper {
             // curr prefix is at least as long as openObjects
             var startPrefix = curr.prefix.diff(new Prefix(openObjects));
 
-            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.getFirst().equals(leafInSameObjectWithSamePrefix)) {
-                // a scalar with the same start of path as current prefix exists, need to write combined paths
-                // create combined leaf
-                if (curr.pathEquals(next) == false) {
-                    String combinedPath = concatPath(startPrefix, curr.leaf());
-                    writeField(b, values, combinedPath);
-                    values.clear();
-                }
-                // do not reset leafInSAmeObject
-            } else {
-                // traverse into object
-                openObjects = new ArrayList<>(curr.prefix.prefix);
-                startObject(b, startPrefix.prefix);
-
-                if (curr.pathEquals(next) == false) {
-                    writeField(b, values, curr.leaf());
-                    values.clear();
+            boolean scalarObjectMismatch = startPrefix.prefix.isEmpty() == false
+                && startPrefix.prefix.getFirst().equals(leafInSameObjectWithSamePrefix);
+            if (scalarObjectMismatch == false) {
+                startObject(b, startPrefix.prefix, openObjects);
+            }
+            if (curr.pathEquals(next) == false) {
+                if (scalarObjectMismatch) {
+                    writeField(b, values, concatPath(startPrefix, curr.leaf()));
+                } else {
                     leafInSameObjectWithSamePrefix = curr.leaf();
+                    writeField(b, values, curr.leaf());
                 }
             }
 
             var openPrefix = new Prefix(openObjects);
             var endPrefix = openPrefix.diff(openPrefix.shared(next.prefix));
             int numObjectsToClose = endPrefix.prefix.size();
-            for (int i = 0; i < numObjectsToClose; i++) {
-                openObjects.removeLast();
-            }
-            endObject(b, numObjectsToClose);
+            endObject(b, numObjectsToClose, openObjects);
 
             curr = next;
         } while (next.equals(KeyValue.EMPTY) == false);
     }
 
-    private static void endObject(final XContentBuilder b, int numObjectsToClose) throws IOException {
+    private static void endObject(final XContentBuilder b, int numObjectsToClose, List<String> openObjects) throws IOException {
         for (int i = 0; i < numObjectsToClose; i++) {
             b.endObject();
+            openObjects.removeLast();
         }
     }
 
-    private static void startObject(final XContentBuilder b, final List<String> objects) throws IOException {
+    private static void startObject(final XContentBuilder b, final List<String> objects, List<String> openObjects) throws IOException {
         for (final String object : objects) {
             b.startObject(object);
+            openObjects.add(object);
         }
     }
 
@@ -265,7 +257,8 @@ public class FlattenedFieldSyntheticWriterHelper {
             // As a result, there is no way to know, after reading a single value, if that value
             // is the value for a single-valued field or a multi-valued field (array) with just
             // one value (array of size 1).
-            b.field(leaf, values.get(0));
+            b.field(leaf, values.getFirst());
         }
+        values.clear();
     }
 }

@@ -48,6 +48,15 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
+  - label: part6
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart6
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n1-standard-32
+      buildDirectory: /dev/shm/bk
+
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
@@ -63,6 +72,8 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+  - label: bc-upgrade
+    command: ".buildkite/scripts/run-bc-upgrade-tests.sh"
   - group: lucene-compat
     steps:
       - label: "{{matrix.LUCENE_VERSION}} / lucene-compat"

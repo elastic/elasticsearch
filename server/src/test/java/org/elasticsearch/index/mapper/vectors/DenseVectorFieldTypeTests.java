@@ -57,14 +57,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         return new DenseVectorFieldMapper.RescoreVector(randomBoolean() ? 0 : randomFloatBetween(1.0F, 10.0F, false));
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsNonQuantized() {
+    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.FlatIndexOptions()
         );
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsAll() {
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
@@ -100,11 +100,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsHnswQuantized() {
+    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsHnswQuantized() {
         return randomIndexOptionsHnswQuantized(randomBoolean() ? null : randomRescoreVector());
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsHnswQuantized(DenseVectorFieldMapper.RescoreVector rescoreVector) {
+    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsHnswQuantized(
+        DenseVectorFieldMapper.RescoreVector rescoreVector
+    ) {
         return randomFrom(
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),

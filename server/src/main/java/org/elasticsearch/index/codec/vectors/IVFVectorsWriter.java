@@ -28,7 +28,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -52,11 +51,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final SegmentWriteState segmentWriteState;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate) throws IOException {
-        this.segmentWriteState = state;
         this.rawVectorDelegate = rawVectorDelegate;
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -134,7 +131,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
-        InfoStream infoStream,
         float[] globalCentroid
     ) throws IOException;
 
@@ -143,7 +139,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
-        InfoStream infoStream,
         IntArrayList[] assignmentsByCluster
     ) throws IOException;
 
@@ -168,7 +163,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 fieldWriter.fieldInfo,
                 floatVectorValues,
                 ivfCentroids,
-                segmentWriteState.infoStream,
                 globalCentroid
             );
 
@@ -180,7 +174,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 centroidSupplier,
                 floatVectorValues,
                 ivfClusters,
-                segmentWriteState.infoStream,
                 centroidAssignments.assignmentsByCluster()
             );
             // write posting lists
@@ -313,7 +306,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                             centroidSupplier,
                             floatVectorValues,
                             ivfClusters,
-                            mergeState.infoStream,
                             centroidAssignments.assignmentsByCluster()
                         );
                         assert offsets.length == centroidSupplier.size();

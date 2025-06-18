@@ -1,0 +1,14 @@
+pr: 129606
+summary: Make fork available in release builds
+area: ES|QL
+type: feature
+issues: []
+highlight:
+  title: Make fork available in release builds
+  body: |-
+    related: https://github.com/elastic/elasticsearch/issues/121950
+
+    This takes FORK out of snapshot. FORK will initially be available as a
+    tech preview feature. We want to make sure the grammar changes land this
+    week, so that they are made available in Kibana too before FF.
+  notable: true

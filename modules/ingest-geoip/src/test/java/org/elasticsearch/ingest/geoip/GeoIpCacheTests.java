@@ -141,7 +141,8 @@ public class GeoIpCacheTests extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(100);
         ProjectId projectId1 = randomUniqueProjectId();
         ProjectId projectId2 = randomUniqueProjectId();
-        // Turn the path strings into Paths to ensure that
+        // Turn the path strings into Paths to ensure that we always use the canonical string representation (this string literal does not
+        // round-trip when converting to a Path and back again on Windows):
         Path databasePath1 = PathUtils.get("path/to/db1");
         Path databasePath2 = PathUtils.get("path/to/db2");
         String ip1 = "127.0.0.1";

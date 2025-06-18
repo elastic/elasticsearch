@@ -3612,10 +3612,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    public void deleteByQuery(ShardSplittingQuery query) throws Exception {
-        // System.out.println("Delete documents using ShardSplitQuery");
+    // Used to clean up unowned documents. Client-visible deletes should always be soft deletes.
+    protected void deleteByQuery(ShardSplittingQuery query) throws Exception {
         indexWriter.deleteDocuments(query);
-        indexWriter.flush();
-        indexWriter.commit();
     }
 }

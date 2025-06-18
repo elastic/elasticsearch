@@ -67,7 +67,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
 
             List<RetrieverSource> innerRetrievers = childRetrievers != null
-                ? childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList()
+                ? childRetrievers.stream().map(RetrieverSource::from).toList()
                 : List.of();
             return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant);
         }
@@ -250,7 +250,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                         );
                     }
                 }
-            ).stream().map(CompoundRetrieverBuilder::convertToRetrieverSource).toList();
+            ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, rankWindowSize, rankConstant);

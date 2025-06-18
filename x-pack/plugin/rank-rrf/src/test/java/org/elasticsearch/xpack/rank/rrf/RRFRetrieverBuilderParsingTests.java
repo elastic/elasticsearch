@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.convertToRetrieverSource;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -58,7 +57,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         int retrieverCount = randomIntBetween(2, 50);
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>(retrieverCount);
         while (retrieverCount > 0) {
-            innerRetrievers.add(convertToRetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder()));
+            innerRetrievers.add(CompoundRetrieverBuilder.RetrieverSource.from(TestRetrieverBuilder.createRandomTestRetrieverBuilder()));
             --retrieverCount;
         }
 

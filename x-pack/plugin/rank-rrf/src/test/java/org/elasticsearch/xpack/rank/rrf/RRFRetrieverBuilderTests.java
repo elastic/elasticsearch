@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
-import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.convertToRetrieverSource;
 
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
@@ -257,7 +256,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         String expectedQuery
     ) {
         Set<Object> expectedInnerRetrievers = Set.of(
-            convertToRetrieverSource(
+            CompoundRetrieverBuilder.RetrieverSource.from(
                 new StandardRetrieverBuilder(
                     new MultiMatchQueryBuilder(expectedQuery).type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
                         .fields(expectedNonInferenceFields)
@@ -267,7 +266,9 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 if (e.getValue() != 1.0f) {
                     throw new IllegalArgumentException("Cannot apply per-field weights in RRF");
                 }
-                return convertToRetrieverSource(new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery)));
+                return CompoundRetrieverBuilder.RetrieverSource.from(
+                    new StandardRetrieverBuilder(new MatchQueryBuilder(e.getKey(), expectedQuery))
+                );
             }).toArray())
         );
 

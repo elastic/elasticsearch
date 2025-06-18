@@ -1,0 +1,5 @@
+pr: 128694
+summary: "Adding Google VertexAI completion integration"
+area: Inference
+type: enhancement
+issues: [ ]

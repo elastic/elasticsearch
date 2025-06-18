@@ -106,7 +106,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             newSettings,
             UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
             UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-            new Index[] { watcherIndexMd.getIndex() }
+            watcherIndexMd.getIndex()
         );
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {

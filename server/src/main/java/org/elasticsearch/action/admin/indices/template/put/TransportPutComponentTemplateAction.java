@@ -67,7 +67,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     @Override
     protected ClusterBlockException checkBlock(PutComponentTemplateAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     public static ComponentTemplate normalizeComponentTemplate(

@@ -305,8 +305,7 @@ public class CustomService extends SenderService {
             serviceSettings.getQueryParameters(),
             serviceSettings.getRequestContentString(),
             serviceSettings.getResponseJsonParser(),
-            serviceSettings.rateLimitSettings(),
-            serviceSettings.getErrorParser()
+            serviceSettings.rateLimitSettings()
         );
     }
 

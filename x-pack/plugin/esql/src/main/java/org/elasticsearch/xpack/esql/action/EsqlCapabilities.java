@@ -1040,7 +1040,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V8(Build.current().isSnapshot()),
+        FORK_V9(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1082,7 +1082,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V3(Build.current().isSnapshot()),
+        SAMPLE_V3,
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1168,7 +1168,7 @@ public class EsqlCapabilities {
         LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
 
@@ -1200,7 +1200,22 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot());
+        KNN_FUNCTION(Build.current().isSnapshot()),
+
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS;
 
         private final boolean enabled;
 

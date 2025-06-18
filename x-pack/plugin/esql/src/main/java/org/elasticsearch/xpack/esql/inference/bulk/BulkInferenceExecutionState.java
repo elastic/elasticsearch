@@ -75,7 +75,7 @@ public class BulkInferenceExecutionState {
      *  @param response The inference response.
      */
     public synchronized void onInferenceResponse(long seqNo, InferenceAction.Response response) {
-        if (failureCollector.hasFailure() == false) {
+        if (response != null && failureCollector.hasFailure() == false) {
             bufferedResponses.put(seqNo, response);
         }
         checkpoint.markSeqNoAsProcessed(seqNo);

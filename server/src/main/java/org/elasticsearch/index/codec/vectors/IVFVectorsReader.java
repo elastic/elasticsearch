@@ -89,30 +89,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidQueryScorer getCentroidScorer(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] target,
-        IndexInput clusters
-    ) throws IOException;
-
-    protected abstract FloatVectorValues getCentroids(IndexInput indexInput, int numCentroids, FieldInfo info) throws IOException;
-
-    public FloatVectorValues getCentroids(FieldInfo fieldInfo) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
-        if (entry == null) {
-            return null;
-        }
-        return getCentroids(entry.centroidSlice(ivfCentroids), entry.postingListOffsets.length, fieldInfo);
-    }
-
-    int centroidSize(String fieldName, int centroidOrdinal) throws IOException {
-        FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldName);
-        FieldEntry entry = fields.get(fieldInfo.number);
-        ivfClusters.seek(entry.postingListOffsets[centroidOrdinal]);
-        return ivfClusters.readVInt();
-    }
+    abstract CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+        throws IOException;
 
     private static IndexInput openDataInput(
         SegmentReadState state,
@@ -266,8 +244,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             fieldInfo,
             entry.postingListOffsets.length,
             entry.centroidSlice(ivfCentroids),
-            target,
-            ivfClusters
+            target
         );
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"

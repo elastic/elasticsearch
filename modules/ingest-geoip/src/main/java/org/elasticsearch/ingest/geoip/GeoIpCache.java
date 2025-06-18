@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.db.NodeCache;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -38,7 +39,7 @@ public final class GeoIpCache {
         }
     }
 
-    static <V> GeoIpCache createGeoIpCacheWithMaxCount(long maxSize) {
+    static GeoIpCache createGeoIpCacheWithMaxCount(long maxSize) {
         if (maxSize < 0) {
             throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
         }
@@ -87,9 +88,14 @@ public final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <RESPONSE extends CacheableValue> RESPONSE putIfAbsent(String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
+    <RESPONSE extends CacheableValue> RESPONSE putIfAbsent(
+        ProjectId projectId,
+        String ip,
+        String databasePath,
+        Function<String, RESPONSE> retrieveFunction
+    ) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
-        CacheKey cacheKey = new CacheKey(ip, databasePath);
+        CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         CacheableValue response = cache.get(cacheKey);
@@ -119,16 +125,16 @@ public final class GeoIpCache {
     }
 
     // only useful for testing
-    Object get(String ip, String databasePath) {
-        CacheKey cacheKey = new CacheKey(ip, databasePath);
+    Object get(ProjectId projectId, String ip, String databasePath) {
+        CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
         return cache.get(cacheKey);
     }
 
-    public int purgeCacheEntriesForDatabase(Path databaseFile) {
+    public int purgeCacheEntriesForDatabase(ProjectId projectId, Path databaseFile) {
         String databasePath = databaseFile.toString();
         int counter = 0;
         for (CacheKey key : cache.keys()) {
-            if (key.databasePath.equals(databasePath)) {
+            if (key.projectId.equals(projectId) && key.databasePath.equals(databasePath)) {
                 cache.invalidate(key);
                 counter++;
             }
@@ -162,7 +168,7 @@ public final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private record CacheKey(String ip, String databasePath) {
+    private record CacheKey(ProjectId projectId, String ip, String databasePath) {
 
         private static final long BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(CacheKey.class);
 
@@ -173,6 +179,7 @@ public final class GeoIpCache {
 
     // visible for testing
     static long keySizeInBytes(String ip, String databasePath) {
+        // TODO(pete): Add ProjectID size
         return CacheKey.BASE_BYTES + RamUsageEstimator.sizeOf(ip) + RamUsageEstimator.sizeOf(databasePath);
     }
 }

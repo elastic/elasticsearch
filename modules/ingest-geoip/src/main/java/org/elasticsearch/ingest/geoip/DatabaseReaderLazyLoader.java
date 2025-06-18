@@ -16,9 +16,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -105,11 +107,9 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
 
     @Override
     @Nullable
-    public <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(
-        String ipAddress,
-        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
-    ) {
-        return cache.putIfAbsent(ipAddress, cachedDatabasePathToString, ip -> {
+    @FixForMultiProject // do not use ProjectId.DEFAULT
+    public <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+        return cache.putIfAbsent(ProjectId.DEFAULT, ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);
             } catch (Exception e) {
@@ -146,9 +146,10 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     }
 
     // Visible for Testing
+    @FixForMultiProject // do not use ProjectId.DEFAULT
     protected void doShutdown() throws IOException {
         IOUtils.close(databaseReader.get());
-        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
+        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(ProjectId.DEFAULT, databasePath);
         logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
         if (deleteDatabaseFileOnShutdown) {
             logger.info("deleting [{}]", databasePath);

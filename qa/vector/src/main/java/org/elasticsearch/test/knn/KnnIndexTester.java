@@ -15,8 +15,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
@@ -24,6 +26,8 @@ import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -35,19 +39,26 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * A utility class to create and test KNN indices using Lucene.
  * It supports various index types (HNSW, FLAT, IVF) and configurations.
  */
 public class KnnIndexTester {
-    static final Level LOG_LEVEL = Level.DEBUG;
-
-    static final SysOutLogger logger = new SysOutLogger();
+    static final Logger logger;
 
     static {
         LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+
+        // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
+        ProcessInfo pinfo = ProcessInfo.fromSystem();
+        Map<String, String> sysprops = pinfo.sysprops();
+        String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
+        Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
+
+        logger = LogManager.getLogger(KnnIndexTester.class);
     }
 
     static final String INDEX_DIR = "target/knn_index";
@@ -163,7 +174,7 @@ public class KnnIndexTester {
         FormattedResults formattedResults = new FormattedResults();
         for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
             Results result = new Results(cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT), cmdLineArgs.numDocs());
-            System.out.println("Running KNN index tester with arguments: " + cmdLineArgs);
+            logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
@@ -195,8 +206,7 @@ public class KnnIndexTester {
             }
             formattedResults.results.add(result);
         }
-        System.out.println("Results:");
-        System.out.println(formattedResults);
+        logger.info("Results: \n" + formattedResults);
     }
 
     static class FormattedResults {
@@ -323,57 +333,6 @@ public class KnnIndexTester {
         Results(String indexType, int numDocs) {
             this.indexType = indexType;
             this.numDocs = numDocs;
-        }
-    }
-
-    static final class SysOutLogger {
-
-        void warn(String message) {
-            if (LOG_LEVEL.ordinal() >= Level.WARN.ordinal()) {
-                System.out.println(message);
-            }
-        }
-
-        void warn(String message, Object... params) {
-            if (LOG_LEVEL.ordinal() >= Level.WARN.ordinal()) {
-                System.out.println(String.format(Locale.ROOT, message, params));
-            }
-        }
-
-        void info(String message) {
-            if (LOG_LEVEL.ordinal() >= Level.INFO.ordinal()) {
-                System.out.println(message);
-            }
-        }
-
-        void info(String message, Object... params) {
-            if (LOG_LEVEL.ordinal() >= Level.INFO.ordinal()) {
-                System.out.println(String.format(Locale.ROOT, message, params));
-            }
-        }
-
-        void debug(String message) {
-            if (LOG_LEVEL.ordinal() >= Level.DEBUG.ordinal()) {
-                System.out.println(message);
-            }
-        }
-
-        void debug(String message, Object... params) {
-            if (LOG_LEVEL.ordinal() >= Level.DEBUG.ordinal()) {
-                System.out.println(String.format(Locale.ROOT, message, params));
-            }
-        }
-
-        void trace(String message) {
-            if (LOG_LEVEL == Level.TRACE) {
-                System.out.println(message);
-            }
-        }
-
-        void trace(String message, Object... params) {
-            if (LOG_LEVEL == Level.TRACE) {
-                System.out.println(String.format(Locale.ROOT, message, params));
-            }
         }
     }
 

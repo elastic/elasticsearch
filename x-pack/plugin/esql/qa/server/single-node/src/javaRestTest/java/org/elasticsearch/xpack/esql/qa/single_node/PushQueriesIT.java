@@ -229,7 +229,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """;
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "CaseInsensitiveTermQuery{test:%value}";
+            case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
         ComputeSignature dataNodeSignature = switch (type) {

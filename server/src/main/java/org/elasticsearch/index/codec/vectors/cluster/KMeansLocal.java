@@ -81,8 +81,8 @@ class KMeansLocal {
         int dim = vectors.dimension();
         int[] centroidCounts = new int[centroids.length];
 
-        for (int i = 0; i < nextCentroids.length; i++) {
-            Arrays.fill(nextCentroids[i], 0.0f);
+        for (float[] nextCentroid : nextCentroids) {
+            Arrays.fill(nextCentroid, 0.0f);
         }
 
         for (int i = 0; i < sampleSize; i++) {
@@ -99,7 +99,7 @@ class KMeansLocal {
             }
             assignments[i] = bestCentroidOffset;
             centroidCounts[bestCentroidOffset]++;
-            for (short d = 0; d < dim; d++) {
+            for (int d = 0; d < dim; d++) {
                 nextCentroids[bestCentroidOffset][d] += vector[d];
             }
         }
@@ -107,7 +107,7 @@ class KMeansLocal {
         for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
             if (centroidCounts[clusterIdx] > 0) {
                 float countF = (float) centroidCounts[clusterIdx];
-                for (short d = 0; d < dim; d++) {
+                for (int d = 0; d < dim; d++) {
                     centroids[clusterIdx][d] = nextCentroids[clusterIdx][d] / countF;
                 }
             }
@@ -185,7 +185,7 @@ class KMeansLocal {
 
             int currAssignment = assignments[i];
             float[] currentCentroid = centroids[currAssignment];
-            for (short j = 0; j < vectors.dimension(); j++) {
+            for (int j = 0; j < vectors.dimension(); j++) {
                 float diff = vector[j] - currentCentroid[j];
                 diffs[j] = diff;
             }

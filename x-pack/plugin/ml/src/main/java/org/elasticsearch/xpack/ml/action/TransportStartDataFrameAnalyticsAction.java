@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -114,6 +115,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(
@@ -127,7 +129,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         PersistentTasksService persistentTasksService,
         DataFrameAnalyticsConfigProvider configProvider,
         MlMemoryTracker memoryTracker,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDataFrameAnalyticsAction.NAME,
@@ -154,6 +157,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -161,7 +165,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

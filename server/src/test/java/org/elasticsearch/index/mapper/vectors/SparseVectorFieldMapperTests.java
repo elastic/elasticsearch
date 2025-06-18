@@ -38,6 +38,7 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -88,6 +89,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.startObject("meta");
         b.endObject();
 
+        // note that internally, this will have a `index_options: null` field,
+        // but when serialized back to the client, this field will be pruned
+        // the YAML Rest tests checks for this
         b.field("index_options", (Object) null);
     }
 
@@ -256,7 +260,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.endObject();
     };
 
-    public void testDefaultsWithIncludeDefaults() throws Exception {
+    public void testDefaultsWithAndWithoutIncludeDefaults() throws Exception {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
         createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
         orig.endObject();
@@ -266,9 +270,16 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         withDefaults.endObject();
 
         assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
+
+        XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
+        createMapperService(fieldMapping(this::minimalMapping))
+            .documentMapper().mapping().toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
+        origWithoutDefaults.endObject();
+
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), Strings.toString(origWithoutDefaults));
     }
 
-    public void testDefaultsWithIncludeDefaultsOlderIndexVersion() throws Exception {
+    public void testDefaultsWithAndWithoutIncludeDefaultsOlderIndexVersion() throws Exception {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
             UPGRADE_TO_LUCENE_10_0_0,
@@ -284,19 +295,17 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         withDefaults.endObject();
 
         assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
-    }
 
-    public void testMappingWithoutIndexOptionsUsesDefaults() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
+        XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
+        createMapperService(indexVersion, fieldMapping(this::minimalMapping))
+            .documentMapper().mapping().toXContent(origWithoutDefaults, INCLUDE_DEFAULTS);
+        origWithoutDefaults.endObject();
 
-        IndexVersion preIndexOptionsVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
-        );
-        DocumentMapper previousMapper = createDocumentMapper(preIndexOptionsVersion, fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), previousMapper.mappingSource().toString());
+        XContentBuilder withoutDefaults = JsonXContent.contentBuilder().startObject();
+        buildDocForSparseVectorFieldMapping(withoutDefaults, this::minimalFieldMappingPreviousIndexVersion);
+        withoutDefaults.endObject();
+
+        assertEquals(Strings.toString(withoutDefaults), Strings.toString(origWithoutDefaults));
     }
 
     public void testMappingWithExplicitIndexOptions() throws Exception {
@@ -694,7 +703,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             iw.close();
 
             try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
-                var searchContext = createSearchExecutionContext(mapperService, new IndexSearcher(reader));
+                var searchContext = createSearchExecutionContext(mapperService, newSearcher(reader));
                 consumer.accept(searchContext);
             }
         }

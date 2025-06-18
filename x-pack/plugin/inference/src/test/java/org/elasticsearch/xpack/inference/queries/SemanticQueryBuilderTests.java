@@ -102,7 +102,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
     private static boolean useSearchInferenceId;
     private final boolean useLegacyFormat;
-    private MapperService currentMapperService;
 
     private enum InferenceResultType {
         NONE,
@@ -186,6 +185,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected IndexReaderManager getIndexReaderManager() {
+        // note that because token pruning for sparse vector types are on by default now
+        // we have to have at least one document with the `semantic.inference.chunks.embeddings`
+        // populated or else the weightedTokenUtils will return a MatchNoDocsQuery instead of the
+        // expected BooleanQuery.
         return new IndexReaderManager() {
             @Override
             protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {

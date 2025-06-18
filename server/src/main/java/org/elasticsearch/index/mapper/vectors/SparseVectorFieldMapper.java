@@ -300,10 +300,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
             return value.toString();
         }
-
-        public IndexVersion getIndexVersionCreated() {
-            return indexVersionCreated;
-        }
     }
 
     private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
@@ -325,8 +321,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        IndexVersion indexVersion = this.fieldType() != null ? this.fieldType().getIndexVersionCreated() : IndexVersion.current();
-        return new Builder(leafName(), indexVersion).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated).init(this);
     }
 
     @Override
@@ -406,9 +401,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     private static boolean indexVersionSupportsDefaultPruningConfig(IndexVersion indexVersion) {
         // default pruning for 9.1.0+ or 8.19.0+ is true for this index
-        return (indexVersion != null
-            && (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
-                || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)));
+        return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+                || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0));
     }
 
     private static class SparseVectorValueFetcher implements ValueFetcher {

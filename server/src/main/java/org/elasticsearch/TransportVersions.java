@@ -241,6 +241,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19 = def(8_841_0_48);
     public static final TransportVersion NONE_CHUNKING_STRATEGY_8_19 = def(8_841_0_49);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19 = def(8_841_0_50);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
 
     /*
      * STOP! READ THIS FIRST! No, really,

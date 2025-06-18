@@ -63,7 +63,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
@@ -312,7 +311,7 @@ public class MetadataRolloverService {
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
+            templateV2 = dataStream.getEffectiveIndexTemplate(currentState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {

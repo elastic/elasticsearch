@@ -108,7 +108,10 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     @Override
     @Nullable
     @FixForMultiProject // do not use ProjectId.DEFAULT
-    public <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+    public <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    ) {
         return cache.putIfAbsent(ProjectId.DEFAULT, ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);

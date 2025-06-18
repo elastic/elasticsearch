@@ -80,7 +80,7 @@ public final class ProjectState {
      * Build a new {@link ClusterState} with the updated project.
      */
     public ClusterState updatedState(ProjectMetadata updatedProject) {
-        return ClusterState.builder(cluster).metadata(cluster.metadata().updateSingleProject(updatedProject)).build();
+        return ClusterState.builder(cluster).metadata(cluster.metadata().withUpdatedProject(updatedProject)).build();
     }
 
     /**

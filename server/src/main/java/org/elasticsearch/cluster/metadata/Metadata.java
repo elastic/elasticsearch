@@ -407,7 +407,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     /**
      * Updates a single project in the metadata. This offers a more performant way of updating a single project compared to the Builder.
      */
-    public Metadata updateSingleProject(ProjectMetadata updatedProject) {
+    @FixForMultiProject // We should reconsider whether this method is valuable once we update Metadata.Builder to hold constructed projects
+    // instead of project builders.
+    public Metadata withUpdatedProject(ProjectMetadata updatedProject) {
         final var existingProject = projectMetadata.get(updatedProject.id());
         if (existingProject == null) {
             throw new IllegalArgumentException(
@@ -1532,7 +1534,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
         final var builder = ProjectMetadata.builder(existingProject);
         updater.accept(builder);
-        return updateSingleProject(builder.build());
+        return withUpdatedProject(builder.build());
     }
 
     public static class Builder {

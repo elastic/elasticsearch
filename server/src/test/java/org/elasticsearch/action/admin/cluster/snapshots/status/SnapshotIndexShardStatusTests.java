@@ -39,10 +39,13 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
         SnapshotStats stats = new SnapshotStatsTests().createTestInstance();
         String nodeId = randomAlphaOfLength(20);
         String failure = null;
+        String description = null;
         if (rarely()) {
             failure = randomAlphaOfLength(200);
+        } else if (rarely()) {
+            description = randomAlphaOfLength(200);
         }
-        return new SnapshotIndexShardStatus(shardId, stage, stats, nodeId, failure);
+        return new SnapshotIndexShardStatus(shardId, stage, stats, nodeId, failure, description);
     }
 
     @Override
@@ -76,6 +79,7 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
                 String rawStage = (String) parsedObjects[i++];
                 String nodeId = (String) parsedObjects[i++];
                 String failure = (String) parsedObjects[i++];
+                String description = (String) parsedObjects[i++];
                 SnapshotStats stats = (SnapshotStats) parsedObjects[i];
 
                 SnapshotIndexShardStage stage;
@@ -89,12 +93,13 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
                         rawStage
                     );
                 }
-                return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);
+                return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure, description);
             }
         );
         innerParser.declareString(constructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.STAGE));
         innerParser.declareString(optionalConstructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.NODE));
         innerParser.declareString(optionalConstructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.REASON));
+        innerParser.declareString(optionalConstructorArg(), new ParseField(SnapshotIndexShardStatus.Fields.DESCRIPTION));
         innerParser.declareObject(
             constructorArg(),
             (p, c) -> SnapshotStatsTests.fromXContent(p),
@@ -121,5 +126,9 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
     public static SnapshotIndexShardStatus fromXContent(XContentParser parser, String indexId) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         return PARSER.parse(parser, indexId, parser.currentName());
+    }
+
+    public void testForDoneButMissingStatsXContentSerialization() throws IOException {
+        testFromXContent(() -> SnapshotIndexShardStatus.forDoneButMissingStats(createTestInstance().getShardId(), randomAlphaOfLength(16)));
     }
 }

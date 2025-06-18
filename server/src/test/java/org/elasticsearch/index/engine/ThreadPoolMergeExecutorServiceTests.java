@@ -211,6 +211,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         });
         assertThat(countingListener.aborted.get() + countingListener.completed.get(), equalTo(doneMergesCount.get()));
         assertThat(countingListener.aborted.get(), equalTo(abortedMergesCount.get()));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {
@@ -298,6 +301,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testIORateIsAdjustedForAllRunningMergeTasks() throws Exception {
@@ -386,6 +392,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSpeedy() throws IOException {
@@ -567,6 +576,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testThreadPoolStatsWithBackloggedMergeTasks() throws Exception {
@@ -626,6 +638,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
@@ -697,6 +712,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testMergeTasksExecuteInSizeOrder() throws IOException {

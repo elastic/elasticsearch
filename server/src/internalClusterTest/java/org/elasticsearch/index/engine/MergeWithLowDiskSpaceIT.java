@@ -9,11 +9,13 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.BeforeClass;
 
 import java.util.Locale;
 import java.util.stream.IntStream;
@@ -21,19 +23,29 @@ import java.util.stream.IntStream;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
 
+    protected static long MERGE_DISK_HIGH_WATERMARK_BYTES;
+
+    @BeforeClass
+    public static void setAvailableDiskSpaceBufferLimit() throws Exception {
+        MERGE_DISK_HIGH_WATERMARK_BYTES = randomLongBetween(1000L, 10_000L);
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // only the threadpool-based merge scheduler has the capability to block merges when disk space is insufficient
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // the default of "5s" slows down testing
             .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "100ms")
-            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), MERGE_DISK_HIGH_WATERMARK_BYTES + "b")
             .build();
     }
 
     public void testShardCloseWhenDiskSpaceInsufficient() {
-        internalCluster().startNode();
+        String nodeName = internalCluster().startNode();
         ensureStableCluster(1);
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -41,9 +53,22 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         );
         indexRandom(
             true,
-            IntStream.range(1, 100)
+            IntStream.range(1, 10)
                 .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
+        forceMerge();
+        refresh();
+
+        IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
+        long used = stats.getTotal().getStore().sizeInBytes();
+
+        long enoughSpace = used + MERGE_DISK_HIGH_WATERMARK_BYTES + randomLongBetween(1L, 10_000L);
+        setTotalSpace(nodeName, enoughSpace);
+    }
+
+    public void setTotalSpace(String dataNodeName, long totalSpace) {
+        getTestFileStore(dataNodeName).setTotalSpace(totalSpace);
+        refreshClusterInfo();
     }
 }

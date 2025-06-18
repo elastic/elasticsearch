@@ -129,12 +129,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
-        LogManager.getLogger(ConstantFieldType.class)
-            .error(
-                "ADSFA const eval {} {}",
-                value,
-                matches(value, caseInsensitive, context)
-            );
+        LogManager.getLogger(ConstantFieldType.class).error("ADSFA const eval {} {}", value, matches(value, caseInsensitive, context));
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

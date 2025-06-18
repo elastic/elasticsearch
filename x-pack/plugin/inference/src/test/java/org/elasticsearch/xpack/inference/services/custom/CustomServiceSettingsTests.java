@@ -583,7 +583,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 1
+                "batch_size": 10
             }
             """);
 

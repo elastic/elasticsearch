@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -37,6 +38,7 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
     GetWatcherSettingsAction.Response> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -49,7 +51,8 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             GetWatcherSettingsAction.NAME,
@@ -59,6 +62,7 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
 
         transportService.registerRequestHandler(
             actionName,
@@ -78,7 +82,7 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
         ((CancellableTask) task).ensureNotCancelled();
-        IndexMetadata metadata = state.metadata().getProject().index(WATCHER_INDEX_NAME);
+        IndexMetadata metadata = state.metadata().getProject(projectResolver.getProjectId()).index(WATCHER_INDEX_NAME);
         if (metadata == null) {
             listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
         } else {

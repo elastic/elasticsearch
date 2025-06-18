@@ -316,6 +316,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(
                 Settings.builder()
                     .put(settings)
+                    // this triggers a deprecation warning response header
                     .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
                     .build()
             ),

@@ -7997,14 +7997,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testNotEqualsPushdownToDelegate() {
-        var optimized = optimizedPlan(
-            physicalPlan(
-                """
-                    FROM test
-                    | WHERE job != "v"
-                    """, testDataLimitedRaw
-            ), SEARCH_STATS_SHORT_DELEGATES
-        );
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM test
+            | WHERE job != "v"
+            """, testDataLimitedRaw), SEARCH_STATS_SHORT_DELEGATES);
         var limit = as(optimized, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -8014,11 +8010,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract2 = as(filter.child(), FieldExtractExec.class);
         var query = as(extract2.child(), EsQueryExec.class);
         assertThat(
-            query.query(), equalTo(new BoolQueryBuilder().filter(new SingleValueQuery(
-                new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
-                "job",
-                SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
-            ).toQueryBuilder()))
+            query.query(),
+            equalTo(
+                new BoolQueryBuilder().filter(
+                    new SingleValueQuery(
+                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                        "job",
+                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                    ).toQueryBuilder()
+                )
+            )
         );
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
 
 import java.util.Collection;
 import java.util.Map;
@@ -128,6 +129,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+        LogManager.getLogger(ConstantFieldType.class)
+            .error(
+                "ADSFA const eval {} {}",
+                value,
+                matches(value, caseInsensitive, context)
+            );
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.function.Predicate;
@@ -53,7 +55,9 @@ public class SearchIndexNameMatcher implements Predicate<String> {
      *  the separator ':', and must match on both the cluster alias and index name.
      */
     public boolean test(String pattern) {
+
         String[] splitIndex = RemoteClusterAware.splitIndexName(pattern);
+        LogManager.getLogger(ConstantFieldType.class).error("ADSFA {}", (Object) splitIndex);
 
         if (splitIndex[0] == null) {
             return clusterAlias == null && matchesIndex(pattern);

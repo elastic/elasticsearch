@@ -38,7 +38,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
-    static final class IndexFieldType extends ConstantFieldType {
+    public static final class IndexFieldType extends ConstantFieldType {
 
         static final IndexFieldType INSTANCE = new IndexFieldType();
 

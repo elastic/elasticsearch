@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -108,6 +109,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        LogManager.getLogger(WildcardLike.class).error("ADSFA translatable", new Exception());
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
     }
 
@@ -115,6 +117,13 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
+        LogManager.getLogger(WildcardLike.class)
+            .error(
+                "ADSFA asQuery {} {}",
+                field,
+                translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field)),
+                new Exception()
+            );
         return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
     }
 

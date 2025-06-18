@@ -293,6 +293,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         return queuedMergeTasks.isQueueEmpty() && runningMergeTasks.isEmpty() && ioThrottledMergeTasksCount.get() == 0L;
     }
 
+    public boolean isMergingBlockedDueToInsufficientDiskSpace() {
+        return availableDiskSpacePeriodicMonitor.isScheduled() && queuedMergeTasks.queueHeadIsOverTheAvailableBudget();
+    }
+
     /**
      * Enqueues a runnable that executes exactly one merge task, the smallest that is runnable at some point in time.
      * A merge task is not runnable if its scheduler already reached the configured max-allowed concurrency level.
@@ -667,6 +671,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
         boolean isQueueEmpty() {
             return enqueuedByBudget.isEmpty();
+        }
+
+        boolean queueHeadIsOverTheAvailableBudget() {
+            var head = enqueuedByBudget.peek();
+            return head != null && head.v2() > availableBudget;
         }
 
         int queueSize() {

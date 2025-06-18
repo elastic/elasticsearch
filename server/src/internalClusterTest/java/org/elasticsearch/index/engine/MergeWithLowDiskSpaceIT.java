@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.BeforeClass;
 
@@ -27,7 +28,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
 
     @BeforeClass
     public static void setAvailableDiskSpaceBufferLimit() throws Exception {
-        MERGE_DISK_HIGH_WATERMARK_BYTES = randomLongBetween(1000L, 10_000L);
+        MERGE_DISK_HIGH_WATERMARK_BYTES = randomLongBetween(10_000L, 100_000L);
     }
 
     @Override
@@ -43,7 +44,8 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
     }
 
     public void testShardCloseWhenDiskSpaceInsufficient() {
-        String nodeName = internalCluster().startNode();
+        String node = internalCluster().startNode();
+        var indicesService = internalCluster().getInstance(IndicesService.class, node);
         ensureStableCluster(1);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -59,12 +61,14 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         );
         forceMerge();
         refresh();
+        assertFalse(indicesService.getThreadPoolMergeExecutorService().isMergingBlockedDueToInsufficientDiskSpace());
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
         long used = stats.getTotal().getStore().sizeInBytes();
-
-        long enoughSpace = used + MERGE_DISK_HIGH_WATERMARK_BYTES + randomLongBetween(1L, 10_000L);
-        setTotalSpace(nodeName, enoughSpace);
+        // the next merge will surely cross the disk watermark that's just 1 byte ahead
+        long enoughSpace = used + 1L + MERGE_DISK_HIGH_WATERMARK_BYTES;
+        setTotalSpace(node, enoughSpace);
+        assertFalse(indicesService.getThreadPoolMergeExecutorService().isMergingBlockedDueToInsufficientDiskSpace());
     }
 
     public void setTotalSpace(String dataNodeName, long totalSpace) {

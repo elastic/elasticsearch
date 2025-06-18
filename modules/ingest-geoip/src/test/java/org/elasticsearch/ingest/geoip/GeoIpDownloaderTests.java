@@ -508,7 +508,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
             projectId
         ) {
             @Override
-            public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
+            public void updateProjectPersistentTaskState(
+                ProjectId projectId,
+                PersistentTaskState state,
+                ActionListener<PersistentTask<?>> listener
+            ) {
                 assertSame(GeoIpTaskState.EMPTY, state);
                 PersistentTask<?> task = mock(PersistentTask.class);
                 when(task.getState()).thenReturn(GeoIpTaskState.EMPTY);
@@ -539,7 +543,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
             projectId
         ) {
             @Override
-            public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
+            public void updateProjectPersistentTaskState(
+                ProjectId projectId,
+                PersistentTaskState state,
+                ActionListener<PersistentTask<?>> listener
+            ) {
                 assertSame(GeoIpTaskState.EMPTY, state);
                 PersistentTask<?> task = mock(PersistentTask.class);
                 when(task.getState()).thenReturn(GeoIpTaskState.EMPTY);
@@ -627,7 +635,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
          * This test puts some expired databases and some non-expired ones into the GeoIpTaskState, and then calls runDownloader(), making
          * sure that the expired databases have been deleted.
          */
-        AtomicInteger updatePersistentTaskStateCount = new AtomicInteger(0);
+        AtomicInteger updateProjectPersistentTaskStateCount = new AtomicInteger(0);
         AtomicInteger deleteCount = new AtomicInteger(0);
         int expiredDatabasesCount = randomIntBetween(1, 100);
         int unexpiredDatabasesCount = randomIntBetween(0, 100);
@@ -651,7 +659,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
                     request.getAllocationId(),
                     assignment
                 );
-                updatePersistentTaskStateCount.incrementAndGet();
+                updateProjectPersistentTaskStateCount.incrementAndGet();
                 taskResponseListener.onResponse(new PersistentTaskResponse(new PersistentTask<>(persistentTask, request.getState())));
             }
         );
@@ -674,14 +682,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             );
         }
         assertThat(deleteCount.get(), equalTo(expiredDatabasesCount));
-        assertThat(updatePersistentTaskStateCount.get(), equalTo(expiredDatabasesCount));
+        assertThat(updateProjectPersistentTaskStateCount.get(), equalTo(expiredDatabasesCount));
         geoIpDownloader.runDownloader();
         /*
          * The following two lines assert current behavior that might not be desirable -- we continue to delete expired databases every
          * time that runDownloader runs. This seems unnecessary.
          */
         assertThat(deleteCount.get(), equalTo(expiredDatabasesCount * 2));
-        assertThat(updatePersistentTaskStateCount.get(), equalTo(expiredDatabasesCount * 2));
+        assertThat(updateProjectPersistentTaskStateCount.get(), equalTo(expiredDatabasesCount * 2));
     }
 
     private GeoIpTaskState.Metadata newGeoIpTaskStateMetadata(boolean expired) {

@@ -85,16 +85,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         b.field("type", "sparse_vector");
     }
 
-    protected void minimalFieldMappingPreviousIndexVersion(XContentBuilder b) throws IOException {
+    protected void minimalFieldMappingPreviousIndexDefaultsIncluded(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
         b.field("store", false);
 
         b.startObject("meta");
         b.endObject();
 
-        // note that internally, this will have a `index_options: null` field,
-        // but when serialized back to the client, this field will be pruned
-        // the YAML Rest tests checks for this
         b.field("index_options", (Object) null);
     }
 
@@ -276,7 +273,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         XContentBuilder withDefaults = JsonXContent.contentBuilder().startObject();
         withDefaults.startObject("field");
-        minimalFieldMappingPreviousIndexVersion(withDefaults);
+        minimalFieldMappingPreviousIndexDefaultsIncluded(withDefaults);
         withDefaults.endObject();
         withDefaults.endObject();
 

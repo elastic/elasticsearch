@@ -25,6 +25,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginDescriptor;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -116,7 +117,7 @@ public class TestEntitlementBootstrap {
         if (classPathProperty == null) {
             classPathEntries = Set.of();
         } else {
-            classPathEntries = Arrays.stream(classPathProperty.split(":")).map(Path::of).collect(toCollection(TreeSet::new));
+            classPathEntries = Arrays.stream(classPathProperty.split(File.pathSeparator)).map(Path::of).collect(toCollection(TreeSet::new));
         }
         Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
 
@@ -127,7 +128,7 @@ public class TestEntitlementBootstrap {
         if (testOnlyPathString == null) {
             testOnlyClassPath = Set.of();
         } else {
-            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(":")).collect(toCollection(TreeSet::new));
+            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(File.pathSeparator)).collect(toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

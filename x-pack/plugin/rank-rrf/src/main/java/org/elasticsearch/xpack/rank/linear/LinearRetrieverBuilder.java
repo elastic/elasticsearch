@@ -92,7 +92,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(RetrieverSource.from(component.retriever));
                 weights[index] = component.weight;
-                normalizers[index] = component.normalizer;
+                normalizers[index] = normalizer;
                 index++;
             }
             return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
@@ -393,7 +393,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject();
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
                 builder.endObject();
                 index++;
             }

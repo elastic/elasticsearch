@@ -27,7 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.rank.simplified.SimplifiedInnerRetrieverUtils;
+import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -138,7 +138,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         boolean allowPartialSearchResults
     ) {
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
-        return SimplifiedInnerRetrieverUtils.validateSimplifiedFormatParams(
+        return MultiFieldsInnerRetrieverUtils.validateParams(
             innerRetrievers,
             fields,
             query,
@@ -233,13 +233,13 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 );
             }
 
-            List<RetrieverSource> fieldsInnerRetrievers = SimplifiedInnerRetrieverUtils.generateInnerRetrievers(
+            List<RetrieverSource> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
                 fields,
                 query,
                 localIndicesMetadata.values(),
                 r -> {
                     List<RetrieverSource> retrievers = r.stream()
-                        .map(SimplifiedInnerRetrieverUtils.WeightedRetrieverSource::retrieverSource)
+                        .map(MultiFieldsInnerRetrieverUtils.WeightedRetrieverSource::retrieverSource)
                         .toList();
                     return new RRFRetrieverBuilder(retrievers, rankWindowSize, rankConstant);
                 },

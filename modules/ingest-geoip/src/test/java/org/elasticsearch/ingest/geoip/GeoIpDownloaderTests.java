@@ -113,7 +113,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         );
         ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
         when(clusterService.state()).thenReturn(state);
-        client = new MockClient(threadPool);
+        client = new MockClient(threadPool, projectId);
         geoIpDownloader = new GeoIpDownloader(
             client,
             httpClient,
@@ -706,8 +706,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         private final Map<ActionType<?>, BiConsumer<? extends ActionRequest, ? extends ActionListener<?>>> handlers = new HashMap<>();
 
-        private MockClient(ThreadPool threadPool) {
-            super(threadPool, TestProjectResolvers.mustExecuteFirst());
+        private MockClient(ThreadPool threadPool, ProjectId projectId) {
+            super(threadPool, TestProjectResolvers.singleProject(projectId));
         }
 
         public <Response extends ActionResponse, Request extends ActionRequest> void addHandler(

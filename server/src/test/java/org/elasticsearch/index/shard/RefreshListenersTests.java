@@ -187,8 +187,8 @@ public class RefreshListenersTests extends ESTestCase {
     @After
     public void tearDownListeners() throws Exception {
         assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version."
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
         IOUtils.close(engine, store, nodeEnvironment, () -> terminate(threadPool));
     }

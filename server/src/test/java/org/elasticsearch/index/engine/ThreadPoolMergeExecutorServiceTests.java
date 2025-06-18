@@ -303,8 +303,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
         assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version."
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -395,8 +395,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
         assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version."
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -580,8 +580,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
         assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version."
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -643,8 +643,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             });
         }
         assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version."
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -718,8 +718,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             });
         }
         assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version."
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

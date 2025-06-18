@@ -21,16 +21,22 @@ import java.util.Collections;
 public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testDocValuesDisabled() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(),
-            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+            IndexVersion.current()
+        );
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
         expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
     }
 
     public void testIsNotAggregatable() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(),
-            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+            IndexVersion.current()
+        );
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
         assertFalse(fieldType.isAggregatable());
     }

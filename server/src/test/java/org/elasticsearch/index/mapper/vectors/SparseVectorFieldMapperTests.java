@@ -272,8 +272,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
 
         XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(fieldMapping(this::minimalMapping))
-            .documentMapper().mapping().toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
+        createMapperService(fieldMapping(this::minimalMapping)).documentMapper()
+            .mapping()
+            .toXContent(origWithoutDefaults, ToXContent.EMPTY_PARAMS);
         origWithoutDefaults.endObject();
 
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), Strings.toString(origWithoutDefaults));
@@ -297,8 +298,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(withDefaults), Strings.toString(orig));
 
         XContentBuilder origWithoutDefaults = JsonXContent.contentBuilder().startObject();
-        createMapperService(indexVersion, fieldMapping(this::minimalMapping))
-            .documentMapper().mapping().toXContent(origWithoutDefaults, INCLUDE_DEFAULTS);
+        createMapperService(indexVersion, fieldMapping(this::minimalMapping)).documentMapper()
+            .mapping()
+            .toXContent(origWithoutDefaults, INCLUDE_DEFAULTS);
         origWithoutDefaults.endObject();
 
         XContentBuilder withoutDefaults = JsonXContent.contentBuilder().startObject();

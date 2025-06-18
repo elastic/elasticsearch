@@ -3,7 +3,7 @@
 ###############################################
 
 toGeohash
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geohash[]
 ROW string = "u3bu"
@@ -18,7 +18,7 @@ u3bu           | u3bu
 ;
 
 toGeohashToLong
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geohash_to_long[]
 ROW string = "u3bu"
@@ -34,7 +34,7 @@ u3bu           | u3bu            | 13686180
 ;
 
 geohashLongToString
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::geohash_to_string[]
 ROW geohash = 13686180::long
@@ -49,7 +49,7 @@ geohash:long | geohashString:keyword
 ;
 
 geohashStringToGeoShape
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::geohash_to_geoshape[]
 ROW hash = "u3bu"
@@ -64,7 +64,7 @@ u3bu         | POLYGON((12.3046875 55.546875, 12.65625 55.546875, 12.65625 55.72
 ;
 
 geohashLongToGeoShape
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW hash = TO_LONG(13686180)
 | EVAL boundary = TO_GEOSHAPE(TO_GEOHASH(hash))
@@ -75,7 +75,7 @@ hash:long | boundary:geo_shape
 ;
 
 geohashLiteral
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geohash_literal[]
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
@@ -93,7 +93,7 @@ POINT(12.6493508684508 55.6285017221528)  | u3bu             | u3b              
 ;
 
 geohashLiteralString
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohash4 = TO_STRING(ST_GEOHASH(location, 4)),
@@ -107,7 +107,7 @@ POINT(12.6493508684508 55.6285017221528) | u3bu | u3b | u3 | u
 ;
 
 geohashLiteralLong
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohash4 = TO_LONG(ST_GEOHASH(location, 4)),
@@ -121,7 +121,7 @@ POINT (12.6493508684508 55.6285017221528) | 13686180      | 427683        | 1336
 ;
 
 geohashField
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE abbrev == "CPH"
@@ -134,7 +134,7 @@ u3buryf         | CPH            | Copenhagen | POINT (12.6493508684508 55.62850
 ;
 
 gridGeohashStatsBy
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::st_geohash-grid[]
 FROM airports
@@ -173,7 +173,7 @@ count:long | centroid:geo_point                             | geohashString:keyw
 ;
 
 gridGeohashQuery
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_GEOHASH(location, 1) == TO_GEOHASH("7")
@@ -196,7 +196,7 @@ count:long | centroid:geo_point                             | geohashString:keyw
 ;
 
 gridGeohashStatsByBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geohash = ST_GEOHASH(location, 2, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
@@ -226,7 +226,7 @@ count:long | centroid:geo_point                            | geohashString:keywo
 ;
 
 gridGeohashStatsByBoundsEnvelope
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geohash = ST_GEOHASH(location, 2, ST_ENVELOPE(TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))")))
@@ -256,7 +256,7 @@ count:long | centroid:geo_point                            | geohashString:keywo
 ;
 
 gridGeohashDocsFromCell
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOHASH("u1"))
@@ -270,7 +270,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeohashLiteralFromCell
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (6.351574736181647 51.8981519783847)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
@@ -283,7 +283,7 @@ POINT (6.351574736181647 51.8981519783847)
 ;
 
 gridGeohashStatsByWhereUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -304,7 +304,7 @@ count:long | centroid:geo_point                            | geohashString:keywo
 ;
 
 gridGeohashStatsByBoundsUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -329,7 +329,7 @@ count:long | centroid:geo_point                            | geohashString:keywo
 ;
 
 gridGeohashInStatsBy
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | STATS
@@ -355,7 +355,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeohashInStatsByWhereUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -377,7 +377,7 @@ count:long | centroid:geo_point
 ###############################################
 
 toGeotile
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geotile[]
 ROW string = "4/8/5"
@@ -392,7 +392,7 @@ string:keyword | geotile:geotile
 ;
 
 toGeotileToLong
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geotile_to_long[]
 ROW string = "4/8/5"
@@ -408,7 +408,7 @@ string:keyword | geotile:geotile | geotileLong:long
 ;
 
 geotileLongToString
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::geotile_to_string[]
 ROW geotile = 1152921508901814277
@@ -423,7 +423,7 @@ geotile:long        | geotileString:keyword
 ;
 
 geotileStringToGeoshape
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::geotile_to_geoshape[]
 ROW tile = "4/8/5"
@@ -438,7 +438,7 @@ tile:keyword    | boundary:geo_shape
 ;
 
 geotileLiteral
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::st_geotile_literal[]
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
@@ -456,7 +456,7 @@ POINT (12.6493508684508 55.6285017221528) | 4/8/5            | 3/4/2            
 ;
 
 geotileLiteralString
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geotile4 = TO_STRING(ST_GEOTILE(location, 4)),
@@ -470,7 +470,7 @@ POINT (12.6493508684508 55.6285017221528) | 4/8/5            | 3/4/2            
 ;
 
 geotileLiteralLong
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geotile4 = TO_LONG(ST_GEOTILE(location, 4)),
@@ -484,7 +484,7 @@ POINT (12.6493508684508 55.6285017221528) | 1152921508901814277 | 86469113060261
 ;
 
 geotileField
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE abbrev == "CPH"
@@ -497,7 +497,7 @@ geotile:geotile | abbrev:keyword | name:text  | location:geo_point
 ;
 
 gridGeotileStatsBy
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::st_geotile-grid[]
 FROM airports
@@ -529,7 +529,7 @@ count:long | centroid:geo_point                              | geotileString:key
 ;
 
 gridGeotileQuery
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_GEOTILE(location, 2) == TO_GEOTILE("2/0/2")
@@ -549,7 +549,7 @@ count:long | centroid:geo_point                             | geotileString:keyw
 ;
 
 gridGeotileStatsByBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 3, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
@@ -570,7 +570,7 @@ count:long | centroid:geo_point                           | geotileString:keywor
 ;
 
 gridGeotileStatsByBoundsEnvelope
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 3, ST_ENVELOPE(TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))")))
@@ -591,7 +591,7 @@ count:long | centroid:geo_point                           | geotileString:keywor
 ;
 
 gridGeotileDocsFromCell
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOTILE("3/4/3"))
@@ -605,7 +605,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeotileLiteralFromCell
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (24.516750878736943 23.93036561181085)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
@@ -618,7 +618,7 @@ POINT (24.516750878736943 23.93036561181085)
 ;
 
 gridGeotileStatsByWhereUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -639,7 +639,7 @@ count:long | centroid:geo_point                            | geotileString:keywo
 ;
 
 gridGeotileStatsByBoundsUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -663,7 +663,7 @@ count:long | centroid:geo_point                            | geotileString:keywo
 ;
 
 gridGeotileInStatsBy
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | STATS
@@ -683,7 +683,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeotileInStatsByWhereUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -704,7 +704,7 @@ count:long | centroid:geo_point
 ###############################################
 
 toGeohex
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geohex[]
 ROW string = "841f059ffffffff"
@@ -719,7 +719,7 @@ string:keyword  | geohex:geohex
 ;
 
 toGeohexToLong
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::to_geohex_to_long[]
 ROW string = "841f059ffffffff"
@@ -735,7 +735,7 @@ string:keyword  | geohex:geohex   | geohexLong:long
 ;
 
 geohexLongToGeoHex
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::long_to_geohex[]
 ROW gridId = 595020895127339007
@@ -750,7 +750,7 @@ gridId:long        | geohex:geohex
 ;
 
 geohexStringToGeoshape
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::geohex_to_geoshape[]
 ROW hex = "841f059ffffffff"
@@ -765,7 +765,7 @@ hex:keyword     | boundary:geo_shape
 ;
 
 geohexLiteral
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::st_geohex_literal[]
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
@@ -783,7 +783,7 @@ POINT (12.6493508684508 55.6285017221528) | 841f059ffffffff | 831f05fffffffff | 
 ;
 
 geohexLiteralString
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohex4 = TO_STRING(ST_GEOHEX(location, 4)),
@@ -797,7 +797,7 @@ POINT (12.6493508684508 55.6285017221528) | 841f059ffffffff | 831f05fffffffff | 
 ;
 
 geohexLiteralLong
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohex4 = TO_LONG(ST_GEOHEX(location, 4)),
@@ -811,7 +811,7 @@ POINT (12.6493508684508 55.6285017221528) | 595020895127339007 | 590517321269772
 ;
 
 geohexField
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE abbrev == "CPH"
@@ -824,7 +824,7 @@ geohex:geohex   | abbrev:keyword | name:text  | location:geo_point
 ;
 
 gridGeohexStatsBy
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 // tag::st_geohex-grid[]
 FROM airports
@@ -857,7 +857,7 @@ count:long | centroid:geo_point                             | geohexString:keywo
 ;
 
 gridGeohexQuery
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_GEOHEX(location, 1) == TO_GEOHEX("812bbffffffffff")
@@ -881,7 +881,7 @@ count:long | centroid:geo_point                            | geohexString:keywor
 ;
 
 gridGeohexStatsByBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
@@ -911,7 +911,7 @@ count:long | centroid:geo_point                            | geohexString:keywor
 ;
 
 gridGeohexStatsByBoundsEnvelope
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1, ST_ENVELOPE(TO_GEOSHAPE("POLYGON((0.0 30.0, 12.0 30.0, 12.0 60.0, 0.0 60.0, 0.0 30.0))")))
@@ -940,7 +940,7 @@ count:long | centroid:geo_point                            | geohexString:keywor
 ;
 
 gridGeohexQueryBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
@@ -959,7 +959,7 @@ TLL            | POINT (24.798964869983 59.4165014697451)  | 8108bffffffffff
 ;
 
 gridGeohexByBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE abbrev IN ("RTW", "TIP", "XMN")
@@ -975,7 +975,7 @@ XMN            | POINT (118.12696884672 24.537192570557)   | null
 ;
 
 literalGridGeohexByBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = ["POINT (46.035023249891 51.5606456508842)", "POINT (13.1442589810713 32.6691695504993)", "POINT (118.12696884672 24.537192570557)"]
 | MV_EXPAND location
@@ -995,7 +995,7 @@ POINT (118.12696884672 24.537192570557)   | 8141bffffffffff | null              
 ;
 
 gridGeohexDocsFromCell
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOHEX("81397ffffffffff"))
@@ -1009,7 +1009,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeohexLiteralFromCell
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (2.475211258445467 41.32352174592337)", "POINT (5.268637698941997 42.747250193330856)"]
 | EVAL location = TO_GEOPOINT(location)
@@ -1023,7 +1023,7 @@ POINT (5.268637698941997 42.747250193330856)
 ;
 
 gridGeohexStatsByWhereUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -1046,7 +1046,7 @@ count:long | centroid:geo_point                            | geohexString:keywor
 ;
 
 gridGeohexStatsByBoundsUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -1080,7 +1080,7 @@ count:long | centroid:geo_point                             | geohexString:keywo
 ;
 
 gridGeohexInStatsByBounds
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | STATS
@@ -1100,7 +1100,7 @@ count:long | centroid:geo_point
 ;
 
 gridGeohexInStatsByWhereUK
-required_capability: spatial_grid
+required_capability: spatial_grid_types
 
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))

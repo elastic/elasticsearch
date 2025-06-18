@@ -114,5 +114,4 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             );
         }
     }
-
 }

@@ -37,7 +37,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
     @Override
     protected CleanupSnapshotStep copyInstance(CleanupSnapshotStep instance) {
-        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     @Override
@@ -49,7 +49,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupSnapshotStep(key, nextKey, instance.getClient());
+        return new CleanupSnapshotStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() throws Exception {

@@ -43,7 +43,7 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
 
     @Override
     protected CloseIndexStep copyInstance(CloseIndexStep instance) {
-        return new CloseIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CloseIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     public void testPerformAction() {

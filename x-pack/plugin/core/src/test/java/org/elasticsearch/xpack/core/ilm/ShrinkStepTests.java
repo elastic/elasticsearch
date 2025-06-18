@@ -66,7 +66,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize);
+        return new ShrinkStep(key, nextKey, instance.getClientWithoutProject(), numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         return new ShrinkStep(
             instance.getKey(),
             instance.getNextStepKey(),
-            instance.getClient(),
+            instance.getClientWithoutProject(),
             instance.getNumberOfShards(),
             instance.getMaxPrimaryShardSize()
         );

@@ -28,7 +28,7 @@ public abstract class AsyncActionStep extends Step {
 
     // For testing only
     @Nullable
-    Client getClient() {
+    Client getClientWithoutProject() {
         return client;
     }
 

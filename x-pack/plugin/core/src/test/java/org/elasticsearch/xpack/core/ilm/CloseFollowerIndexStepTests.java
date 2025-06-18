@@ -117,11 +117,11 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
 
-        return new CloseFollowerIndexStep(key, nextKey, instance.getClient());
+        return new CloseFollowerIndexStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
     protected CloseFollowerIndexStep copyInstance(CloseFollowerIndexStep instance) {
-        return new CloseFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CloseFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 }

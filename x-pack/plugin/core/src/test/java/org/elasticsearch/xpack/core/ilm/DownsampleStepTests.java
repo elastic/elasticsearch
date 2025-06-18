@@ -71,7 +71,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, instance.getClient(), fixedInterval, timeout);
+        return new DownsampleStep(key, nextKey, instance.getClientWithoutProject(), fixedInterval, timeout);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         return new DownsampleStep(
             instance.getKey(),
             instance.getNextStepKey(),
-            instance.getClient(),
+            instance.getClientWithoutProject(),
             instance.getFixedInterval(),
             instance.getWaitTimeout()
         );

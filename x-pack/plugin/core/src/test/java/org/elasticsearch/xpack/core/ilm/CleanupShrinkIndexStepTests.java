@@ -39,7 +39,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
     @Override
     protected CleanupShrinkIndexStep copyInstance(CleanupShrinkIndexStep instance) {
-        return new CleanupShrinkIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CleanupShrinkIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     @Override
@@ -51,7 +51,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupShrinkIndexStep(key, nextKey, instance.getClient());
+        return new CleanupShrinkIndexStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     public void testPerformActionDoesntFailIfShrinkingIndexNameIsMissing() {

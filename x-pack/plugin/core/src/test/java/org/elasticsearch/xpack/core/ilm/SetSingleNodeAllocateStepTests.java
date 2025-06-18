@@ -72,7 +72,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new SetSingleNodeAllocateStep(key, nextKey, instance.getClient());
+        return new SetSingleNodeAllocateStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override

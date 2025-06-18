@@ -40,7 +40,7 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
 
     @Override
     protected OpenIndexStep copyInstance(OpenIndexStep instance) {
-        return new OpenIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new OpenIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     public void testPerformAction() throws Exception {

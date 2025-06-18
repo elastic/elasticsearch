@@ -48,12 +48,12 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DeleteStep(key, nextKey, instance.getClient());
+        return new DeleteStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
     public DeleteStep copyInstance(DeleteStep instance) {
-        return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     private static IndexMetadata getIndexMetadata() {

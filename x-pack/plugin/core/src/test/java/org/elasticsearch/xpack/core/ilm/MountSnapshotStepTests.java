@@ -60,7 +60,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         return new MountSnapshotStep(
             instance.getKey(),
             instance.getNextStepKey(),
-            instance.getClient(),
+            instance.getClientWithoutProject(),
             instance.getRestoredIndexPrefix(),
             instance.getStorage(),
             instance.getTotalShardsPerNode(),
@@ -104,7 +104,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix, storage, totalShardsPerNode, replicas);
+        return new MountSnapshotStep(key, nextKey, instance.getClientWithoutProject(), restoredIndexPrefix, storage, totalShardsPerNode, replicas);
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() throws Exception {

@@ -45,7 +45,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             instance.getKey(),
             instance.getNextKeyOnComplete(),
             instance.getNextKeyOnIncomplete(),
-            instance.getClient()
+            instance.getClientWithoutProject()
         );
     }
 
@@ -60,7 +60,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             case 2 -> nextKeyOnIncompleteResponse = randomStepKey();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClient());
+        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClientWithoutProject());
     }
 
     public void testPerformActionFailure() {

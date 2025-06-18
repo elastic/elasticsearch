@@ -51,11 +51,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final FlatVectorsWriter rawVectorDelegate;
-    private final SegmentWriteState segmentWriteState;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate) throws IOException {
-        this.segmentWriteState = state;
         this.rawVectorDelegate = rawVectorDelegate;
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,

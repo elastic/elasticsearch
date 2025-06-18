@@ -70,6 +70,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -373,9 +374,9 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(mixed), indicesLookup, systemIndices));
     }
 
-    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+    private void blockWriteCoordinationThreadPool(CountDownLatch blockingLatch) {
         assertThat(blockingLatch.getCount(), greaterThan(0L));
-        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
         // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
         expectThrows(EsRejectedExecutionException.class, () -> {
             // noinspection InfiniteLoopStatement
@@ -385,12 +386,42 @@ public class TransportBulkActionTests extends ESTestCase {
         });
     }
 
+    public void testDispatchesToWriteCoordinationThreadPoolOnce() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+            .findAny()
+            .get();
+        assertThat(stats.completed(), equalTo(0L));
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        future.actionGet();
+
+        assertBusy(() -> {
+            // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the
+            // index
+            // is created.
+            assertThat(
+                threadPool.stats()
+                    .stats()
+                    .stream()
+                    .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+                    .findAny()
+                    .get()
+                    .completed(),
+                equalTo(2L)
+            );
+        });
+    }
+
     public void testRejectCoordination() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         final var blockingLatch = new CountDownLatch(1);
         try {
-            blockWriteThreadPool(blockingLatch);
+            blockWriteCoordinationThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
@@ -405,7 +436,7 @@ public class TransportBulkActionTests extends ESTestCase {
         bulkAction.failIndexCreationException = randomBoolean() ? new ResourceAlreadyExistsException("index already exists") : null;
         final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
+            bulkAction.beforeIndexCreation = () -> blockWriteCoordinationThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);

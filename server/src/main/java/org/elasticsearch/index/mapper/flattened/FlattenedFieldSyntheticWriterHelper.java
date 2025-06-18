@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,6 +34,7 @@ import java.util.Objects;
  * "root.object.items": "102202929"
  * "root.object.items": "290092911"
  * "root.to": "Atlanta"
+ * "root.to.state": "Georgia"
  *
  * it turns them into the corresponding object using {@link XContentBuilder}.
  * If, for instance JSON is used, it generates the following after deserialization:
@@ -50,7 +50,8 @@ import java.util.Objects;
  *         "object": {
  *             "items": ["102202929", "290092911"],
  *         },
- *         "to": "Atlanta"
+ *         "to": "Atlanta",
+ *         "to.state": "Georgia"
  *     }
  * }`
  *
@@ -60,26 +61,21 @@ public class FlattenedFieldSyntheticWriterHelper {
     private record Prefix(List<String> prefix) {
 
         Prefix() {
-            this(Collections.emptyList());
+            this(new ArrayList<>());
         }
 
         Prefix(String[] keyAsArray) {
             this(List.of(keyAsArray).subList(0, keyAsArray.length - 1));
         }
 
-        private Prefix shared(final Prefix other) {
-            return shared(this.prefix, other.prefix);
-        }
-
-        private static Prefix shared(final List<String> curr, final List<String> next) {
-            final List<String> shared = new ArrayList<>();
-            for (int i = 0; i < Math.min(curr.size(), next.size()); i++) {
-                if (curr.get(i).equals(next.get(i))) {
-                    shared.add(curr.get(i));
+        private static int numObjectsToEnd(final List<String> curr, final List<String> next) {
+            int i = 0;
+            for (; i < Math.min(curr.size(), next.size()); i++) {
+                if (curr.get(i).equals(next.get(i)) == false) {
+                    break;
                 }
             }
-
-            return new Prefix(shared);
+            return Math.max(0, curr.size() - i);
         }
 
         private Prefix diff(final Prefix other) {
@@ -198,8 +194,8 @@ public class FlattenedFieldSyntheticWriterHelper {
     public void write(final XContentBuilder b) throws IOException {
         KeyValue curr = new KeyValue(sortedKeyedValues.next());
         final List<String> values = new ArrayList<>();
-        List<String> openObjects = new ArrayList<>();
-        String leafInSameObjectWithSamePrefix = null;
+        var openObjects = new Prefix();
+        String lastScalarSingleLeaf = null;
         KeyValue next;
 
         do {
@@ -207,24 +203,26 @@ public class FlattenedFieldSyntheticWriterHelper {
             BytesRef nextValue = sortedKeyedValues.next();
             next = nextValue == null ? KeyValue.EMPTY : new KeyValue(nextValue);
 
-            var startPrefix = curr.prefix.diff(new Prefix(openObjects));
-            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.getFirst().equals(leafInSameObjectWithSamePrefix)) {
+            var startPrefix = curr.prefix.diff(openObjects);
+            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.getFirst().equals(lastScalarSingleLeaf)) {
+                // In the open object, there is a leaf with a scalar value, which is also the first
+                // part of the current path. Instead of traversing down into the path and building objects,
+                // combine the path into a single leaf and add it as a field.
                 if (curr.pathEquals(next) == false) {
                     String combinedPath = concatPath(startPrefix, curr.leaf());
                     writeField(b, values, combinedPath);
                 }
             } else {
-                startObject(b, startPrefix.prefix, openObjects);
+                // Traverse down into path, writing object keys to output, and adding to the openObject context.
+                startObject(b, startPrefix.prefix, openObjects.prefix);
                 if (curr.pathEquals(next) == false) {
-                    leafInSameObjectWithSamePrefix = curr.leaf();
+                    lastScalarSingleLeaf = curr.leaf();
                     writeField(b, values, curr.leaf());
                 }
             }
 
-            var openPrefix = new Prefix(openObjects);
-            var endPrefix = openPrefix.diff(openPrefix.shared(next.prefix));
-            int numObjectsToClose = endPrefix.prefix.size();
-            endObject(b, numObjectsToClose, openObjects);
+            int numObjectsToEnd = Prefix.numObjectsToEnd(openObjects.prefix, next.prefix.prefix);
+            endObject(b, numObjectsToEnd, openObjects.prefix);
 
             curr = next;
         } while (next.equals(KeyValue.EMPTY) == false);

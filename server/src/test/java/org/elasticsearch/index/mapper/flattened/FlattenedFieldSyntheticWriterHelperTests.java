@@ -192,33 +192,6 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         assertEquals("{\"a\":{\"x\":[\"10\",\"20\"]},\"b\":{\"y\":[\"30\",\"40\",\"50\"]}}", baos.toString(StandardCharsets.UTF_8));
     }
 
-    public void test() throws IOException {
-        // GIVEN
-        final SortedSetDocValues dv = mock(SortedSetDocValues.class);
-        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(new SortedSetSortedKeyedValues(dv));
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
-        final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "a.x" + '\0' + "20")
-            .stream()
-            .map(x -> x.getBytes(StandardCharsets.UTF_8))
-            .collect(Collectors.toList());
-        when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
-        when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
-        for (int i = 0; i < bytes.size(); i++) {
-            when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
-        }
-
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
-        // THEN
-        assertEquals("{\"a\":{\"x\":[\"10\",\"20\"]}}", baos.toString(StandardCharsets.UTF_8));
-    }
-
     public void testSameLeafDifferentPrefix() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
@@ -231,7 +204,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
@@ -261,7 +234,7 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }

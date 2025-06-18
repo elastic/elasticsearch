@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SequentialTaskAckingTaskExecutor;
+import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -64,7 +64,7 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
         this.taskQueue = clusterService.createTaskQueue(
             "streams-update-state-queue",
             Priority.NORMAL,
-            new SequentialTaskAckingTaskExecutor<>()
+            new SequentialAckingBatchedTaskExecutor<>()
         );
         this.projectResolver = projectResolver;
     }

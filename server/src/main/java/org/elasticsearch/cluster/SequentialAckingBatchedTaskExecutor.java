@@ -18,7 +18,8 @@ import org.elasticsearch.core.Tuple;
  *
  * @param <Task> The type of the task that extends {@link AckedClusterStateUpdateTask}.
  */
-public class SequentialTaskAckingTaskExecutor<Task extends AckedClusterStateUpdateTask> extends SimpleBatchedAckListenerTaskExecutor<Task> {
+public class SequentialAckingBatchedTaskExecutor<Task extends AckedClusterStateUpdateTask> extends SimpleBatchedAckListenerTaskExecutor<
+    Task> {
     @Override
     public Tuple<ClusterState, ClusterStateAckListener> executeTask(Task task, ClusterState clusterState) throws Exception {
         return Tuple.tuple(task.execute(clusterState), task);

@@ -11,8 +11,8 @@ package org.elasticsearch.rest.streams.logs;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -47,13 +47,9 @@ public class StreamsStatusAction {
             logs_enabled = logsEnabled;
         }
 
-        public Response(StreamInput in) throws IOException {
-            logs_enabled = in.readBoolean();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(logs_enabled);
+            TransportAction.localOnly();
         }
 
         @Override

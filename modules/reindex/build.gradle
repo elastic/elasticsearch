@@ -19,6 +19,7 @@ apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'

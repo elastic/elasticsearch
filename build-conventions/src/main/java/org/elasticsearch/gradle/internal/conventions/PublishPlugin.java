@@ -23,6 +23,7 @@ import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.XmlProvider;
+import org.gradle.api.component.SoftwareComponent;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.BasePluginExtension;
@@ -82,7 +83,8 @@ public class PublishPlugin implements Plugin<Project> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
                 configureWithShadowPlugin(project1, publication);
             } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
-                publication.from(project.getComponents().getByName("java"));
+                SoftwareComponent java = project.getComponents().getByName("java");
+                publication.from(java);
             }
         });
         project.getPlugins().withType(JavaPlugin.class, plugin -> {

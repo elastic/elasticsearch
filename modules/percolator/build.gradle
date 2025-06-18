@@ -7,6 +7,7 @@
  */
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
 
 esplugin {
   description 'Percolator module adds capability to index queries and query these queries by specifying documents'

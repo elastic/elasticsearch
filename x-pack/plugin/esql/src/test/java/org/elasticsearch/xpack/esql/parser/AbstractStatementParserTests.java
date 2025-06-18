@@ -121,7 +121,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static Literal literalString(String s) {
-        return new Literal(EMPTY, BytesRefs.toBytesRef(s), DataType.KEYWORD);
+        return Literal.keyword(EMPTY, s);
     }
 
     static Literal literalStrings(String... strings) {
@@ -136,7 +136,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
             DataType type = (value instanceof List<?> l) ? DataType.fromJava(l.get(0)) : DataType.fromJava(value);
             value = stringsToBytesRef(value, type);
 
-            ees.add(new Literal(EMPTY, BytesRefs.toBytesRef(key), DataType.KEYWORD));
+            ees.add(Literal.keyword(EMPTY, key));
             ees.add(new Literal(EMPTY, value, type));
         }
         return new MapExpression(EMPTY, ees);

@@ -511,7 +511,7 @@ public class LocalExecutionPlanner {
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
-            Object val = literal.value() instanceof BytesRef br ? br.utf8ToString() : literal.value();
+            Object val = literal.value() instanceof BytesRef br ? BytesRefs.toString(br) : literal.value();
             limit = stringToInt(val.toString());
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");

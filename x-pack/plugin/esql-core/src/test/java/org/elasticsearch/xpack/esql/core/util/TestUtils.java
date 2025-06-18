@@ -43,7 +43,7 @@ public final class TestUtils {
             return (Literal) value;
         }
         DataType type = DataType.fromJava(value);
-        if (value instanceof String && (type == TEXT || type == KEYWORD)) {
+        if ((type == TEXT || type == KEYWORD) && value instanceof String) {
             value = BytesRefs.toBytesRef(value);
         }
         return new Literal(source, value, DataType.fromJava(value));

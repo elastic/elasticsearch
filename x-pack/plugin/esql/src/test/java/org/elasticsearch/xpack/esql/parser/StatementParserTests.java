@@ -224,7 +224,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(
                     new Alias(EMPTY, "a.b.c", integer(1)),
                     new Alias(EMPTY, "b", integer(2)),
-                    new Alias(EMPTY, "@timestamp", new Literal(EMPTY, BytesRefs.toBytesRef("2022-26-08T00:00:00"), KEYWORD))
+                    new Alias(EMPTY, "@timestamp", Literal.keyword(EMPTY, "2022-26-08T00:00:00"))
                 )
             ),
             statement("row a.b.c = 1, `b` = 2, `@timestamp`=\"2022-26-08T00:00:00\"")
@@ -1177,7 +1177,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 null,
-                new Literal(EMPTY, BytesRefs.toBytesRef("countries"), KEYWORD),
+                Literal.keyword(EMPTY, "countries"),
                 new EmptyAttribute(EMPTY),
                 null,
                 Map.of(),
@@ -1191,7 +1191,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 null,
-                new Literal(EMPTY, BytesRefs.toBytesRef("index-policy"), KEYWORD),
+                Literal.keyword(EMPTY, "index-policy"),
                 new UnresolvedAttribute(EMPTY, "field_underscore"),
                 null,
                 Map.of(),
@@ -1206,7 +1206,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 mode,
-                new Literal(EMPTY, BytesRefs.toBytesRef("countries"), KEYWORD),
+                Literal.keyword(EMPTY, "countries"),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
                 Map.of(),
@@ -1975,7 +1975,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 relation("idx1"),
                 null,
-                new Literal(EMPTY, BytesRefs.toBytesRef("idx2"), KEYWORD),
+                Literal.keyword(EMPTY, "idx2"),
                 attribute("f.1.*"),
                 null,
                 Map.of(),
@@ -1992,7 +1992,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 relation("idx1"),
                 null,
-                new Literal(EMPTY, BytesRefs.toBytesRef("idx2"), KEYWORD),
+                Literal.keyword(EMPTY, "idx2"),
                 attribute("f.1.*.f.2"),
                 null,
                 Map.of(),
@@ -2570,21 +2570,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(
-                                    attribute("f1"),
-                                    new Literal(EMPTY, BytesRefs.toBytesRef("testString"), KEYWORD),
-                                    mapExpression(expectedMap1)
-                                )
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, BytesRefs.toBytesRef("testString"), KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement("""
@@ -2676,21 +2669,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(
-                                    attribute("f1"),
-                                    new Literal(EMPTY, BytesRefs.toBytesRef("testString"), KEYWORD),
-                                    mapExpression(expectedMap1)
-                                )
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, BytesRefs.toBytesRef("testString"), KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement(
@@ -2819,21 +2805,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(
-                                    attribute("f1"),
-                                    new Literal(EMPTY, BytesRefs.toBytesRef("testString"), KEYWORD),
-                                    mapExpression(expectedMap1)
-                                )
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, BytesRefs.toBytesRef("testString"), KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement("""
@@ -3967,7 +3946,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     relation("idx1"),
                     null,
-                    new Literal(EMPTY, BytesRefs.toBytesRef("idx2"), KEYWORD),
+                    Literal.keyword(EMPTY, "idx2"),
                     attribute("f.1.*"),
                     null,
                     Map.of(),
@@ -4003,7 +3982,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     relation("idx1"),
                     null,
-                    new Literal(EMPTY, BytesRefs.toBytesRef("idx2"), KEYWORD),
+                    Literal.keyword(EMPTY, "idx2"),
                     attribute("f.1.*.f.2"),
                     null,
                     Map.of(),
@@ -4055,13 +4034,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Eval(
                             EMPTY,
                             relation("test"),
-                            List.of(
-                                new Alias(
-                                    EMPTY,
-                                    "x",
-                                    function("toString", List.of(new Literal(EMPTY, BytesRefs.toBytesRef("constant_value"), KEYWORD)))
-                                )
-                            )
+                            List.of(new Alias(EMPTY, "x", function("toString", List.of(Literal.keyword(EMPTY, "constant_value")))))
                         ),
                         new Equals(EMPTY, attribute("f.2"), new Literal(EMPTY, 100, INTEGER))
                     )
@@ -4104,10 +4077,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                             EMPTY,
                             relation("test"),
                             List.of(attribute("f.4.")),
-                            List.of(
-                                new Alias(EMPTY, "y", function("count", List.of(new Literal(EMPTY, BytesRefs.toBytesRef("*"), KEYWORD)))),
-                                attribute("f.4.")
-                            )
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(Literal.keyword(EMPTY, "*")))), attribute("f.4."))
                         ),
                         List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                     ),

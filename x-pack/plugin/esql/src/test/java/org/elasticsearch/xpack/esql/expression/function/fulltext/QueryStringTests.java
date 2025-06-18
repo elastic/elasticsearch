@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,7 +27,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,10 +57,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(
-                                new Literal(Source.EMPTY, BytesRefs.toBytesRef("default_field"), KEYWORD),
-                                new Literal(Source.EMPTY, BytesRefs.toBytesRef(randomAlphaOfLength(10)), KEYWORD)
-                            )
+                            List.of(Literal.keyword(Source.EMPTY, "default_field"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
                         UNSUPPORTED,
                         "options"

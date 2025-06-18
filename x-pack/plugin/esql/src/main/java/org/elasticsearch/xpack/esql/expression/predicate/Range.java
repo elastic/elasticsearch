@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -167,13 +168,13 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof BytesRef br) {
-                    upperValue = br.utf8ToString();
+                    upperValue = BytesRefs.toString(br);
                 }
                 if (upperValue instanceof String upperString) {
                     upperValue = asDateTime(upperString);
                 }
                 if (lowerValue instanceof BytesRef br) {
-                    lowerValue = br.utf8ToString();
+                    lowerValue = BytesRefs.toBytesRef(br);
                 }
                 if (lowerValue instanceof String lowerString) {
                     lowerValue = asDateTime(lowerString);

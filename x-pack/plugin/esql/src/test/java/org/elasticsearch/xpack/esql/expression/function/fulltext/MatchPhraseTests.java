@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -31,7 +30,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
@@ -88,10 +86,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(
-                                new Literal(Source.EMPTY, "slop", INTEGER),
-                                new Literal(Source.EMPTY, BytesRefs.toBytesRef(randomAlphaOfLength(10)), KEYWORD)
-                            )
+                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
                         UNSUPPORTED,
                         "options"

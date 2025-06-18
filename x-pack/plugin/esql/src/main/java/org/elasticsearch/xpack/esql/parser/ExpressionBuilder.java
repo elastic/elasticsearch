@@ -254,7 +254,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, BytesRefs.toBytesRef(unquote(source)), DataType.KEYWORD);
+        return Literal.keyword(source, unquote(source));
     }
 
     @Override
@@ -623,7 +623,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
-                args = singletonList(new Literal(source(ctx), BytesRefs.toBytesRef("*"), DataType.KEYWORD));
+                args = singletonList(Literal.keyword(source(ctx), "*"));
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
@@ -660,7 +660,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
                 }
-                namedArgs.add(new Literal(source(stringCtx), BytesRefs.toBytesRef(key), KEYWORD));
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
             } else {

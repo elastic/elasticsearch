@@ -5635,7 +5635,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 EMPTY,
                 plan,
                 Enrich.Mode.ANY,
-                new Literal(EMPTY, BytesRefs.toBytesRef("some_policy"), KEYWORD),
+                Literal.keyword(EMPTY, "some_policy"),
                 attr,
                 null,
                 Map.of(),
@@ -5674,8 +5674,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastProject() {
-        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, BytesRefs.toBytesRef("1"), KEYWORD));
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, BytesRefs.toBytesRef("2"), KEYWORD));
+        Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), x.toAttribute()));
 
@@ -5721,8 +5721,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastRenamingProject() {
-        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, BytesRefs.toBytesRef("1"), KEYWORD));
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, BytesRefs.toBytesRef("2"), KEYWORD));
+        Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(
             EMPTY,
@@ -5779,7 +5779,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastRenamingProjectWithResolution() {
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, BytesRefs.toBytesRef("2"), KEYWORD));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         Alias yAliased = new Alias(EMPTY, "x", y.toAttribute());
         LogicalPlan initialRow = new Row(EMPTY, List.of(y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), yAliased));

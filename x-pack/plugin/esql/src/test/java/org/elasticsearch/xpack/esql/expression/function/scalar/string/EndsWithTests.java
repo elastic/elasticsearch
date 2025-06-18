@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -109,11 +108,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testLuceneQuery_AllLiterals_NonTranslatable() {
-        var function = new EndsWith(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, BytesRefs.toBytesRef("test"), DataType.KEYWORD),
-            new Literal(Source.EMPTY, BytesRefs.toBytesRef("test"), DataType.KEYWORD)
-        );
+        var function = new EndsWith(Source.EMPTY, Literal.keyword(Source.EMPTY, "test"), Literal.keyword(Source.EMPTY, "test"));
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
@@ -132,7 +127,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
         var function = new EndsWith(
             Source.EMPTY,
             new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
-            new Literal(Source.EMPTY, BytesRefs.toBytesRef("a*b?c\\"), DataType.KEYWORD)
+            Literal.keyword(Source.EMPTY, "a*b?c\\")
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));

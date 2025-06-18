@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -144,8 +143,8 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
         return new MapExpression(
             Source.EMPTY,
             List.of(
-                new Literal(Source.EMPTY, BytesRefs.toBytesRef("leading_zeros"), DataType.KEYWORD),
-                new Literal(Source.EMPTY, BytesRefs.toBytesRef(leadingZeros.toString().toLowerCase(Locale.ROOT)), DataType.KEYWORD)
+                Literal.keyword(Source.EMPTY, "leading_zeros"),
+                Literal.keyword(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT))
             )
         );
     }

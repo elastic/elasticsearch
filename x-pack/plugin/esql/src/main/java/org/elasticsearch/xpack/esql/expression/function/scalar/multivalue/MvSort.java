@@ -65,8 +65,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
 
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, BytesRefs.toBytesRef("ASC"), DataType.KEYWORD);
-    private static final Literal DESC = new Literal(Source.EMPTY, BytesRefs.toBytesRef("DESC"), DataType.KEYWORD);
+    private static final Literal ASC = Literal.keyword(Source.EMPTY, "ASC");
+    private static final Literal DESC = Literal.keyword(Source.EMPTY, "DESC");
 
     private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
@@ -157,13 +157,12 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                     sourceText(),
                     BytesRefs.toString(ASC.value()),
                     BytesRefs.toString(DESC.value()),
-                    ((BytesRef) order.fold(toEvaluator.foldCtx())).utf8ToString()
+                    BytesRefs.toString(order.fold(toEvaluator.foldCtx()))
                 )
             );
         }
         if (order != null && order.foldable()) {
-            ordering = ((BytesRef) order.fold(toEvaluator.foldCtx())).utf8ToString()
-                .equalsIgnoreCase(((BytesRef) ASC.value()).utf8ToString());
+            ordering = BytesRefs.toString(order.fold(toEvaluator.foldCtx())).equalsIgnoreCase(BytesRefs.toString(ASC.value()));
         }
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
@@ -245,9 +244,9 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                     order,
                     INVALID_ORDER_ERROR,
                     sourceText(),
-                    ((BytesRef) ASC.value()).utf8ToString(),
-                    ((BytesRef) DESC.value()).utf8ToString(),
-                    ((BytesRef) order.fold(FoldContext.small() /* TODO remove me */)).utf8ToString()
+                    BytesRefs.toString(ASC.value()),
+                    BytesRefs.toString(DESC.value()),
+                    BytesRefs.toString(order.fold(FoldContext.small() /* TODO remove me */))
                 )
             );
         }
@@ -264,8 +263,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                 o = os;
             }
             if (o == null
-                || o.equalsIgnoreCase(((BytesRef) ASC.value()).utf8ToString()) == false
-                    && o.equalsIgnoreCase(((BytesRef) DESC.value()).utf8ToString()) == false) {
+                || o.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false
+                    && o.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false) {
                 isValidOrder = false;
             }
         }

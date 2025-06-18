@@ -58,12 +58,11 @@ public class Literal extends LeafExpression {
 
     private boolean noPlainStrings(Object value, DataType dataType) {
         if (dataType == KEYWORD || dataType == TEXT || dataType == VERSION) {
-            if (value instanceof String) {
-                return false;
-            }
-            if (value instanceof Collection<?> c) {
-                return c.stream().allMatch(x -> noPlainStrings(x, dataType));
-            }
+            return switch (value) {
+                case String s -> false;
+                case Collection<?> c -> c.stream().allMatch(x -> noPlainStrings(x, dataType));
+                default -> true;
+            };
         }
         return true;
     }
@@ -146,6 +145,7 @@ public class Literal extends LeafExpression {
             str = BytesRefs.toString(value);
         } else if (dataType == VERSION && value instanceof BytesRef br) {
             str = new Version(br).toString();
+            // TODO review how we manage IPs: https://github.com/elastic/elasticsearch/issues/129605
             // } else if (dataType == IP && value instanceof BytesRef ip) {
             // str = DocValueFormat.IP.format(ip);
         } else {
@@ -184,6 +184,10 @@ public class Literal extends LeafExpression {
 
     public static Literal of(Expression source, Object value) {
         return new Literal(source.source(), value, source.dataType());
+    }
+
+    public static Literal keyword(Source source, String literal) {
+        return new Literal(source, BytesRefs.toBytesRef(literal), KEYWORD);
     }
 
     /**

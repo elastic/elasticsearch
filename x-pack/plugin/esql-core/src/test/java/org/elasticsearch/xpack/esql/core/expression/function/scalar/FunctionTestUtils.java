@@ -20,7 +20,7 @@ public final class FunctionTestUtils {
     }
 
     public static Literal l(Object value, DataType type) {
-        if (value instanceof String && (type == DataType.TEXT || type == DataType.KEYWORD)) {
+        if ((type == DataType.TEXT || type == DataType.KEYWORD) && value instanceof String) {
             value = BytesRefs.toBytesRef(value);
         }
         return new Literal(EMPTY, value, type);

@@ -398,7 +398,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9                       
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
 ;
 
-cicdirMatchEqualsInsOrsIPs
+cidrMatchEqualsInsOrsIPs
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts

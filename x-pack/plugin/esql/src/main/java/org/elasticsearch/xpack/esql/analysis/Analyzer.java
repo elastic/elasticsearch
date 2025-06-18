@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -320,7 +319,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = ((BytesRef) plan.policyName().fold(FoldContext.small() /* TODO remove me */)).utf8ToString();
+            final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -1579,7 +1578,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
                 TemporalAmount result = maybeParseTemporalAmount(
-                    ((BytesRef) from.fold(FoldContext.small() /* TODO remove me */)).utf8ToString().strip()
+                    BytesRefs.toString(from.fold(FoldContext.small() /* TODO remove me */)).strip()
                 );
                 if (result == null) {
                     return from;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -53,7 +52,7 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
     }
 
     static Literal string(String value) {
-        return new Literal(EMPTY, BytesRefs.toBytesRef(value), DataType.KEYWORD);
+        return Literal.keyword(EMPTY, value);
     }
 
     private Attribute scoreAttribute() {

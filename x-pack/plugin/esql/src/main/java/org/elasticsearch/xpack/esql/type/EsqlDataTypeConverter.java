@@ -772,16 +772,16 @@ public class EsqlDataTypeConverter {
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
-        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo(x instanceof BytesRef br ? br.utf8ToString() : (String) x)),
-        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(x instanceof BytesRef br ? br.utf8ToString() : (String) x));
+        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(x))),
+        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(x))),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP(BytesRefs.toString(x))),
+        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion(BytesRefs.toString(x))),
+        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble(BytesRefs.toString(x))),
+        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong(BytesRefs.toString(x))),
+        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt(BytesRefs.toString(x))),
+        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(x))),
+        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(x))),
+        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x)));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

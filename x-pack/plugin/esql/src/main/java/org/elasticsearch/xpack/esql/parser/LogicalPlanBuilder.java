@@ -175,7 +175,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = ((BytesRef) visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */)).utf8ToString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -206,7 +206,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = ((BytesRef) visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */)).utf8ToString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
@@ -480,7 +480,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), BytesRefs.toBytesRef(policyNameString), DataType.KEYWORD),
+                Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
                 null,
                 Map.of(),
@@ -562,7 +562,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, BytesRefs.toBytesRef(visitIndexPattern(List.of(ctx.indexPattern()))), DataType.KEYWORD);
+        Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -664,7 +664,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
-            var literal = new Literal(source(ctx), BytesRefs.toBytesRef("fork" + count++), KEYWORD);
+            var literal = Literal.keyword(source(ctx), "fork" + count++);
 
             // align _fork id across all fork branches
             Alias alias = null;
@@ -746,9 +746,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        Literal inferenceId = ctx.inferenceId != null
-            ? inferenceId(ctx.inferenceId)
-            : new Literal(source, BytesRefs.toBytesRef(Rerank.DEFAULT_INFERENCE_ID), KEYWORD);
+        Literal inferenceId = ctx.inferenceId != null ? inferenceId(ctx.inferenceId) : Literal.keyword(source, Rerank.DEFAULT_INFERENCE_ID);
 
         return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }
@@ -767,7 +765,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
-            return new Literal(source(ctx), BytesRefs.toBytesRef(visitIdentifier(ctx.identifier())), KEYWORD);
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
         }
 
         if (expression(ctx.parameter()) instanceof Literal literalParam) {

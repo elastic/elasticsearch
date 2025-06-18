@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -117,7 +116,7 @@ public class Space extends UnaryScalarFunction {
             Object folded = field.fold(toEvaluator.foldCtx());
             if (folded instanceof Integer num) {
                 checkNumber(num);
-                return toEvaluator.apply(new Literal(source(), BytesRefs.toBytesRef(" ".repeat(num)), KEYWORD));
+                return toEvaluator.apply(Literal.keyword(source(), " ".repeat(num)));
             }
         }
 

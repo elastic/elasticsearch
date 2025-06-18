@@ -3205,7 +3205,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         {
             var fromPatterns = randomIndexPattern();
             // Generate a syntactically invalid (partial quoted) pattern.
-            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER), without(DATE_MATH)));
+            var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted

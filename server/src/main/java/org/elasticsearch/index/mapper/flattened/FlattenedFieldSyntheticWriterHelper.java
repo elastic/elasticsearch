@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * A helper class that reconstructs the field including keys and values
@@ -58,23 +57,6 @@ import java.util.stream.Collectors;
  */
 public class FlattenedFieldSyntheticWriterHelper {
 
-    private record Path(String[] path) {
-        Path() {
-            this(new String[0]);
-        }
-
-        boolean isProperPrefix(String[] other) {
-            if (path.length >= other.length) {
-                return false;
-            }
-            for (int i = 0; i < path.length; i++) {
-                if (path[i].equals(other[i]) == false) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
     private record Prefix(List<String> prefix) {
 
         Prefix() {
@@ -105,30 +87,18 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
 
         private static Prefix diff(final List<String> a, final List<String> b) {
-            if (a.size() > b.size()) {
-                return diff(b, a);
-            }
-            final List<String> diff = new ArrayList<>();
-            if (a.isEmpty()) {
-                diff.addAll(b);
-                return new Prefix(diff);
-            }
+            assert a.size() >= b.size();
             int i = 0;
-            for (; i < a.size(); i++) {
+            for (; i < b.size(); i++) {
                 if (a.get(i).equals(b.get(i)) == false) {
                     break;
                 }
             }
-            for (; i < b.size(); i++) {
-                diff.add(b.get(i));
+            final List<String> diff = new ArrayList<>();
+            for (; i < a.size(); i++) {
+                diff.add(a.get(i));
             }
             return new Prefix(diff);
-        }
-
-        private Prefix reverse() {
-            final Prefix p = new Prefix(this.prefix);
-            Collections.reverse(p.prefix);
-            return p;
         }
 
         @Override
@@ -149,47 +119,17 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private record Suffix(List<String> suffix) {
-
-        Suffix() {
-            this(Collections.emptyList());
-        }
-
-        Suffix(final String[] keyAsArray) {
-            this(List.of(keyAsArray).subList(keyAsArray.length - 1, keyAsArray.length));
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(this.suffix);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Suffix other = (Suffix) obj;
-            return Objects.equals(this.suffix, other.suffix);
-        }
-    }
-
     private static class KeyValue {
 
-        public static final KeyValue EMPTY = new KeyValue(null, new Prefix(), new Suffix(), new Path());
+        public static final KeyValue EMPTY = new KeyValue(null, new Prefix(), null);
         private final String value;
         private final Prefix prefix;
-        private final Suffix suffix;
-        private final Path fullPath;
+        private final String leaf;
 
-        private KeyValue(final String value, final Prefix prefix, final Suffix suffix, final Path fullPath) {
+        private KeyValue(final String value, final Prefix prefix, final String leaf) {
             this.value = value;
             this.prefix = prefix;
-            this.suffix = suffix;
-            this.fullPath = fullPath;
+            this.leaf = leaf;
         }
 
         KeyValue(final BytesRef keyValue) {
@@ -200,19 +140,11 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
 
         private KeyValue(final String[] key, final String value) {
-            this(value, new Prefix(key), new Suffix(key), new Path(key));
+            this(value, new Prefix(key), key[key.length-1]);
         }
 
-        public Suffix suffix() {
-            return this.suffix;
-        }
-
-        public Prefix start(final KeyValue other) {
-            return this.prefix.diff(this.prefix.shared(other.prefix));
-        }
-
-        public Prefix end(final KeyValue other) {
-            return start(other).reverse();
+        public String leaf() {
+            return this.leaf;
         }
 
         public String value() {
@@ -222,11 +154,11 @@ public class FlattenedFieldSyntheticWriterHelper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(this.value, this.prefix, this.suffix);
+            return Objects.hash(this.value, this.prefix, this.leaf);
         }
 
         public boolean pathEquals(final KeyValue other) {
-            return prefix.equals(other.prefix) && suffix.equals(other.suffix);
+            return prefix.equals(other.prefix) && leaf.equals(other.leaf);
         }
 
         @Override
@@ -240,7 +172,7 @@ public class FlattenedFieldSyntheticWriterHelper {
             KeyValue other = (KeyValue) obj;
             return Objects.equals(this.value, other.value)
                 && Objects.equals(this.prefix, other.prefix)
-                && Objects.equals(this.suffix, other.suffix);
+                && Objects.equals(this.leaf, other.leaf);
         }
     }
 
@@ -257,8 +189,7 @@ public class FlattenedFieldSyntheticWriterHelper {
     private String concatPath(Prefix prefix, String leaf) {
         StringBuilder builder = new StringBuilder();
         for (String part : prefix.prefix) {
-            builder.append(part);
-            builder.append(".");
+            builder.append(part).append(".");
         }
         builder.append(leaf);
         return builder.toString();
@@ -269,28 +200,21 @@ public class FlattenedFieldSyntheticWriterHelper {
         final List<String> values = new ArrayList<>();
         List<String> openObjects = new ArrayList<>();
         String leafInSameObjectWithSamePrefix = null;
-
         KeyValue next;
+
         do {
             values.add(curr.value());
             BytesRef nextValue = sortedKeyedValues.next();
             next = nextValue == null ? KeyValue.EMPTY : new KeyValue(nextValue);
 
-            // Invariants
-            //  - values contains all keys with the same path, up to and including curr
-            //  - an objects at greater depth than openObjects have been closed
-            //    - curr prefix must be greater than or equal to openObjects
-
-
             // curr prefix is at least as long as openObjects
             var startPrefix = curr.prefix.diff(new Prefix(openObjects));
 
-            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.get(0).equals(leafInSameObjectWithSamePrefix)) {
+            if (startPrefix.prefix.isEmpty() == false && startPrefix.prefix.getFirst().equals(leafInSameObjectWithSamePrefix)) {
                 // a scalar with the same start of path as current prefix exists, need to write combined paths
-
                 // create combined leaf
                 if (curr.pathEquals(next) == false) {
-                    String combinedPath = concatPath(startPrefix, curr.suffix.suffix.get(0));
+                    String combinedPath = concatPath(startPrefix, curr.leaf());
                     writeField(b, values, combinedPath);
                     values.clear();
                 }
@@ -301,10 +225,9 @@ public class FlattenedFieldSyntheticWriterHelper {
                 startObject(b, startPrefix.prefix);
 
                 if (curr.pathEquals(next) == false) {
-                    var leaf =  curr.suffix().suffix.get(0);
-                    writeField(b, values, leaf);
+                    writeField(b, values, curr.leaf());
                     values.clear();
-                    leafInSameObjectWithSamePrefix = leaf;
+                    leafInSameObjectWithSamePrefix = curr.leaf();
                 }
             }
 

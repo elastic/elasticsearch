@@ -472,12 +472,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSizeFSDir
-  issue: https://github.com/elastic/elasticsearch/issues/128799
-- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSizeFSDir
-  issue: https://github.com/elastic/elasticsearch/issues/128800
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120
@@ -577,6 +571,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityOrTooBig {KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/129545
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/129517
+- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
+  method: testInvalidJoinPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/129598
 
 # Examples:
 #

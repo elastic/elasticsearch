@@ -173,40 +173,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            // Force normal read advice for stored field temp fdt files:
-            // (tmp fdt files should only exist when index sorting is enabled)
-            if (LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt")) {
-                ensureOpen();
-                ensureCanRead(name);
-                var niofsDelegate = super.openInput(name, context);
-                var ioContext = context;
-                return new FilterIndexInput(niofsDelegate.toString(), niofsDelegate) {
-
-                    IndexInput directIOInput;
-
-                    @Override
-                    public IndexInput clone() {
-                        // HACK: only StoredFieldsWriter#checkIntegrity() will invoking this clone method for fdt tmp file.
-                        if (directIOInput == null) {
-                            try {
-                                directIOInput = directIODelegate.openInput(name, ioContext);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        }
-                        return directIOInput.clone();
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        super.close();
-                        if (directIOInput != null) {
-                            directIOInput.close();
-                        }
-                    }
-                };
-            }
-
             if (useDelegate(name, context)) {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 ensureOpen();
@@ -258,7 +224,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
 
             final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
-            if (extension == null || extension.shouldMmap() == false) {
+            if (extension == null
+                || extension.shouldMmap() == false
+                // Force normal read advice for stored field temp fdt files:
+                // (tmp fdt files should only exist when index sorting is enabled)
+                || (LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt"))) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing
                 // (e.g. stored fields and term vectors).

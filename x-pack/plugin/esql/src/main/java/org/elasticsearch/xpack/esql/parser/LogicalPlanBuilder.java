@@ -634,6 +634,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         hasRemotes[0] = true;
                     }
                 }
+            });
             return new LookupJoin(source, p, right, joinFields).setRemote(hasRemotes[0]);
         };
     }

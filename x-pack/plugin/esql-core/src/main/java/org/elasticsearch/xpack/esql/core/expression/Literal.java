@@ -58,6 +58,9 @@ public class Literal extends LeafExpression {
 
     private boolean noPlainStrings(Object value, DataType dataType) {
         if (dataType == KEYWORD || dataType == TEXT || dataType == VERSION) {
+            if (value == null) {
+                return true;
+            }
             return switch (value) {
                 case String s -> false;
                 case Collection<?> c -> c.stream().allMatch(x -> noPlainStrings(x, dataType));

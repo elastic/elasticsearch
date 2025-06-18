@@ -111,7 +111,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                                 continue;
                             }
                             if (scores1[j] > (maxDims * Byte.MAX_VALUE)) {
-                                float diff = scores1[j] - scores2[j];
+                                float diff = Math.abs(scores1[j] - scores2[j]);
                                 assertThat(
                                     "defaultScores: " + scores1[j] + " bulkScores: " + scores2[j],
                                     diff / scores1[j],

@@ -18,7 +18,7 @@ import java.time.Duration;
 
 public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/es-smb-fixture:1.1";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/es-smb-fixture:1.0";
     public static final int AD_LDAP_PORT = 636;
     public static final int AD_LDAP_GC_PORT = 3269;
 

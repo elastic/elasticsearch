@@ -131,8 +131,7 @@ public class IndexLifecycleService
             .addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
     }
 
-    public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
-        final var state = clusterState.projectState();
+    public void maybeRunAsyncAction(ProjectState state, IndexMetadata indexMetadata, StepKey nextStepKey) {
         lifecycleRunner.maybeRunAsyncAction(state, indexMetadata, indexMetadata.getLifecyclePolicyName(), nextStepKey);
     }
 

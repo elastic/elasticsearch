@@ -104,7 +104,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         float[] vector = randomVector(dims);
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(codec);
+            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(getCodec());
             iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();

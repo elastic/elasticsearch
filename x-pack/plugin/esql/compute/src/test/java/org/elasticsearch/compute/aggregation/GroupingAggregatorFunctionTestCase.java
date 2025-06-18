@@ -770,7 +770,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             int groupId = groupIds.getInt(firstValueIndex);
                             chunk[chunkPosition++] = groupId;
                             if (chunkPosition == emitChunkSize) {
-                                delegate.addIntermediateInput(positionOffset + offset, blockFactory.newIntArrayVector(chunk, chunkPosition), page);
+                                delegate.addIntermediateInput(
+                                    positionOffset + offset,
+                                    blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                    page
+                                );
                                 chunkPosition = 0;
                                 offset = position + 1;
                             }

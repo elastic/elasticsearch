@@ -293,14 +293,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             // First datanode, sending a suitable TopN set of data
             try (var datanodeOperator = makeAggWithMode.apply(AggregatorMode.INITIAL)) {
                 var page = new Page(
-                    BlockUtils.fromList(
-                        blockFactory(),
-                        List.of(
-                            List.of(groups[4], 1L),
-                            List.of(groups[3], 2L),
-                            List.of(groups[2], 4L)
-                        )
-                    )
+                    BlockUtils.fromList(blockFactory(), List.of(List.of(groups[4], 1L), List.of(groups[3], 2L), List.of(groups[2], 4L)))
                 );
                 datanodeOperator.addInput(page);
                 datanodeOperator.finish();

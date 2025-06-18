@@ -202,6 +202,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#unquotedIndexString}.
+   * @param ctx the parse tree
+   */
+  void enterUnquotedIndexString(EsqlBaseParser.UnquotedIndexStringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#unquotedIndexString}.
+   * @param ctx the parse tree
+   */
+  void exitUnquotedIndexString(EsqlBaseParser.UnquotedIndexStringContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    */
@@ -542,6 +552,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    */
@@ -676,16 +696,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
-   * @param ctx the parse tree
-   */
-  void enterSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
-   * @param ctx the parse tree
-   */
-  void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
-  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -770,15 +780,41 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#regexBooleanExpression}.
+   * Enter a parse tree produced by the {@code likeExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
    * @param ctx the parse tree
    */
-  void enterRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
+  void enterLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#regexBooleanExpression}.
+   * Exit a parse tree produced by the {@code likeExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
    * @param ctx the parse tree
    */
-  void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
+  void exitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code rlikeExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code rlikeExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code likeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code likeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

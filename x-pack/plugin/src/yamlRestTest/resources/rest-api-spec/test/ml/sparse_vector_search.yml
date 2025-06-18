@@ -610,10 +610,10 @@ teardown:
         index: sparse_vector_pruning_test
         fields: ml.tokens
 
-  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options.prune
-  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options.pruning_config.tokens_freq_ratio_threshold
-  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options.pruning_config.tokens_weight_threshold
-  - not_exists: sparse_vector_pruning_test.mappings.ml.tokens.mapping.tokens.index_options
+  - not_exists: sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options.prune
+  - not_exists: sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options.pruning_config.tokens_freq_ratio_threshold
+  - not_exists: sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options.pruning_config.tokens_weight_threshold
+  - not_exists: sparse_vector_pruning_test.mappings.ml\.tokens.mapping.tokens.index_options
 
 ---
 "Check sparse_vector token pruning index_options prune missing do not allow config":

@@ -50,6 +50,7 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         params.add(new Object[] { "content:\"fox\"" });
         params.add(new Object[] { "qstr(\"content: fox\")" });
         params.add(new Object[] { "kql(\"content*: fox\")" });
+        params.add(new Object[] { "match_phrase(content, \"fox\")" });
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             params.add(new Object[] { "term(content, \"fox\")" });
         }

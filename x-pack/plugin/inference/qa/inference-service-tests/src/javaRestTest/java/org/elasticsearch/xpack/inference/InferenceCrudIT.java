@@ -305,7 +305,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     public void testUnsupportedStream() throws Exception {
         String modelId = "streaming";
-        putModel(modelId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
@@ -326,8 +326,16 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testSupportedStream() throws Exception {
+        testSupportedStream("streaming_completion_test_service");
+    }
+
+    public void testSupportedStreamForAlias() throws Exception {
+        testSupportedStream("streaming_completion_test_service_alias");
+    }
+
+    private void testSupportedStream(String serviceName) throws Exception {
         String modelId = "streaming";
-        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION));
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION, serviceName));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
@@ -352,7 +360,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     public void testUnifiedCompletionInference() throws Exception {
         String modelId = "streaming";
-        putModel(modelId, mockCompletionServiceModelConfig(TaskType.CHAT_COMPLETION));
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.CHAT_COMPLETION, "streaming_completion_test_service"));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.CHAT_COMPLETION.toString(), singleModel.get("task_type"));

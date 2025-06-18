@@ -17,8 +17,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
@@ -64,7 +65,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         public Factory(
             List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -320,28 +321,29 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntVector shard = null;
                 IntVector leaf = null;
                 IntVector docs = null;
-                DoubleVector scores = null;
-                DocBlock docBlock = null;
+                Block[] blocks = new Block[1 + (scoreBuilder == null ? 0 : 1) + scorer.tags().size()];
                 currentPagePos -= discardedDocs;
                 try {
                     shard = blockFactory.newConstantIntVector(scorer.shardContext().index(), currentPagePos);
                     leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    docBlock = new DocVector(shard, leaf, docs, true).asBlock();
+                    int b = 0;
+                    blocks[b++] = new DocVector(shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;
-                    if (scoreBuilder == null) {
-                        page = new Page(currentPagePos, docBlock);
-                    } else {
-                        scores = buildScoresVector(currentPagePos);
+                    if (scoreBuilder != null) {
+                        blocks[b++] = buildScoresVector(currentPagePos).asBlock();
                         scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                        page = new Page(currentPagePos, docBlock, scores.asBlock());
                     }
+                    for (Object e : scorer.tags()) {
+                        blocks[b++] = BlockUtils.constantBlock(blockFactory, e, currentPagePos);
+                    }
+                    page = new Page(currentPagePos, blocks);
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(shard, leaf, docs, docBlock, scores);
+                        Releasables.closeExpectNoException(shard, leaf, docs, Releasables.wrap(blocks));
                     }
                 }
                 currentPagePos = 0;

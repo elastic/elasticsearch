@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
@@ -19,26 +18,27 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.discretize;
-import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.transposeHalfByte;
+import static org.elasticsearch.index.codec.vectors.BQSpaceUtils.transposeHalfByte;
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class DefaultIVFVectorsReader extends IVFVectorsReader {
+public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
     private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
     public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
@@ -46,13 +46,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    CentroidQueryScorer getCentroidScorer(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] targetQuery,
-        IndexInput clusters
-    ) throws IOException {
+    CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+        throws IOException {
         FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float[] globalCentroid = fieldEntry.globalCentroid();
         float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -113,15 +108,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    protected FloatVectorValues getCentroids(IndexInput indexInput, int numCentroids, FieldInfo info) {
-        FieldEntry entry = fields.get(info.number);
-        if (entry == null) {
-            return null;
-        }
-        return new OffHeapCentroidFloatVectorValues(numCentroids, indexInput, info.getVectorDimension());
-    }
-
-    @Override
     NeighborQueue scorePostingLists(FieldInfo fieldInfo, KnnCollector knnCollector, CentroidQueryScorer centroidQueryScorer, int nProbe)
         throws IOException {
         NeighborQueue neighborQueue = new NeighborQueue(centroidQueryScorer.size(), true);
@@ -172,57 +158,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         }
     }
 
-    static class OffHeapCentroidFloatVectorValues extends FloatVectorValues {
-        private final int numCentroids;
-        private final IndexInput input;
-        private final int dimension;
-        private final float[] centroid;
-        private final long centroidByteSize;
-        private int ord = -1;
-
-        OffHeapCentroidFloatVectorValues(int numCentroids, IndexInput input, int dimension) {
-            this.numCentroids = numCentroids;
-            this.input = input;
-            this.dimension = dimension;
-            this.centroid = new float[dimension];
-            this.centroidByteSize = dimension + 3 * Float.BYTES + Short.BYTES;
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            if (ord < 0 || ord >= numCentroids) {
-                throw new IllegalArgumentException("ord must be in [0, " + numCentroids + "]");
-            }
-            if (ord == this.ord) {
-                return centroid;
-            }
-            readQuantizedCentroid(ord);
-            return centroid;
-        }
-
-        private void readQuantizedCentroid(int centroidOrdinal) throws IOException {
-            if (centroidOrdinal == ord) {
-                return;
-            }
-            input.seek(numCentroids * centroidByteSize + (long) Float.BYTES * dimension * centroidOrdinal);
-            input.readFloats(centroid, 0, centroid.length);
-            ord = centroidOrdinal;
-        }
-
-        @Override
-        public int dimension() {
-            return dimension;
-        }
-
-        @Override
-        public int size() {
-            return numCentroids;
-        }
-
-        @Override
-        public FloatVectorValues copy() throws IOException {
-            return new OffHeapCentroidFloatVectorValues(numCentroids, input.clone(), dimension);
-        }
+    @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        return Map.of();
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {
@@ -315,7 +253,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                 int doc = docIdsScratch[offset + j];
                 if (doc != -1) {
                     scores[j] = osqVectorsScorer.score(
-                        queryCorrections,
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
                         fieldInfo.getVectorSimilarityFunction(),
                         centroidDp,
                         correctionsLower[j],
@@ -353,7 +294,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                 } else {
                     osqVectorsScorer.scoreBulk(
                         quantizedQueryScratch,
-                        queryCorrections,
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
                         fieldInfo.getVectorSimilarityFunction(),
                         centroidDp,
                         scores
@@ -377,7 +321,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                     indexInput.readFloats(correctiveValues, 0, 3);
                     final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
                     float score = osqVectorsScorer.score(
-                        queryCorrections,
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
                         fieldInfo.getVectorSimilarityFunction(),
                         centroidDp,
                         correctiveValues[0],

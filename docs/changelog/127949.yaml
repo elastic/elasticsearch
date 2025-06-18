@@ -1,5 +1,0 @@
-pr: 127949
-summary: Ensure ordinal builder emit ordinal blocks
-area: ES|QL
-type: bug
-issues: []

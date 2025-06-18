@@ -1,0 +1,5 @@
+pr: 128735
+summary: Add option to include or exclude vectors from `_source` retrieval
+area: Vector Search
+type: feature
+issues: []

@@ -88,6 +88,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -739,7 +740,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return p -> new Rerank(source, p, inferenceId(ctx.inferenceId), queryText, visitRerankFields(ctx.rerankFields()));
+        Literal inferenceId = ctx.inferenceId != null
+            ? inferenceId(ctx.inferenceId)
+            : new Literal(source, Rerank.DEFAULT_INFERENCE_ID, KEYWORD);
+
+        return p -> new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
     }
 
     @Override
@@ -779,21 +784,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {
-        var probability = visitDecimalValue(ctx.probability);
-        Literal seed;
-        if (ctx.seed != null) {
-            seed = visitIntegerValue(ctx.seed);
-            if (seed.dataType() != DataType.INTEGER) {
-                throw new ParsingException(
-                    seed.source(),
-                    "seed must be an integer, provided [{}] of type [{}]",
-                    ctx.seed.getText(),
-                    seed.dataType()
-                );
-            }
+        Source source = source(ctx);
+        Object val = expression(ctx.probability).fold(FoldContext.small() /* TODO remove me */);
+        if (val instanceof Double probability && probability > 0.0 && probability < 1.0) {
+            return input -> new Sample(source, new Literal(source, probability, DataType.DOUBLE), input);
         } else {
-            seed = null;
+            throw new ParsingException(
+                source(ctx),
+                "invalid value for SAMPLE probability [" + val + "], expecting a number between 0 and 1, exclusive"
+            );
         }
-        return plan -> new Sample(source(ctx), probability, seed, plan);
     }
 }

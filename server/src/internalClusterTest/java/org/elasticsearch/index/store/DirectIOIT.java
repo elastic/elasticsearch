@@ -30,11 +30,14 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
 public class DirectIOIT extends ESIntegTestCase {
@@ -64,6 +67,7 @@ public class DirectIOIT extends ESIntegTestCase {
     }
 
     private void indexVectors() {
+        String type = randomFrom("bbq_flat", "bbq_hnsw");
         assertAcked(
             prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping("""
@@ -76,12 +80,12 @@ public class DirectIOIT extends ESIntegTestCase {
                           "index": true,
                           "similarity": "l2_norm",
                           "index_options": {
-                            "type": "bbq_flat"
+                            "type": "%type%"
                           }
                         }
                       }
                     }
-                    """)
+                    """.replace("%type%", type))
         );
         ensureGreen("foo-vectors");
 
@@ -89,6 +93,14 @@ public class DirectIOIT extends ESIntegTestCase {
             indexDoc("foo-vectors", Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
         refresh();
+        assertBBQIndexType(type); // test assertion to ensure that the correct index type is being used
+    }
+
+    @SuppressWarnings("unchecked")
+    static void assertBBQIndexType(String type) {
+        var response = indicesAdmin().prepareGetFieldMappings("foo-vectors").setFields("fooVector").get();
+        var map = (Map<String, Object>) response.fieldMappings("foo-vectors", "fooVector").sourceAsMap().get("fooVector");
+        assertThat((String) ((Map<String, Object>) map.get("index_options")).get("type"), is(equalTo(type)));
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")

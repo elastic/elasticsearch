@@ -47,9 +47,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * formula.
  */
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
-    public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature(
-        "rrf_retriever.multi_fields_query_format_support"
-    );
+    public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature("rrf_retriever.multi_fields_query_format_support");
 
     public static final String NAME = "rrf";
 

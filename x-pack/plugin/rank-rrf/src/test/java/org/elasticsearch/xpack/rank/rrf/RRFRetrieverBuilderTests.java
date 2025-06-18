@@ -84,7 +84,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         }
     }
 
-    public void testSimplifiedParamsRewrite() {
+    public void testMultiFieldsParamsRewrite() {
         final String indexName = "test-index";
         final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
@@ -105,7 +105,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
@@ -121,7 +121,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             DEFAULT_RANK_WINDOW_SIZE * 2,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
@@ -137,7 +137,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_*", 1.0f, "*_field_1", 1.0f),
@@ -153,7 +153,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
         );
-        assertSimplifiedParamsRewrite(
+        assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("*", 1.0f),
@@ -248,7 +248,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
     }
 
-    private static void assertSimplifiedParamsRewrite(
+    private static void assertMultiFieldsParamsRewrite(
         RRFRetrieverBuilder retriever,
         QueryRewriteContext ctx,
         Map<String, Float> expectedNonInferenceFields,

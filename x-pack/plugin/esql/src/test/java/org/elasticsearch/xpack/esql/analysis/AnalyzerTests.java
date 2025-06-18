@@ -3416,6 +3416,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRrfError() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | rrf

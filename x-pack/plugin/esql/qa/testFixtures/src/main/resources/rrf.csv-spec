@@ -113,6 +113,7 @@ _score:double | author:keyword                    | title:keyword        | _fork
 
 rrfWithSemanticSearch
 required_capability: fork_v9
+required_capability: rrf
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 

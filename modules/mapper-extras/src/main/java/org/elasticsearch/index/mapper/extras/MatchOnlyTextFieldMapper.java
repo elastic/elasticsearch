@@ -31,9 +31,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -70,6 +70,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.index.mapper.TextFieldMapper.Builder.multiFieldsNotStoredByDefaultIndexVersionCheck;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -140,7 +142,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             final boolean storeSource;
-            if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)) {
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                 storeSource = context.isSourceSynthetic()
                     && withinMultiField == false
                     && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -363,7 +365,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (textFieldType.isSyntheticSource()) {
-                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(storedFieldNameForSyntheticSource());
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedFieldNameForSyntheticSource());
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
@@ -384,7 +386,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 ) {
                     @Override
                     protected BytesRef storedToBytesRef(Object stored) {
-                        return new BytesRef((String) stored);
+                        return (BytesRef) stored;
                     }
                 };
             }
@@ -442,18 +444,20 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final String value = context.parser().textOrNull();
+        final var value = context.parser().optimizedTextOrNull();
 
         if (value == null) {
             return;
         }
 
-        Field field = new Field(fieldType().name(), value, fieldType);
+        final var utfBytes = value.bytes();
+        Field field = new Field(fieldType().name(), new UTF8DecodingReader(utfBytes), fieldType);
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
 
         if (storeSource) {
-            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));
+            final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), bytesRef));
         }
     }
 
@@ -473,7 +477,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
-                    b.value((String) value);
+                    b.value(((BytesRef) value).utf8ToString());
                 }
             }
         );

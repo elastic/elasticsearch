@@ -840,7 +840,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         add512BRequests(requestsThrottle, index);
 
         CountDownLatch finishLatch = new CountDownLatch(1);
-        blockWritePool(threadPool, finishLatch);
+        blockWriteCoordinationPool(threadPool, finishLatch);
         IncrementalBulkService.Handler handlerThrottled = incrementalBulkService.newBulkRequest();
         refCounted.incRef();
         handlerThrottled.addItems(requestsThrottle, refCounted::decRef, () -> nextPage.set(true));
@@ -919,8 +919,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(total, lessThan(1024L));
     }
 
-    private static void blockWritePool(ThreadPool threadPool, CountDownLatch finishLatch) {
-        final var threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
+    private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {
+        final var threadCount = threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
         final var blockingTask = new AbstractRunnable() {
             @Override
@@ -940,7 +940,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(blockingTask);
+            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
     }

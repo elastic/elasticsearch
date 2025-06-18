@@ -571,9 +571,6 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testInvalidJoinPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/129598
 
 # Examples:
 #

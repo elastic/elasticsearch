@@ -3663,9 +3663,10 @@ public class AnalyzerTests extends ESTestCase {
         {
             VerificationException ve = expectThrows(
                 VerificationException.class,
-                () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField OPTIONS inferenceId=`reranking-inference-id`",
-                    "mapping-books.json"
+                () -> analyze("""
+                    FROM books METADATA _score
+                    | RERANK \"italian food recipe\" ON missingField OPTIONS inferenceId=`reranking-inference-id`
+                    """, "mapping-books.json"
                 )
 
             );
@@ -3786,12 +3787,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionTargetField() {
-        LogicalPlan plan = analyze(
-            """
-                FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) INTO translation OPTIONS inferenceId=`completion-inference-id`
-                """,
-            "mapping-books.json"
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) INTO translation
+              OPTIONS inferenceId=`completion-inference-id`
+            ""","mapping-books.json"
         );
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3831,12 +3831,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionOutputField() {
-        LogicalPlan plan = analyze(
-            """
-                FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) INTO description OPTIONS inferenceId=`completion-inference-id`
-                """,
-            "mapping-books.json"
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) INTO description
+              OPTIONS inferenceId=`completion-inference-id`
+            """, "mapping-books.json"
         );
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);

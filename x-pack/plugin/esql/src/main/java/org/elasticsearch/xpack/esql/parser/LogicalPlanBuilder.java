@@ -168,7 +168,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -199,21 +199,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
+            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
-                if (item.getValue() instanceof String == false) {
+                if (item.getValue() instanceof BytesRef == false) {
                     throw new ParsingException(
                         source(ctx),
                         "Invalid value for dissect append_separator: expected a string, but was [{}]",
                         item.getValue()
                     );
                 }
-                appendSeparator = (String) item.getValue();
+                appendSeparator = BytesRefs.toString(item.getValue());
             }
             Source src = source(ctx);
 
@@ -379,13 +379,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
         if (val instanceof Integer i) {
             if (i < 0) {
-                throw new ParsingException(source, "Invalid value for LIMIT [" + val + "], expecting a non negative integer");
+                throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
             }
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         } else {
             throw new ParsingException(
                 source,
-                "Invalid value for LIMIT [" + val + ": " + val.getClass().getSimpleName() + "], expecting a non negative integer"
+                "Invalid value for LIMIT ["
+                    + BytesRefs.toString(val)
+                    + ": "
+                    + (expression(ctx.constant()).dataType() == KEYWORD ? "String" : val.getClass().getSimpleName())
+                    + "], expecting a non negative integer"
             );
         }
     }
@@ -467,7 +471,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyNameString, KEYWORD),
+                Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
                 null,
                 Map.of(),
@@ -564,7 +568,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), KEYWORD);
+        Literal tableName = Literal.keyword(source, visitIndexPattern(List.of(ctx.indexPattern())));
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
@@ -720,7 +724,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         Expression optionValue = ctx.identifier() != null
-            ? new Literal(source(ctx.identifier()), visitIdentifier(ctx.identifier()), KEYWORD)
+            ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()))
             : expression(ctx.constant());
 
         if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
@@ -732,8 +736,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (literal.value() instanceof BytesRef attributeName) {
                 return new UnresolvedAttribute(literal.source(), BytesRefs.toString(attributeName));
-            } else if (literal.value() instanceof String attributeName) {
-                return new UnresolvedAttribute(literal.source(), attributeName);
             }
         }
 
@@ -759,7 +761,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
-            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
         }
 
         return visitInferenceId(expression(ctx.parameter()));
@@ -767,7 +769,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private Literal visitInferenceId(EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
         if (ctx.identifier() != null) {
-            return new Literal(source(ctx), visitIdentifier(ctx.identifier()), KEYWORD);
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
         }
 
         return visitInferenceId(expression(ctx.constant()));
@@ -786,7 +788,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return literal;
         } else if (expression instanceof UnresolvedAttribute attribute) {
             // Support for unquoted inference id
-            return new Literal(expression.source(), attribute.name(), KEYWORD);
+            return Literal.keyword(expression.source(), attribute.name());
         }
 
         throw new ParsingException(
@@ -805,7 +807,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             throw new ParsingException(
                 source(ctx),
-                "invalid value for SAMPLE probability [" + val + "], expecting a number between 0 and 1, exclusive"
+                "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
             );
         }
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -435,7 +436,8 @@ public class LocalExecutionPlanner {
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
-            limit = stringToInt(literal.value().toString());
+            Object val = literal.value() instanceof BytesRef br ? BytesRefs.toString(br) : literal.value();
+            limit = stringToInt(val.toString());
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
@@ -833,22 +835,30 @@ public class LocalExecutionPlanner {
 
         final Layout layout; // maps field names to channels
 
-        /** Creates a new physical operation with the given source and layout. */
+        /**
+         * Creates a new physical operation with the given source and layout.
+         */
         static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             return new PhysicalOperation(sourceOperatorFactory, layout);
         }
 
-        /** Creates a new physical operation from this operation with the given layout. */
+        /**
+         * Creates a new physical operation from this operation with the given layout.
+         */
         PhysicalOperation with(Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
         }
 
-        /** Creates a new physical operation from this operation with the given intermediate operator and layout. */
+        /**
+         * Creates a new physical operation from this operation with the given intermediate operator and layout.
+         */
         PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
             return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
         }
 
-        /** Creates a new physical operation from this operation with the given sink and layout. */
+        /**
+         * Creates a new physical operation from this operation with the given sink and layout.
+         */
         PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
         }

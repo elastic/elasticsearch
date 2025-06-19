@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -222,7 +224,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(
                     new Alias(EMPTY, "a.b.c", integer(1)),
                     new Alias(EMPTY, "b", integer(2)),
-                    new Alias(EMPTY, "@timestamp", new Literal(EMPTY, "2022-26-08T00:00:00", KEYWORD))
+                    new Alias(EMPTY, "@timestamp", Literal.keyword(EMPTY, "2022-26-08T00:00:00"))
                 )
             ),
             statement("row a.b.c = 1, `b` = 2, `@timestamp`=\"2022-26-08T00:00:00\"")
@@ -1276,7 +1278,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 null,
-                new Literal(EMPTY, "countries", KEYWORD),
+                Literal.keyword(EMPTY, "countries"),
                 new EmptyAttribute(EMPTY),
                 null,
                 Map.of(),
@@ -1290,7 +1292,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 null,
-                new Literal(EMPTY, "index-policy", KEYWORD),
+                Literal.keyword(EMPTY, "index-policy"),
                 new UnresolvedAttribute(EMPTY, "field_underscore"),
                 null,
                 Map.of(),
@@ -1305,7 +1307,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 mode,
-                new Literal(EMPTY, "countries", KEYWORD),
+                Literal.keyword(EMPTY, "countries"),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
                 Map.of(),
@@ -1396,33 +1398,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is("2"));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is("2 days"));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is("4 hours"));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(String.class));
-        assertThat(alias.child().fold(FoldContext.small()).toString(), is("1.2.3"));
+        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(String.class));
-        assertThat(alias.child().fold(FoldContext.small()).toString(), is("127.0.0.1"));
+        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
@@ -1710,7 +1712,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         Aggregate agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1730,7 +1732,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1750,7 +1752,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1768,7 +1770,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1786,7 +1788,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1847,8 +1849,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         NamedExpression field = eval.fields().get(0);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
-        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
-        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+        assertThat(
+            ((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(),
+            equalTo(BytesRefs.toBytesRef("2024-01-01"))
+        );
+        assertThat(
+            ((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(),
+            equalTo(BytesRefs.toBytesRef("3 days"))
+        );
     }
 
     public void testParamForIdentifier() {
@@ -2070,7 +2078,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 relation("idx1"),
                 null,
-                new Literal(EMPTY, "idx2", KEYWORD),
+                Literal.keyword(EMPTY, "idx2"),
                 attribute("f.1.*"),
                 null,
                 Map.of(),
@@ -2087,7 +2095,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 relation("idx1"),
                 null,
-                new Literal(EMPTY, "idx2", KEYWORD),
+                Literal.keyword(EMPTY, "idx2"),
                 attribute("f.1.*.f.2"),
                 null,
                 Map.of(),
@@ -2326,7 +2334,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(string));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
     }
 
     public void testIdPatternUnquoted() {
@@ -2397,7 +2405,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo("t"));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -2574,7 +2582,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
     }
 
     public void testInvalidMatchOperator() {
@@ -2609,7 +2617,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo("value"));
+        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -2619,7 +2627,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
     }
 
     public void testNamedFunctionArgumentInMap() {
@@ -2653,17 +2661,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement("""
@@ -2756,17 +2761,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement(
@@ -2896,17 +2898,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement("""
@@ -3973,7 +3972,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     relation("idx1"),
                     null,
-                    new Literal(EMPTY, "idx2", KEYWORD),
+                    Literal.keyword(EMPTY, "idx2"),
                     attribute("f.1.*"),
                     null,
                     Map.of(),
@@ -4009,7 +4008,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     relation("idx1"),
                     null,
-                    new Literal(EMPTY, "idx2", KEYWORD),
+                    Literal.keyword(EMPTY, "idx2"),
                     attribute("f.1.*.f.2"),
                     null,
                     Map.of(),
@@ -4061,7 +4060,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Eval(
                             EMPTY,
                             relation("test"),
-                            List.of(new Alias(EMPTY, "x", function("toString", List.of(new Literal(EMPTY, "constant_value", KEYWORD)))))
+                            List.of(new Alias(EMPTY, "x", function("toString", List.of(Literal.keyword(EMPTY, "constant_value")))))
                         ),
                         new Equals(EMPTY, attribute("f.2"), new Literal(EMPTY, 100, INTEGER))
                     )
@@ -4105,7 +4104,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                             relation("test"),
                             Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
-                            List.of(new Alias(EMPTY, "y", function("count", List.of(new Literal(EMPTY, "*", KEYWORD)))), attribute("f.4."))
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(Literal.keyword(EMPTY, "*")))), attribute("f.4."))
                         ),
                         List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                     ),

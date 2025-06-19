@@ -412,7 +412,11 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
-                builder.beginControlFlow("if (groups.isNull(groupPosition))");
+                if (valuesIsBlock) {
+                    builder.beginControlFlow("if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset))");
+                } else {
+                    builder.beginControlFlow("if (groups.isNull(groupPosition))");
+                }
                 builder.addStatement("continue");
                 builder.endControlFlow();
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
@@ -430,9 +434,6 @@ public class GroupingAggregatorImplementer {
             }
 
             if (valuesIsBlock) {
-                builder.beginControlFlow("if (values.isNull(groupPosition + positionOffset))");
-                builder.addStatement("continue");
-                builder.endControlFlow();
                 builder.addStatement("int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset)");
                 builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset)");
                 if (aggParam.isArray()) {

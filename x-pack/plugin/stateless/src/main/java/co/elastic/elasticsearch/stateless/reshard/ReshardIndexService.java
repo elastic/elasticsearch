@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.reshard;
 
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -54,16 +56,19 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class MetadataReshardIndexService {
+public class ReshardIndexService {
 
-    private static final Logger logger = LogManager.getLogger(MetadataReshardIndexService.class);
+    private static final Logger logger = LogManager.getLogger(ReshardIndexService.class);
 
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final ThreadPool threadPool;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
@@ -71,13 +76,15 @@ public class MetadataReshardIndexService {
     private final MasterServiceTaskQueue<TransitionTargetStateTask> transitionTargetStateQueue;
     private final MasterServiceTaskQueue<FinishReshardTask> finishReshardQueue;
 
-    public MetadataReshardIndexService(
+    public ReshardIndexService(
         final ClusterService clusterService,
         final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         final RerouteService rerouteService,
+        final IndicesService indicesService,
         final ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.threadPool = threadPool;
 
         this.reshardQueue = clusterService.createTaskQueue(
@@ -231,6 +238,33 @@ public class MetadataReshardIndexService {
             new TransitionTargetStateTask(splitStateRequest, listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
             splitStateRequest.masterNodeTimeout()
         );
+    }
+
+    public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) throws Exception {
+        // may throw if the index is deleted
+        var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        // may throw if the shard id is invalid
+        var indexShard = indexService.getShard(shardId.id());
+        // should validate that shard state is one prior to DONE
+        var unownedQuery = new ShardSplittingQuery(
+            indexShard.indexSettings().getIndexMetadata(),
+            indexShard.shardId().id(),
+            indexShard.mapperService().hasNested()
+        );
+        var engine = indexShard.getEngineOrNull();
+        if (engine == null) {
+            // probably closed
+            throw new IllegalStateException(
+                "cannot delete unowned documents for shard [" + indexShard.shardId().id() + "], engine is null"
+            );
+        }
+        assert engine instanceof IndexEngine;
+        ((IndexEngine) engine).deleteUnownedDocuments(unownedQuery);
+        // Ensure that the deletion is flushed to the object store before returning, so that the caller knows that it
+        // will not need to retry this and can move a splitting shard to DONE.
+        // It would also be fine to just wait for the next flush after delete completes, but assuming we don't split often
+        // the cost of this flush should amortize well.
+        engine.flush(/* force */ true, /* waitIfOngoing */ true, listener.map(r -> null));
     }
 
     private void onlyReshardIndex(

@@ -41,7 +41,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
 
     public static final ActionType<ReshardIndexResponse> TYPE = new ActionType<>("indices:admin/reshard");
 
-    private final MetadataReshardIndexService reshardIndexService;
+    private final ReshardIndexService reshardIndexService;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -50,7 +50,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        MetadataReshardIndexService reshardIndexService,
+        ReshardIndexService reshardIndexService,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -97,7 +97,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index.getName());
         final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
 
-        var validationError = MetadataReshardIndexService.validateIndex(indexAbstraction, indexMetadata);
+        var validationError = ReshardIndexService.validateIndex(indexAbstraction, indexMetadata);
         if (validationError != null) {
             throw validationError.intoException(index);
         }

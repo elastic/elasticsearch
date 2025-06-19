@@ -59,15 +59,3 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 
 * [`index.similarity.*`](../mapping-reference/similarity.md)
 * [`index.analysis.*`](../mapping-reference/analyzer.md)
-
-<!-- not documented
-`index.query_string.lenient`
-
-`index.merge.policy.expunge_deletes_allowed`
-
-`index.merge.policy.floor_segment`
-
-`index.merge.policy.max_merge_at_once`
-
-`index.merge.policy.deletes_pct_allowed`
--->

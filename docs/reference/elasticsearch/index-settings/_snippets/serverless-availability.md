@@ -1,3 +1,3 @@
-::::{admonition} Serverless note
-{{serverless-full}} projects [restrict the available Elasticsearch settings](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#elasticsearch-differences-serverless-settings-availability) to a supported subset, identified with a `Serverless` badge next to the setting name. For a complete list of available index settings, refer to the [Serverless index settings reference](/reference/elasticsearch/index-settings/serverless.md).
+::::{admonition} Settings supported in Serverless
+{{serverless-full}} projects [restrict the available Elasticsearch settings](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#elasticsearch-differences-serverless-settings-availability) to a supported subset, identified with a `Serverless` badge next to the setting name. For a complete list of available index settings, refer to the [Serverless index settings list](/reference/elasticsearch/index-settings/serverless.md).
 ::::

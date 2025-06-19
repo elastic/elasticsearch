@@ -91,6 +91,7 @@ toc:
         - file: elasticsearch/index-settings/translog.md
   - file: query-languages/querydsl.md
     children:
+      - file: query-languages/index.md
       - file: query-languages/query-dsl/query-filter-context.md
       - file: query-languages/query-dsl/compound-queries.md
         children:

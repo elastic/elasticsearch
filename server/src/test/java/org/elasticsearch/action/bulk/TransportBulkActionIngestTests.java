@@ -353,9 +353,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
-        when(state.custom(eq(ProjectsStateRegistry.TYPE), any())).thenReturn(ProjectsStateRegistry.builder()
-            .putProjectSettings(projectId, Settings.builder().build())
-            .build());
+        when(state.custom(eq(ProjectsStateRegistry.TYPE), any())).thenReturn(
+            ProjectsStateRegistry.builder().putProjectSettings(projectId, Settings.builder().build()).build()
+        );
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);

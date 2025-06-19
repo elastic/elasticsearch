@@ -1,13 +1,9 @@
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:qa')
   testImplementation project(path: ':test:test-clusters')
-  javaRestTestImplementation project(path: xpackModule('core'))
 }
 
 tasks.named('javaRestTest') {

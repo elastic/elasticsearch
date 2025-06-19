@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -50,7 +49,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -402,6 +400,44 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         } else {
             throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
         }
+    }
+
+    /**
+     * Updates a single project in the metadata. This offers a more performant way of updating a single project compared to the Builder.
+     */
+    @FixForMultiProject // We should reconsider whether this method is valuable once we update Metadata.Builder to hold constructed projects
+    // instead of project builders.
+    public Metadata withUpdatedProject(ProjectMetadata updatedProject) {
+        final var existingProject = projectMetadata.get(updatedProject.id());
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + updatedProject.id() + "]. Use the builder instead"
+            );
+        }
+        if (updatedProject == existingProject) {
+            return this;
+        }
+        final Map<ProjectId, ProjectMetadata> updatedMap;
+        if (projects().size() == 1) {
+            updatedMap = Map.of(updatedProject.id(), updatedProject);
+        } else {
+            final var hashMap = new HashMap<>(projectMetadata);
+            hashMap.put(updatedProject.id(), updatedProject);
+            updatedMap = Collections.unmodifiableMap(hashMap);
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            updatedMap,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
     }
 
     public long version() {
@@ -1487,6 +1523,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return builder.build();
     }
 
+    public Metadata copyAndUpdateProject(ProjectId projectId, Consumer<ProjectMetadata.Builder> updater) {
+        final var existingProject = projectMetadata.get(projectId);
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + projectId + "]. Use the builder instead"
+            );
+        }
+        final var builder = ProjectMetadata.builder(existingProject);
+        updater.accept(builder);
+        return withUpdatedProject(builder.build());
+    }
+
     public static class Builder {
 
         private String clusterUUID;
@@ -2050,30 +2098,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
     }
-
-    private static final ToXContent.Params FORMAT_PARAMS;
-    static {
-        Map<String, String> params = Maps.newMapWithExpectedSize(2);
-        params.put("binary", "true");
-        params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
-        FORMAT_PARAMS = new ToXContent.MapParams(params);
-    }
-
-    /**
-     * State format for {@link Metadata} to write to and load from disk
-     */
-    public static final MetadataStateFormat<Metadata> FORMAT = new MetadataStateFormat<>(GLOBAL_STATE_FILE_PREFIX) {
-
-        @Override
-        public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
-            ChunkedToXContent.wrapAsToXContent(state).toXContent(builder, FORMAT_PARAMS);
-        }
-
-        @Override
-        public Metadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-    };
 
     private volatile Metadata.ProjectLookup projectLookup = null;
 

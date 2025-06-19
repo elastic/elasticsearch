@@ -1222,7 +1222,6 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot());
 
-
         private final boolean enabled;
 
         Cap() {

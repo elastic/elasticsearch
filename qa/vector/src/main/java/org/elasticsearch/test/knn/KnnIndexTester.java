@@ -74,6 +74,9 @@ public class KnnIndexTester {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
+            if (args.useNewFlatVectorsFormat()) {
+                suffix.add(Integer.toString(args.quantizeBits()));
+            }
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));

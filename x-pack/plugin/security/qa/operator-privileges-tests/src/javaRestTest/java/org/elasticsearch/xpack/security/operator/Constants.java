@@ -580,6 +580,7 @@ public class Constants {
         "indices:data/read/msearch/template",
         "indices:data/read/mtv",
         "indices:data/read/mtv[shard]",
+        "indices:data/read/mtv/eds",
         "indices:data/read/open_point_in_time",
         "indices:data/read/profiling/stack_traces",
         "indices:data/read/profiling/flamegraph",

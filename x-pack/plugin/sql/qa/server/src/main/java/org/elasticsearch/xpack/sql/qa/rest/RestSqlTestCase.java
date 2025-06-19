@@ -98,7 +98,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @After
-    private void cleanup() throws IOException {
+    public void cleanup() throws Exception {
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("indices:data/read/sql/async/get"));
         try {
             deleteTestIndex();
         } catch (ResponseException e) {
@@ -1282,7 +1283,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
         final Map<String, String> acceptMap = new HashMap<String, String>() {
             {

@@ -665,7 +665,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -1040,7 +1040,7 @@ public class EsqlCapabilities {
         /**
          * Support streaming of sub plan results
          */
-        FORK_V8(Build.current().isSnapshot()),
+        FORK_V9(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1082,7 +1082,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V3(Build.current().isSnapshot()),
+        SAMPLE_V3,
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1207,7 +1207,15 @@ public class EsqlCapabilities {
         /**
          * Support parameters for SAMPLE command.
          */
-        PARAMETER_FOR_SAMPLE(Build.current().isSnapshot());
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS;
 
         private final boolean enabled;
 

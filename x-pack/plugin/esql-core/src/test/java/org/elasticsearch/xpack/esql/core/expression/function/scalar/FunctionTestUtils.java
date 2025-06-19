@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -15,10 +16,13 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 public final class FunctionTestUtils {
 
     public static Literal l(Object value) {
-        return new Literal(EMPTY, value, DataType.fromJava(value));
+        return l(value, DataType.fromJava(value));
     }
 
     public static Literal l(Object value, DataType type) {
+        if ((type == DataType.TEXT || type == DataType.KEYWORD) && value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
+        }
         return new Literal(EMPTY, value, type);
     }
 }

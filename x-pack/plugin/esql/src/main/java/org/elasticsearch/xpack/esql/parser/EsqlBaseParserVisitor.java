@@ -130,6 +130,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSelectorString(EsqlBaseParser.SelectorStringContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unquotedIndexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnquotedIndexString(EsqlBaseParser.UnquotedIndexStringContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -333,6 +339,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -412,12 +424,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#sampleCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

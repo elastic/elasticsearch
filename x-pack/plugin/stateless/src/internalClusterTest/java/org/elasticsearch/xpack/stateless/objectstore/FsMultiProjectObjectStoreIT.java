@@ -17,31 +17,29 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.RepositoryStats;
 
-import static org.hamcrest.Matchers.anEmptyMap;
-
-public class FsObjectStoreTests extends AbstractObjectStoreIntegTestCase {
+@LuceneTestCase.SuppressFileSystems(value = { "ExtrasFS" })
+public class FsMultiProjectObjectStoreIT extends FsObjectStoreTests {
 
     @Override
-    protected String repositoryType() {
-        return "fs";
+    protected boolean multiProjectIntegrationTest() {
+        return true;
     }
 
     @Override
-    protected Settings repositorySettings() {
-        return Settings.builder().put(super.repositorySettings()).put("location", randomRepoPath()).build();
+    protected Settings projectSettings(ProjectId projectId) {
+        return Settings.builder()
+            .put("stateless.object_store.type", "fs")
+            .put("stateless.object_store.bucket", "project_" + projectId)
+            .put("stateless.object_store.base_path", "base_path")
+            .build();
     }
 
     @Override
-    protected void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose purpose) {
-        assertThat(repositoryStats.actionStats, anEmptyMap());
-    }
-
-    @Override
-    protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertThat(repositoryStats.actionStats, anEmptyMap());
+    protected Settings projectSecrets(ProjectId projectId) {
+        return Settings.EMPTY;
     }
 }

@@ -63,8 +63,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -244,6 +246,12 @@ public class FakeStatelessNode implements Closeable {
 
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(createClusterService());
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false))
+                    .build()
+            );
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
@@ -296,11 +304,12 @@ public class FakeStatelessNode implements Closeable {
                 )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-            indexingDirectory.getBlobStoreCacheDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
+            indexingDirectory.getBlobStoreCacheDirectory()
+                .setBlobContainer(term -> objectStoreService.getProjectBlobContainer(shardId, term));
             searchDirectory = localCloseables.add(
                 createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
             );
-            searchDirectory.setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
+            searchDirectory.setBlobContainer(term -> objectStoreService.getProjectBlobContainer(shardId, term));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             closeables = localCloseables.transfer();
@@ -574,7 +583,7 @@ public class FakeStatelessNode implements Closeable {
     }
 
     public BlobContainer getShardContainer() {
-        return objectStoreService.getBlobContainer(shardId, primaryTerm);
+        return objectStoreService.getProjectBlobContainer(shardId, primaryTerm);
     }
 
     @Override

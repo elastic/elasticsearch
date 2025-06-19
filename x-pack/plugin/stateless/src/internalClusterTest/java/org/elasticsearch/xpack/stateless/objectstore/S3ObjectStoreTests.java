@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -116,7 +118,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private InterceptableS3HttpHandler s3HttpHandler;
+    protected InterceptableS3HttpHandler s3HttpHandler;
     private int maxRetries;
 
     @Override
@@ -620,8 +622,12 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             );
             var indexUuid = resolveIndex(indexName).getUUID();
 
+            final ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
+            final BlobStoreRepository objectStore = randomBoolean()
+                ? objectStoreService.getClusterObjectStore()
+                : objectStoreService.getProjectObjectStore(ProjectId.DEFAULT);
             final var shardPath = "indices/" + indexUuid + "/0/";
-            final var rawPrefix = getCurrentMasterObjectStoreService().getObjectStore().basePath().buildAsString() + shardPath;
+            final var rawPrefix = objectStore.basePath().buildAsString() + shardPath;
             final var encodedPrefix = URLEncoder.encode(rawPrefix, StandardCharsets.UTF_8);
             listBlobsPredicate.set(rq -> rq.startsWith("GET /bucket?") && rq.contains("prefix=" + encodedPrefix));
             getBlobPredicate.set(rq -> rq.startsWith("GET /bucket/" + rawPrefix));
@@ -667,7 +673,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private static class InterceptableS3HttpHandler extends S3HttpHandler {
+    static class InterceptableS3HttpHandler extends S3HttpHandler {
         private volatile Interceptor interceptor;
 
         InterceptableS3HttpHandler(String bucket) {

@@ -24,6 +24,8 @@ import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.UUIDs;
@@ -109,8 +111,9 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
                 repoService,
                 threadPool,
                 clusterService,
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                TestProjectResolvers.allProjects()
             );
+            clusterService.addStateApplier(objectStoreService);
             closeable.add(objectStoreService);
             objectStoreService.start();
 
@@ -121,6 +124,16 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             var cluster2Uuid = UUIDs.randomBase64UUID();
             cluster2Service.setClusterUuid(cluster2Uuid);
             var projectId = randomUniqueProjectId();
+
+            // Create the project object store
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(projectId).settings(Settings.builder().put(BUCKET_SETTING.getKey(), projectId.id()).build())
+                    )
+                    .build()
+            );
 
             // Releasing an unassigned project's lease fails
             var listener = new SubscribableListener<Boolean>();

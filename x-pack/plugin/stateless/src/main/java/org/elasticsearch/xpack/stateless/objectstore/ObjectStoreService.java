@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -59,6 +60,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -66,6 +68,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -356,7 +359,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     // package private for tests
-    BlobStoreRepository getObjectStore() {
+    /**
+     * Get the cluster level object store
+     */
+    BlobStoreRepository getClusterObjectStore() {
         if (objectStore == null) {
             throw new IllegalStateException("Blob store is null");
         }
@@ -378,6 +384,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
             return projectObjectStore;
         }
+        assert projectResolver.supportsMultipleProjects();
         assert projectObjectStoreExceptions != null;
         final var repoException = projectObjectStoreExceptions.get(projectId);
         if (repoException != null) {
@@ -385,6 +392,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         } else {
             throw new RepositoryException(Stateless.NAME, "project [{}] object store not found", projectId);
         }
+    }
+
+    private BlobStoreRepository getProjectObjectStore(ShardId shardId) {
+        return getProjectObjectStore(resolveProjectId(shardId.getIndex()));
     }
 
     // package private for tests
@@ -398,21 +409,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         return projectObjectStoreExceptions;
     }
 
-    public BlobContainer getClusterRootContainer() {
-        return getObjectStore().blobStore().blobContainer(objectStore.basePath());
+    public BlobContainer getProjectRootContainer(ProjectId projectId) {
+        final var projectObjectStore = getProjectObjectStore(projectId);
+        return projectObjectStore.blobStore().blobContainer(projectObjectStore.basePath());
     }
 
     public BlobPath shardBasePath(ShardId shardId) {
-        return getObjectStore().basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id()));
+        return getProjectObjectStore(shardId).basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id()));
     }
 
-    public BlobStore blobStore() {
-        return getObjectStore().blobStore();
+    /**
+     * Get the project level object store for the specified {@code ShardId}
+     * @param shardId Use for reverse lookup for the {@link ProjectId}
+     */
+    public BlobStore getProjectBlobStore(ShardId shardId) {
+        return getProjectObjectStore(shardId).blobStore();
     }
 
     // public for testing
-    public BlobContainer getBlobContainer(ShardId shardId, long primaryTerm) {
-        final BlobStoreRepository objectStore = getObjectStore();
+    public BlobContainer getProjectBlobContainer(ShardId shardId, long primaryTerm) {
+        final BlobStoreRepository objectStore = getProjectObjectStore(shardId);
         return objectStore.blobStore()
             .blobContainer(
                 objectStore.basePath()
@@ -423,34 +439,39 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             );
     }
 
-    public BlobContainer getBlobContainer(ShardId shardId) {
-        final BlobStoreRepository objectStore = getObjectStore();
+    public BlobContainer getProjectBlobContainer(ShardId shardId) {
+        final BlobStoreRepository objectStore = getProjectObjectStore(shardId);
         return objectStore.blobStore()
             .blobContainer(objectStore.basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())));
     }
 
-    public BlobContainer getIndicesBlobContainer() {
-        final BlobStoreRepository objectStore = getObjectStore();
+    public BlobContainer getIndicesBlobContainer(ProjectId projectId) {
+        final BlobStoreRepository objectStore = getProjectObjectStore(projectId);
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("indices"));
     }
 
-    public BlobContainer getIndexBlobContainer(String indexUUID) {
-        final BlobStoreRepository objectStore = getObjectStore();
+    public BlobContainer getIndexBlobContainer(ProjectId projectId, String indexUUID) {
+        final BlobStoreRepository objectStore = getProjectObjectStore(projectId);
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("indices").add(indexUUID));
     }
 
+    public BlobContainer getClusterRootContainer() {
+        final BlobStoreRepository objectStore = getClusterObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath());
+    }
+
     public BlobContainer getClusterStateBlobContainer() {
-        final BlobStoreRepository objectStore = getObjectStore();
+        final BlobStoreRepository objectStore = getClusterObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));
     }
 
     public BlobContainer getClusterStateBlobContainerForTerm(long term) {
-        final BlobStoreRepository objectStore = getObjectStore();
+        final BlobStoreRepository objectStore = getClusterObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state").add(String.valueOf(term)));
     }
 
     public BlobContainer getClusterStateHeartbeatContainer() {
-        final BlobStoreRepository objectStore = getObjectStore();
+        final BlobStoreRepository objectStore = getClusterObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state").add("heartbeat"));
     }
 
@@ -466,16 +487,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      * Gets the translog blob container of a node
      */
     public BlobContainer getTranslogBlobContainer(String nodeEphemeralId) {
-        return getObjectStore().blobStore().blobContainer(objectStore.basePath().add("nodes").add(nodeEphemeralId).add("translog"));
+        return getClusterObjectStore().blobStore().blobContainer(objectStore.basePath().add("nodes").add(nodeEphemeralId).add("translog"));
     }
 
     /**
      * Gets the set of node ephemeral IDs that have translog blob containers
      */
     public Set<String> getNodesWithTranslogBlobContainers() throws IOException {
-        return getObjectStore().blobStore().blobContainer(objectStore.basePath().add("nodes")).children(OperationPurpose.TRANSLOG).keySet();
+        return getClusterObjectStore().blobStore()
+            .blobContainer(objectStore.basePath().add("nodes"))
+            .children(OperationPurpose.TRANSLOG)
+            .keySet();
     }
 
+    @FixForMultiProject(description = "https://elasticco.atlassian.net/browse/ES-10099")
     public RepositoryStats stats() {
         return objectStore.stats();
     }
@@ -553,6 +578,23 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         if (state == Lifecycle.State.INITIALIZED || state == Lifecycle.State.CLOSED) {
             throw new IllegalStateException("Object store service is not running [" + state + ']');
         }
+    }
+
+    /**
+     * Lookup the {@link ProjectId} in the cluster state for the given {@link Index}. Throws if the project is not found.
+     */
+    private ProjectId resolveProjectId(Index index) {
+        return projectResolver.supportsMultipleProjects() ? clusterService.state().metadata().projectFor(index).id() : ProjectId.DEFAULT;
+    }
+
+    /**
+     * Similar to {@link #resolveProjectId(Index)}, but returns {@code null} if the project is not found.
+     */
+    private ProjectId resolveProjectIdOrNull(Index index) {
+        if (projectResolver.supportsMultipleProjects()) {
+            return clusterService.state().metadata().lookupProject(index).map(ProjectMetadata::id).orElse(null);
+        }
+        return ProjectId.DEFAULT;
     }
 
     public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
@@ -903,8 +945,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         // by limiting the amount of concurrent file copies or using a dedicated thread pool.
 
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
-        var sourceShardContainer = getBlobContainer(source);
+        var sourceShardContainer = getProjectBlobContainer(source);
 
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
 
@@ -912,7 +955,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             var sourceContainerForTerm = blobContainerWithTerm.v2();
 
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
-            var destinationContainerForTerm = getBlobContainer(destination, blobContainerWithTerm.v1());
+            var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
                 destinationContainerForTerm.copyBlob(
                     OperationPurpose.INDICES,
@@ -923,6 +966,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 );
             }
         }
+    }
+
+    private boolean assertShardsAreInSameProject(ShardId source, ShardId destination) {
+        final ProjectId sourceProjectId = resolveProjectId(source.getIndex());
+        final ProjectId destinationProjectId = resolveProjectId(destination.getIndex());
+        assert sourceProjectId.equals(destinationProjectId)
+            : "shards ["
+                + source
+                + "] and ["
+                + destination
+                + "] are not in the same project: "
+                + sourceProjectId
+                + " != "
+                + destinationProjectId;
+        return true;
     }
 
     private static Map<PrimaryTermAndGeneration, ReferencedBlobMaxBlobLengthAndFiles> computedReferencedBlobs(
@@ -1345,14 +1403,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     private class ShardFilesDeleteTask extends AbstractRunnable {
-        private final List<StaleCompoundCommit> toDeleteInThisTask;
+        private final Map<ProjectId, List<StaleCompoundCommit>> toDeleteInThisTask;
 
         private ShardFilesDeleteTask() {
-            this.toDeleteInThisTask = new ArrayList<>();
+            this.toDeleteInThisTask = new HashMap<>();
             for (int i = 0; i < DELETE_BATCH_SIZE; ++i) {
                 StaleCompoundCommit polled = commitBlobsToDelete.poll();
                 if (polled != null) {
-                    toDeleteInThisTask.add(polled);
+                    final ProjectId projectId = resolveProjectIdOrNull(polled.shardId().getIndex());
+                    // Skip the deletion if the project is concurrently deleted. Stale commits will be deleted
+                    // if the project is later resurrected.
+                    // TODO: See ES-12120 for adding an IT for this case.
+                    if (projectId != null) {
+                        toDeleteInThisTask.computeIfAbsent(projectId, k -> new ArrayList<>()).add(polled);
+                    }
                 } else {
                     break;
                 }
@@ -1394,21 +1458,43 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         protected void doRun() throws Exception {
             boolean success = false;
             try {
-                getObjectStore().blobStore()
-                    .blobContainer(BlobPath.EMPTY)
-                    .deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream().iterator());
-                SHARD_FILES_DELETES_LOGGER.debug(() -> format("deleted shard files %s", blobPathStream().toList()));
+                final var iterator = toDeleteInThisTask.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    final var entry = iterator.next();
+                    final ProjectId projectId = entry.getKey();
+                    final BlobStoreRepository projectObjectStore;
+                    try {
+                        projectObjectStore = getProjectObjectStore(projectId);
+                    } catch (RepositoryException e) {
+                        SHARD_FILES_DELETES_LOGGER.info(
+                            () -> format("project [%s] not found, skipping deletion of shard files [%s]", projectId, entry.getValue()),
+                            e
+                        );
+                        continue;
+                    }
+                    projectObjectStore.blobStore()
+                        .blobContainer(BlobPath.EMPTY)
+                        .deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream(entry.getValue()).iterator());
+                    SHARD_FILES_DELETES_LOGGER.debug(
+                        () -> format("project [%s] deleted shard files %s", projectId, blobPathStream(entry.getValue()).toList())
+                    );
+                    iterator.remove();
+                }
                 success = true;
             } finally {
                 if (success == false) {
-                    commitBlobsToDelete.addAll(toDeleteInThisTask);
+                    toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
                 }
             }
         }
 
+        private Stream<String> blobPathStream(List<StaleCompoundCommit> commits) {
+            return commits.stream()
+                .map(commit -> commit.absoluteBlobPath(getProjectBlobContainer(commit.shardId(), commit.primaryTerm()).path()));
+        }
+
         private Stream<String> blobPathStream() {
-            return toDeleteInThisTask.stream()
-                .map(commit -> commit.absoluteBlobPath(getBlobContainer(commit.shardId(), commit.primaryTerm()).path()));
+            return toDeleteInThisTask.values().stream().flatMap(this::blobPathStream);
         }
     }
 }

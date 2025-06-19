@@ -19,7 +19,9 @@ package co.elastic.elasticsearch.stateless.objectstore;
 
 import co.elastic.elasticsearch.stateless.StatelessMockRepository;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ESTestCase;
 
 public final class ObjectStoreTestUtils {
 
@@ -34,7 +36,7 @@ public final class ObjectStoreTestUtils {
     }
 
     public static <T> T getObjectStoreMockRepository(ObjectStoreService service, Class<T> repoClass) {
-        var objectStore = service.getObjectStore();
+        var objectStore = ESTestCase.randomBoolean() ? service.getClusterObjectStore() : service.getProjectObjectStore(ProjectId.DEFAULT);
         if (repoClass.isInstance(objectStore)) {
             return repoClass.cast(objectStore);
         } else {

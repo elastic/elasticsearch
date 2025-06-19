@@ -985,7 +985,15 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE aggregation function
          */
-        AGG_SAMPLE;
+        AGG_SAMPLE,
+
+        /*
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS;
 
         private final boolean enabled;
 

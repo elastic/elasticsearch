@@ -502,6 +502,11 @@ public class EsqlCapabilities {
         BUCKET_INCLUSIVE_UPPER_BOUND,
 
         /**
+         * Enhanced DATE_TRUNC with arbitrary month and year intervals. (#120302)
+         */
+        DATE_TRUNC_WITH_ARBITRARY_INTERVALS,
+
+        /**
          * Changed error messages for fields with conflicting types in different indices.
          */
         SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,

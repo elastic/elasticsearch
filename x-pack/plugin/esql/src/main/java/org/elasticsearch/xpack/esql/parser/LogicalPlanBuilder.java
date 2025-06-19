@@ -707,6 +707,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public LogicalPlan visitFrommCommand(EsqlBaseParser.FrommCommandContext ctx) {
+
+        List<LogicalPlan> subPlans = ctx.fromSubQuery().stream().map(subquery -> plan(subquery.query())).toList();
+        return new Fork(source(ctx), subPlans, List.of());
+    }
+
+    @Override
     public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
         return input -> {
             Source source = source(ctx);

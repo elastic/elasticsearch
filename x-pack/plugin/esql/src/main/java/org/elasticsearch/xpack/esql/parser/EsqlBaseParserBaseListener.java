@@ -181,6 +181,42 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFrommCommand(EsqlBaseParser.FrommCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFrommCommand(EsqlBaseParser.FrommCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFromSubQuery(EsqlBaseParser.FromSubQueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFromSubQuery(EsqlBaseParser.FromSubQueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFromSingleProcessingCommand(EsqlBaseParser.FromSingleProcessingCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFromSingleProcessingCommand(EsqlBaseParser.FromSingleProcessingCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) { }
   /**
    * {@inheritDoc}

@@ -35,6 +35,7 @@ query
 sourceCommand
     : explainCommand
     | fromCommand
+    | frommCommand
     | rowCommand
     | showCommand
     // in development
@@ -97,6 +98,18 @@ rerankField
 
 fromCommand
     : FROM indexPatternAndMetadataFields
+    ;
+
+frommCommand
+    : FROMM (fromSubQuery)+
+    ;
+
+fromSubQuery
+    : LP query RP
+    ;
+
+fromSingleProcessingCommand
+    : processingCommand
     ;
 
 timeSeriesCommand

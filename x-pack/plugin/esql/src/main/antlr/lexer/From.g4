@@ -15,6 +15,9 @@ DEV_TIME_SERIES : {this.isDevVersion()}? 'ts' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
+FROM_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
+// explicit popMode of RP to allow FORK in FORK branches
+FROM_RP : RP -> type(RP), popMode, popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COLON : COLON -> type(COLON);

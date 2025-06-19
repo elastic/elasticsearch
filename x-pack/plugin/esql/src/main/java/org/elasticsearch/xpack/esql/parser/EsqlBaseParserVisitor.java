@@ -100,6 +100,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#frommCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFrommCommand(EsqlBaseParser.FrommCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fromSubQuery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFromSubQuery(EsqlBaseParser.FromSubQueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fromSingleProcessingCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFromSingleProcessingCommand(EsqlBaseParser.FromSingleProcessingCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#timeSeriesCommand}.
    * @param ctx the parse tree
    * @return the visitor result

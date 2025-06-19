@@ -117,6 +117,27 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitFrommCommand(EsqlBaseParser.FrommCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitFromSubQuery(EsqlBaseParser.FromSubQueryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitFromSingleProcessingCommand(EsqlBaseParser.FromSingleProcessingCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

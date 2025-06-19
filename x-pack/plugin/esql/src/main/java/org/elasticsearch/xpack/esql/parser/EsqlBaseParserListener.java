@@ -152,6 +152,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#frommCommand}.
+   * @param ctx the parse tree
+   */
+  void enterFrommCommand(EsqlBaseParser.FrommCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#frommCommand}.
+   * @param ctx the parse tree
+   */
+  void exitFrommCommand(EsqlBaseParser.FrommCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fromSubQuery}.
+   * @param ctx the parse tree
+   */
+  void enterFromSubQuery(EsqlBaseParser.FromSubQueryContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fromSubQuery}.
+   * @param ctx the parse tree
+   */
+  void exitFromSubQuery(EsqlBaseParser.FromSubQueryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fromSingleProcessingCommand}.
+   * @param ctx the parse tree
+   */
+  void enterFromSingleProcessingCommand(EsqlBaseParser.FromSingleProcessingCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fromSingleProcessingCommand}.
+   * @param ctx the parse tree
+   */
+  void exitFromSingleProcessingCommand(EsqlBaseParser.FromSingleProcessingCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#timeSeriesCommand}.
    * @param ctx the parse tree
    */

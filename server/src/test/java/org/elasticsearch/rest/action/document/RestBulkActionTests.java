@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -66,7 +67,7 @@ public class RestBulkActionTests extends ESTestCase {
             params.put("pipeline", "timestamps");
             new RestBulkAction(
                 settings(IndexVersion.current()).build(),
-                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), mock(BulkOperationWaitForChunkMetrics.class))
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
@@ -101,11 +102,7 @@ public class RestBulkActionTests extends ESTestCase {
             {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(
-                        mock(Client.class),
-                        mock(IndexingPressure.class),
-                        mock(BulkOperationWaitForChunkMetrics.class)
-                    )
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -129,11 +126,7 @@ public class RestBulkActionTests extends ESTestCase {
                 bulkCalled.set(false);
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(
-                        mock(Client.class),
-                        mock(IndexingPressure.class),
-                        mock(BulkOperationWaitForChunkMetrics.class)
-                    )
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -156,11 +149,7 @@ public class RestBulkActionTests extends ESTestCase {
                 bulkCalled.set(false);
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(
-                        mock(Client.class),
-                        mock(IndexingPressure.class),
-                        mock(BulkOperationWaitForChunkMetrics.class)
-                    )
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -184,11 +173,7 @@ public class RestBulkActionTests extends ESTestCase {
                 bulkCalled.set(false);
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
-                    new IncrementalBulkService(
-                        mock(Client.class),
-                        mock(IndexingPressure.class),
-                        mock(BulkOperationWaitForChunkMetrics.class)
-                    )
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)

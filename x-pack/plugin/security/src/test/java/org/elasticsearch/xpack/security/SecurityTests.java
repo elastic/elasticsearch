@@ -63,6 +63,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
@@ -947,7 +948,7 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, null),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);

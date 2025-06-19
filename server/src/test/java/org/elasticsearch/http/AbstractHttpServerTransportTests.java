@@ -43,6 +43,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -1183,7 +1184,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, null),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
             TestProjectResolvers.alwaysThrow()
         );
     }

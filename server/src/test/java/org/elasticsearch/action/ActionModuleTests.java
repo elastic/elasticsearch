@@ -42,6 +42,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -130,7 +131,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, null),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
             TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
@@ -197,7 +198,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, null),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
                 TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
@@ -257,7 +258,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, null),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
@@ -310,7 +311,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, null),
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
                     TestProjectResolvers.alwaysThrow()
                 )
             );
@@ -354,7 +355,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, null),
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
                     TestProjectResolvers.alwaysThrow()
                 )
             );

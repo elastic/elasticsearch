@@ -27,13 +27,12 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -42,6 +41,8 @@ import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,8 +51,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.KEYWORD;
 
 public class PatternedTextFieldType extends StringFieldType {
 
@@ -93,7 +92,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        return SourceValueFetcher.toString(name(), context, format);
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
@@ -101,10 +100,11 @@ public class PatternedTextFieldType extends StringFieldType {
     ) {
         return context -> {
             ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+            SourceProvider sourceProvider = searchExecutionContext.lookup();
             valueFetcher.setNextReader(context);
             return docID -> {
                 try {
-                    return valueFetcher.fetchValues(null, docID, new ArrayList<>());
+                    return valueFetcher.fetchValues(sourceProvider.getSource(context, docID), docID, new ArrayList<>());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -243,17 +243,20 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-        var templateDataBuilder = new SortedSetOrdinalsIndexFieldData.Builder(
-            templateFieldName(),
-            KEYWORD,
-            (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+        if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
+            throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
+        }
+        if (textFieldType.isSyntheticSource()) {
+            return new PatternedTextIndexFieldData.Builder(this);
+        }
+        return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+            name(),
+            CoreValuesSourceType.KEYWORD,
+            SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+            fieldDataContext.lookupSupplier().get(),
+            KeywordDocValuesField::new
         );
-        var argsDataBuilder = new SortedSetOrdinalsIndexFieldData.Builder(
-            argsFieldName(),
-            KEYWORD,
-            (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-        );
-        return new PatternedTextIndexFieldData.Builder(name(), templateDataBuilder, argsDataBuilder);
+
     }
 
     String templateFieldName() {

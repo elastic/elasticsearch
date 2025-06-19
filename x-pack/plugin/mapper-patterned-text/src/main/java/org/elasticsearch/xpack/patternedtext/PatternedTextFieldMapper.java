@@ -104,7 +104,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldPatternedTextFieldType, builderParams);
         assert mappedFieldPatternedTextFieldType.getTextSearchInfo().isTokenized();
-        assert mappedFieldPatternedTextFieldType.hasDocValues();
+        assert mappedFieldPatternedTextFieldType.hasDocValues() == false;
         this.fieldType = Defaults.FIELD_TYPE;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;

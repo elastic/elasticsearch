@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.patternedtext;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -40,7 +38,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
 
@@ -54,8 +51,8 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new PatternedTextFieldType("field");
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
-        terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        terms.add(new BytesRef("123"));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "123"), null));
     }
 
     public void testRangeQuery() {
@@ -107,18 +104,6 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
-    public void testFetchDocValue() throws IOException {
-        Supplier<Document> documentSupplier = () -> {
-            Document doc = new Document();
-            doc.add(new SortedSetDocValuesField("field.template", new BytesRef("value %W")));
-            doc.add(new SortedSetDocValuesField("field.args", new BytesRef("1")));
-            return doc;
-        };
-
-        MappedFieldType fieldType = new PatternedTextFieldType("field");
-        assertEquals(List.of("value 1"), fetchDocValues(fieldType, documentSupplier));
-    }
-
     private Query unwrapPositionalQuery(Query query) {
         query = ((ConstantScoreQuery) query).getQuery();
         return query;
@@ -126,18 +111,18 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testPhraseQuery() throws IOException {
         MappedFieldType ft = new PatternedTextFieldType("field");
-        TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
+        TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("1", 4, 7));
         Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
-        assertEquals(new PhraseQuery("field", "a", "b").toString(), delegate.toString());
+        assertEquals(new PhraseQuery("field", "a", "1").toString(), delegate.toString());
     }
 
     public void testMultiPhraseQuery() throws IOException {
         MappedFieldType ft = new PatternedTextFieldType("field");
-        TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
+        TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("2", 0, 0, 3), new Token("c", 4, 7));
         Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
-        Query expected = new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
+        Query expected = new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "2") })
             .add(new Term("field", "c"))
             .build();
         assertEquals(expected.toString(), delegate.toString());

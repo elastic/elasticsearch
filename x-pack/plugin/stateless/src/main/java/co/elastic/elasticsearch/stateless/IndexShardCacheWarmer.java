@@ -95,7 +95,7 @@ public class IndexShardCacheWarmer {
         if (store.tryIncRef()) {
             boolean success = false;
             try {
-                final var blobStore = objectStoreService.blobStore();
+                final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
                 final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
                 var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                 // Recovery hasn't even started yet, so we need to set the blob container here in a copied prewarming instance. This

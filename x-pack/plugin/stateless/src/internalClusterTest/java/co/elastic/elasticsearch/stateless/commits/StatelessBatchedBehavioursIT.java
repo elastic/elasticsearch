@@ -134,7 +134,10 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         final IndexShard indexShard = findIndexShard(indexName);
         final Engine indexEngine = indexShard.getEngineOrNull();
         final long generation = indexEngine.getLastCommittedSegmentInfos().getGeneration();
-        final BlobContainer blobContainer = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+        final BlobContainer blobContainer = objectStoreService.getProjectBlobContainer(
+            indexShard.shardId(),
+            indexShard.getOperationPrimaryTerm()
+        );
         assertBusy(() -> {
             final Set<String> blobFileNames = blobContainer.listBlobs(OperationPurpose.INDICES).keySet();
             assertThat(blobFileNames, equalTo(Set.of(StatelessCompoundCommit.blobNameFromGeneration(generation))));

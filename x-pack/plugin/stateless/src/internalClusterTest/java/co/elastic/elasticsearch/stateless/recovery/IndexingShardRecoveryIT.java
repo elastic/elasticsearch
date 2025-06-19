@@ -433,7 +433,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
         // list the blobs that exist in the object store and map the staless_commit_N files with their primary term prefixes
         var objectStoreService = getCurrentMasterObjectStoreService();
-        var blobContainer = objectStoreService.getBlobContainer(newIndexShard.shardId());
+        var blobContainer = objectStoreService.getProjectBlobContainer(newIndexShard.shardId());
         var blobNamesAndPrimaryTerms = new HashMap<String, Set<Long>>();
         for (var child : blobContainer.children(operationPurpose).entrySet()) {
             var blobNames = child.getValue().listBlobs(operationPurpose).keySet();
@@ -891,7 +891,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
     private static void assertBlobExists(ShardId shardId, PrimaryTermAndGeneration primaryTermAndGeneration) {
         try {
             var objectStoreService = getCurrentMasterObjectStoreService();
-            var blobContainer = objectStoreService.getBlobContainer(shardId, primaryTermAndGeneration.primaryTerm());
+            var blobContainer = objectStoreService.getProjectBlobContainer(shardId, primaryTermAndGeneration.primaryTerm());
             var blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
             assertTrue("Blob not found: " + blobContainer.path() + blobName, blobContainer.blobExists(OperationPurpose.INDICES, blobName));
         } catch (Exception e) {

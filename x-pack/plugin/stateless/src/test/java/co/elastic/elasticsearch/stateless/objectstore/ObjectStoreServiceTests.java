@@ -26,9 +26,11 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -47,6 +49,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -56,6 +59,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -66,6 +70,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -74,9 +79,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -95,16 +102,19 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
@@ -120,6 +130,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class ObjectStoreServiceTests extends ESTestCase {
@@ -277,7 +288,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             assertEquals(
                 commitCount,
-                testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1)
+                testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId, 1)
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
@@ -287,7 +298,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
             BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
-                testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
+                testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                 1
             );
             if (commit != null) {
@@ -340,7 +351,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .build();
             }
         }) {
-            final BlobContainer shardBlobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+            final BlobContainer shardBlobContainer = testHarness.objectStoreService.getProjectBlobContainer(
+                testHarness.shardId,
+                primaryTerm
+            );
             final AtomicReference<StatelessCompoundCommit> expectedNewestCompoundCommit = new AtomicReference<>();
 
             // The node may already have existing CCs
@@ -483,7 +497,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     virtualBatchedCompoundCommit.freeze();
 
                     try (var stream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                        var shardContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+                        var shardContainer = testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId, primaryTerm);
                         shardContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
                             virtualBatchedCompoundCommit.getBlobName(),
@@ -531,11 +545,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var objectStoreService = testHarness.objectStoreService;
             final String blobName = "test_blob";
 
-            final BlobStoreRepository clusterObjectStore = objectStoreService.getObjectStore();
+            final BlobStoreRepository clusterObjectStore = objectStoreService.getClusterObjectStore();
             assertNull(clusterObjectStore.getProjectId());
             assertThat(
                 objectStoreService.getProjectObjectStores(),
-                equalTo(Map.of(ProjectId.DEFAULT, objectStoreService.getObjectStore()))
+                equalTo(Map.of(ProjectId.DEFAULT, objectStoreService.getClusterObjectStore()))
             );
             assertThat(objectStoreService.getProjectObjectStore(ProjectId.DEFAULT), sameInstance(clusterObjectStore));
 
@@ -728,7 +742,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // Shards should now have the same data, let's read from destination shard.
             var dir = SearchDirectory.unwrapDirectory(node2.searchStore.directory());
             BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
-                node2.objectStoreService.getBlobContainer(destinationShardId),
+                node2.objectStoreService.getProjectBlobContainer(destinationShardId),
                 primaryTerm
             );
             if (commit != null) {
@@ -744,6 +758,138 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // See implementation of generateIndexCommits().
                 assertEquals(commitCount, indexSearcher.search(new TermQuery(new Term("field0", "term")), 100).totalHits.value());
             }
+        }
+    }
+
+    public void testDeletingShardFileSkipsNotFoundProject() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+
+        final Set<String> deletedShardFiles = ConcurrentCollections.newConcurrentSet();
+
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.allProjects()
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    if (randomBoolean()) {
+                        return super.nodeSettings();
+                    } else {
+                        return Settings.builder()
+                            .put(super.nodeSettings())
+                            .put(OBJECT_STORE_FILE_DELETION_DELAY.getKey(), TimeValue.timeValueMillis(between(10, 100)))
+                            .build();
+                    }
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    return new FilterBlobContainer(innerContainer) {
+
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+
+                        @Override
+                        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames)
+                            throws IOException {
+                            deletedShardFiles.addAll(Iterators.toList(blobNames));
+                        }
+                    };
+                }
+            }
+        ) {
+            final var objectStoreService = testHarness.objectStoreService;
+
+            // Block shard file deletions
+            final int maxDeletionThreads = testHarness.threadPool.info(Stateless.SHARD_WRITE_THREAD_POOL).getMax();
+            final var startBarrier = new CyclicBarrier(maxDeletionThreads + 1);
+            final var deletionBarrier = new CyclicBarrier(maxDeletionThreads + 1);
+            for (int i = 0; i < maxDeletionThreads; i++) {
+                testHarness.threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).submit(() -> {
+                    safeAwait(startBarrier);
+                    safeAwait(deletionBarrier);
+                });
+            }
+            safeAwait(startBarrier);
+
+            // create a new project and an index
+            final ProjectId projectId = randomUniqueProjectId();
+            final var projectSettingsBuilder = Settings.builder()
+                .put("stateless.object_store.bucket", "bucket_" + projectId)
+                .put("stateless.object_store.base_path", "base_path");
+            if (randomBoolean()) {
+                projectSettingsBuilder.put("stateless.object_store.type", "fs");
+            }
+            final var indexMetadata = IndexMetadata.builder("index")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                )
+                .build();
+            ClusterServiceUtils.setState(
+                testHarness.clusterService,
+                ClusterState.builder(testHarness.clusterService.state())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(projectId).settings(projectSettingsBuilder.build()).put(indexMetadata, false)
+                    )
+                    .build()
+            );
+            final BlobStoreRepository projectObjectStore = objectStoreService.getProjectObjectStore(projectId);
+            assertNotNull(projectObjectStore);
+
+            // 1. Delete a shard file of an index that is not found in any project
+            objectStoreService.asyncDeleteShardFile(
+                new StaleCompoundCommit(
+                    new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    primaryTerm
+                )
+            );
+            // 2. Delete another shard file of an index that is found when deletion task is initially created but remove when it runs
+            objectStoreService.asyncDeleteShardFile(
+                new StaleCompoundCommit(
+                    new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    primaryTerm
+                )
+            );
+            // 3. Delete a normal shard file
+            objectStoreService.asyncDeleteShardFile(
+                new StaleCompoundCommit(
+                    testHarness.shardId,
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    primaryTerm
+                )
+            );
+
+            // Delete the project
+            final ClusterState state = testHarness.clusterService.state();
+            ClusterServiceUtils.setState(
+                testHarness.clusterService,
+                ClusterState.builder(state)
+                    .metadata(Metadata.builder(state.metadata()).removeProject(projectId))
+                    .routingTable(GlobalRoutingTable.builder(state.globalRoutingTable()).removeProject(projectId).build())
+                    .build()
+            );
+
+            // Unblock the shard file deletions
+            safeAwait(deletionBarrier);
+
+            // Shard file deletion is called for the remaining project and skipped for any project that is not found
+            assertBusy(() -> {
+                assertThat(deletedShardFiles.size(), equalTo(1));
+                assertThat(deletedShardFiles.iterator().next(), startsWith("indices/" + testHarness.shardId.getIndex().getUUID()));
+            });
+
         }
     }
 

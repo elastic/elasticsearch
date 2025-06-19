@@ -231,7 +231,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         Index index = resolveIndex(newIndex);
         IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
-        var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+        var blobContainerForCommit = objectStoreService.getProjectBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
         assertThat(commitFile, blobContainerForCommit.blobExists(operationPurpose, commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(

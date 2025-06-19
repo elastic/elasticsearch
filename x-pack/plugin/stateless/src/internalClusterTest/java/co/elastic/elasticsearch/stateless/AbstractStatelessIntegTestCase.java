@@ -962,7 +962,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .getProject()
             .index(indexName)
             .primaryTerm(shardId);
-        return indexObjectStoreService.getBlobContainer(new ShardId(resolveIndex(indexName), shardId), primaryTerm);
+        return indexObjectStoreService.getProjectBlobContainer(new ShardId(resolveIndex(indexName), shardId), primaryTerm);
     }
 
     @Override
@@ -1017,7 +1017,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     protected static Set<PrimaryTermAndGeneration> listBlobsTermAndGenerations(ShardId shardId) throws Exception {
         Set<PrimaryTermAndGeneration> set = new HashSet<>();
         var objectStoreService = getObjectStoreService(internalCluster().getRandomNodeName());
-        var indexBlobContainer = objectStoreService.getBlobContainer(shardId);
+        var indexBlobContainer = objectStoreService.getProjectBlobContainer(shardId);
         for (var entry : indexBlobContainer.children(operationPurpose).entrySet()) {
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();

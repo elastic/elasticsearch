@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -469,7 +470,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
     private static Set<String> getIndicesInBlobStore(String viaNode) throws IOException {
         var objectStoreService = viaNode == null ? getCurrentMasterObjectStoreService() : getObjectStoreService(viaNode);
-        return objectStoreService.getIndicesBlobContainer().children(OperationPurpose.INDICES).keySet();
+        return objectStoreService.getIndicesBlobContainer(ProjectId.DEFAULT).children(OperationPurpose.INDICES).keySet();
     }
 
     private String resolveIndexUUID(String indexName) {

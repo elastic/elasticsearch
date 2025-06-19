@@ -72,8 +72,9 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
             if (similarityFunction == COSINE) {
                 VectorUtil.l2normalize(copy);
             }
-            byte[] quantized = new byte[copy.length];
-            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(copy, quantized, queryBits, centroid);
+            target = copy;
+            byte[] quantized = new byte[target.length];
+            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(target, quantized, queryBits, centroid);
             return new RandomVectorScorer.AbstractRandomVectorScorer(vectorValues) {
                 @Override
                 public float score(int i) throws IOException {
@@ -116,7 +117,7 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
     @Override
     public String toString() {
-        return "ES910BinaryFlatVectorsScorer(nonQuantizedDelegate=" + nonQuantizedDelegate + ")";
+        return "ES910BinaryFlatVectorsScorer(nonQuantizedDelegate=" + nonQuantizedDelegate + ", queryBits = " + queryBits + ")";
     }
 
     /** Vector scorer supplier over binarized vector values */
@@ -171,7 +172,6 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
             bitScale = 1.0F / (float) ((1 << queryBits) - 1);
-
         }
 
         @Override

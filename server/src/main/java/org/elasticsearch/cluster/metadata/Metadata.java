@@ -402,6 +402,44 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
     }
 
+    /**
+     * Updates a single project in the metadata. This offers a more performant way of updating a single project compared to the Builder.
+     */
+    @FixForMultiProject // We should reconsider whether this method is valuable once we update Metadata.Builder to hold constructed projects
+    // instead of project builders.
+    public Metadata withUpdatedProject(ProjectMetadata updatedProject) {
+        final var existingProject = projectMetadata.get(updatedProject.id());
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + updatedProject.id() + "]. Use the builder instead"
+            );
+        }
+        if (updatedProject == existingProject) {
+            return this;
+        }
+        final Map<ProjectId, ProjectMetadata> updatedMap;
+        if (projects().size() == 1) {
+            updatedMap = Map.of(updatedProject.id(), updatedProject);
+        } else {
+            final var hashMap = new HashMap<>(projectMetadata);
+            hashMap.put(updatedProject.id(), updatedProject);
+            updatedMap = Collections.unmodifiableMap(hashMap);
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            updatedMap,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
+    }
+
     public long version() {
         return this.version;
     }
@@ -1483,6 +1521,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         var builder = builder(this);
         updater.accept(builder);
         return builder.build();
+    }
+
+    public Metadata copyAndUpdateProject(ProjectId projectId, Consumer<ProjectMetadata.Builder> updater) {
+        final var existingProject = projectMetadata.get(projectId);
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + projectId + "]. Use the builder instead"
+            );
+        }
+        final var builder = ProjectMetadata.builder(existingProject);
+        updater.accept(builder);
+        return withUpdatedProject(builder.build());
     }
 
     public static class Builder {

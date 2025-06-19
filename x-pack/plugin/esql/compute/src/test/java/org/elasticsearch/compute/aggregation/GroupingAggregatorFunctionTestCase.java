@@ -867,9 +867,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
                             public void add(int positionOffset, IntBlock groupIds) {
-                                IntBlock newGroupIds = aggregatorMode.isInputPartial()
-                                    ? groupIds
-                                    : BlockTypeRandomizer.randomizeBlockType(groupIds);
+                                IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
                                 addInput.add(positionOffset, newGroupIds);
                             }
 

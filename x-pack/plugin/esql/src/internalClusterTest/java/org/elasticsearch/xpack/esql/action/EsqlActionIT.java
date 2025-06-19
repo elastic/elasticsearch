@@ -1225,7 +1225,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run("from no-such-index", randomPragmas(), null, false)
+            () -> run(syncEsqlQueryRequest().query("from no-such-index").allowPartialResults(false))
         );
     }
 
@@ -1233,7 +1233,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run("from test,no-such-index", randomPragmas(), null, false)
+            () -> run(syncEsqlQueryRequest().query("from test,no-such-index").allowPartialResults(false))
         );
     }
 

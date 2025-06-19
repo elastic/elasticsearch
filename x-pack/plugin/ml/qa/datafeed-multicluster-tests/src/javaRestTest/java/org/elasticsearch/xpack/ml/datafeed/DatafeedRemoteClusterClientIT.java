@@ -24,7 +24,6 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
 

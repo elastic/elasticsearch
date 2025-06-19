@@ -40,7 +40,7 @@ final class LocalShardSnapshot implements Closeable {
     }
 
     long maxSeqNo() {
-        return shard.withEngine(engine -> engine.getSeqNoStats(-1)).getMaxSeqNo();
+        return shard.getEngine().getSeqNoStats(-1).getMaxSeqNo();
     }
 
     long maxUnsafeAutoIdTimestamp() {

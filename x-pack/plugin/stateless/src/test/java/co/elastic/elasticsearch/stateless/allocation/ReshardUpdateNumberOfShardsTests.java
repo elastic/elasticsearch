@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.allocation;
 
-import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -81,13 +81,13 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         final String index = "test";
 
         var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
-        RoutingTable updatedRoutingTable = MetadataReshardIndexService.reshardUpdateNumberOfShards(
+        RoutingTable updatedRoutingTable = ReshardIndexService.reshardUpdateNumberOfShards(
             reshardingMetadata,
             clusterState.projectState(),
             createCustomRoleStrategy(2),
             metadata.getProject().index(index).getIndex()
         ).build();
-        ProjectMetadata projectMetadata = MetadataReshardIndexService.metadataUpdateNumberOfShards(
+        ProjectMetadata projectMetadata = ReshardIndexService.metadataUpdateNumberOfShards(
             clusterState.projectState(),
             reshardingMetadata,
             metadata.getProject().index(index).getIndex()

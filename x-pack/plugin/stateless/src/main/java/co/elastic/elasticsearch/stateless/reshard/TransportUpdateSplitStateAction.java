@@ -38,13 +38,13 @@ public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<S
 
     public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard/split_state");
 
-    private final MetadataReshardIndexService reshardIndexService;
+    private final ReshardIndexService reshardIndexService;
 
     @Inject
     public TransportUpdateSplitStateAction(
         TransportService transportService,
         ClusterService clusterService,
-        MetadataReshardIndexService reshardIndexService,
+        ReshardIndexService reshardIndexService,
         ActionFilters actionFilters
     ) {
         super(

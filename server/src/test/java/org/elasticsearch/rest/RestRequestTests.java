@@ -14,9 +14,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.TestHttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestRequestTests extends ESTestCase {
 
@@ -86,11 +84,11 @@ public class RestRequestTests extends ESTestCase {
     }
 
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
-        final HttpRequest httpRequest = mock(HttpRequest.class);
-        when(httpRequest.uri()).thenReturn("");
-        when(httpRequest.body()).thenReturn(HttpBody.fromBytesReference(new BytesArray(new byte[1])));
-        when(httpRequest.getHeaders()).thenReturn(
-            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
+        final var httpRequest = new TestHttpRequest(
+            RestRequest.Method.GET,
+            "/",
+            Map.of("Content-Type", List.of(randomFrom("application/json", "application/x-ndjson"))),
+            new BytesArray(new byte[1])
         );
         final RestRequest request = RestRequest.request(XContentParserConfiguration.EMPTY, httpRequest, mock(HttpChannel.class));
         assertFalse(request.isContentConsumed());

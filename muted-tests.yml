@@ -562,15 +562,9 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/129453
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/129651
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {scoring.TestMatchPhraseWithScoreBoost ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129676
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnSearchRescore
   issue: https://github.com/elastic/elasticsearch/issues/129713

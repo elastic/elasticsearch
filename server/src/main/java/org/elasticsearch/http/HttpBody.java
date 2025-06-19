@@ -31,6 +31,13 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         return this instanceof Full;
     }
 
+    default boolean isEmpty() {
+        if (isFull()) {
+            return asFull().bytes().length() == 0;
+        }
+        return false;
+    }
+
     default boolean isStream() {
         return this instanceof Stream;
     }
@@ -113,5 +120,10 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         default void close() {}
     }
 
-    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {}
+    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {
+        @Override
+        public void close() {
+            bytes.close();
+        }
+    }
 }

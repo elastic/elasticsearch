@@ -117,6 +117,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
             }
 
             final String nodeId = nodeIdFromHeapMemoryUsage(heapMemoryUsage);
+            // We use a latch for each node to wait for new publication. It is important that the publication pulls the latch
+            // starts strictly after the latch is set in waitForRefreshedHeapMemoryUsagePublication. Otherwise, the publication
+            // may be stale, i.e. it starts before the latch is set, and the test can fail. Therefore, we get the latch once
+            // before handling the publication. If a new latch is set halfway through the publication handling, it will not
+            // be pulled by the existing publication, but the next one which is the expected behavior.
+            final CountDownLatch latch = nodeIdToPublicationLatch.get(nodeId);
             if (nodesToInjectEstimatedHeapUsage.contains(nodeId)) {
                 assertThat(nodeHeapMaxLookupById, hasKey(nodeId));
                 final long nodeHeapMax = nodeHeapMaxLookupById.get(nodeId);
@@ -147,7 +153,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
             } else {
                 handler.messageReceived(request, channel, task);
             }
-            nodeIdToPublicationLatch.get(nodeId).countDown();
+            latch.countDown();
         });
 
         waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
@@ -207,6 +213,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
 
         // Stop faking large heap memory usages and unblock allocation
         final String nodeIdToUnblock = getNodeId(randomFrom(nodeNameA, nodeNameB));
+        // Remove the node from the injection set before wait for new publication. This is important to ensure the order of
+        // node-removed-from-injection -> set-new-publication-latch -> handle-new-publication.
         nodesToInjectEstimatedHeapUsage.remove(nodeIdToUnblock);
         waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
 

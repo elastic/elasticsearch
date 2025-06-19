@@ -147,21 +147,20 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                 final AtomicBoolean failed = new AtomicBoolean();
                 Thread[] threads = new Thread[numThreads];
                 for (int threadID = 0; threadID < numThreads; threadID++) {
-                    threads[threadID] =
-                        new Thread(() -> {
-                            try {
-                                long totSearch = 0;
-                                for (; totSearch < numSearches && failed.get() == false; totSearch++) {
-                                    float[] vector = randomVector(dimensions);
-                                    LeafReader leafReader = getOnlyLeafReader(reader);
-                                    leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
-                                }
-                                assertTrue(totSearch > 0);
-                            } catch (Exception exc) {
-                                failed.set(true);
-                                throw new RuntimeException(exc);
+                    threads[threadID] = new Thread(() -> {
+                        try {
+                            long totSearch = 0;
+                            for (; totSearch < numSearches && failed.get() == false; totSearch++) {
+                                float[] vector = randomVector(dimensions);
+                                LeafReader leafReader = getOnlyLeafReader(reader);
+                                leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
                             }
-                        });
+                            assertTrue(totSearch > 0);
+                        } catch (Exception exc) {
+                            failed.set(true);
+                            throw new RuntimeException(exc);
+                        }
+                    });
                     threads[threadID].setDaemon(true);
                 }
 

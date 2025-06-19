@@ -51,7 +51,7 @@ configure(childProjects.values()) {
   def nonServerLibs = Set.of('plugin-scanner')
   if (false == nonServerLibs.contains(project.name)) {
     project.getTasks().withType(Test.class).configureEach(test -> {
-      if (List.of('test', 'internalClusterTest').contains(test.getName())) {
+      if (List.of('test').contains(test.getName())) {
         test.systemProperty('es.entitlement.enableForTests', 'true')
       }
     })

@@ -3068,8 +3068,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testBasicFork() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         LogicalPlan plan = analyze("""
             from test
             | KEEP emp_no, first_name, last_name
@@ -3174,8 +3172,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testForkBranchesWithDifferentSchemas() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         LogicalPlan plan = analyze("""
             from test
             | WHERE first_name == "Chris"
@@ -3301,8 +3297,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testForkError() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no > 1 )
@@ -3423,7 +3417,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.FORK.isEnabled());
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test

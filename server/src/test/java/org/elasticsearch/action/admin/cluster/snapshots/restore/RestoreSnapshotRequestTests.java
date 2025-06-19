@@ -79,7 +79,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.indicesOptions(
                 IndicesOptions.builder()
-                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
+                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean(), randomBoolean()))
                     .wildcardOptions(
                         new IndicesOptions.WildcardOptions(
                             randomBoolean(),

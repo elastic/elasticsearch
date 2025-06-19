@@ -329,5 +329,5 @@ inferenceCommandOptionValue
     ;
 
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    : DEV_RERANK queryText=constant ON rerankFields (INTO targetField=qualifiedName)? (OPTIONS inferenceCommandOptions)?
     ;

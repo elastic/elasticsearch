@@ -261,8 +261,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
+        return visitQualifiedName(ctx, null);
+    }
+
+    public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx, UnresolvedAttribute defaultValue) {
         if (ctx == null) {
-            return null;
+            return defaultValue;
         }
         List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
         List<String> strings = new ArrayList<>(items.size());

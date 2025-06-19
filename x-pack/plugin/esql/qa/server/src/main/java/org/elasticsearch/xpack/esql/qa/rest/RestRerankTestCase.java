@@ -93,7 +93,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK "exploration" ON title WITH test_reranker
+            | RERANK "exploration" ON title OPTIONS inferenceId=test_reranker
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -112,7 +112,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK "exploration" ON title, author WITH test_reranker
+            | RERANK "exploration" ON title, author OPTIONS inferenceId=test_reranker
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -131,7 +131,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK ? ON title WITH ?
+            | RERANK ? ON title OPTIONS inferenceId=?
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -150,7 +150,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, ?queryText)
-            | RERANK ?queryText ON title WITH ?inferenceId
+            | RERANK ?queryText ON title OPTIONS inferenceId=?inferenceId
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -169,7 +169,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK "exploration" ON title WITH test_missing
+            | RERANK "exploration" ON title OPTIONS inferenceId=test_missing
             | EVAL _score = ROUND(_score, 5)
             """;
 

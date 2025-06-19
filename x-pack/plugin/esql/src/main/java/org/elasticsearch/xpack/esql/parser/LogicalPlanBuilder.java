@@ -755,6 +755,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
+        Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
 
         if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
             if (queryTextLiteral.value() == null) {
@@ -774,7 +775,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields), ctx.inferenceCommandOptions());
+            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.inferenceCommandOptions());
         };
     }
 
@@ -787,11 +788,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         for (var option : ctx.inferenceCommandOption()) {
             String optionName = visitIdentifier(option.identifier());
-            EsqlBaseParser.InferenceCommandOptionValueContext optionValue = option.inferenceCommandOptionValue();
             if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
-                rerankBuilder.withInferenceId(visitInferenceId(optionValue));
-            } else if (optionName.equals(Rerank.SCORE_COLUMN_OPTION_NAME)) {
-                rerankBuilder.withScoreAttribute(visitRerankScoreAttribute(optionName, optionValue));
+                rerankBuilder.withInferenceId(visitInferenceId(optionName, option.inferenceCommandOptionValue()));
             } else {
                 throw new ParsingException(
                     source(option.identifier()),
@@ -804,87 +802,65 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return rerankBuilder.build();
     }
 
-    private UnresolvedAttribute visitRerankScoreAttribute(String optionName, EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+        Source source = source(ctx);
+        Expression prompt = expression(ctx.prompt);
+        Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        return p -> {
+            checkForRemoteClusters(p, source, "COMPLETION");
+            return visitCompletionOptions(new Completion(source, p, prompt, targetField), ctx.inferenceCommandOptions());
+        };
+    }
+
+    private Completion visitCompletionOptions(Completion completion, EsqlBaseParser.InferenceCommandOptionsContext ctx) {
+        if (ctx == null) {
+            return completion;
+        }
+
+        Completion.Builder completionBuilder = new Completion.Builder(completion);
+
+        for (var option : ctx.inferenceCommandOption()) {
+            String optionName = visitIdentifier(option.identifier());
+            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
+                completionBuilder.withInferenceId(visitInferenceId(optionName, option.inferenceCommandOptionValue()));
+            } else {
+                throw new ParsingException(
+                    source(option.identifier()),
+                    "Unknowm parameter [{}] in RERANK command",
+                    option.identifier().getText()
+                );
+            }
+        }
+
+        return completionBuilder.build();
+    }
+
+    private Literal visitInferenceId(String optionName, EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
         if (ctx.constant() == null && ctx.identifier() == null) {
             throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", optionName);
         }
 
-        Expression optionValue = ctx.identifier() != null
-            ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()))
-            : expression(ctx.constant());
-
-        if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
-            return scoreAttribute;
-        } else if (optionValue instanceof Literal literal) {
-            if (literal.value() == null) {
-                throw new ParsingException(optionValue.source(), "Parameter [{}] is null or undefined", optionName);
-            }
-
-            if (literal.value() instanceof BytesRef attributeName) {
-                return new UnresolvedAttribute(literal.source(), BytesRefs.toString(attributeName));
-            }
-        }
-
-        throw new ParsingException(
-            source(ctx),
-            "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
-            optionName,
-            ctx.constant().getText()
-        );
-    }
-
-    @Override
-    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
-        Source source = source(ctx);
-        Expression prompt = expression(ctx.prompt);
-        Literal inferenceId = visitInferenceId(ctx.inferenceId);
-        Attribute targetField = ctx.targetField == null
-            ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
-            : visitQualifiedName(ctx.targetField);
-
-        return p -> {
-            checkForRemoteClusters(p, source, "COMPLETION");
-            return new Completion(source, p, inferenceId, prompt, targetField);
-        };
-    }
-
-    private Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
-            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
+            return Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()));
         }
 
-        return visitInferenceId(expression(ctx.parameter()));
-    }
+        Expression inferenceId = expression(ctx.constant());
+        Source source = inferenceId.source();
 
-    private Literal visitInferenceId(EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
-        if (ctx.identifier() != null) {
-            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
-        }
-
-        return visitInferenceId(expression(ctx.constant()));
-    }
-
-    private Literal visitInferenceId(Expression expression) {
-        if (expression instanceof Literal literal) {
+        if (inferenceId instanceof Literal literal) {
             if (literal.value() == null) {
-                throw new ParsingException(
-                    expression.source(),
-                    "Parameter [{}] is null or undefined and cannot be used as inference id",
-                    expression.source().text()
-                );
+                throw new ParsingException(source, "Parameter [{}] is null or undefined and cannot be used as inference id", source.text());
             }
 
             return literal;
-        } else if (expression instanceof UnresolvedAttribute attribute) {
-            // Support for unquoted inference id
-            return new Literal(expression.source(), attribute.name(), KEYWORD);
         }
 
         throw new ParsingException(
-            expression.source(),
+            source,
             "Query parameter [{}] is not a string and cannot be used as inference id [{}]",
-            expression.source().text(),
-            expression.getClass()
+            source.text(),
+            inferenceId.getClass()
         );
     }
 

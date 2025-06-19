@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,12 +44,12 @@ public abstract class InferenceFunction extends Function {
 
     public abstract List<Attribute> temporaryAttributes();
 
-    protected Expression readOption(String optionName,  TypeResolutions.ParamOrdinal optionParamOrd, Expression options) {
-        return readOption(optionName, optionParamOrd, options, Literal.NULL);
+    protected Expression readOption(String optionName, Expression options) {
+        return readOption(optionName, options, Literal.NULL);
     }
 
-    protected Expression readOption(String optionName,  TypeResolutions.ParamOrdinal optionParamOrd, Expression options, Expression defaultValue) {
-        if (options != null && options.dataType() != DataType.NULL &&  options instanceof MapExpression mapOptions) {
+    protected Expression readOption(String optionName, Expression options, Expression defaultValue) {
+        if (options != null && options.dataType() != DataType.NULL && options instanceof MapExpression mapOptions) {
             return mapOptions.getOrDefault(optionName, defaultValue);
         }
 
@@ -65,7 +62,7 @@ public abstract class InferenceFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        return resolveOptions().and(resolveParams());
+        return resolveParams().and(resolveOptions());
     }
 
     protected abstract TypeResolution resolveParams();

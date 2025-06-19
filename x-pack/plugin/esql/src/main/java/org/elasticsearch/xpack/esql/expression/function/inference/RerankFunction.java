@@ -7,12 +7,13 @@ import org.elasticsearch.xpack.esql.core.expression.*;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +26,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 public class RerankFunction extends InferenceFunction implements OptionalArgument {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rerank", RerankFunction::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Rerank",
+        RerankFunction::new
+    );
 
     private final Expression query;
     private final Expression field;
@@ -33,7 +38,9 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
 
     @FunctionInfo(
         returnType = "double",
-        description = "Compute text similarity score using an inference model."
+        preview = true,
+        description = "Compute text similarity score using an inference model.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
     public RerankFunction(
         Source source,
@@ -47,14 +54,12 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
                     type = "keyword",
                     valueHint = { ".rerank-v1-elasticsearch" },
                     description = "Reranker inference endpoint to use."
-                )
-            },
+                ) },
             optional = true
         ) Expression options
     ) {
         this(source, field, query, options, new ReferenceAttribute(Source.EMPTY, ENTRY.name + "_" + UUID.randomUUID(), DataType.DOUBLE));
     }
-
 
     private RerankFunction(Source source, Expression field, Expression query, Expression options, Attribute tmpAttribute) {
         super(source, List.of(field, query), options);
@@ -83,18 +88,19 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
     }
 
     @Override
-    public String functionName() {
-        return getWriteableName();
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new RerankFunction(source(), newChildren.get(0), newChildren.get(1), options(), tmpAttribute);
+    public RerankFunction replaceChildren(List<Expression> newChildren) {
+        return new RerankFunction(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.size() > 2 ? newChildren.get(2) : null,
+            tmpAttribute
+        );
     }
 
     @Override
@@ -109,11 +115,11 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
 
     @Override
     protected Expression parseInferenceId(Expression options) {
-        return readOption("inference_id", TypeResolutions.ParamOrdinal.THIRD, options, defaultInferenceId());
+        return readOption("inference_id", options, defaultInferenceId());
     }
 
     private Literal defaultInferenceId() {
-        return new Literal(Source.EMPTY, Rerank.DEFAULT_INFERENCE_ID, DataType.KEYWORD);
+        return Literal.keyword(Source.EMPTY, org.elasticsearch.xpack.esql.plan.logical.inference.Rerank.DEFAULT_INFERENCE_ID);
     }
 
     @Override
@@ -123,23 +129,24 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resoolveQueru());
+        return resolveField().and(resoolveQuery());
     }
 
     @Override
     protected TypeResolution resolveOptions() {
-        return TypeResolution.TYPE_RESOLVED;
+        return TypeResolutions.isMapExpression(options(), sourceText(), TypeResolutions.ParamOrdinal.THIRD);
     }
 
     private TypeResolution resolveField() {
-        return isString(field, functionName(), TypeResolutions.ParamOrdinal.FIRST)
-            .and(isNotNull(field, functionName(), TypeResolutions.ParamOrdinal.FIRST));
+        return isString(field, sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
+            isNotNull(field, sourceText(), TypeResolutions.ParamOrdinal.FIRST)
+        );
     }
 
-    private TypeResolution resoolveQueru() {
-        return isString(query, functionName(), TypeResolutions.ParamOrdinal.SECOND)
-            .and(isNotNull(query, functionName(), TypeResolutions.ParamOrdinal.SECOND))
-            .and(isFoldable(query, functionName(), TypeResolutions.ParamOrdinal.SECOND));
+    private TypeResolution resoolveQuery() {
+        return isString(query, sourceText(), TypeResolutions.ParamOrdinal.SECOND).and(
+            isNotNull(query, sourceText(), TypeResolutions.ParamOrdinal.SECOND)
+        ).and(isFoldable(query, sourceText(), TypeResolutions.ParamOrdinal.SECOND));
     }
 
     @Override

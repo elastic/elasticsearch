@@ -7,18 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RerankFunctionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -35,15 +38,34 @@ public class RerankFunctionErrorTests extends ErrorsForCasesWithoutExamplesTestC
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        LogManager.getLogger(RerankFunctionErrorTests.class).error("{}", args);
         return new RerankFunction(source, args.get(0), args.get(1), args.get(2));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
-            case 0, 1 -> "string";
-            default -> "";
-        }));
+        return equalTo(errorMessageString(validPerPosition, signature, (v, p) -> "string"));
+    }
+
+    private static String errorMessageString(
+        List<Set<DataType>> validPerPosition,
+        List<DataType> signature,
+        AbstractFunctionTestCase.PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        for (int i = 0; i < signature.size(); i++) {
+            if (validPerPosition.get(i).contains(signature.get(i)) == false) {
+                // Map expressions have different error messages
+                if (i == signature.size() - 1) {
+                    return format(
+                        null,
+                        "{} argument of [{}] must be a map expression, received []",
+                        TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT),
+                        sourceForSignature(signature)
+                    );
+                }
+                break;
+            }
+        }
+
+        return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
     }
 }

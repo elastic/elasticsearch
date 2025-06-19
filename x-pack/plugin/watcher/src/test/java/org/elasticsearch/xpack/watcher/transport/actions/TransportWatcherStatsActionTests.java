@@ -64,9 +64,10 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterService.getClusterName()).thenReturn(clusterName);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metadata()).thenReturn(Metadata.builder().put(ProjectMetadata.builder(projectId).build()).build());
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).build()).build();
+        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
 
         WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
         when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);

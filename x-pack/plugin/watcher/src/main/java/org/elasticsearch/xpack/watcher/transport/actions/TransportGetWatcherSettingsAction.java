@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,12 +33,11 @@ import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateW
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_NAME;
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_REQUEST;
 
-public class TransportGetWatcherSettingsAction extends TransportLocalClusterStateAction<
+public class TransportGetWatcherSettingsAction extends TransportLocalProjectMetadataAction<
     GetWatcherSettingsAction.Request,
     GetWatcherSettingsAction.Response> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final ProjectResolver projectResolver;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -59,10 +58,10 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.projectResolver = projectResolver;
 
         transportService.registerRequestHandler(
             actionName,
@@ -78,11 +77,11 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
     protected void localClusterStateOperation(
         Task task,
         GetWatcherSettingsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
         ((CancellableTask) task).ensureNotCancelled();
-        IndexMetadata metadata = state.metadata().getProject(projectResolver.getProjectId()).index(WATCHER_INDEX_NAME);
+        IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
         if (metadata == null) {
             listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
         } else {
@@ -107,16 +106,16 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetWatcherSettingsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetWatcherSettingsAction.Request request, ProjectState state) {
         ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         if (globalBlock != null) {
             return globalBlock;
         }
         return state.blocks()
             .indicesBlockedException(
-                projectResolver.getProjectId(),
+                state.projectId(),
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, WATCHER_INDEX_REQUEST)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state.metadata(), WATCHER_INDEX_REQUEST)
             );
     }
 }

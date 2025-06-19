@@ -77,7 +77,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                     XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
                     WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                    final var project = clusterState.metadata().getProject(projectResolver.getProjectId());
+                    final var project = projectResolver.getProjectMetadata(clusterState);
                     WatcherMetadata currentMetadata = project.custom(WatcherMetadata.TYPE);
 
                     // adhere to the contract of returning the original state if nothing has changed

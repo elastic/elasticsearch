@@ -646,7 +646,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
-        assertTrue(query instanceof ESKnnFloatVectorQuery ||  query instanceof PatienceKnnVectorQuery);
+        assertTrue(query instanceof ESKnnFloatVectorQuery || query instanceof PatienceKnnVectorQuery);
 
         // verify we can override a `0` to a positive number
         fieldType = new DenseVectorFieldType(

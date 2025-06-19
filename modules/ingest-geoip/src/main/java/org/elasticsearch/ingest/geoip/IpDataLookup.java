@@ -34,5 +34,5 @@ interface IpDataLookup {
      * as a network for which the  record applies. Having a helper record prevents each individual response record from needing to
      * track these bits of information.
      */
-    record Result<T extends GeoIpCache.CacheableValue>(T result, String ip, String network) implements GeoIpCache.CacheableValue {}
+    record Result<T extends IpDatabase.Response>(T result, String ip, String network) implements IpDatabase.Response {}
 }

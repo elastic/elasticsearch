@@ -109,7 +109,7 @@ final class MaxmindIpDataLookups {
         };
     }
 
-    static class CacheableAnonymousIpResponse extends AnonymousIpResponse implements GeoIpCache.CacheableValue {
+    static class CacheableAnonymousIpResponse extends AnonymousIpResponse implements IpDatabase.Response {
 
         CacheableAnonymousIpResponse(AnonymousIpResponse response) {
             super(
@@ -176,7 +176,7 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class CacheableAsnResponse extends AsnResponse implements GeoIpCache.CacheableValue {
+    static class CacheableAsnResponse extends AsnResponse implements IpDatabase.Response {
 
         CacheableAsnResponse(AsnResponse response) {
             super(
@@ -246,7 +246,7 @@ final class MaxmindIpDataLookups {
         Boolean registeredCountryIsInEuropeanUnion,
         String registeredCountryIsoCode,
         String registeredCountryName
-    ) implements GeoIpCache.CacheableValue {}
+    ) implements IpDatabase.Response {}
 
     static class City extends AbstractBase<CityResponse, Result<CacheableCityResponse>> {
         City(final Set<Database.Property> properties) {
@@ -382,7 +382,7 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class CacheableConnectionTypeResponse extends ConnectionTypeResponse implements GeoIpCache.CacheableValue {
+    static class CacheableConnectionTypeResponse extends ConnectionTypeResponse implements IpDatabase.Response {
 
         CacheableConnectionTypeResponse(ConnectionTypeResponse response) {
             super(response.getConnectionType(), response.getIpAddress(), response.getNetwork());
@@ -431,7 +431,7 @@ final class MaxmindIpDataLookups {
         Boolean registeredCountryIsInEuropeanUnion,
         String registeredCountryIsoCode,
         String registeredCountryName
-    ) implements GeoIpCache.CacheableValue {}
+    ) implements IpDatabase.Response {}
 
     static class Country extends AbstractBase<CountryResponse, Result<CacheableCountryResponse>> {
         Country(final Set<Database.Property> properties) {
@@ -514,7 +514,7 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class CacheableDomainResponse extends DomainResponse implements GeoIpCache.CacheableValue {
+    static class CacheableDomainResponse extends DomainResponse implements IpDatabase.Response {
 
         CacheableDomainResponse(DomainResponse response) {
             super(response.getDomain(), response.getIpAddress(), response.getNetwork());
@@ -589,7 +589,7 @@ final class MaxmindIpDataLookups {
         Boolean registeredCountryIsInEuropeanUnion,
         String registeredCountryIsoCode,
         String registeredCountryName
-    ) implements GeoIpCache.CacheableValue {}
+    ) implements IpDatabase.Response {}
 
     static class Enterprise extends AbstractBase<EnterpriseResponse, Result<CacheableEnterpriseResponse>> {
         Enterprise(final Set<Database.Property> properties) {
@@ -826,7 +826,7 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class CacheableIspResponse extends IspResponse implements GeoIpCache.CacheableValue {
+    static class CacheableIspResponse extends IspResponse implements IpDatabase.Response {
 
         CacheableIspResponse(IspResponse response) {
             super(response, response.getIpAddress(), response.getNetwork());
@@ -916,7 +916,7 @@ final class MaxmindIpDataLookups {
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}
      */
-    private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD extends GeoIpCache.CacheableValue>
+    private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD extends IpDatabase.Response>
         implements
             IpDataLookup {
 

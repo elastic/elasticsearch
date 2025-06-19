@@ -31,19 +31,11 @@ import java.util.function.LongSupplier;
  */
 public final class GeoIpCache {
 
-    public interface CacheableValue {
-
-        // TODO PETE: Remove this default implementation and implement in all implementing classes instead
-        default long sizeInBytes() {
-            return 0;
-        }
-    }
-
     static GeoIpCache createGeoIpCacheWithMaxCount(long maxSize) {
         if (maxSize < 0) {
             throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
         }
-        return new GeoIpCache(System::nanoTime, CacheBuilder.<CacheKey, CacheableValue>builder().setMaximumWeight(maxSize).build());
+        return new GeoIpCache(System::nanoTime, CacheBuilder.<CacheKey, IpDatabase.Response>builder().setMaximumWeight(maxSize).build());
     }
 
     static GeoIpCache createGeoIpCacheWithMaxBytes(ByteSizeValue maxByteSize) {
@@ -52,7 +44,7 @@ public final class GeoIpCache {
         }
         return new GeoIpCache(
             System::nanoTime,
-            CacheBuilder.<CacheKey, CacheableValue>builder()
+            CacheBuilder.<CacheKey, IpDatabase.Response>builder()
                 .setMaximumWeight(maxByteSize.getBytes())
                 .weigher((key, value) -> key.sizeInBytes() + value.sizeInBytes())
                 .build()
@@ -61,7 +53,10 @@ public final class GeoIpCache {
 
     // package private for testing
     static GeoIpCache createGeoIpCacheWithMaxCountAndCustomTimeProvider(long maxSize, LongSupplier relativeNanoTimeProvider) {
-        return new GeoIpCache(relativeNanoTimeProvider, CacheBuilder.<CacheKey, CacheableValue>builder().setMaximumWeight(maxSize).build());
+        return new GeoIpCache(
+            relativeNanoTimeProvider,
+            CacheBuilder.<CacheKey, IpDatabase.Response>builder().setMaximumWeight(maxSize).build()
+        );
     }
 
     /**
@@ -70,7 +65,7 @@ public final class GeoIpCache {
      * something not being in the cache because the data doesn't exist in the database.
      */
     // visible for testing
-    static final CacheableValue NO_RESULT = new CacheableValue() {
+    static final IpDatabase.Response NO_RESULT = new IpDatabase.Response() {
         @Override
         public String toString() {
             return "NO_RESULT";
@@ -78,17 +73,17 @@ public final class GeoIpCache {
     };
 
     private final LongSupplier relativeNanoTimeProvider;
-    private final Cache<CacheKey, CacheableValue> cache;
+    private final Cache<CacheKey, IpDatabase.Response> cache;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
 
-    private GeoIpCache(LongSupplier relativeNanoTimeProvider, Cache<CacheKey, CacheableValue> cache) {
+    private GeoIpCache(LongSupplier relativeNanoTimeProvider, Cache<CacheKey, IpDatabase.Response> cache) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         this.cache = cache;
     }
 
     @SuppressWarnings("unchecked")
-    <RESPONSE extends CacheableValue> RESPONSE putIfAbsent(
+    <RESPONSE extends IpDatabase.Response> RESPONSE putIfAbsent(
         ProjectId projectId,
         String ip,
         String databasePath,
@@ -98,7 +93,7 @@ public final class GeoIpCache {
         CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-        CacheableValue response = cache.get(cacheKey);
+        IpDatabase.Response response = cache.get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
 
         // populate the cache for this key, if necessary

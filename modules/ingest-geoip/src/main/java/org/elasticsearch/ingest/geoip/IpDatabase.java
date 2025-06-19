@@ -35,7 +35,7 @@ public interface IpDatabase extends AutoCloseable {
      * @return a possibly-null response
      */
     @Nullable
-    <RESPONSE extends GeoIpCache.CacheableValue> RESPONSE getResponse(
+    <RESPONSE extends Response> RESPONSE getResponse(
         String ipAddress,
         CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
     );
@@ -48,4 +48,12 @@ public interface IpDatabase extends AutoCloseable {
      */
     @Override
     void close() throws IOException;
+
+    interface Response {
+
+        // TODO PETE: Remove this default implementation and implement in all implementing classes instead
+        default long sizeInBytes() {
+            return 0;
+        }
+    }
 }

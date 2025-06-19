@@ -191,7 +191,7 @@ final class IpinfoIpDataLookups {
         String domain,
         String name,
         @Nullable String type // not present in the free asn database
-    ) implements GeoIpCache.CacheableValue {
+    ) implements IpDatabase.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public AsnResult(
@@ -210,14 +210,14 @@ final class IpinfoIpDataLookups {
         @MaxMindDbParameter(name = "continent_name") String continentName,
         @MaxMindDbParameter(name = "country") String country,
         @MaxMindDbParameter(name = "country_name") String countryName
-    ) implements GeoIpCache.CacheableValue {
+    ) implements IpDatabase.Response {
         @MaxMindDbConstructor
         public CountryResult {}
     }
 
     public record GeolocationResult(String city, String country, Double lat, Double lng, String postalCode, String region, String timezone)
         implements
-            GeoIpCache.CacheableValue {
+            IpDatabase.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public GeolocationResult(
@@ -237,7 +237,7 @@ final class IpinfoIpDataLookups {
 
     public record PrivacyDetectionResult(Boolean hosting, Boolean proxy, Boolean relay, String service, Boolean tor, Boolean vpn)
         implements
-            GeoIpCache.CacheableValue {
+            IpDatabase.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public PrivacyDetectionResult(
@@ -462,7 +462,7 @@ final class IpinfoIpDataLookups {
      *
      * @param <RESPONSE> the record type that will be wrapped and returned
      */
-    private abstract static class AbstractBase<RESPONSE extends GeoIpCache.CacheableValue> implements IpDataLookup {
+    private abstract static class AbstractBase<RESPONSE extends IpDatabase.Response> implements IpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;

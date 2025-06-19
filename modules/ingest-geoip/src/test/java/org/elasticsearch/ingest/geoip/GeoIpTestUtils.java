@@ -67,7 +67,7 @@ public final class GeoIpTestUtils {
         }
     }
 
-    public record SimpleCity(String cityName) implements GeoIpCache.CacheableValue {}
+    public record SimpleCity(String cityName) implements IpDatabase.Response {}
 
     /**
      * A static city-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
@@ -81,7 +81,7 @@ public final class GeoIpTestUtils {
         return data == null ? null : new SimpleCity(new CityResponse(data, ip, record.getNetwork(), List.of("en")).getCity().getName());
     }
 
-    public record SimpleCountry(String countryName) implements GeoIpCache.CacheableValue {}
+    public record SimpleCountry(String countryName) implements IpDatabase.Response {}
 
     /**
      * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in

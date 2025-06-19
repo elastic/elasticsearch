@@ -68,10 +68,10 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         );
         // do some indexing
         indexRandom(
-                randomBoolean(),
-                IntStream.range(1, randomIntBetween(2, 10))
-                        .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
-                        .toArray(IndexRequestBuilder[]::new)
+            randomBoolean(),
+            IntStream.range(1, randomIntBetween(2, 10))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .toArray(IndexRequestBuilder[]::new)
         );
         // get current disk space usage
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();

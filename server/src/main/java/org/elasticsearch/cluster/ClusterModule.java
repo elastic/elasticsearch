@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.StreamsMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectsStateRegistry;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
@@ -302,6 +303,10 @@ public class ClusterModule extends AbstractModule {
         // Health API
         entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
         entries.addAll(HealthMetadataService.getNamedWriteables());
+
+        // Streams
+        registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
+
         return entries;
     }
 

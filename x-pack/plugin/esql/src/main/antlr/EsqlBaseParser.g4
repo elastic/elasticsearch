@@ -58,11 +58,11 @@ processingCommand
     | changePointCommand
     | completionCommand
     | sampleCommand
+    | forkCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? rrfCommand
     ;
@@ -282,7 +282,7 @@ insistCommand
     ;
 
 forkCommand
-    : DEV_FORK forkSubQueries
+    : FORK forkSubQueries
     ;
 
 forkSubQueries

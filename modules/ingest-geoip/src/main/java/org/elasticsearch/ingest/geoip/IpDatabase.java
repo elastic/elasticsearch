@@ -27,6 +27,19 @@ public interface IpDatabase extends AutoCloseable {
      */
     String getDatabaseType() throws IOException;
 
+    /*
+     * TODO(pete): Add an explanation of all this to the class- and method-level javadocs.
+     *
+     * This class has two related methods, getResponse and a method getTypedResponse. These are identical except that getTypedResponse's
+     * generic type is constrained to extend the Response interface. The getResponse method is abstract. The default implementation of
+     * getTypedResponse delegates to getResponse and that is the only place in the codebase that getResponse is called: everywhere else
+     * calls getTypedResponse (as of ES 9.1.0). Implementing classes therefore have a choice: they can implement getResponse; or they can
+     * override the implementation of getTypedResponse, and make getResponse throw since it will now never be called.
+     *
+     * (The getResponse method only exists because there are implementations of this interface outside of this codebase which haven't yet
+     * been converted to implement getTypedResponse instead.)
+     */
+
     /**
      * Returns a response from this database's reader for the given IP address.
      *
@@ -36,20 +49,8 @@ public interface IpDatabase extends AutoCloseable {
      */
     @Nullable
     @Deprecated // use getTypedResponse instead
-    default <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-        // TODO(pete): Decide what to do here
-        // TODO(pete): This is one option, which makes this method work so long as it is invoked with a type which satisfies the constraint,
-        // but fails nastily if it doesn't.
-        // @SuppressWarnings("unchecked") // TODO(pete): Put some words of wisdom here
-        // RESPONSE typedResponse = (RESPONSE) getTypedResponse(
-        // ipAddress,
-        // (CheckedBiFunction<Reader, String, ? extends Response, Exception>) responseProvider
-        // );
-        // return typedResponse;
-        // TODO(pete): This is the other option, which fails fast. Which is okay as nothing calls this method.
-        // TODO(pete): If we do this, add a message to the exception.
-        throw new UnsupportedOperationException();
-    }
+    // TODO(pete): If we're allowed to remove this in v10, annotate it to remind us to do that.
+    <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider);
 
     // TODO(pete): If we end up doing this, pick a better name for getTypedResponse() and document why we do this weird thing.
 

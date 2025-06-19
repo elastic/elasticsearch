@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class RerankFunctionSerializationTests extends AbstractExpressionSerializationTests<RerankFunction> {
+    @Before
+    public void checkCapability() {
+        assumeTrue("RERANK_FUNCTION is not enabled", EsqlCapabilities.Cap.RERANK_FUNCTION.isEnabled());
+    }
+
     @Override
     protected RerankFunction createTestInstance() {
         Source source = randomSource();

@@ -17,18 +17,17 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public abstract class InferenceFunction extends Function {
-
-    private Expression inferenceId;
-
+    private final Expression inferenceId;
     private final Expression options;
 
     @SuppressWarnings("this-escape")
     protected InferenceFunction(Source source, List<Expression> children, Expression options) {
         super(source, Stream.concat(children.stream(), Stream.of(options)).toList());
-        this.inferenceId = parseInferenceId(options);
+        this.inferenceId = parseInferenceId(options, this::defaultInferenceId);
         this.options = options;
     }
 
@@ -40,22 +39,6 @@ public abstract class InferenceFunction extends Function {
         return options;
     }
 
-    protected abstract Expression parseInferenceId(Expression options);
-
-    public abstract List<Attribute> temporaryAttributes();
-
-    protected Expression readOption(String optionName, Expression options) {
-        return readOption(optionName, options, Literal.NULL);
-    }
-
-    protected Expression readOption(String optionName, Expression options, Expression defaultValue) {
-        if (options != null && options.dataType() != DataType.NULL && options instanceof MapExpression mapOptions) {
-            return mapOptions.getOrDefault(optionName, defaultValue);
-        }
-
-        return defaultValue;
-    }
-
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -64,6 +47,10 @@ public abstract class InferenceFunction extends Function {
 
         return resolveParams().and(resolveOptions());
     }
+
+    protected abstract Expression defaultInferenceId();
+
+    public abstract List<Attribute> temporaryAttributes();
 
     protected abstract TypeResolution resolveParams();
 
@@ -80,5 +67,17 @@ public abstract class InferenceFunction extends Function {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), inferenceId, options);
+    }
+
+    private static Expression parseInferenceId(Expression options, Supplier<Expression> defautlInferenceIdSupplier) {
+        return readOption("inference_id", options, defautlInferenceIdSupplier);
+    }
+
+    private static Expression readOption(String optionName, Expression options, Supplier<Expression> defaultValueSupplier) {
+        if (options != null && options.dataType() != DataType.NULL && options instanceof MapExpression mapOptions) {
+            return mapOptions.getOrDefault(optionName, defaultValueSupplier.get());
+        }
+
+        return defaultValueSupplier.get();
     }
 }

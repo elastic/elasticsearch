@@ -114,11 +114,7 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
     }
 
     @Override
-    protected Expression parseInferenceId(Expression options) {
-        return readOption("inference_id", options, defaultInferenceId());
-    }
-
-    private Literal defaultInferenceId() {
+    protected Literal defaultInferenceId() {
         return Literal.keyword(Source.EMPTY, org.elasticsearch.xpack.esql.plan.logical.inference.Rerank.DEFAULT_INFERENCE_ID);
     }
 
@@ -129,7 +125,7 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resoolveQuery());
+        return resolveField().and(resolveQuery());
     }
 
     @Override
@@ -143,7 +139,7 @@ public class RerankFunction extends InferenceFunction implements OptionalArgumen
         );
     }
 
-    private TypeResolution resoolveQuery() {
+    private TypeResolution resolveQuery() {
         return isString(query, sourceText(), TypeResolutions.ParamOrdinal.SECOND).and(
             isNotNull(query, sourceText(), TypeResolutions.ParamOrdinal.SECOND)
         ).and(isFoldable(query, sourceText(), TypeResolutions.ParamOrdinal.SECOND));

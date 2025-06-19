@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Locale;
@@ -25,6 +27,12 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RerankFunctionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+
+    @Before
+    public void checkCapability() {
+        assumeTrue("RERANK_FUNCTION is not enabled", EsqlCapabilities.Cap.RERANK_FUNCTION.isEnabled());
+    }
+
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(RerankFunctionTests.parameters());

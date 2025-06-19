@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +37,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("rerank")
 public class RerankFunctionTests extends AbstractFunctionTestCase {
+    @Before
+    public void checkCapability() {
+        assumeTrue("RERANK_FUNCTION is not enabled", EsqlCapabilities.Cap.RERANK_FUNCTION.isEnabled());
+    }
+
     public RerankFunctionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

@@ -2752,7 +2752,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 future.run();
             } else {
                 threads[i] = new Thread(future);
-                threads[i].setName("runInParallel-T#" + i);
+                threads[i].setName("TEST-runInParallel-T#" + i);
                 threads[i].start();
             }
         }

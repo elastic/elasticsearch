@@ -775,28 +775,40 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.inferenceCommandOptions());
+            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.options);
         };
     }
 
-    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.InferenceCommandOptionsContext ctx) {
+    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.MapExpressionContext ctx) {
         if (ctx == null) {
             return rerank;
         }
 
         Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
+        Map<String, Expression> optionsMap = visitMapExpression(ctx).keyFoldedMap();
 
-        for (var option : ctx.inferenceCommandOption()) {
-            String optionName = visitIdentifier(option.identifier());
-            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
-                rerankBuilder.withInferenceId(visitInferenceId(optionName, option.inferenceCommandOptionValue()));
+        Expression inferenceId = optionsMap.remove(Rerank.INFERENCE_ID_OPTION_NAME);
+        if (inferenceId != null) {
+            if (inferenceId instanceof Literal inferenceIdLiteral && DataType.isString(inferenceId.dataType())) {
+                if (inferenceIdLiteral.value() == null) {
+                    throw new ParsingException(
+                        inferenceId.source(),
+                        "[{}] option cannot be null or undefined in RERANK",
+                        Rerank.INFERENCE_ID_OPTION_NAME
+                    );
+                }
+                rerankBuilder.withInferenceId(inferenceId);
             } else {
                 throw new ParsingException(
-                    source(option.identifier()),
-                    "Unknowm parameter [{}] in RERANK command",
-                    option.identifier().getText()
+                    inferenceId.source(),
+                    "Option [{}] only support string in RERANK but [{}] cannot be used as string",
+                    Rerank.INFERENCE_ID_OPTION_NAME
                 );
             }
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(source(ctx), "Unknown option [{}] in RERANK command", optionsMap.keySet().stream().findAny().get());
         }
 
         return rerankBuilder.build();
@@ -809,59 +821,49 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return visitCompletionOptions(new Completion(source, p, prompt, targetField), ctx.inferenceCommandOptions());
+            return visitCompletionOptions(new Completion(source, p, prompt, targetField), ctx.options);
         };
     }
 
-    private Completion visitCompletionOptions(Completion completion, EsqlBaseParser.InferenceCommandOptionsContext ctx) {
+    private Completion visitCompletionOptions(Completion completion, EsqlBaseParser.MapExpressionContext ctx) {
         if (ctx == null) {
-            return completion;
+            throw new ParsingException(completion.source(), "Missing mandatory OPTIONS in COMPLETION");
         }
 
         Completion.Builder completionBuilder = new Completion.Builder(completion);
+        Map<String, Expression> optionsMap = visitMapExpression(ctx).keyFoldedMap();
 
-        for (var option : ctx.inferenceCommandOption()) {
-            String optionName = visitIdentifier(option.identifier());
-            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
-                completionBuilder.withInferenceId(visitInferenceId(optionName, option.inferenceCommandOptionValue()));
+        Expression inferenceId = optionsMap.remove(Completion.INFERENCE_ID_OPTION_NAME);
+        if (inferenceId != null) {
+            if (inferenceId instanceof Literal inferenceIdLiteral && DataType.isString(inferenceId.dataType())) {
+                if (inferenceIdLiteral.value() == null) {
+                    throw new ParsingException(
+                        inferenceId.source(),
+                        "[{}] option cannot be null or undefined in COMPLETION",
+                        Completion.INFERENCE_ID_OPTION_NAME
+                    );
+                }
+                completionBuilder.withInferenceId(inferenceId);
             } else {
                 throw new ParsingException(
-                    source(option.identifier()),
-                    "Unknowm parameter [{}] in RERANK command",
-                    option.identifier().getText()
+                    inferenceId.source(),
+                    "Option [{}] only support string in COMPLETION but [{}] cannot be used as string",
+                    Completion.INFERENCE_ID_OPTION_NAME
                 );
             }
+        } else {
+            throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
+        }
+
+        if (optionsMap.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Unknown option [{}] in Completion command",
+                optionsMap.keySet().stream().findAny().get()
+            );
         }
 
         return completionBuilder.build();
-    }
-
-    private Literal visitInferenceId(String optionName, EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
-        if (ctx.constant() == null && ctx.identifier() == null) {
-            throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", optionName);
-        }
-
-        if (ctx.identifier() != null) {
-            return Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()));
-        }
-
-        Expression inferenceId = expression(ctx.constant());
-        Source source = inferenceId.source();
-
-        if (inferenceId instanceof Literal literal) {
-            if (literal.value() == null) {
-                throw new ParsingException(source, "Parameter [{}] is null or undefined and cannot be used as inference id", source.text());
-            }
-
-            return literal;
-        }
-
-        throw new ParsingException(
-            source,
-            "Query parameter [{}] is not a string and cannot be used as inference id [{}]",
-            source.text(),
-            inferenceId.getClass()
-        );
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {

@@ -315,19 +315,6 @@ fuseCommand
     : DEV_FUSE
     ;
 
-inferenceCommandOptions
-    : inferenceCommandOption (COMMA inferenceCommandOption)*
-    ;
-
-inferenceCommandOption
-    : identifier ASSIGN inferenceCommandOptionValue
-    ;
-
-inferenceCommandOptionValue
-    : constant
-    | identifier
-    ;
-
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (INTO targetField=qualifiedName)? (OPTIONS inferenceCommandOptions)?
+    : DEV_RERANK queryText=constant ON rerankFields (INTO targetField=qualifiedName)? (OPTIONS options=mapExpression)?
     ;

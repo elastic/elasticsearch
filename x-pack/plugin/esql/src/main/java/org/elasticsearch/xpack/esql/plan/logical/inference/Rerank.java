@@ -38,7 +38,6 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
     public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
-    public static final String INFERENCE_ID_OPTION_NAME = "inferenceId";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;

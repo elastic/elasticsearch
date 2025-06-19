@@ -130,6 +130,7 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         }
     }
 
+    // this is a modified version of lucene's TestSearchWithThreads test case
     public void testWithThreads() throws Exception {
         final int numThreads = random().nextInt(2, 5);
         final int numSearches = atLeast(100);

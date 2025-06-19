@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -107,7 +108,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 clusterService,
                 10,
                 System::nanoTime,
-                client
+                client,
+                DefaultProjectResolver.INSTANCE
             );
 
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
@@ -199,7 +201,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             clusterService,
             10,
             System::nanoTime,
-            client
+            client,
+            DefaultProjectResolver.INSTANCE
         );
 
         // Execute the multi search api and fail if we find an error after executing:

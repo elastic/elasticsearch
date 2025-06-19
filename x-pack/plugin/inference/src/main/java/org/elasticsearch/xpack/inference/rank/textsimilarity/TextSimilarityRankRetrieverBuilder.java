@@ -160,7 +160,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
-        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        ScoreDoc[] scoreDocs = rankResults.get(0);
         List<TextSimilarityRankDoc> filteredDocs = new ArrayList<>();
         // Filtering by min_score must be done here, after reranking.
         // Applying min_score in the child retriever could prematurely exclude documents that would receive high scores from the reranker.

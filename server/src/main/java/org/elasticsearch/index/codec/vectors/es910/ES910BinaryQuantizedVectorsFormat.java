@@ -101,8 +101,8 @@ public class ES910BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final DirectIOLucene99FlatVectorsFormat rawVectorFormat = new DirectIOLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-    public static final byte DEFAULT_INDEX_BITS = (byte) 1;
-    public static final byte DEFAULT_QUERY_BITS = (byte) 4;
+    private static byte DEFAULT_INDEX_BITS = (byte) 1;
+    private static byte DEFAULT_QUERY_BITS = (byte) 4;
 
     private final ES910BinaryFlatVectorsScorer scorer;
 
@@ -118,6 +118,10 @@ public class ES910BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         super(NAME);
         this.indexBits = indexBits;
         this.queryBits = queryBits;
+        // Set the default bits for index and query vectors. I know, I know, this is a hack, but we
+        // don't have the possibility of doing a PerFieldMapperCodec yet on KnnSearcher
+        DEFAULT_QUERY_BITS = queryBits;
+        DEFAULT_INDEX_BITS = indexBits;
         this.scorer = new ES910BinaryFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer(), queryBits);
     }
 

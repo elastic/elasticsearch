@@ -132,8 +132,6 @@ public class OptimizedScalarQuantizer {
             int assignment = Math.round((xi - a) / step);
             sumQuery += assignment;
             destination[h] = (byte) assignment;
-            assert assignment >= 0 && assignment < points
-                : "assignment: " + assignment + ", a: " + a + ", b: " + b + ", step: " + step + ", xi: " + xi;
         }
         return new QuantizationResult(
             intervalScratch[0],

@@ -760,6 +760,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            Set<String> unsupportedAttributeNames = Fork.outputUnsupportedAttributeNames(fork.children());
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -773,7 +774,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                List<Alias> aliases = missing.stream().map(attr -> new Alias(source, attr.name(), Literal.of(attr, null))).toList();
+                List<Alias> aliases = missing.stream().map(attr -> {
+                    // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
+                    // supported. This way we can add this missing column containing only null values to the fork branch output.
+                    var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
+                    return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
+                }).toList();
 
                 // add the missing columns
                 if (aliases.size() > 0) {
@@ -785,7 +791,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // We need to add an explicit Keep even if the outputs align
                 // This is because at the moment the sub plans are executed and optimized separately and the output might change
                 // during optimizations. Once we add streaming we might not need to add a Keep when the outputs already align.
-                // Note that until we add explicit support for KEEP in FORK branches, this condition will always be true.
                 if (logicalPlan instanceof Keep == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
@@ -810,7 +815,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-            for (Attribute attr : newSubPlans.getFirst().output()) {
+            for (Attribute attr : outputUnion) {
                 newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
             }
 

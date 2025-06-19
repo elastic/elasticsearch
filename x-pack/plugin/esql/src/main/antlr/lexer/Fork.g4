@@ -9,7 +9,7 @@ lexer grammar Fork;
 //
 // Fork
 //
-DEV_FORK :        {this.isDevVersion()}? 'fork'          -> pushMode(FORK_MODE);
+FORK : 'fork' -> pushMode(FORK_MODE);
 
 mode FORK_MODE;
 // commands needs to break out of their mode and the default mode when they encounter RP

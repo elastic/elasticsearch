@@ -918,11 +918,6 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
-         * Support for FORK command
-         */
-        FORK(Build.current().isSnapshot()),
-
-        /**
          * Support for RERANK command
          */
         RERANK(Build.current().isSnapshot()),
@@ -1038,9 +1033,9 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support streaming of sub plan results
+         * Support for FORK out of snapshot
          */
-        FORK_V9(Build.current().isSnapshot()),
+        FORK_V9,
 
         /**
          * Support for the {@code leading_zeros} named parameter.

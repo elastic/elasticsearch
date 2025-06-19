@@ -8,4 +8,3 @@ org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsForma
 org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat
 org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat
 org.elasticsearch.index.codec.vectors.IVFVectorsFormat
-org.elasticsearch.index.codec.vectors.GPUVectorsFormat

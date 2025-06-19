@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Collections;
 import java.util.Map;
@@ -30,6 +31,18 @@ public interface MapperPlugin {
      * mapper settings into a {@link Mapper}.
      */
     default Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns...
+     */
+    // default Map<String, Mapper.TypeParser> getDenseVectorMappers() {
+    // default Map<String, Mapper.DenseVectorTypeParser> getDenseVectorMappers() {
+    // return Collections.emptyMap();
+    // }
+
+    default Map<String, DenseVectorFieldMapper.VectorIndexType> getDenseVectorIndexTypes() {
         return Collections.emptyMap();
     }
 

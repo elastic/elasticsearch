@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.index.codec.vectors;
+package org.elasticsearch.xpack.gpu.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
@@ -16,7 +16,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.junit.Before;
 
 public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -24,13 +23,12 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
-    KnnVectorsFormat format;
 
-    @Before
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new GPUVectorsFormat());
+
     @Override
-    public void setUp() throws Exception {
-        format = new GPUVectorsFormat();
-        super.setUp();
+    protected Codec getCodec() {
+        return codec;
     }
 
     @Override
@@ -46,11 +44,6 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     @Override
     public void testSearchWithVisitedLimit() {
         // TODO
-    }
-
-    @Override
-    protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
     @Override

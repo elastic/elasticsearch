@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BasicVectorIndexType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -84,8 +84,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     @Before
     public void setup() throws IOException {
         String type = randomFrom(
-            Arrays.stream(VectorIndexType.values())
-                .filter(VectorIndexType::isQuantized)
+            Arrays.stream(BasicVectorIndexType.values())
+                .filter(BasicVectorIndexType::isQuantized)
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toCollection(ArrayList::new))
         );

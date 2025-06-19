@@ -543,6 +543,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 null,
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
+                mapperRegistry::getDenseVectorIndexType,
                 indexSettings.getIndexVersionCreated(),
                 () -> TransportVersion.current(),
                 searchExecutionContextSupplier,

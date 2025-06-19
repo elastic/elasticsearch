@@ -238,6 +238,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
+            mapperRegistry::getDenseVectorIndexType,
             indexVersionCreated,
             clusterTransportVersion,
             searchExecutionContextSupplier,

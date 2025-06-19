@@ -1197,7 +1197,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return;
         }
 
-        for (Map.Entry<String, Mapper.TypeParser> mappedType : IndicesModule.getMappers(List.of()).entrySet()) {
+        for (Map.Entry<String, Mapper.TypeParser> mappedType : IndicesModule.getMappers(List.of(), Map.of()).entrySet()) {
 
             // Some field types should not be tested, or require more work and are not ready yet
             if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {
@@ -1399,6 +1399,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static class MockParserContext extends MappingParserContext {
         MockParserContext(IndexSettings indexSettings) {
             super(
+                null,
                 null,
                 null,
                 null,

@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name = 'gpu'
+  description = 'A plugin for GPU functionality'
+  classname = 'org.elasticsearch.xpack.gpu.GPUPlugin'
+}
+base {
+  archivesName = 'x-pack-gpu'
+}
+
+dependencies {
+//  compileOnly project(path: xpackModule('core'))
+//  testImplementation(testArtifact(project(xpackModule('core'))))
+
+  compileOnly project(':server')
+
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
+
+  testImplementation project(':test:framework')
+}

@@ -97,6 +97,7 @@ public class TypeParsersTests extends ESTestCase {
             null,
             type -> typeParser,
             type -> null,
+            type -> null,
             version,
             () -> transportVersion,
             null,

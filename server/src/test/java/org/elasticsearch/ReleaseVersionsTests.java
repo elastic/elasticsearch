@@ -34,4 +34,16 @@ public class ReleaseVersionsTests extends ESTestCase {
         assertThat(versions.apply(9), equalTo("0.0.0"));
         assertThat(versions.apply(24), equalTo(new Version(Version.CURRENT.id + 100) + "-[24]"));
     }
+
+    // public void testFoo() {
+    //
+    // String s = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED.toReleaseVersion().split("-")[0];
+    // //var s = IndexVersions.VERSION_LOOKUP.apply(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED.id());
+    // System.out.println("MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED=" + s);
+    //
+    // s = IndexVersions.UPGRADE_TO_LUCENE_10_2_2.toReleaseVersion().split("-")[0];
+    // // s = IndexVersions.VERSION_LOOKUP.apply(IndexVersions.UPGRADE_TO_LUCENE_10_2_2.id());
+    // System.out.println("UPGRADE_TO_LUCENE_10_2_2=" + s);
+    //
+    // }
 }

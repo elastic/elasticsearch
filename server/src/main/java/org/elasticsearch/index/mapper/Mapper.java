@@ -131,6 +131,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
     }
 
+    // public interface DenseVectorTypeParser {
+    // DenseVectorFieldMapper parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+    // throws MapperParsingException;
+    //
+    // /**
+    // * Whether we can parse this type on indices with the given index created version.
+    // */
+    // default boolean supportsVersion(IndexVersion indexCreatedVersion) {
+    // return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+    // }
+    // }
+
     private final String leafName;
 
     @SuppressWarnings("this-escape")

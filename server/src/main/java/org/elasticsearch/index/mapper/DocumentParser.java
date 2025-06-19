@@ -804,7 +804,8 @@ public final class DocumentParser {
 
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                 fieldName,
-                context.indexSettings().getIndexVersionCreated()
+                context.indexSettings().getIndexVersionCreated(),
+                context::denseVectorIndexType
             );
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
             context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));

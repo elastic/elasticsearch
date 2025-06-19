@@ -444,7 +444,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
-        final int contentLength = request.contentLength();
+        final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");

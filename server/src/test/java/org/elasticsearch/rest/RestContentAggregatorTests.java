@@ -41,7 +41,11 @@ public class RestContentAggregatorTests extends ESTestCase {
 
     public void testFullBodyPassThrough() {
         var fullRequest = newRestRequest(between(1, 1024));
-        aggregate(fullRequest, (aggregated) -> assertEquals(fullRequest.content(), aggregated.content()));
+        var aggRef = new AtomicReference<RestRequest>();
+        aggregate(fullRequest, aggRef::set);
+        var aggRequest = aggRef.get();
+        assertSame(fullRequest, aggRequest);
+        assertSame(fullRequest.content(), aggRequest.content());
     }
 
     public void testZeroLengthStream() {
@@ -61,7 +65,7 @@ public class RestContentAggregatorTests extends ESTestCase {
         var streamChunks = range(0, nChunks).mapToObj(i -> randomReleasableBytesReference(chunkSize)).toList();
         var request = newRestRequest(chunkSize * nChunks);
         request.getHttpRequest().setBody(stream);
-        AtomicReference<RestRequest> aggregatedRef = new AtomicReference<>();
+        var aggregatedRef = new AtomicReference<RestRequest>();
 
         aggregate(request, aggregatedRef::set);
 

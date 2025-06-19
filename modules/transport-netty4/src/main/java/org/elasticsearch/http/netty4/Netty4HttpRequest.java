@@ -55,7 +55,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this(sequence, nettyRequest, content, new AtomicBoolean(false), null);
     }
 
-    public Netty4HttpRequest(
+    private Netty4HttpRequest(
         int sequence,
         io.netty.handler.codec.http.HttpRequest nettyRequest,
         HttpBody content,
@@ -104,7 +104,9 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public void setBody(HttpBody body) {
-        this.content = body.asFull();
+        assert this.content.isStream() : "only stream content can be replaced";
+        assert body.isFull() : "only full content can replace stream";
+        this.content = body;
         this.hasContent = body.isEmpty() == false;
     }
 

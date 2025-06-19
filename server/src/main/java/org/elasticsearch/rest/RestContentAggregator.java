@@ -25,7 +25,7 @@ public class RestContentAggregator {
 
     /**
      * Aggregates content of the RestRequest and notifies consumer with updated, in-place, RestRequest.
-     * If content is already aggregated then does nothing.
+     * If content is already aggregated then passes through same request.
      */
     public static void aggregate(RestRequest restRequest, Consumer<RestRequest> resultConsumer) {
         final var httpRequest = restRequest.getHttpRequest();

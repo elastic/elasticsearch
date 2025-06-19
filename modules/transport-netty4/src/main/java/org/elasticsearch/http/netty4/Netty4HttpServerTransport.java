@@ -396,8 +396,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         }
                         return super.isContentAlwaysEmpty(msg);
                     }
-                });
-            ch.pipeline().addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+                })
+                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
                     @Override

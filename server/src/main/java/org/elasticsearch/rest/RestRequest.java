@@ -295,10 +295,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public int contentLength() {
-        return switch (httpRequest.body()) {
-            case HttpBody.Full content -> content.bytes().length();
-            case HttpBody.Stream stream -> 0;
-        };
+        return httpRequest.body().asFull().bytes().length();
     }
 
     public boolean isFullContent() {

@@ -131,7 +131,9 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                                 Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                             )
                         )
-                    )
+                    ),
+                    CustomServiceSettings.BATCH_SIZE,
+                    11
                 )
             ),
             ConfigurationParseContext.REQUEST,
@@ -154,7 +156,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"))),
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    11
                 )
             )
         );
@@ -579,7 +582,46 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 },
                 "rate_limit": {
                     "requests_per_minute": 10000
-                }
+                },
+                "batch_size": 10
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testXContent_BatchSize11() throws IOException {
+        var entity = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            "http://www.abc.com",
+            Map.of("key", "value"),
+            null,
+            "string",
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            null,
+            11
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "url": "http://www.abc.com",
+                "headers": {
+                    "key": "value"
+                },
+                "request": "string",
+                "response": {
+                    "json_parser": {
+                        "text_embeddings": "$.result.embeddings[*].embedding"
+                    }
+                },
+                "rate_limit": {
+                    "requests_per_minute": 10000
+                },
+                "batch_size": 11
             }
             """);
 

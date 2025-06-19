@@ -902,6 +902,10 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public boolean isDocumentInLiveVersionMap(BytesRef uid) {
+        return false;
+    }
+
     public abstract GetResult get(
         Get get,
         MappingLookup mappingLookup,

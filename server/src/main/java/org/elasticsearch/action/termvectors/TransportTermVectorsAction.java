@@ -5,20 +5,26 @@
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
+ *
+ * This file was contributed to by generative AI
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -34,11 +40,13 @@ import java.io.IOException;
  */
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
+    private final NodeClient client;
     private final IndicesService indicesService;
 
     @Inject
     public TransportTermVectorsAction(
         ClusterService clusterService,
+        NodeClient client,
         TransportService transportService,
         IndicesService indicesService,
         ThreadPool threadPool,
@@ -57,6 +65,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             TermVectorsRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
+        this.client = client;
         this.indicesService = indicesService;
     }
 
@@ -69,21 +78,18 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
                 .getFirst();
         }
 
-        return operationRouting.useOnlyPromotableShardsForStateless(
-            operationRouting.getShards(
-
+        ShardIterator iterator = clusterService.operationRouting()
+            .getShards(
                 project,
-
                 request.concreteIndex(),
-
                 request.request().id(),
-
                 request.request().routing(),
-
                 request.request().preference()
-
-            )
-        );
+            );
+        if (iterator == null) {
+            return null;
+        }
+        return ShardIterator.allSearchableShards(iterator);
     }
 
     @Override
@@ -103,7 +109,36 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
-            super.asyncShardOperation(request, shardId, listener);
+            boolean ensureDocSearchable = DiscoveryNode.isStateless(clusterService.getSettings())
+                && request.id() != null
+                && request.id().isEmpty() == false;
+            if (ensureDocSearchable) {
+                // Ensure that the document is searchable before we execute the term vectors request
+                MultiTermVectorsShardRequest ensureDocSearchableRequest = new MultiTermVectorsShardRequest(request.index(), shardId.id());
+                ensureDocSearchableRequest.add(0, request);
+                ensureDocSearchableRequest.preference(request.preference());
+                ensureDocSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
+                client.executeLocally(
+                    TransportEnsureDocsSearchableAction.TYPE,
+                    ensureDocSearchableRequest,
+                    listener.delegateFailureAndWrap((l, r) -> {
+                        if (r.segmentGeneration() == -1) {
+                            // Nothing to wait for, just handle the term vector request locally.
+                            super.asyncShardOperation(request, shardId, l);
+                        } else {
+                            assert r.segmentGeneration() > -1L : r.segmentGeneration();
+                            assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM : r.primaryTerm();
+                            final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
+                                l.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll)),
+                                threadPool.getThreadContext()
+                            );
+                            indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
+                        }
+                    })
+                );
+            } else {
+                super.asyncShardOperation(request, shardId, listener);
+            }
         } else {
             indexShard.ensureShardSearchActive(b -> {
                 try {

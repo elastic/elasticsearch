@@ -122,7 +122,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 rescoreVector,
                 randomBoolean()
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                rescoreVector,
+                randomBoolean()
+            )
         );
     }
 
@@ -641,7 +646,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
-        assertTrue(query instanceof ESKnnFloatVectorQuery);
+        assertTrue(query instanceof ESKnnFloatVectorQuery ||  query instanceof PatienceKnnVectorQuery);
 
         // verify we can override a `0` to a positive number
         fieldType = new DenseVectorFieldType(
@@ -666,12 +671,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
         );
         assertTrue(query instanceof RescoreKnnVectorQuery);
-        assertThat(((RescoreKnnVectorQuery) query).k(), equalTo(10));
-        KnnFloatVectorQuery esKnnQuery = (KnnFloatVectorQuery) ((RescoreKnnVectorQuery) query).innerQuery();
-        if (esKnnQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
+        RescoreKnnVectorQuery rescoreKnnVectorQuery = (RescoreKnnVectorQuery) query;
+        assertThat(rescoreKnnVectorQuery.k(), equalTo(10));
+        Query innerQuery = rescoreKnnVectorQuery.innerQuery();
+        if (innerQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
             assertThat(esKnnFloatVectorQuery.kParam(), equalTo(20));
         }
-
     }
 
     public void testFilterSearchThreshold() {

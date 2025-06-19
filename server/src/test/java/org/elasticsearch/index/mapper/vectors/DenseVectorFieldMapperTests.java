@@ -1647,6 +1647,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .field("type", "int8_hnsw")
                 .field("m", 16)
                 .field("ef_construction", 100)
+                .field("early_termination", false)
                 .endObject();
             b.endObject();
         });

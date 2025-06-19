@@ -228,7 +228,14 @@ public class RestBulkActionTests extends ESTestCase {
 
         IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {
-            return new IncrementalBulkService.Handler(null, indexingPressure, null, null, null, null) {
+            return new IncrementalBulkService.Handler(
+                null,
+                indexingPressure,
+                null,
+                null,
+                null,
+                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME)
+            ) {
 
                 @Override
                 public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {

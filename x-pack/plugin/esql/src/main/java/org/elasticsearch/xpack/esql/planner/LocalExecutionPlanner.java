@@ -550,7 +550,7 @@ public class LocalExecutionPlanner {
             // - value 1
             // - value 2
             // integer_field: 132
-            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers =new LinkedHashMap<>();
+            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = new LinkedHashMap<>();
 
             for (var rerankField : rerank.rerankFields()) {
                 rerankFieldsEvaluatorSuppliers.put(

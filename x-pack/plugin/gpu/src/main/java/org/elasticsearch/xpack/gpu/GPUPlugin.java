@@ -6,19 +6,15 @@
  */
 package org.elasticsearch.xpack.gpu;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
 
-import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
+
+import static org.elasticsearch.xpack.gpu.GPUIndexType.GPU_INDEX_TYPE;
+import static org.elasticsearch.xpack.gpu.GPUIndexType.GPU_INDEX_TYPE_NAME;
 
 public class GPUPlugin extends Plugin implements MapperPlugin {
 
@@ -29,79 +25,6 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
             return Map.of(GPU_INDEX_TYPE_NAME, GPU_INDEX_TYPE);
         } else {
             return Map.of();
-        }
-    }
-
-    static final String GPU_INDEX_TYPE_NAME = "gpu";
-
-    static final GPUIndexType GPU_INDEX_TYPE = new GPUIndexType();
-
-    static class GPUIndexType implements DenseVectorFieldMapper.VectorIndexType {
-
-        @Override
-        public String name() {
-            return GPU_INDEX_TYPE_NAME;
-        }
-
-        @Override
-        public DenseVectorFieldMapper.IndexOptions parseIndexOptions(
-            String fieldName,
-            Map<String, ?> indexOptionsMap,
-            IndexVersion indexVersion
-        ) {
-            MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-            return new GPUIndexOptions();
-        }
-
-        @Override
-        public boolean supportsElementType(DenseVectorFieldMapper.ElementType elementType) {
-            return elementType == DenseVectorFieldMapper.ElementType.FLOAT;
-        }
-
-        @Override
-        public boolean supportsDimension(int dims) {
-            return true;
-        }
-
-        @Override
-        public boolean isQuantized() {
-            return false;
-        }
-    }
-
-    static class GPUIndexOptions extends DenseVectorFieldMapper.IndexOptions {
-
-        GPUIndexOptions() {
-            super(GPU_INDEX_TYPE);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type.name());
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public KnnVectorsFormat getVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-            assert elementType == DenseVectorFieldMapper.ElementType.FLOAT;
-            return new GPUVectorsFormat();
-        }
-
-        @Override
-        public boolean updatableTo(DenseVectorFieldMapper.IndexOptions update) {
-            return false;
-        }
-
-        @Override
-        protected boolean doEquals(DenseVectorFieldMapper.IndexOptions o) {
-            return o instanceof GPUIndexOptions;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return Objects.hash(type);
         }
     }
 }

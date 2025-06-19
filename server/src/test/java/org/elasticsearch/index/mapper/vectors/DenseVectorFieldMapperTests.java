@@ -789,10 +789,11 @@ public class DenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapperT
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(),
-            type -> DenseVectorFieldMapper.allBasicVectorIndexTypes().get(type))
-            .elementType(ElementType.FLOAT)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "test",
+            IndexVersion.current(),
+            type -> DenseVectorFieldMapper.allBasicVectorIndexTypes().get(type)
+        ).elementType(ElementType.FLOAT).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();

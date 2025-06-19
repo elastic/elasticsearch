@@ -971,6 +971,7 @@ public class EsqlCapabilities {
          * Support for LIKE operator with a list of patterns
          */
         LIKE_WITH_LIST_OF_PATTERNS,
+
         /**
          * Support for the SAMPLE command
          */
@@ -979,7 +980,12 @@ public class EsqlCapabilities {
         /**
          * Support parameters for SAMPLE command.
          */
-        PARAMETER_FOR_SAMPLE;
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE;
 
         private final boolean enabled;
 

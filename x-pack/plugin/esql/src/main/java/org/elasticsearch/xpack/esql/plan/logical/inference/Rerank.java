@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -41,22 +39,14 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
     public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
     public static final String INFERENCE_ID_OPTION_NAME = "inferenceId";
-    public static final String SCORE_COLUMN_OPTION_NAME = "scoreColumn";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private List<Attribute> lazyOutput;
 
-    public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields) {
-        this(
-            source,
-            child,
-            Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID),
-            queryText,
-            rerankFields,
-            new UnresolvedAttribute(Source.EMPTY, MetadataAttribute.SCORE)
-        );
+    public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields, Attribute scoreAttribute) {
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank(

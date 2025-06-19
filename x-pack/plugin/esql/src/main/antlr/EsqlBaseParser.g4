@@ -320,9 +320,9 @@ inferenceCommandOptionValue
     ;
 
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    : DEV_RERANK queryText=constant ON rerankFields (INTO targetField=qualifiedName)? (OPTIONS inferenceCommandOptions)?
     ;
 
 completionCommand
-    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
+    : COMPLETION prompt=primaryExpression (INTO targetField=qualifiedName)? OPTIONS inferenceCommandOptions
     ;

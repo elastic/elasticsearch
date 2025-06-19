@@ -358,9 +358,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true, -1)) {
-            return snapshot.totalOperations();
-        }
+        return 0;
     }
 
     @Override
@@ -502,7 +500,9 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void activateThrottling() {}
+    public void activateThrottling() {
+        assert false : "read only engine does not ingest and thus should not be throttled";
+    }
 
     @Override
     public void deactivateThrottling() {}

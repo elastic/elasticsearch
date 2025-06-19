@@ -67,6 +67,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     private static Settings settings;
     private static TestCapturingThreadPool testThreadPool;
     private static NodeEnvironment nodeEnvironment;
+    private static boolean setThreadPoolMergeSchedulerSetting;
 
     @BeforeClass
     public static void installMockUsableSpaceFS() throws Exception {
@@ -86,7 +87,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             // the default of "5s" slows down testing
             .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "50ms")
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount);
-        if (randomBoolean()) {
+        setThreadPoolMergeSchedulerSetting = randomBoolean();
+        if (setThreadPoolMergeSchedulerSetting) {
             settingsBuilder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
         }
         settings = settingsBuilder.build();
@@ -520,6 +522,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 }
             }, 5, TimeUnit.SECONDS);
         }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
+        }
     }
 
     public void testAbortingOrRunningMergeTaskHoldsUpBudget() throws Exception {
@@ -592,6 +600,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 }
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
         }
     }
 
@@ -731,6 +745,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
         }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
+        }
     }
 
     public void testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution() throws Exception {
@@ -867,6 +887,112 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
                 assertThat(threadPoolMergeExecutorService.allDone(), is(true));
             });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
+        }
+    }
+
+    public void testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges() throws Exception {
+        long diskSpaceLimitBytes = randomLongBetween(10L, 100L);
+        aFileStore.usableSpace = diskSpaceLimitBytes + randomLongBetween(1L, 100L);
+        aFileStore.totalSpace = aFileStore.usableSpace + randomLongBetween(1L, 10L);
+        bFileStore.usableSpace = diskSpaceLimitBytes + randomLongBetween(1L, 100L);
+        bFileStore.totalSpace = bFileStore.usableSpace + randomLongBetween(1L, 10L);
+        boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
+        Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        settingsBuilder.put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), diskSpaceLimitBytes + "b");
+        try (
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                .maybeCreateThreadPoolMergeExecutorService(
+                    testThreadPool,
+                    ClusterSettings.createBuiltInClusterSettings(settingsBuilder.build()),
+                    nodeEnvironment
+                )
+        ) {
+            assert threadPoolMergeExecutorService != null;
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), greaterThanOrEqualTo(1));
+            final long availableBudget = aHasMoreSpace
+                ? aFileStore.usableSpace - diskSpaceLimitBytes
+                : bFileStore.usableSpace - diskSpaceLimitBytes;
+            final AtomicLong expectedAvailableBudget = new AtomicLong(availableBudget);
+            assertBusy(
+                () -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()))
+            );
+            List<ThreadPoolMergeScheduler.MergeTask> tasksRunList = new ArrayList<>();
+            List<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = new ArrayList<>();
+            int submittedMergesCount = randomIntBetween(1, 5);
+            long[] mergeSizeEstimates = new long[submittedMergesCount];
+            for (int i = 0; i < submittedMergesCount; i++) {
+                // all these merge estimates are over-budget
+                mergeSizeEstimates[i] = availableBudget + randomLongBetween(1L, 10L);
+            }
+            for (int i = 0; i < submittedMergesCount;) {
+                ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
+                when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
+                doAnswer(mock -> {
+                    Schedule schedule = randomFrom(Schedule.values());
+                    if (schedule == BACKLOG) {
+                        testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                            // re-enqueue backlogged merge task
+                            threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
+                        });
+                    } else if (schedule == RUN) {
+                        tasksRunList.add(mergeTask);
+                    } else if (schedule == ABORT) {
+                        tasksAbortList.add(mergeTask);
+                    }
+                    return schedule;
+                }).when(mergeTask).schedule();
+                // randomly let some task complete
+                if (randomBoolean()) {
+                    // this task is not blocked
+                    when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(0L, availableBudget));
+                } else {
+                    // this task will initially be blocked because over-budget
+                    int finalI = i;
+                    doAnswer(mock -> mergeSizeEstimates[finalI]).when(mergeTask).estimatedRemainingMergeSize();
+                    i++;
+                }
+                assertTrue(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
+            }
+            // assert tasks are blocked because their estimated merge size is over the available budget
+            assertBusy(() -> {
+                assertTrue(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
+                assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(submittedMergesCount));
+                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(availableBudget));
+                assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(0));
+            });
+            // change estimates to be under the available budget
+            for (int i = 0; i < submittedMergesCount; i++) {
+                mergeSizeEstimates[i] = randomLongBetween(0L, availableBudget);
+            }
+            // assert tasks are all unblocked because their estimated merge size is now under the available budget
+            assertBusy(() -> {
+                assertFalse(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
+                assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
+                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(availableBudget));
+            });
+            // assert all merge tasks are either run or aborted
+            assertBusy(() -> {
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksRunList) {
+                    verify(mergeTask, times(1)).run();
+                    verify(mergeTask, times(0)).abort();
+                }
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksAbortList) {
+                    verify(mergeTask, times(0)).run();
+                    verify(mergeTask, times(1)).abort();
+                }
+            });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
         }
     }
 
@@ -1018,6 +1144,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     is(availableInitialBudget + grantedUsableSpaceBuffer)
                 );
             });
+        }
+        if (setThreadPoolMergeSchedulerSetting) {
+            assertWarnings(
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+            );
         }
     }
 }

@@ -231,8 +231,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             // bootstrap task once iff it is not already bootstrapped
             AtomicBoolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> new AtomicBoolean(false));
             if (taskIsBootstrapped.getAndSet(true) == false) {
-                this.taskIsBootstrappedByProject.computeIfAbsent(projectId,
-                    k -> new AtomicBoolean(hasAtLeastOneGeoipProcessor(projectMetadata)));
+                this.taskIsBootstrappedByProject.computeIfAbsent(
+                    projectId,
+                    k -> new AtomicBoolean(hasAtLeastOneGeoipProcessor(projectMetadata))
+                );
                 if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                     logger.debug("Bootstrapping geoip downloader task for project [{}]", projectId);
                     startTask(projectId, () -> taskIsBootstrapped.set(false));

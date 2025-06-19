@@ -207,6 +207,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -1100,6 +1101,10 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
+        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
+
+        components.add(customApiKeyAuthenticator);
+
         authcService.set(
             new AuthenticationService(
                 settings,
@@ -1112,6 +1117,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
+                customApiKeyAuthenticator,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1245,6 +1251,48 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
+            if (customApiKeyAuthenticator != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
+            }
+        }
+
+        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to noop implementation.",
+                CustomApiKeyAuthenticator.class.getCanonicalName()
+            );
+            return new CustomApiKeyAuthenticator.Noop();
+
+        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
+            );
+
+        } else {
+            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final String extensionName = authenticatorByExtensionEntry.getKey();
+            logger.debug(
+                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
+                customApiKeyAuthenticator.getClass().getCanonicalName(),
+                extensionName
+            );
+            return customApiKeyAuthenticator;
+        }
     }
 
     private ServiceAccountService createServiceAccountService(

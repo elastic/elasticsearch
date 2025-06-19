@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -53,6 +54,10 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             // merges pile up more easily when there's only a few threads executing them
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), randomIntBetween(1, 2))
             .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), MERGE_DISK_HIGH_WATERMARK_BYTES + "b")
+            // let's not worry about allocation watermarks (e.g. read-only shards) in this test suite
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "0b")
             .build();
     }
 
@@ -69,6 +74,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         );
         // do some indexing
         indexRandom(
+            false,
             false,
             false,
             false,
@@ -110,6 +116,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             }
             // more indexing
             indexRandom(
+                false,
                 false,
                 false,
                 false,

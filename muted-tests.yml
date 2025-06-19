@@ -505,9 +505,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.MultipleBatches*
   issue: https://github.com/elastic/elasticsearch/issues/129210
-- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
-  method: testScaleDuringSplitOrClone
-  issue: https://github.com/elastic/elasticsearch/issues/129335
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
@@ -565,24 +562,12 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/129453
-- class: org.elasticsearch.server.cli.MachineDependentHeapTests
-  method: testMlOnlyOptions
-  issue: https://github.com/elastic/elasticsearch/issues/129236
-- class: org.elasticsearch.upgrades.RunningSnapshotIT
-  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/129644
-- class: org.elasticsearch.upgrades.RunningSnapshotIT
-  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/129645
-- class: org.elasticsearch.upgrades.RunningSnapshotIT
-  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/129646
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/129651
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnSearchRescore
+  issue: https://github.com/elastic/elasticsearch/issues/129713
 
 # Examples:
 #

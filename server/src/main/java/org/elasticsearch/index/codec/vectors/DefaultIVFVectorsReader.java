@@ -122,7 +122,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, IntPredicate needsScoring)
         throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
-        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, needsScoring);
+        return new MemorySegmentPostingsVisitor(target, indexInput.clone(), entry, fieldInfo, needsScoring);
     }
 
     // TODO can we do this in off-heap blocks?

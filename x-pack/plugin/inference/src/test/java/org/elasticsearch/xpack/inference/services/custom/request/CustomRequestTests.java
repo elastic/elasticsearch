@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.QueryParameters;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -63,8 +62,7 @@ public class CustomRequestTests extends ESTestCase {
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(
@@ -117,8 +115,7 @@ public class CustomRequestTests extends ESTestCase {
             ),
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(
@@ -165,8 +162,7 @@ public class CustomRequestTests extends ESTestCase {
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
             new TextEmbeddingResponseParser("$.result.embeddings"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(
@@ -213,8 +209,7 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(
@@ -256,8 +251,7 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(
@@ -270,7 +264,13 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(null, List.of("abc", "123"), model);
         var exception = expectThrows(IllegalStateException.class, request::createHttpRequest);
-        assertThat(exception.getMessage(), is("Found placeholder [${task.key}] in field [header.Accept] after replacement call"));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Found placeholder [${task.key}] in field [header.Accept] after replacement call, "
+                    + "please check that all templates have a corresponding field definition."
+            )
+        );
     }
 
     public void testCreateRequest_ThrowsException_ForInvalidUrl() {
@@ -288,8 +288,7 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000),
-            new ErrorResponseParser("$.error.message", inferenceId)
+            new RateLimitSettings(10_000)
         );
 
         var model = CustomModelTests.createModel(

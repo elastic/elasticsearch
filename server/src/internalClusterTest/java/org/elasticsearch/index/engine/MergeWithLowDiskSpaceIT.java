@@ -70,10 +70,12 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         );
         // do some indexing
         indexRandom(
-            randomBoolean(),
+            false,
+            false,
+            false,
             IntStream.range(1, randomIntBetween(2, 10))
                 .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
-                .toArray(IndexRequestBuilder[]::new)
+                .toList()
         );
         // get current disk space usage
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
@@ -109,15 +111,17 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             }
             // more indexing
             indexRandom(
-                randomBoolean(),
+                false,
+                false,
+                false,
                 IntStream.range(1, randomIntBetween(2, 10))
                     .mapToObj(i -> prepareIndex(indexName).setSource("another_field", randomAlphaOfLength(50)))
-                    .toArray(IndexRequestBuilder[]::new)
+                    .toList()
             );
         }
-        // now delete the index in this state, i.e. with merges enqueued
+        // now delete the index in this state, i.e. with merges enqueued and blocked
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
-        // index should be gone
+        // index should now be gone
         assertBusy(() -> {
             expectThrows(
                 IndexNotFoundException.class,
@@ -139,7 +143,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
                     .queue(),
                 equalTo(0)
             );
-            // and the merge executor should also report that merging id done now
+            // and the merge executor should also report that merging is done now
             assertFalse(indicesService.getThreadPoolMergeExecutorService().isMergingBlockedDueToInsufficientDiskSpace());
             assertTrue(indicesService.getThreadPoolMergeExecutorService().allDone());
         });

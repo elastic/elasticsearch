@@ -465,10 +465,21 @@ public class EsqlSession {
         IndexResolution newIndexResolution
     ) {
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, newIndexResolution.unavailableClusters());
-        if (newIndexResolution.isValid() == false
-            || executionInfo.getClusters().isEmpty()
-            || executionInfo.isCrossClusterSearch() == false) {
+        if (newIndexResolution.isValid() == false) {
             // If the index resolution is invalid, or we're not dealing with CCS, don't bother with the rest of the analysis
+            return result.addLookupIndexResolution(index, newIndexResolution);
+        }
+        if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
+            // Local only case, still do some checks
+            if (newIndexResolution.get().indexNameWithModes().size() > 1) {
+                throw new VerificationException("multiple resolutions for lookup index [" + index + "] in local cluster");
+            }
+            var indexMode = newIndexResolution.get().indexNameWithModes().entrySet().iterator().next().getValue();
+            if (indexMode != IndexMode.LOOKUP) {
+                throw new VerificationException(
+                    "invalid [" + index + "] resolution in lookup mode to an index in [" + indexMode + "] mode"
+                );
+            }
             return result.addLookupIndexResolution(index, newIndexResolution);
         }
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index

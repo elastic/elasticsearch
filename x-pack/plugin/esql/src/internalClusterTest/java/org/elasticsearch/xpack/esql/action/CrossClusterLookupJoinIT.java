@@ -70,20 +70,20 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertCCSExecutionInfoDetails(executionInfo);
         }
 
-        // populateLookupIndex(LOCAL_CLUSTER, "values_lookup2", 5);
-        // populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup2", 5);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup2", 5);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup2", 5);
         // FIXME: this currently does not work
-        // try (
-        // EsqlQueryResponse resp = runQuery(
-        // "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key | LOOKUP JOIN values_lookup2 ON
-        // lookup_tag",
-        // randomBoolean()
-        // )
-        // ) {
-        // List<List<Object>> values = getValuesList(resp);
-        // assertThat(values, hasSize(20));
-        //
-        // }
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key "
+                    + "| LOOKUP JOIN values_lookup2 ON lookup_tag",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+
+        }
     }
 
     public void testLookupJoinMissingRemoteIndex() throws IOException {

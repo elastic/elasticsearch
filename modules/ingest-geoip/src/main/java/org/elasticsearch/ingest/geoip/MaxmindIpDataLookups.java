@@ -938,7 +938,7 @@ final class MaxmindIpDataLookups {
 
         @Override
         public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
-            final RECORD response = ipDatabase.getResponse(ipAddress, this::lookup);
+            final RECORD response = ipDatabase.getTypedResponse(ipAddress, this::lookup);
             return (response == null) ? Map.of() : transform(response);
         }
 

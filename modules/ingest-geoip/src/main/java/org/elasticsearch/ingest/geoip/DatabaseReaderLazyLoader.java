@@ -105,10 +105,9 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
         return currentUsages.get();
     }
 
-    @Override
     @Nullable
     @FixForMultiProject // do not use ProjectId.DEFAULT
-    public <RESPONSE extends Response> RESPONSE getResponse(
+    public <RESPONSE extends Response> RESPONSE getTypedResponse(
         String ipAddress,
         CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
     ) {

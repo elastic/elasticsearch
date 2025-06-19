@@ -124,7 +124,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            GeoIpTestUtils.SimpleCity cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
+            GeoIpTestUtils.SimpleCity cityResponse = loader.getTypedResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.cityName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
         }
@@ -136,7 +136,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            GeoIpTestUtils.SimpleCity cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
+            GeoIpTestUtils.SimpleCity cityResponse = loader.getTypedResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.cityName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
         });

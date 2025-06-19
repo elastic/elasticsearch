@@ -93,7 +93,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         IpDatabase database = databaseNodeService.getDatabase(databaseFileName);
         assertNotNull(database);
         assertThat(database.getDatabaseType(), equalTo(databaseType));
-        GeoIpTestUtils.SimpleCountry countryResponse = database.getResponse("89.160.20.128", GeoIpTestUtils::getCountry);
+        GeoIpTestUtils.SimpleCountry countryResponse = database.getTypedResponse("89.160.20.128", GeoIpTestUtils::getCountry);
         assertNotNull(countryResponse);
         assertThat(countryResponse.countryName(), equalTo("Sweden"));
     }

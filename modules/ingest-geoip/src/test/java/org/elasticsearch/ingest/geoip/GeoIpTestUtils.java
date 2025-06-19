@@ -70,7 +70,7 @@ public final class GeoIpTestUtils {
     public record SimpleCity(String cityName) implements IpDatabase.Response {}
 
     /**
-     * A static city-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
+     * A static city-specific responseProvider for use with {@link IpDatabase#getTypedResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
      * Like this: {@code SimpleCity city = loader.getResponse("some.ip.address", GeoIpTestUtils::getCity);}
@@ -84,7 +84,7 @@ public final class GeoIpTestUtils {
     public record SimpleCountry(String countryName) implements IpDatabase.Response {}
 
     /**
-     * A static country-specific responseProvider for use with {@link IpDatabase#getResponse(String, CheckedBiFunction)} in
+     * A static country-specific responseProvider for use with {@link IpDatabase#getTypedResponse(String, CheckedBiFunction)} in
      * tests.
      * <p>
      * Like this: {@code SimpleCountry country = loader.getResponse("some.ip.address", GeoIpTestUtils::getCountry);}

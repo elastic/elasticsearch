@@ -479,7 +479,7 @@ final class IpinfoIpDataLookups {
 
         @Override
         public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
-            final Result<RESPONSE> response = ipDatabase.getResponse(ipAddress, this::lookup);
+            final Result<RESPONSE> response = ipDatabase.getTypedResponse(ipAddress, this::lookup);
             return (response == null || response.result() == null) ? Map.of() : transform(response);
         }
 

@@ -23,8 +23,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.upgrades.SnapshotBasedRecoveryIT.indexDocs;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
@@ -38,9 +40,10 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
         final String repositoryName = "repo";
         final String snapshotName = "snapshot";
         final Map<String, Map<?, ?>> nodesInfo = getNodesInfo(client());
-        final var nodeIdToBuildHashes = nodesInfo.entrySet()
+        final var nodeIdToNodeNames = nodesInfo.entrySet()
             .stream()
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get("build_hash").toString()));
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get("name").toString()));
+        assertThat(nodeIdToNodeNames.values(), containsInAnyOrder("test-cluster-0", "test-cluster-1", "test-cluster-2"));
 
         if (isOldCluster()) {
             registerRepository(repositoryName, "fs", randomBoolean(), Settings.builder().put("location", "backup").build());
@@ -52,25 +55,23 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
             }
             flush(indexName, true);
             // Signal shutdown to prevent snapshot from being completed
-            putShutdownMetadata(nodeIdToBuildHashes.keySet());
+            putShutdownMetadata(nodeIdToNodeNames.keySet());
             createSnapshot(repositoryName, snapshotName, false);
             assertRunningSnapshot(repositoryName, snapshotName);
         } else {
             if (isUpgradedCluster()) {
-                deleteShutdownMetadata(nodeIdToBuildHashes.keySet());
-                assertNoShutdownMetadata(nodeIdToBuildHashes.keySet());
+                deleteShutdownMetadata(nodeIdToNodeNames.keySet());
+                assertNoShutdownMetadata(nodeIdToNodeNames.keySet());
                 ensureGreen(indexName);
                 assertBusy(() -> assertCompletedSnapshot(repositoryName, snapshotName));
             } else {
-                final var buildHashToNodeIds = nodeIdToBuildHashes.entrySet()
-                    .stream()
-                    .collect(Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toSet())));
                 if (isFirstMixedCluster()) {
-                    final var upgradedNodeIds = buildHashToNodeIds.values()
+                    final var upgradedNodeIds = nodeIdToNodeNames.entrySet()
                         .stream()
-                        .filter(strings -> strings.size() == 1)
-                        .findFirst()
-                        .orElseThrow(() -> new AssertionError("expect one upgraded node, but got " + buildHashToNodeIds));
+                        .filter(entry -> "test-cluster-0".equals(entry.getValue()))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toUnmodifiableSet());
+                    assertThat(upgradedNodeIds, hasSize(1));
                     deleteShutdownMetadata(upgradedNodeIds);
                 }
                 assertRunningSnapshot(repositoryName, snapshotName);

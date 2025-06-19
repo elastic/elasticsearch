@@ -73,14 +73,14 @@ public final class ProjectState {
     public ClusterState updatedState(Consumer<ProjectMetadata.Builder> projectBuilderConsumer) {
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(metadata());
         projectBuilderConsumer.accept(projectBuilder);
-        return ClusterState.builder(cluster).putProjectMetadata(projectBuilder).build();
+        return updatedState(projectBuilder.build());
     }
 
     /**
      * Build a new {@link ClusterState} with the updated project.
      */
     public ClusterState updatedState(ProjectMetadata updatedProject) {
-        return ClusterState.builder(cluster).putProjectMetadata(updatedProject).build();
+        return ClusterState.builder(cluster).metadata(cluster.metadata().withUpdatedProject(updatedProject)).build();
     }
 
     /**
@@ -100,6 +100,6 @@ public final class ProjectState {
                 )
             );
         }
-        return new ProjectState(ClusterState.builder(cluster).putProjectMetadata(updatedProject).build(), project);
+        return new ProjectState(updatedState(updatedProject), project);
     }
 }

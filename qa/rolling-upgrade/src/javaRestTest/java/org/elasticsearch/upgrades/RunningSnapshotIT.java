@@ -18,7 +18,10 @@ import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.upgrades.SnapshotBasedRecoveryIT.indexDocs;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,7 +37,10 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
         final String indexName = "index";
         final String repositoryName = "repo";
         final String snapshotName = "snapshot";
-        final var nodeIds = getNodesInfo(client()).keySet();
+        final Map<String, Map<?, ?>> nodesInfo = getNodesInfo(client());
+        final var nodeIdToBuildHashes = nodesInfo.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get("build_hash").toString()));
 
         if (isOldCluster()) {
             registerRepository(repositoryName, "fs", randomBoolean(), Settings.builder().put("location", "backup").build());
@@ -46,16 +52,27 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
             }
             flush(indexName, true);
             // Signal shutdown to prevent snapshot from being completed
-            putShutdownMetadata(nodeIds);
+            putShutdownMetadata(nodeIdToBuildHashes.keySet());
             createSnapshot(repositoryName, snapshotName, false);
             assertRunningSnapshot(repositoryName, snapshotName);
         } else {
             if (isUpgradedCluster()) {
-                deleteShutdownMetadata(nodeIds);
-                assertNoShutdownMetadata(nodeIds);
+                deleteShutdownMetadata(nodeIdToBuildHashes.keySet());
+                assertNoShutdownMetadata(nodeIdToBuildHashes.keySet());
                 ensureGreen(indexName);
                 assertBusy(() -> assertCompletedSnapshot(repositoryName, snapshotName));
             } else {
+                final var buildHashToNodeIds = nodeIdToBuildHashes.entrySet()
+                    .stream()
+                    .collect(Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toSet())));
+                if (isFirstMixedCluster()) {
+                    final var upgradedNodeIds = buildHashToNodeIds.values()
+                        .stream()
+                        .filter(strings -> strings.size() == 1)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("expect one upgraded node, but got " + buildHashToNodeIds));
+                    deleteShutdownMetadata(upgradedNodeIds);
+                }
                 assertRunningSnapshot(repositoryName, snapshotName);
             }
         }
@@ -76,6 +93,7 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
     private void deleteShutdownMetadata(Collection<String> nodeIds) throws IOException {
         for (String nodeId : nodeIds) {
             final Request request = new Request("DELETE", "/_nodes/" + nodeId + "/shutdown");
+            request.addParameter(IGNORE_RESPONSE_CODES_PARAM, "404");
             client().performRequest(request);
         }
     }

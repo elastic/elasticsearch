@@ -3315,13 +3315,74 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testRerankDefaultInferenceId() {
+    public void testRerankDefaultInferenceIdAndScoreAttribute() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
         var plan = processingCommand("RERANK \"query text\" ON title");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
+    public void testRerankInferenceId() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+    }
+
+    public void testRerankQuotedInferenceId() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=\"inferenceId\"");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+    }
+
+    public void testRerankScoreAttribute() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=rerank_score");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
+    public void testRerankQuotedScoreAttribute() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=\"rerank_score\"");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
+    public void testRerankInferenceIdAnddScoreAttribute() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId, scoreColumn=rerank_score");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
@@ -3329,18 +3390,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankSingleField() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
     public void testRerankMultipleFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceId=inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3355,12 +3417,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
     public void testRerankComputedFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceID");
+        var plan = processingCommand(
+            "RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceId=inferenceID"
+        );
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3374,24 +3439,43 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
     public void testRerankWithPositionalParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
-        var rerank = as(parser.createStatement("row a = 1 | RERANK ? ON title WITH ?", queryParams), Rerank.class);
+        var queryParams = new QueryParams(
+            List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
+        );
+        var rerank = as(
+            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams),
+            Rerank.class
+        );
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
     }
 
     public void testRerankWithNamedParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
-        var rerank = as(parser.createStatement("row a = 1 | RERANK ?queryText ON title WITH ?inferenceId", queryParams), Rerank.class);
+        var queryParams = new QueryParams(
+            List.of(
+                paramAsConstant("queryText", "query text"),
+                paramAsConstant("inferenceId", "reranker"),
+                paramAsConstant("scoreColumnName", "rerank_score")
+            )
+        );
+        var rerank = as(
+            parser.createStatement(
+                "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
+                queryParams
+            ),
+            Rerank.class
+        );
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
@@ -3402,6 +3486,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
+
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        expectError(
+            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH inferenceId=inferenceId",
+            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
+        );
     }
 
     public void testCompletionUsingFieldAsPrompt() {

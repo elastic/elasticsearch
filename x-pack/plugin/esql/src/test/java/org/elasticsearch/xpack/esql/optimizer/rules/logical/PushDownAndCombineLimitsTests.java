@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests.relation;
 
@@ -74,12 +76,30 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
         ),
         new PushDownLimitTestCase<>(
             Completion.class,
-            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(TEXT), randomLiteral(TEXT), attr),
+            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(KEYWORD), randomLiteral(KEYWORD), attr),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());
                 assertEquals(basePlan.prompt(), optimizedPlan.prompt());
                 assertEquals(basePlan.targetField(), optimizedPlan.targetField());
+            }
+        ),
+        new PushDownLimitTestCase<>(
+            Rerank.class,
+            (plan, attr) -> new Rerank(
+                EMPTY,
+                plan,
+                randomLiteral(KEYWORD),
+                randomLiteral(KEYWORD),
+                randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(KEYWORD))),
+                attr
+            ),
+            (basePlan, optimizedPlan) -> {
+                assertEquals(basePlan.source(), optimizedPlan.source());
+                assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());
+                assertEquals(basePlan.queryText(), optimizedPlan.queryText());
+                assertEquals(basePlan.rerankFields(), optimizedPlan.rerankFields());
+                assertEquals(basePlan.scoreAttribute(), optimizedPlan.scoreAttribute());
             }
         )
     );

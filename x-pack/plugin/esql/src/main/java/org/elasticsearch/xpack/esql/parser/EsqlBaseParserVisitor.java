@@ -669,6 +669,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#inferenceCommandOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInferenceCommandOptions(EsqlBaseParser.InferenceCommandOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#inferenceCommandOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInferenceCommandOption(EsqlBaseParser.InferenceCommandOptionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#inferenceCommandOptionValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInferenceCommandOptionValue(EsqlBaseParser.InferenceCommandOptionValueContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
    * @param ctx the parse tree
    * @return the visitor result

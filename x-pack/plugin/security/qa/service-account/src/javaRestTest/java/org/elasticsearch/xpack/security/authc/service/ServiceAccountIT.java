@@ -118,6 +118,12 @@ public class ServiceAccountIT extends ESRestTestCase {
               "indices": [
                 {
                   "names": [
+                    "logs",
+                    "logs.*",
+                    "metrics",
+                    "metrics.*",
+                    "traces",
+                    "traces.*",
                     "logs-*",
                     "metrics-*",
                     "traces-*",

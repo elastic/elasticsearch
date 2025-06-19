@@ -38,6 +38,15 @@ import java.util.Base64;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 
+@FixForMultiProject(
+    description = "This service should use per-project object store. It currently uses cluster object store "
+        + "because per-project object stores are currently created/deleted along with ProjectMetadata which "
+        + "is too early for this service on the deletion path, i.e. the object store is already closed and "
+        + "removed when the lease needs to be updated. Once project settings and secrets get moved outside of "
+        + "ProjectMetadata, we should fix the ordering issue and use per-project object store here. When "
+        + "per-project object store is in use, we can also rename the lease from project-xxx_lease to be "
+        + "just project_lease. See also ES-11934 and ES-11206"
+)
 public class ProjectLifeCycleService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(ProjectLifeCycleService.class);
 
@@ -214,12 +223,10 @@ public class ProjectLifeCycleService implements ClusterStateListener {
         );
     }
 
-    @FixForMultiProject(description = "after ES-11041, this can be just project_lease")
     public static String getProjectLeaseBlobName(ProjectId projectId) {
         return "project-" + projectId.id() + "_lease";
     }
 
-    @FixForMultiProject(description = "after ES-11041, this should return the project-specific container")
     private BlobContainer getProjectLeaseContainer() {
         return objectStoreService.getClusterRootContainer();
     }

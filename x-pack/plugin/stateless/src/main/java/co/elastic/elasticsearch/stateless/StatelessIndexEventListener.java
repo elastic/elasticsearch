@@ -111,8 +111,8 @@ class StatelessIndexEventListener implements IndexEventListener {
             store.incRef();
             boolean success = false;
             try {
-                final var blobStore = objectStoreService.blobStore();
                 final var shardId = indexShard.shardId();
+                final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
                 final var shardBasePath = objectStoreService.shardBasePath(shardId);
                 BlobStoreCacheDirectory.unwrapDirectory(store.directory())
                     .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));

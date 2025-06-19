@@ -184,7 +184,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
         ObjectStoreService objectStoreService = getObjectStoreService(indexNodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
-        var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+        var blobContainerForCommit = objectStoreService.getProjectBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         final long directoryGeneration = Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
         assertBusy(() -> {
             final BatchedCompoundCommit latestUploadedBcc = readLatestUploadedBccUptoGen(blobContainerForCommit, directoryGeneration);
@@ -1110,7 +1110,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         store.incRef();
         try {
             ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
-            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+            var blobContainerForCommit = objectStoreService.getProjectBlobContainer(
+                indexShard.shardId(),
+                indexShard.getOperationPrimaryTerm()
+            );
 
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
 
@@ -1131,7 +1134,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 );
                 for (String localFile : segmentInfos.files(false)) {
                     BlobLocation blobLocation = commit.commitFiles().get(localFile);
-                    final BlobContainer blobContainerForFile = objectStoreService.getBlobContainer(
+                    final BlobContainer blobContainerForFile = objectStoreService.getProjectBlobContainer(
                         indexShard.shardId(),
                         blobLocation.primaryTerm()
                     );
@@ -1190,7 +1193,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         searchStore.incRef();
         try {
             ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
-            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+            var blobContainerForCommit = objectStoreService.getProjectBlobContainer(
+                indexShard.shardId(),
+                indexShard.getOperationPrimaryTerm()
+            );
 
             // Wait for the latest commit on the index shard is processed on the search engine
             var listener = new SubscribableListener<Long>();
@@ -1210,7 +1216,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
             for (String localFile : segmentInfos.files(false)) {
                 var blobPath = commit.commitFiles().get(localFile);
-                BlobContainer blobContainer = objectStoreService.getBlobContainer(indexShard.shardId(), blobPath.primaryTerm());
+                BlobContainer blobContainer = objectStoreService.getProjectBlobContainer(indexShard.shardId(), blobPath.primaryTerm());
                 var blobFile = blobPath.blobName();
                 // can take some time for files to be uploaded to the object store
                 assertBusy(() -> {

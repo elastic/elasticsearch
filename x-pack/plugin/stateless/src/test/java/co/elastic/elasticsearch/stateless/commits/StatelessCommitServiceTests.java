@@ -2131,7 +2131,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertBusy(() -> {
                 assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
                 assertThat(testHarness.commitService.hasPendingBccUploads(testHarness.shardId), is(false));
-                final BlobContainer blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+                final BlobContainer blobContainer = testHarness.objectStoreService.getProjectBlobContainer(
+                    testHarness.shardId,
+                    primaryTerm
+                );
                 final List<BatchedCompoundCommit> allBatchedCompoundCommits = blobContainer.listBlobs(OperationPurpose.INDICES)
                     .values()
                     .stream()
@@ -2769,7 +2772,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     private ArrayList<String> returnInternalFiles(FakeStatelessNode testHarness, List<String> compoundCommitFiles) throws IOException {
         ArrayList<String> filesOnObjectStore = new ArrayList<>();
         for (String commitFile : compoundCommitFiles) {
-            BlobContainer blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
+            BlobContainer blobContainer = testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId, primaryTerm);
             try (InputStream inputStream = blobContainer.readBlob(randomFrom(OperationPurpose.values()), commitFile)) {
                 StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(new InputStreamStreamInput(inputStream));
                 compoundCommit.commitFiles()
@@ -2942,7 +2945,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         ObjectStoreService.readIndexingShardState(
             IndexBlobStoreCacheDirectory.unwrapDirectory(node.indexingDirectory),
             IOContext.DEFAULT,
-            node.objectStoreService.getBlobContainer(node.shardId),
+            node.objectStoreService.getProjectBlobContainer(node.shardId),
             primaryTerm,
             node.threadPool,
             randomBoolean(),

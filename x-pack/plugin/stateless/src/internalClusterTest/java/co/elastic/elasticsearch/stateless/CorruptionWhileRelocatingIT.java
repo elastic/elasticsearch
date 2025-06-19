@@ -178,7 +178,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(300));
 
         var objectStoreService = getCurrentMasterObjectStoreService();
-        var blobContainer = objectStoreService.getBlobContainer(sourceShard.shardId(), primaryTerm);
+        var blobContainer = objectStoreService.getProjectBlobContainer(sourceShard.shardId(), primaryTerm);
 
         // Check that the blob has not been uploaded
         assertFalse(blobContainer.blobExists(operationPurpose, finalCommitBlobName));

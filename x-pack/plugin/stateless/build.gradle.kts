@@ -48,6 +48,7 @@ dependencies {
     testImplementation("org.elasticsearch.test:s3-fixture")
     testImplementation("org.elasticsearch.test:gcs-fixture")
     testImplementation("org.elasticsearch.test:azure-fixture")
+    testImplementation("org.elasticsearch.test:aws-fixture-utils")
     testImplementation("org.elasticsearch.plugin:repository-s3")
     testImplementation("org.elasticsearch.plugin:repository-gcs")
     testImplementation("org.elasticsearch.plugin:repository-azure")

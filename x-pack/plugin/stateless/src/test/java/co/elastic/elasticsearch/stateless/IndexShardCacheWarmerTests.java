@@ -95,7 +95,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
 
         var objectStoreService = mock(ObjectStoreService.class);
         // simulate any blob store/bob container runtime error
-        when(objectStoreService.blobStore()).thenThrow(new RuntimeException("simulated"));
+        when(objectStoreService.getProjectBlobStore(indexShard.shardId())).thenThrow(new RuntimeException("simulated"));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(objectStoreService, null, taskQueue.getThreadPool(), randomBoolean());
 

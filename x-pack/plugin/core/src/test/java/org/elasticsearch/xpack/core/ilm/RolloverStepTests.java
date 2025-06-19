@@ -12,13 +12,12 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -53,12 +52,12 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new RolloverStep(key, nextKey, instance.getClient());
+        return new RolloverStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
     public RolloverStep copyInstance(RolloverStep instance) {
-        return new RolloverStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new RolloverStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     private IndexMetadata getIndexMetadata(String alias) {
@@ -91,10 +90,12 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
         mockClientRolloverCall(alias, false);
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -115,20 +116,20 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()), List.of(failureIndexMetadata.getIndex())))
-                    .put(indexMetadata, true)
-                    .put(failureIndexMetadata, true)
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()), List.of(failureIndexMetadata.getIndex())))
+                .put(indexMetadata, true)
+                .put(failureIndexMetadata, true)
+        );
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         mockClientRolloverCall(dataStreamName, useFailureStore);
-        performActionAndWait(step, indexToOperateOn, clusterState, null);
+        performActionAndWait(step, indexToOperateOn, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -159,25 +160,23 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .build();
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(firstGenerationIndex, true)
-                    .put(writeIndex, true)
-                    .put(failureFirstGenerationIndex, true)
-                    .put(failureWriteIndex, true)
-                    .put(
-                        newInstance(
-                            dataStreamName,
-                            List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex()),
-                            List.of(failureFirstGenerationIndex.getIndex(), failureWriteIndex.getIndex())
-                        )
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(firstGenerationIndex, true)
+                .put(writeIndex, true)
+                .put(failureFirstGenerationIndex, true)
+                .put(failureWriteIndex, true)
+                .put(
+                    newInstance(
+                        dataStreamName,
+                        List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex()),
+                        List.of(failureFirstGenerationIndex.getIndex(), failureWriteIndex.getIndex())
                     )
-            )
-            .build();
+                )
+        );
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureFirstGenerationIndex : firstGenerationIndex;
-        performActionAndWait(step, indexToOperateOn, clusterState, null);
+        performActionAndWait(step, indexToOperateOn, state, null);
 
         verifyNoMoreInteractions(client);
         verifyNoMoreInteractions(adminClient);
@@ -209,8 +208,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     public void testPerformActionSkipsRolloverForAlreadyRolledIndex() throws Exception {
@@ -226,8 +225,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .build();
 
         RolloverStep step = createRandomInstance();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        performActionAndWait(step, indexMetadata, state, null);
 
         Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -247,10 +246,12 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -264,8 +265,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .build();
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> performActionAndWait(step, indexMetadata, state, null));
         assertThat(
             e.getMessage(),
             Matchers.is(
@@ -289,8 +290,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .build();
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> performActionAndWait(step, indexMetadata, state, null));
         assertThat(
             e.getMessage(),
             Matchers.is(

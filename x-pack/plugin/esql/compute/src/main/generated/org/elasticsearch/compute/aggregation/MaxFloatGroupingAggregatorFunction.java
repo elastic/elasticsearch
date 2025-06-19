@@ -175,6 +175,9 @@ public final class MaxFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private void addRawInput(int positionOffset, IntVector groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
       int groupId = groups.getInt(groupPosition);
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);

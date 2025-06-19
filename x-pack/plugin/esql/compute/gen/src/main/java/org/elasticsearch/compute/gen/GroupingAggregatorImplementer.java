@@ -22,6 +22,7 @@ import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationState;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -411,14 +412,16 @@ public class GroupingAggregatorImplementer {
 
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            if (groupsIsBlock) {
-                if (valuesIsBlock) {
-                    builder.beginControlFlow("if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset))");
-                } else {
-                    builder.beginControlFlow("if (groups.isNull(groupPosition))");
-                }
+            if (groupsIsBlock || valuesIsBlock) {
+                String conditions = Stream.of(
+                    groupsIsBlock ? "groups.isNull(groupPosition)" : null,
+                    valuesIsBlock ? "values.isNull(groupPosition + positionOffset)" : null
+                ).filter(Objects::nonNull).collect(Collectors.joining(" || "));
+                builder.beginControlFlow("if (" + conditions + ")");
                 builder.addStatement("continue");
                 builder.endControlFlow();
+            }
+            if (groupsIsBlock) {
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");

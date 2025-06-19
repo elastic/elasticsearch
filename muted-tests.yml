@@ -583,9 +583,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/129651
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {scoring.TestMatchPhraseWithScoreBoost ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/129676
 
 # Examples:
 #

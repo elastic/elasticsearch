@@ -574,6 +574,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {scoring.TestMatchPhraseWithScoreBoost ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129676
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnSearchRescore
+  issue: https://github.com/elastic/elasticsearch/issues/129713
 
 # Examples:
 #

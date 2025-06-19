@@ -83,6 +83,12 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
+    public void consumeHits(StreamOutput out) throws IOException {
+        var hits = this.hits;
+        this.hits = null;
+        hits.writeAndRelease(out);
+    }
+
     public FetchSearchResult initCounter() {
         counter = 0;
         return this;

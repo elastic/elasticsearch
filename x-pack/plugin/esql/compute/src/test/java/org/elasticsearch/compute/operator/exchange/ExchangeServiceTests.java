@@ -47,6 +47,7 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -720,6 +721,11 @@ public class ExchangeServiceTests extends ESTestCase {
         @Override
         public void sendResponse(Exception exception) {
             in.sendResponse(exception);
+        }
+
+        @Override
+        public Compression.Scheme compressionScheme() {
+            return in.compressionScheme();
         }
     }
 

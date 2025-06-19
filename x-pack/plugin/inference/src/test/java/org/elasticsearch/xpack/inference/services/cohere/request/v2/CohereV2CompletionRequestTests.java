@@ -63,6 +63,20 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v2/chat"));
     }
 
+    public void testOverriddenUrl() {
+        var request = new CohereV2CompletionRequest(
+            List.of("abc"),
+            CohereCompletionModelTests.createModel("http://localhost", "secret", "model id"),
+            false
+        );
+
+        var httpRequest = request.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getURI().toString(), is("http://localhost/v2/chat"));
+    }
+
     public void testXContents() throws IOException {
         var request = new CohereV2CompletionRequest(
             List.of("some input"),

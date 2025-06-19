@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
@@ -15,8 +14,6 @@ import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Objects;
 
@@ -24,12 +21,7 @@ public class CohereV1CompletionRequest extends CohereRequest {
     private final List<String> input;
 
     public CohereV1CompletionRequest(List<String> input, CohereCompletionModel model, boolean stream) {
-        super(
-            CohereAccount.of(model, CohereV1CompletionRequest::buildDefaultUri),
-            model.getInferenceEntityId(),
-            model.getServiceSettings().modelId(),
-            stream
-        );
+        super(CohereAccount.of(model), model.getInferenceEntityId(), model.getServiceSettings().modelId(), stream);
 
         this.input = Objects.requireNonNull(input);
     }
@@ -49,10 +41,8 @@ public class CohereV1CompletionRequest extends CohereRequest {
         return builder;
     }
 
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(CohereUtils.HOST)
-            .setPathSegments(CohereUtils.VERSION_1, CohereUtils.CHAT_PATH)
-            .build();
+    @Override
+    protected List<String> pathSegments() {
+        return List.of(CohereUtils.VERSION_1, CohereUtils.CHAT_PATH);
     }
 }

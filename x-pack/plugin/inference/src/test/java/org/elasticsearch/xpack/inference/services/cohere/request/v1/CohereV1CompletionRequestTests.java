@@ -30,14 +30,18 @@ import static org.hamcrest.Matchers.sameInstance;
 public class CohereV1CompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_UrlDefined() throws IOException {
-        var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", null), false);
+        var request = new CohereV1CompletionRequest(
+            List.of("abc"),
+            CohereCompletionModelTests.createModel("http://localhost", "secret", null),
+            false
+        );
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("url"));
+        assertThat(httpPost.getURI().toString(), is("http://localhost/v1/chat"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));
@@ -47,18 +51,14 @@ public class CohereV1CompletionRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_ModelDefined() throws IOException {
-        var request = new CohereV1CompletionRequest(
-            List.of("abc"),
-            CohereCompletionModelTests.createModel("url", "secret", "model"),
-            false
-        );
+        var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel(null, "secret", "model"), false);
 
         var httpRequest = request.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("url"));
+        assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/chat"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));

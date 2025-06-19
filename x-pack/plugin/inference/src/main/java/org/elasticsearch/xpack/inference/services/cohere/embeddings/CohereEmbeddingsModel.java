@@ -90,7 +90,7 @@ public class CohereEmbeddingsModel extends CohereModel {
     }
 
     @Override
-    public URI uri() {
+    public URI baseUri() {
         return getServiceSettings().getCommonSettings().uri();
     }
 }

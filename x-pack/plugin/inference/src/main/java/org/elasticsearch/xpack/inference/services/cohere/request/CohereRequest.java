@@ -9,17 +9,23 @@ package org.elasticsearch.xpack.inference.services.cohere.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
@@ -46,7 +52,7 @@ public abstract class CohereRequest implements Request, ToXContentObject {
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(this).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -68,7 +74,25 @@ public abstract class CohereRequest implements Request, ToXContentObject {
 
     @Override
     public URI getURI() {
-        return account.uri();
+        return buildUri(account.baseUri());
+    }
+
+    /**
+     * Returns the URL path segments.
+     * @return List of segments that make up the path of the request.
+     */
+    protected abstract List<String> pathSegments();
+
+    private URI buildUri(URI baseUri) {
+        try {
+            return new URIBuilder(baseUri).setPathSegments(pathSegments()).build();
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchStatusException(
+                Strings.format("Failed to construct %s URL", CohereService.NAME),
+                RestStatus.BAD_REQUEST,
+                e
+            );
+        }
     }
 
     public String getModelId() {

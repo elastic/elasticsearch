@@ -72,7 +72,7 @@ public abstract class CohereModel extends RateLimitGroupingModel {
         return apiKey().hashCode();
     }
 
-    public URI uri() {
+    public URI baseUri() {
         return rateLimitServiceSettings.uri();
     }
 }

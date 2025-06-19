@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request.v2;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
@@ -19,8 +18,6 @@ import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,7 +30,7 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
 
     public CohereV2EmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
         super(
-            CohereAccount.of(embeddingsModel, CohereV2EmbeddingsRequest::buildDefaultUri),
+            CohereAccount.of(embeddingsModel),
             embeddingsModel.getInferenceEntityId(),
             Objects.requireNonNull(embeddingsModel.getServiceSettings().getCommonSettings().modelId()),
             false
@@ -45,11 +42,9 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
     }
 
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(CohereUtils.HOST)
-            .setPathSegments(CohereUtils.VERSION_2, CohereUtils.EMBEDDINGS_PATH)
-            .build();
+    @Override
+    protected List<String> pathSegments() {
+        return List.of(CohereUtils.VERSION_2, CohereUtils.EMBEDDINGS_PATH);
     }
 
     @Override

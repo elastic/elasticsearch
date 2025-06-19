@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,15 +20,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToIPErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToIpErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(ToIPTests.parameters());
+        return Iterators.toList(Iterators.map(ToIpTests.parameters().iterator(), p -> (TestCaseSupplier) p[0]));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToIP(source, args.get(0));
+        return new ToIp(source, args.get(0), null);
     }
 
     @Override

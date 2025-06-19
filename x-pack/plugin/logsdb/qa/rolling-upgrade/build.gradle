@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.bc-upgrade-test'
 dependencies {
   javaRestTestImplementation project(xpackModule('logsdb'))
   javaRestTestImplementation project(':test:test-clusters')
-  javaRestTestImplementation testArtifact(project(':qa:rolling-upgrade'))
+  javaRestTestImplementation testArtifact(project(':qa:rolling-upgrade'), 'javaRestTest')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }

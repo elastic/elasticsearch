@@ -971,6 +971,7 @@ public class EsqlCapabilities {
          * Support for LIKE operator with a list of patterns
          */
         LIKE_WITH_LIST_OF_PATTERNS,
+
         /**
          * Support for the SAMPLE command
          */
@@ -982,6 +983,11 @@ public class EsqlCapabilities {
         PARAMETER_FOR_SAMPLE,
 
         /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /*
          * From now, Literal only accepts strings as BytesRefs.
          * No java.lang.String anymore.
          *

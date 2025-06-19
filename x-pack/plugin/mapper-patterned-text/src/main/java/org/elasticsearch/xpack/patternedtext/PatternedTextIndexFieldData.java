@@ -7,17 +7,15 @@
 
 package org.elasticsearch.xpack.patternedtext;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -29,53 +27,32 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData> {
 
-    private final SortedSetOrdinalsIndexFieldData templateFieldData;
-    private final SortedSetOrdinalsIndexFieldData argsFieldData;
-    private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
-    private final String name;
+    private final PatternedTextFieldType fieldType;
 
     static class Builder implements IndexFieldData.Builder {
 
-        final String name;
-        final SortedSetOrdinalsIndexFieldData.Builder templateFieldDataBuilder;
-        final SortedSetOrdinalsIndexFieldData.Builder argsFieldDataBuilder;
+        final PatternedTextFieldType fieldType;
 
-        Builder(
-            String name,
-            SortedSetOrdinalsIndexFieldData.Builder templateFieldData,
-            SortedSetOrdinalsIndexFieldData.Builder argsFieldData
-        ) {
-            this.name = name;
-            this.templateFieldDataBuilder = templateFieldData;
-            this.argsFieldDataBuilder = argsFieldData;
+        Builder(PatternedTextFieldType fieldType) {
+            this.fieldType = fieldType;
         }
 
         public PatternedTextIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            SortedSetOrdinalsIndexFieldData templateFieldData = templateFieldDataBuilder.build(cache, breakerService);
-            SortedSetOrdinalsIndexFieldData argsFieldData = argsFieldDataBuilder.build(cache, breakerService);
-            ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
-            return new PatternedTextIndexFieldData(name, factory, templateFieldData, argsFieldData);
+            return new PatternedTextIndexFieldData(fieldType);
         }
     }
 
-    PatternedTextIndexFieldData(
-        String name,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
-        SortedSetOrdinalsIndexFieldData templateFieldData,
-        SortedSetOrdinalsIndexFieldData argsFieldData
-    ) {
-        this.name = name;
-        this.templateFieldData = templateFieldData;
-        this.argsFieldData = argsFieldData;
-        this.toScriptFieldFactory = toScriptFieldFactory;
+    PatternedTextIndexFieldData(PatternedTextFieldType fieldType) {
+        this.fieldType = fieldType;
     }
 
     @Override
     public String getFieldName() {
-        return name;
+        return fieldType.name();
     }
 
     @Override
@@ -85,24 +62,32 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
 
     @Override
     public LeafFieldData load(LeafReaderContext context) {
-        return loadDirect(context);
+        try {
+            return loadDirect(context);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
-    public LeafFieldData loadDirect(LeafReaderContext context) {
-        LeafOrdinalsFieldData leafTemplateFieldData = templateFieldData.loadDirect(context);
-        LeafOrdinalsFieldData leafArgsFieldData = argsFieldData.loadDirect(context);
+    public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+        LeafReader leafReader = context.reader();
+        PatternedTextDocValues docValues = PatternedTextDocValues.from(
+            leafReader,
+            fieldType.templateFieldName(),
+            fieldType.argsFieldName()
+        );
         return new LeafFieldData() {
+
+            final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
+
             @Override
             public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                return toScriptFieldFactory.getScriptFieldFactory(getBytesValues(), name);
+                return factory.getScriptFieldFactory(getBytesValues(), name);
             }
 
             @Override
             public SortedBinaryDocValues getBytesValues() {
-                SortedSetDocValues templateDocValues = leafTemplateFieldData.getOrdinalsValues();
-                SortedSetDocValues argsDocValues = leafArgsFieldData.getOrdinalsValues();
-                var docValues = new PatternedTextDocValues(templateDocValues, argsDocValues);
                 return new SortedBinaryDocValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
@@ -123,14 +108,14 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
 
             @Override
             public long ramBytesUsed() {
-                return leafTemplateFieldData.ramBytesUsed() + leafArgsFieldData.ramBytesUsed();
+                return 1L;
             }
         };
     }
 
     @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
-        return templateFieldData.sortField(missingValue, sortMode, nested, reverse);
+        throw new IllegalArgumentException("not supported for source patterned text field type");
     }
 
     @Override

@@ -96,7 +96,7 @@ book_no:keyword | title:text                                            | author
 
 
 reranker after RRF
-required_capability: fork
+required_capability: fork_v9
 required_capability: rrf
 required_capability: match_operator_colon
 required_capability: rerank

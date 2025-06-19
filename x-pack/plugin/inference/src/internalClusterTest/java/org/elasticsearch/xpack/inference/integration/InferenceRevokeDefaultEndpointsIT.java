@@ -236,11 +236,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 );
                 assertThat(
                     service.supportedTaskTypes(),
-                    is(EnumSet.of(
-                        TaskType.CHAT_COMPLETION,
-                        TaskType.SPARSE_EMBEDDING,
-                        TaskType.RERANK)
-                    )
+                    is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.RERANK))
                 );
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();

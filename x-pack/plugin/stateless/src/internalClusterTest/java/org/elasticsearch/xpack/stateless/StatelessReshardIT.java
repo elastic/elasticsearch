@@ -17,9 +17,9 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexResponse;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
@@ -56,9 +56,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
@@ -84,9 +88,11 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -471,6 +477,62 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
     }
 
+    public void testDeleteByQueryAfterReshard() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
+
+        logger.info("starting reshard");
+        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2));
+
+        reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 2);
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // when deletion is wired into the split process we can remove this code to trigger it manually
+        ReshardIndexService reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
+        var deleteListener = new PlainActionFuture<Void>();
+        reshardIndexService.deleteUnownedDocuments(shardId, deleteListener);
+        deleteListener.actionGet();
+
+        IndexService indexService = internalCluster().getInstance(IndicesService.class).indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        var refreshFuture = new PlainActionFuture<Engine.RefreshResult>();
+        indexShard.externalRefresh(indexName, refreshFuture);
+        refreshFuture.actionGet(TimeValue.ONE_MINUTE);
+
+        // Expecting this to be less that 100
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), lessThanOrEqualTo(100L));
+        });
+
+        /*
+        int numDocs = (int) prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits()
+            .value();
+        // System.out.println(numDocs);
+        assertThat(numDocs, lessThanOrEqualTo(100));
+
+         */
+    }
+
     public void testReshardWithConcurrentIndexClose() throws Exception {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
@@ -644,7 +706,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService:DEBUG", reason = "logging assertions")
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
     public void testReshardTargetWillNotTransitionToHandoffIfSourcePrimaryTermChanged() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -721,10 +783,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             handoffLatch.countDown();
             reshard.actionGet();
         },
-            MetadataReshardIndexService.class,
+            ReshardIndexService.class,
             new MockLog.PatternSeenEventExpectation(
                 "split handoff failed",
-                MetadataReshardIndexService.class.getCanonicalName(),
+                ReshardIndexService.class.getCanonicalName(),
                 Level.DEBUG,
                 ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because source primary term advanced \\[.*"
             )
@@ -737,7 +799,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService:DEBUG", reason = "logging assertions")
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
     public void testReshardTargetStateWillNotTransitionTargetPrimaryTermChanged() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -825,10 +887,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             handoffLatch.countDown();
             reshard.actionGet();
         },
-            MetadataReshardIndexService.class,
+            ReshardIndexService.class,
             new MockLog.PatternSeenEventExpectation(
                 "state transition failed",
-                MetadataReshardIndexService.class.getCanonicalName(),
+                ReshardIndexService.class.getCanonicalName(),
                 Level.DEBUG,
                 ".*\\["
                     + indexName
@@ -1035,7 +1097,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     }
 
     // only one resharding operation on a given index should be allowed to be in flight at a time
-
     public void testConcurrentReshardFails() throws Exception {
         String indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);

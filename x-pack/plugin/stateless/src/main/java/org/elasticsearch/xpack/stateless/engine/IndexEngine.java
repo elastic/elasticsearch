@@ -64,6 +64,7 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
@@ -683,6 +684,11 @@ public class IndexEngine extends InternalEngine {
         // For Stateless LVM, we need to refresh AND flush as a refresh by itself doesn't decrease the memory usage of the version map.
         refresh("write indexing buffer", SearcherScope.INTERNAL, false);
         flush(false, false, ActionListener.noop());
+    }
+
+    // For cleanup after resharding
+    public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
+        super.deleteByQuery(query);
     }
 
     @Override

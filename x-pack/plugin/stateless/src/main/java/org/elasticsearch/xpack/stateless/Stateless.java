@@ -111,7 +111,7 @@ import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRe
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
-import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
@@ -350,7 +350,7 @@ public class Stateless extends Plugin
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
-    private final SetOnce<MetadataReshardIndexService> metadataReshardIndexService = new SetOnce<>();
+    private final SetOnce<ReshardIndexService> metadataReshardIndexService = new SetOnce<>();
     private final SetOnce<MemoryMetricsService> memoryMetricsService = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
@@ -430,6 +430,7 @@ public class Stateless extends Plugin
                 TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
                 TransportGetVirtualBatchedCompoundCommitChunkAction.class
             ),
+
             new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
@@ -754,7 +755,7 @@ public class Stateless extends Plugin
         // Resharding
         var metadataReshardIndexService = setAndGet(
             this.metadataReshardIndexService,
-            createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, threadPool)
+            createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, threadPool)
         );
         components.add(metadataReshardIndexService);
         var splitSourceService = new SplitSourceService(clusterService, indicesService, objectStoreService);
@@ -815,13 +816,14 @@ public class Stateless extends Plugin
         return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
     }
 
-    protected MetadataReshardIndexService createMetadataReshardIndexService(
+    protected ReshardIndexService createMetadataReshardIndexService(
         ClusterService clusterService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         RerouteService rerouteService,
+        IndicesService indicesService,
         ThreadPool threadPool
     ) {
-        return new MetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, threadPool);
+        return new ReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, threadPool);
     }
 
     @Override

@@ -160,9 +160,11 @@ class FieldCapabilitiesFetcher {
         IndexShard indexShard,
         boolean includeEmptyFields
     ) {
-        boolean includeParentObjects = checkIncludeParents(filters);
+        Set<String> appliedFilters = Set.of(filters);
+        boolean includeParentObjects = appliedFilters.contains("-parent") == false;
 
-        Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
+        Set<String> acceptedTypes = Set.of(types);
+        Predicate<MappedFieldType> filter = buildFilter(filters, acceptedTypes, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
@@ -206,32 +208,25 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null) {
                         // no field type, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                            parentField,
-                            type,
-                            false,
-                            false,
-                            false,
-                            false,
-                            null,
-                            Map.of()
-                        );
-                        responseMap.put(parentField, fieldCap);
+                        if (filter == null || acceptedTypes.contains(type) || appliedFilters.contains("parent")) {
+                            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                                parentField,
+                                type,
+                                false,
+                                false,
+                                false,
+                                false,
+                                null,
+                                Map.of()
+                            );
+                            responseMap.put(parentField, fieldCap);
+                        }
                     }
                     dotIndex = parentField.lastIndexOf('.');
                 }
             }
         }
         return responseMap;
-    }
-
-    private static boolean checkIncludeParents(String[] filters) {
-        for (String filter : filters) {
-            if ("-parent".equals(filter)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static boolean canMatchShard(
@@ -251,12 +246,11 @@ class FieldCapabilitiesFetcher {
         return indexFilter == null || indexFilter instanceof MatchAllQueryBuilder;
     }
 
-    private static Predicate<MappedFieldType> buildFilter(String[] filters, String[] fieldTypes, SearchExecutionContext context) {
+    private static Predicate<MappedFieldType> buildFilter(String[] filters, Set<String> fieldTypes, SearchExecutionContext context) {
         // security filters don't exclude metadata fields
         Predicate<MappedFieldType> fcf = null;
-        if (fieldTypes.length > 0) {
-            Set<String> acceptedTypes = Set.of(fieldTypes);
-            fcf = ft -> acceptedTypes.contains(ft.familyTypeName());
+        if (fieldTypes.isEmpty() == false) {
+            fcf = ft -> fieldTypes.contains(ft.familyTypeName());
         }
 
         // Exclude internal ".inference" subfields of semantic_text fields from the field capabilities response

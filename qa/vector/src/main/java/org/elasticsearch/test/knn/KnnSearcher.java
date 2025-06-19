@@ -308,9 +308,12 @@ class KnnSearcher {
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
-        QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
-        queryProfilerProvider.profile(profiler);
-        return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+        if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.profile(profiler);
+            return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+        } else {
+            return docs;
+        }
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {

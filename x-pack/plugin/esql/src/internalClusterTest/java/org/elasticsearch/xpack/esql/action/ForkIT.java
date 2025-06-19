@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
@@ -19,6 +18,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -27,12 +27,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ForkIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         createAndPopulateIndices();
     }
 
@@ -753,6 +753,126 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWithDrop() {
+        var query = """
+            FROM test
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | DROP content)
+               ( WHERE content:"dog" | DROP content)
+            | KEEP id, _fork
+            | SORT id, _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(3, "fork2"),
+                List.of(4, "fork2"),
+                List.of(6, "fork1"),
+                List.of(6, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithKeep() {
+        var query = """
+            FROM test
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | KEEP id)
+               ( WHERE content:"dog" | KEEP id)
+            | SORT id, _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(3, "fork2"),
+                List.of(4, "fork2"),
+                List.of(6, "fork1"),
+                List.of(6, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithUnsupportedFieldsWithSameBranches() {
+        var query = """
+            FROM test-other
+            | FORK
+               ( WHERE id == "3")
+               ( WHERE id == "2" )
+            | SORT _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "embedding", "id", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "unsupported", "keyword", "keyword"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "This dog is really brown", null, "3", "fork1" }).toList(),
+                Arrays.stream(new Object[] { "This is a brown dog", null, "2", "fork2" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithUnsupportedFieldsWithDifferentBranches() {
+        var query = """
+            FROM test-other
+            | FORK
+               ( STATS x = count(*))
+               ( WHERE id == "2" )
+            | SORT _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("x", "_fork", "content", "embedding", "id"));
+            assertColumnTypes(resp.columns(), List.of("long", "keyword", "keyword", "unsupported", "keyword"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { 3L, "fork1", null, null, null }).toList(),
+                Arrays.stream(new Object[] { null, "fork2", "This is a brown dog", null, "2" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testWithUnsupportedFieldsAndConflicts() {
+        var firstQuery = """
+            FROM test-other
+            | FORK
+               ( STATS embedding = count(*))
+               ( WHERE id == "2" )
+            | SORT _fork
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(firstQuery));
+        assertTrue(e.getMessage().contains("Column [embedding] has conflicting data types"));
+
+        var secondQuery = """
+            FROM test-other
+            | FORK
+               ( WHERE id == "2" )
+               ( STATS embedding = count(*))
+            | SORT _fork
+            """;
+        e = expectThrows(VerificationException.class, () -> run(secondQuery));
+        assertTrue(e.getMessage().contains("Column [embedding] has conflicting data types"));
+
+        var thirdQuery = """
+            FROM test-other
+            | FORK
+               ( WHERE id == "2" )
+               ( WHERE id == "3" )
+               ( STATS embedding = count(*))
+            | SORT _fork
+            """;
+        e = expectThrows(VerificationException.class, () -> run(thirdQuery));
+        assertTrue(e.getMessage().contains("Column [embedding] has conflicting data types"));
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test
@@ -853,6 +973,16 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         assertTrue(e.getMessage().contains("Fork requires at least two branches"));
     }
 
+    public void testForkWithinFork() {
+        var query = """
+            FROM test
+            | FORK ( FORK (WHERE true) (WHERE true) )
+                   ( FORK (WHERE true) (WHERE true) )
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Only a single FORK command is allowed, but found multiple"));
+    }
+
     public void testProfile() {
         var query = """
             FROM test
@@ -919,12 +1049,21 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
 
         createRequest = client.prepareCreate(otherTestIndex)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=keyword", "content", "type=keyword");
+            .setMapping("id", "type=keyword", "content", "type=keyword", "embedding", "type=sparse_vector");
         assertAcked(createRequest);
         client().prepareBulk()
-            .add(new IndexRequest(otherTestIndex).id("1").source("id", "1", "content", "This is a brown fox"))
-            .add(new IndexRequest(otherTestIndex).id("2").source("id", "2", "content", "This is a brown dog"))
-            .add(new IndexRequest(otherTestIndex).id("3").source("id", "3", "content", "This dog is really brown"))
+            .add(
+                new IndexRequest(otherTestIndex).id("1")
+                    .source("id", "1", "content", "This is a brown fox", "embedding", Map.of("abc", 1.0))
+            )
+            .add(
+                new IndexRequest(otherTestIndex).id("2")
+                    .source("id", "2", "content", "This is a brown dog", "embedding", Map.of("def", 2.0))
+            )
+            .add(
+                new IndexRequest(otherTestIndex).id("3")
+                    .source("id", "3", "content", "This dog is really brown", "embedding", Map.of("ghi", 1.0))
+            )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);

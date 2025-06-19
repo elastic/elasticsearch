@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
-public final class PushDownCompletion extends OptimizerRules.OptimizerRule<Completion> {
+public final class PushDownInferencePlan extends OptimizerRules.OptimizerRule<InferencePlan<?>> {
     @Override
-    protected LogicalPlan rule(Completion p) {
+    protected LogicalPlan rule(InferencePlan<?> p) {
         return PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(p);
     }
 }

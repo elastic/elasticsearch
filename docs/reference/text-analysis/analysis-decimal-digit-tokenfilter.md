@@ -9,7 +9,7 @@ mapped_pages:
 
 Converts all digits in the Unicode `Decimal_Number` General Category to `0-9`. For example, the filter changes the Bengali numeral `৩` to `3`.
 
-This filter uses Lucene’s [DecimalDigitFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/DecimalDigitFilter.md).
+This filter uses Lucene’s [DecimalDigitFilter](https://lucene.apache.org/core/9_12_0/analysis/common/org/apache/lucene/analysis/core/DecimalDigitFilter.html).
 
 ## Example [analysis-decimal-digit-tokenfilter-analyze-ex]
 

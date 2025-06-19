@@ -933,7 +933,7 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
 
@@ -965,7 +965,16 @@ public class EsqlCapabilities {
         /**
          * Support for LIKE operator with a list of patterns
          */
-        LIKE_WITH_LIST_OF_PATTERNS;
+        LIKE_WITH_LIST_OF_PATTERNS,
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE_V3,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE;
 
         private final boolean enabled;
 

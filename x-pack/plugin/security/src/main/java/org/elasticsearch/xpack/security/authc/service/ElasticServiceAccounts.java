@@ -51,9 +51,15 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "logs",
-                        "metrics",
                         "logs.*",
+                        "metrics",
                         "metrics.*",
+                        "traces",
+                        "traces.*",
+                        "synthetics",
+                        "synthetics.*",
+                        "profiling",
+                        "profiling.*",
                         "logs-*",
                         "metrics-*",
                         "traces-*",

@@ -165,9 +165,8 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        final ProjectId projectId = randomProjectIdOrDefault();
         final S3Repository s3Repository = new S3Repository(
-            projectId,
+            ProjectId.DEFAULT,
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(
@@ -181,7 +180,7 @@ public class S3RepositoryTests extends ESTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             S3RepositoriesMetrics.NOOP
         );
-        assertThat(s3Repository.getProjectId(), equalTo(projectId));
+        assertThat(s3Repository.getProjectId(), equalTo(ProjectId.DEFAULT));
         return s3Repository;
     }
 

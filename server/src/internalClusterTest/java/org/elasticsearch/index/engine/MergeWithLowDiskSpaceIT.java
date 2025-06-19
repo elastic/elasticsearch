@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,7 @@ import org.junit.BeforeClass;
 import java.util.Locale;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -113,6 +115,34 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
                     .toArray(IndexRequestBuilder[]::new)
             );
         }
+        // now delete the index in this state, i.e. with merges enqueued
+        assertAcked(indicesAdmin().prepareDelete(indexName).get());
+        // index should be gone
+        assertBusy(() -> {
+            expectThrows(
+                IndexNotFoundException.class,
+                () -> indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(indexName).get()
+            );
+        });
+        assertBusy(() -> {
+            // merge thread pool should be done with the enqueue merge tasks
+            NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setThreadPool(true).get();
+            assertThat(
+                nodesStatsResponse.getNodes()
+                    .getFirst()
+                    .getThreadPool()
+                    .stats()
+                    .stream()
+                    .filter(s -> ThreadPool.Names.MERGE.equals(s.name()))
+                    .findAny()
+                    .get()
+                    .queue(),
+                equalTo(0)
+            );
+            // and the merge executor should also report that merging id done now
+            assertFalse(indicesService.getThreadPoolMergeExecutorService().isMergingBlockedDueToInsufficientDiskSpace());
+            assertTrue(indicesService.getThreadPoolMergeExecutorService().allDone());
+        });
     }
 
     public void setTotalSpace(String dataNodeName, long totalSpace) {

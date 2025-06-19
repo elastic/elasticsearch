@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -2119,7 +2120,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
 
         var lookup = as(limit.child(), Lookup.class);
-        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo("int_number_names"));
+        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo(BytesRefs.toBytesRef("int_number_names")));
         assertMap(lookup.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(
             lookup.localRelation().output().stream().map(Object::toString).toList(),
@@ -2370,6 +2371,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCasting() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""
@@ -2870,7 +2872,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2886,7 +2888,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(qstr.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2902,7 +2904,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(mm.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -3066,8 +3068,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testBasicFork() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         LogicalPlan plan = analyze("""
             from test
             | KEEP emp_no, first_name, last_name
@@ -3172,8 +3172,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testForkBranchesWithDifferentSchemas() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         LogicalPlan plan = analyze("""
             from test
             | WHERE first_name == "Chris"
@@ -3299,8 +3297,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testForkError() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no > 1 )
@@ -3421,7 +3417,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.FORK.isEnabled());
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -4118,7 +4114,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return new Literal(EMPTY, BytesRefs.toBytesRef(value), DataType.KEYWORD);
     }
 
     static Literal literal(int value) {

@@ -254,7 +254,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * three tmp files are created, fdm (metadata), fdx (index) and
          * fdt (contains stored field data). The first two files are small and
          * mmap-ing that should still be ok even is memory is scarce.
-         * The fdt file is larg and tends to cause more page faults when memory is scarce.
+         * The fdt file is large and tends to cause more page faults when memory is scarce.
          *
          * @param name      The name of the file in Lucene index
          * @param extension The extension of the in Lucene index

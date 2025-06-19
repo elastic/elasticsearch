@@ -32,8 +32,6 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  */
 public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
-    private boolean isRemote = false;
-
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
     }
@@ -60,7 +58,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     @Override
     public LogicalPlan surrogate() {
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Join(source(), left(), right(), config());
+        return new Join(source(), left(), right(), config()).setRemote(isRemote());
     }
 
     @Override
@@ -90,7 +88,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        if (isRemote) {
+        if (isRemote()) {
             checkRemoteJoin(failures);
         }
     }
@@ -120,12 +118,4 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         }
     }
 
-    public boolean isRemote() {
-        return isRemote;
-    }
-
-    public LookupJoin setRemote(boolean remote) {
-        isRemote = remote;
-        return this;
-    }
 }

@@ -201,7 +201,7 @@ public class Mapper {
         return MapperUtils.mapUnary(unary, mappedChild);
     }
 
-    private PhysicalPlan mapToFragmentExec(LogicalPlan logical, PhysicalPlan child) {
+    private PhysicalPlan mapToFragmentExec(Join logical, PhysicalPlan child) {
         Holder<Boolean> hasFragment = new Holder<>(false);
         Holder<Boolean> forceLocal = new Holder<>(false);
 
@@ -244,10 +244,17 @@ public class Mapper {
             if (f instanceof LookupJoinExec lj) {
                 return lj.right();
             }
+            if (f instanceof MergeExec) {
+                forceLocal.set(true);
+                return f;
+            }
             return f;
         });
 
         if (forceLocal.get()) {
+            if (logical.isRemote()) {
+                throw new EsqlIllegalArgumentException("Remote joins are not supported in this context");
+            }
             return null;
         }
 
@@ -279,7 +286,7 @@ public class Mapper {
             }
 
             if (FRAGMENT_EXEC_HACK_ENABLED) {
-                var leftPlan = mapToFragmentExec(bp, left);
+                var leftPlan = mapToFragmentExec(join, left);
                 if (leftPlan != null) {
                     return leftPlan;
                 }

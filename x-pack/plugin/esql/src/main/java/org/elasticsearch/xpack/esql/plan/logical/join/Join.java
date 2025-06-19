@@ -83,6 +83,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
+    private transient boolean isRemote = false;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right);
@@ -257,7 +258,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
 
         Join other = (Join) obj;
-        return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return config.equals(other.config)
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right())
+            && isRemote == other.isRemote;
     }
 
     @Override
@@ -294,5 +298,14 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             return commonType(leftType, rightType) != null;
         }
         return leftType.noText() == rightType.noText();
+    }
+
+    public boolean isRemote() {
+        return isRemote;
+    }
+
+    public Join setRemote(boolean remote) {
+        isRemote = remote;
+        return this;
     }
 }

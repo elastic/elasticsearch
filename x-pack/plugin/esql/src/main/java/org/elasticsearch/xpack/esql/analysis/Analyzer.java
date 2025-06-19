@@ -774,9 +774,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<Alias> aliases = missing.stream().map(attr -> {
-                    // we cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
-                    // supported so that we can assign add this missing column containing only null values to the
-                    // fork branch output
+                    // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
+                    // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
                     return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
                 }).toList();
@@ -816,7 +815,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
             for (Attribute attr : outputUnion) {
-                // DataType attrType = unsupportedAttributeNames.contains(attr.name()) ? UNSUPPORTED : attr.dataType();
                 newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
             }
 

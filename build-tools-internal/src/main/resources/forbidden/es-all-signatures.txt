@@ -35,6 +35,7 @@ java.nio.channels.SocketChannel#connect(java.net.SocketAddress)
 # org.elasticsearch.core.Booleans#parseBoolean(java.lang.String) directly on the string.
 @defaultMessage use org.elasticsearch.core.Booleans#parseBoolean(java.lang.String)
 java.lang.Boolean#getBoolean(java.lang.String)
+java.lang.Boolean#parseBoolean(java.lang.String)
 
 org.apache.lucene.util.IOUtils @ use @org.elasticsearch.core.internal.io instead
 

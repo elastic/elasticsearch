@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -141,7 +142,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
         final String keytabPath = krb5Fixture.getKeytab().toString();
-        final boolean enabledDebugLogs = Boolean.parseBoolean(ENABLE_KERBEROS_DEBUG_LOGS_KEY);
+        final boolean enabledDebugLogs = Booleans.parseBoolean(ENABLE_KERBEROS_DEBUG_LOGS_KEY);
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             krb5Fixture.getPrincipal(),
             keytabPath,
@@ -153,7 +154,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
         final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
         final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
-        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final boolean enabledDebugLogs = Booleans.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             userPrincipalName,
             new SecureString(password.toCharArray()),
@@ -165,7 +166,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
         final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
         final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
-        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final boolean enabledDebugLogs = Booleans.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             userPrincipalName,
             new SecureString(password.toCharArray()),

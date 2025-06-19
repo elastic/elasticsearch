@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -105,7 +106,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 user = a[1];
                 apiKeyId = a[2];
                 apiKeyName = a[3];
-                ownedByAuthenticatedUser = Boolean.parseBoolean(a[4]);
+                ownedByAuthenticatedUser = Booleans.parseBoolean(a[4]);
             }
 
             @Override

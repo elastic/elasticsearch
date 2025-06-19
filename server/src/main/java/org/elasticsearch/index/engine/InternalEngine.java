@@ -2734,7 +2734,7 @@ public class InternalEngine extends Engine {
     }
 
     // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
-    private static final boolean TESTS_VERBOSE = Boolean.parseBoolean(System.getProperty("tests.verbose"));
+    private static final boolean TESTS_VERBOSE = Booleans.parseBoolean(System.getProperty("tests.verbose", "false"));
 
     private static final boolean SHUFFLE_FORCE_MERGE = Booleans.parseBoolean(
         System.getProperty("es.shuffle_forced_merge", Boolean.TRUE.toString())

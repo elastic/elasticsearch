@@ -15,6 +15,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.not;
 
 public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
 
-    static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(

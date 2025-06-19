@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 
@@ -28,6 +29,9 @@ import java.io.IOException;
  *     cpu resources.</li>
  * </ul>
  */
+@SuppressForbidden(
+    reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+)
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
     static final int NUMERIC_BLOCK_SHIFT = 7;

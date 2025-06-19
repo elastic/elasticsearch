@@ -38,6 +38,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
@@ -607,6 +608,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
+        @SuppressForbidden(
+            reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+        )
         private static void enrichIndexAbstraction(
             ProjectState projectState,
             ResolvedExpression resolvedExpression,

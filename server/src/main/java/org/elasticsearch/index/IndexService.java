@@ -38,6 +38,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -174,6 +175,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final SearchStatsSettings searchStatsSettings;
 
     @SuppressWarnings("this-escape")
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,

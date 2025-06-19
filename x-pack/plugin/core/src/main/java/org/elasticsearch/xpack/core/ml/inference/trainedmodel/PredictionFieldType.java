@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -45,6 +46,9 @@ public enum PredictionFieldType implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     public Object transformPredictedValue(Double value, String stringRep) {
         if (value == null) {
             return null;

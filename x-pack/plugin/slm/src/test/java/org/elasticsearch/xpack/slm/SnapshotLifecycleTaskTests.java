@@ -29,6 +29,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -206,7 +207,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                     assertThat(Arrays.asList(req.indices()), equalTo(policy.getConfig().get("indices")));
                 }
                 boolean globalState = policy.getConfig().get("include_global_state") == null
-                    || Boolean.parseBoolean((String) policy.getConfig().get("include_global_state"));
+                    || Booleans.parseBoolean((String) policy.getConfig().get("include_global_state"));
                 assertThat(req.includeGlobalState(), equalTo(globalState));
 
                 try {
@@ -285,7 +286,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                     assertThat(Arrays.asList(req.indices()), equalTo(policy.getConfig().get("indices")));
                 }
                 boolean globalState = policy.getConfig().get("include_global_state") == null
-                    || Boolean.parseBoolean((String) policy.getConfig().get("include_global_state"));
+                    || Booleans.parseBoolean((String) policy.getConfig().get("include_global_state"));
                 assertThat(req.includeGlobalState(), equalTo(globalState));
 
                 long startTime = randomNonNegativeLong();

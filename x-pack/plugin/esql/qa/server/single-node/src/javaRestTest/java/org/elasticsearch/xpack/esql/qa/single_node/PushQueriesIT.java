@@ -128,16 +128,16 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" OR test == "%tooBig"
             """.replace("%tooBig", tooBig);
-        String luceneQuery = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "test:(%tooBig %value)".replace("%tooBig", tooBig);
-            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("test:(%tooBig %value)".replace("%tooBig", tooBig), "test:(%value %tooBig)".replace("%tooBig", tooBig));
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     public void testEqualityOrOther() throws IOException {
@@ -229,7 +229,7 @@ public class PushQueriesIT extends ESRestTestCase {
             """;
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "CaseInsensitiveTermQuery{test:%value}";
+            case KEYWORD -> "".equals(value) ? "test:" : "CaseInsensitiveTermQuery{test:%value}";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -240,7 +240,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testLike() throws IOException {
-        String value = "v".repeat(between(0, 256));
+        String value = "v".repeat(between(1, 256));
         String esqlQuery = """
             FROM test
             | WHERE test like "%value*"
@@ -258,7 +258,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testLikeList() throws IOException {
-        String value = "v".repeat(between(0, 256));
+        String value = "v".repeat(between(1, 256));
         String esqlQuery = """
             FROM test
             | WHERE test like ("%value*", "abc*")

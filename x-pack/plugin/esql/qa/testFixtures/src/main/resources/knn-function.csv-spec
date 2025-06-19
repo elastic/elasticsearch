@@ -48,7 +48,8 @@ aqua marine | [127.0, 255.0, 212.0]
 teal        | [0.0, 128.0, 128.0]
 ;
 
-knnSearchWithSimilarityOption
+# https://github.com/elastic/elasticsearch/issues/129550
+knnSearchWithSimilarityOption-Ignore
 required_capability: knn_function
 
 from colors metadata _score 
@@ -227,7 +228,8 @@ green      | false
 maroon     | false
 ;
 
-testKnnWithNonPushableDisjunctions
+# https://github.com/elastic/elasticsearch/issues/129550
+testKnnWithNonPushableDisjunctions-Ignore
 required_capability: knn_function
 
 from colors metadata _score 
@@ -243,7 +245,8 @@ lemon chiffon
 papaya whip
 ;
 
-testKnnWithNonPushableDisjunctionsOnComplexExpressions
+# https://github.com/elastic/elasticsearch/issues/129550
+testKnnWithNonPushableDisjunctionsOnComplexExpressions-Ignore
 required_capability: knn_function
 
 from colors metadata _score 

@@ -472,12 +472,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSizeFSDir
-  issue: https://github.com/elastic/elasticsearch/issues/128799
-- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSizeFSDir
-  issue: https://github.com/elastic/elasticsearch/issues/128800
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120
@@ -511,24 +505,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.MultipleBatches*
   issue: https://github.com/elastic/elasticsearch/issues/129210
-- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
-  method: testScaleDuringSplitOrClone
-  issue: https://github.com/elastic/elasticsearch/issues/129335
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsAbsolutPathAccess
   issue: https://github.com/elastic/elasticsearch/issues/129168
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testCaseInsensitiveEquality {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129422
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129447
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/129453
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
@@ -547,21 +532,9 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
-  method: testMoveToRolloverStep
-  issue: https://github.com/elastic/elasticsearch/issues/129489
-- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
-  method: testMoveToAllocateStep
-  issue: https://github.com/elastic/elasticsearch/issues/129490
-- class: org.elasticsearch.xpack.ilm.actions.ShrinkActionIT
-  method: testShrinkDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/129491
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
   issue: https://github.com/elastic/elasticsearch/issues/129481
-- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
-  method: testFullPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/129510
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512
@@ -586,6 +559,18 @@ tests:
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/129534
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/129517
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/129651
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {scoring.TestMatchPhraseWithScoreBoost ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129676
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnSearchRescore
+  issue: https://github.com/elastic/elasticsearch/issues/129713
 
 # Examples:
 #

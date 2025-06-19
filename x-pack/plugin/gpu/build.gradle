@@ -1,21 +1,27 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
 esplugin {
   name = 'gpu'
-  description = 'A plugin for GPU functionality'
+  description = 'A plugin for doing vector search in GPU'
   classname = 'org.elasticsearch.xpack.gpu.GPUPlugin'
+  extendedPlugins = ['x-pack-core']
 }
 base {
   archivesName = 'x-pack-gpu'
 }
 
 dependencies {
-//  compileOnly project(path: xpackModule('core'))
-//  testImplementation(testArtifact(project(xpackModule('core'))))
-
+  compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-
-  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
-
-  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(':server')))
+  clusterModules project(xpackModule('gpu'))
+}
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("uses gpu plugin")
+}
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

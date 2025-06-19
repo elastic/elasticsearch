@@ -1081,7 +1081,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated
+                    indexVersionCreated,
+                    type -> DenseVectorFieldMapper.allBasicVectorIndexTypes().get(type)
                 );
 
                 SimilarityMeasure similarity = modelSettings.similarity();

@@ -87,7 +87,10 @@ public enum LuceneFilesExtensions {
     // ivf vectors format
     MIVF("mivf", "IVF Metadata", true, false),
     CENIVF("cenivf", "IVF Centroid Data", false, true),
-    CLIVF("clivf", "IVF Cluster Data", false, true);
+    CLIVF("clivf", "IVF Cluster Data", false, true),
+    // GPU vectors format
+    GPUIDX("gpuidx", "GPU Vector Index", false, true),
+    MGPU("mgpu", "GPU Vector Metadata", true, false);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

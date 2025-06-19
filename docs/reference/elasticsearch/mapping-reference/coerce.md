@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/coerce.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # coerce [coerce]
@@ -52,7 +55,7 @@ The `coerce` setting value can be updated on existing fields using the [update m
 
 ## Index-level default [coerce-setting]
 
-The `index.mapping.coerce` setting can be set on the index level to disable coercion globally across all mapping types:
+The `index.mapping.coerce` {applies_to}`serverless: all` setting can be set on the index level to disable coercion globally across all mapping types:
 
 ```console
 PUT my-index-000001

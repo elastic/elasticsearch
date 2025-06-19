@@ -494,19 +494,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 lineNumber,
                 "mismatched input '\"index|pattern\"' expecting UNQUOTED_SOURCE"
             );
-            assertStringAsIndexPattern("*:index|pattern", command + " \"*:index|pattern\"");
+            // Entire index pattern is quoted. So it's not a parse error but a semantic error where the index name
+            // is invalid.
+            expectError(command + " \"*:index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
-            expectError("FROM \"cluster:index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
-            expectError("FROM *:\"index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
+            expectError(
+                command + " \"cluster:index|pattern\"",
+                "Invalid index name [index|pattern], must not contain the following characters"
+            );
+            expectError(command + " *:\"index|pattern\"", "expecting UNQUOTED_SOURCE");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
-                assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo\"::data");
+                expectErrorWithLineNumber(
+                    command + " *,\"-foo\"::data",
+                    "*,-foo::data",
+                    lineNumber,
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                );
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::data\"",
                     " cluster:\"foo::data\"",
@@ -644,9 +654,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
 
-                // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
-                // expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
-                // expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
 
                 expectErrorWithLineNumber(
                     command,
@@ -760,6 +769,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logst:ash-{now/D}>\"", commands.get(command), dateMathError);
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                clustersAndIndices(command, "*", "-index::data");
+                clustersAndIndices(command, "*", "-index::failures");
+                clustersAndIndices(command, "*", "-index*pattern::data");
+                clustersAndIndices(command, "*", "-index*pattern::failures");
+
+                // This is by existing design: refer to the comment in IdentifierBuilder#resolveAndValidateIndex() in the last
+                // catch clause. If there's an index with a wildcard before an invalid index, we don't error out.
+                clustersAndIndices(command, "index*", "-index#pattern::data");
+                clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>::data");
+                clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>::data");
+
+                expectError(command + "index1,<logstash-{now+-/d}>", "unit [-] not supported for date math [+-/d]");
+
                 // Throw on invalid date math
                 expectDateMathErrorWithLineNumber(
                     command,
@@ -3197,7 +3219,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var remoteIndex = quote(unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER))));
             // Format: FROM <some index>, "<cluster alias: random string>":<remote index>
             var query = "FROM " + randomIndex + "," + malformedClusterAlias + ":" + remoteIndex;
-            expectError(query, "cluster string [" + unquoteIndexPattern(malformedClusterAlias) + "] must not contain ':'");
+            expectError(query, " mismatched input ':'");
         }
 
         // If a remote index is quoted and has a remote cluster alias and the pattern is already prefixed with
@@ -3209,7 +3231,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var malformedRemoteIndex = quote(unquoteIndexPattern(randomIndexPattern(CROSS_CLUSTER)));
             // Format: FROM <some index>, <cluster alias>:"random string:random string"
             var query = "FROM " + randomIndex + "," + remoteClusterAlias + ":" + malformedRemoteIndex;
-            expectError(query, "contains a cluster alias despite specifying one");
+            // Since "random string:random string" is partially quoted, expect a ANTLR's parse error.
+            expectError(query, "expecting UNQUOTED_SOURCE");
         }
 
         if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
@@ -3235,7 +3258,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     + quote(unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER))));
                 // Format: FROM <some index>, "<cluster alias>":"<some index>::<data|failures>"
                 var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
-                expectError(query, "Selectors are not yet supported on remote cluster patterns");
+                // Everything after "<cluster alias>" is extraneous input and hence ANTLR's error.
+                expectError(query, "mismatched input ':'");
             }
         }
     }
@@ -3272,6 +3296,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         // If one or more patterns participating in LOOKUP JOINs are partially quoted, we expect the partial quoting
         // error messages to take precedence over any LOOKUP JOIN error messages.
+
+        {
+            // Generate a syntactically invalid (partial quoted) pattern.
+            var fromPatterns = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
+            var joinPattern = randomIndexPattern();
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                // Since the from pattern is partially quoted, we get an error at the end of the partially quoted string.
+                " mismatched input ':'"
+            );
+        }
+
         {
             // Generate a syntactically invalid (partial quoted) pattern.
             var fromPatterns = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
@@ -3281,6 +3317,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
                 "expecting UNQUOTED_SOURCE"
+            );
+        }
+
+        {
+            var fromPatterns = randomIndexPattern();
+            // Generate a syntactically invalid (partial quoted) pattern.
+            var joinPattern = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                // Since the join pattern is partially quoted, we get an error at the end of the partially quoted string.
+                "mismatched input ':'"
             );
         }
 
@@ -3349,6 +3396,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "invalid index pattern ["
                         + unquoteIndexPattern(joinPattern)
                         + "], index pattern selectors are not supported in LOOKUP JOIN"
+                );
+            }
+
+            {
+                // Although we don't support selector strings for remote indices, it's alright.
+                // The parser error message takes precedence.
+                var fromPatterns = randomIndexPatterns();
+                var joinPattern = quote(randomIdentifier()) + "::" + randomFrom("data", "failures");
+                // After the end of the partially quoted string, i.e. the index name, parser now expects "ON..." and not a selector string.
+                expectError(
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "mismatched input ':' expecting 'on'"
+                );
+            }
+
+            {
+                // Although we don't support selector strings for remote indices, it's alright.
+                // The parser error message takes precedence.
+                var fromPatterns = randomIndexPatterns();
+                var joinPattern = randomIdentifier() + "::" + quote(randomFrom("data", "failures"));
+                // After the index name and "::", parser expects an unquoted string, i.e. the selector string should not be
+                // partially quoted.
+                expectError(
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    " mismatched input ':' expecting UNQUOTED_SOURCE"
                 );
             }
         }

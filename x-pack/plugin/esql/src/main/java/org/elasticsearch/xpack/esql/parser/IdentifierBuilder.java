@@ -24,7 +24,6 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
-import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 import static org.elasticsearch.transport.RemoteClusterAware.splitIndexName;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EXCLUSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
@@ -91,7 +90,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             String selectorString = visitSelectorString(c.selectorString());
 
             hasSeenStar.set(hasSeenStar.get() || indexPattern.contains(WILDCARD));
-            validateClusterAndIndexPatterns(indexPattern, c, clusterString, selectorString, hasSeenStar.get());
+            validate(clusterString, indexPattern, selectorString, c, hasSeenStar.get());
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
@@ -126,98 +125,141 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
-    private static void validateClusterAndIndexPatterns(
-        String indexPattern,
-        EsqlBaseParser.IndexPatternContext ctx,
+    /**
+     * Takes the parsed constituent strings and validates them.
+     * @param clusterString Name of the remote cluster. Can be null.
+     * @param indexPattern Name of the index.
+     * @param selectorString Selector string, i.e. "::data" or "::failures". Can be null.
+     * @param ctx Index Pattern Context for generating error messages with offsets.
+     * @param hasSeenStar If we've seen an asterisk so far.
+     */
+    private static void validate(
         String clusterString,
+        String indexPattern,
         String selectorString,
+        EsqlBaseParser.IndexPatternContext ctx,
         boolean hasSeenStar
     ) {
-        // multiple index names can be in the same double quote, e.g. indexPattern = "idx1, *, -idx2"
-        String[] patterns = indexPattern.split(",");
-        boolean isFirstPattern = true;
+        /*
+         * At this point, only 3 formats are possible:
+         * "index_pattern(s)",
+         * remote:index_pattern, and,
+         * index_pattern::selector_string.
+         *
+         * The grammar prohibits remote:"index_pattern(s)" or "index_pattern(s)"::selector_string as they're
+         * partially quoted. So if either of cluster string or selector string are present, there's no need
+         * to split the pattern by comma since comma requires partial quoting.
+         */
 
-        for (String pattern : patterns) {
-            pattern = pattern.strip();
+        String[] patterns;
+        if (clusterString == null && selectorString == null) {
+            // Pattern could be quoted or is singular like "index_name".
+            patterns = indexPattern.split(",");
+        } else {
+            // Either of cluster string or selector string is present. Pattern is unquoted.
+            patterns = new String[] { indexPattern };
+        }
 
+        if (patterns.length == 1) {
+            validateSingleIndexPattern(clusterString, patterns[0], selectorString, ctx, hasSeenStar);
+        } else {
             /*
-             * Just because there was no clusterString before this index pattern does not mean that the indices
-             * are local indices. Patterns can be clubbed with remote names within quotes such as:
-             * "remote_one:remote_index,local_index". In this case, clusterString will be null.
+             * Presence of multiple patterns requires a comma and comma requires quoting. If quoting is present,
+             * cluster string and selector string cannot be present; they need to be attached within the quoting.
+             * So we attempt to extract them later.
              */
-            if (isRemoteIndexName(pattern)) {
-                /*
-                 * Handle scenarios like remote_one:"index1,remote_two:index2". The clusterString here is
-                 * remote_one and is associated with index1 and not index2.
-                 */
-                if (clusterString != null && isFirstPattern) {
-                    throw new ParsingException(
-                        source(ctx),
-                        "Index pattern [{}] contains a cluster alias despite specifying one [{}]",
-                        pattern,
-                        clusterString
-                    );
-                }
-
-                // {cluster_alias, indexName}
-                String[] clusterAliasAndIndex;
-                try {
-                    clusterAliasAndIndex = splitIndexName(pattern);
-                } catch (IllegalArgumentException e) {
-                    throw new ParsingException(e, source(ctx), e.getMessage());
-                }
-
-                clusterString = clusterAliasAndIndex[0];
-                pattern = clusterAliasAndIndex[1];
-            } else if (clusterString != null) {
-                // This is not a remote index pattern and the cluster string preceding this quoted pattern
-                // cannot be associated with it.
-                if (isFirstPattern == false) {
-                    clusterString = null;
-                }
+            for (String pattern : patterns) {
+                validateSingleIndexPattern(null, pattern, null, ctx, hasSeenStar);
             }
-
-            if (clusterString != null) {
-                if (selectorString != null) {
-                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexPattern, selectorString), ctx);
-                }
-                validateClusterString(clusterString, ctx);
-            }
-
-            validateIndexForCluster(clusterString, pattern, ctx, hasSeenStar);
-            if (selectorString != null) {
-                try {
-                    // Ensures that the selector provided is one of the valid kinds
-                    IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
-                } catch (InvalidIndexNameException e) {
-                    throw new ParsingException(e, source(ctx), e.getMessage());
-                }
-            }
-
-            isFirstPattern = false;
         }
     }
 
-    private static void validateIndexForCluster(
+    /**
+     * Validates the constituent strings. Will extract the cluster string and/or selector string from the index
+     * name if clubbed together.
+     *
+     * @param clusterString Name of the remote cluster. Can be null.
+     * @param indexName Name of the index.
+     * @param selectorString Selector string, i.e. "::data" or "::failures". Can be null.
+     * @param ctx Index Pattern Context for generating error messages with offsets.
+     * @param hasSeenStar If we've seen an asterisk so far.
+     */
+    private static void validateSingleIndexPattern(
         String clusterString,
-        String index,
+        String indexName,
+        String selectorString,
         EsqlBaseParser.IndexPatternContext ctx,
         boolean hasSeenStar
     ) {
-        // Strip spaces off first because validation checks are not written to handle them
-        index = index.strip();
+        indexName = indexName.strip();
 
+        /*
+         * Precedence:
+         * 1. Cannot mix cluster and selector strings.
+         * 2. Cluster string must be valid.
+         * 3. Index name must be valid.
+         * 4. Selector string must be valid.
+         *
+         * Since cluster string and/or selector string can be clubbed with the index name, we must try to
+         * manually extract them before we attempt to do #2, #3, and #4.
+         */
+
+        // It is possible to specify a pattern like "remote_cluster:index_name". Try to extract such details from the index string.
+        if (clusterString == null && selectorString == null) {
+            try {
+                var split = splitIndexName(indexName);
+                clusterString = split[0];
+                indexName = split[1];
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(e, source(ctx), e.getMessage());
+            }
+        }
+
+        // At the moment, selector strings for remote indices is not allowed.
+        if (clusterString != null && selectorString != null) {
+            throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexName, selectorString), ctx);
+        }
+
+        // Validation in the right precedence.
+        if (clusterString != null) {
+            clusterString = clusterString.strip();
+            validateClusterString(clusterString, ctx);
+        }
+
+        /*
+         * It is possible for selector string to be attached to the index: "index_name::selector_string".
+         * Try to extract the selector string.
+         */
         try {
-            Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(index);
-            if (splitPattern.v2() != null && clusterString != null) {
-                throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, splitPattern.v1(), splitPattern.v2()), ctx);
+            Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+            if (splitPattern.v2() != null) {
+                // Cluster string too was clubbed with the index name like selector string.
+                if (clusterString != null) {
+                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, splitPattern.v1(), splitPattern.v2()), ctx);
+                } else {
+                    // We've seen a selectorString. Use it.
+                    selectorString = splitPattern.v2();
+                }
             }
 
-            index = splitPattern.v1();
+            indexName = splitPattern.v1();
         } catch (InvalidIndexNameException e) {
-            // throws exception if the selector expression is invalid. Selector resolution does not complain about exclusions
             throw new ParsingException(e, source(ctx), e.getMessage());
         }
+
+        resolveAndValidateIndex(indexName, ctx, hasSeenStar);
+        if (selectorString != null) {
+            selectorString = selectorString.strip();
+            try {
+                // Ensures that the selector provided is one of the valid kinds.
+                IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexName, selectorString);
+            } catch (InvalidIndexNameException e) {
+                throw new ParsingException(e, source(ctx), e.getMessage());
+            }
+        }
+    }
+
+    private static void resolveAndValidateIndex(String index, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {
         hasSeenStar = hasSeenStar || index.contains(WILDCARD);
         index = index.replace(WILDCARD, "").strip();
         if (index.isBlank()) {

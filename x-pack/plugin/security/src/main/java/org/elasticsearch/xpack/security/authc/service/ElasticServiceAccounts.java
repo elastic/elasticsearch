@@ -52,10 +52,6 @@ final class ElasticServiceAccounts {
                     .indices(
                         "logs",
                         "logs.*",
-                        "metrics",
-                        "metrics.*",
-                        "traces",
-                        "traces.*",
                         "logs-*",
                         "metrics-*",
                         "traces-*",

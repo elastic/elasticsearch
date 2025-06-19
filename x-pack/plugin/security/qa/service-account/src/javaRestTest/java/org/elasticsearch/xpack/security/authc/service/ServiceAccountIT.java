@@ -120,10 +120,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                   "names": [
                     "logs",
                     "logs.*",
-                    "metrics",
-                    "metrics.*",
-                    "traces",
-                    "traces.*",
                     "logs-*",
                     "metrics-*",
                     "traces-*",

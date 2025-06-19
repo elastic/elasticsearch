@@ -880,13 +880,37 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.startObject("key1");
                 {
                     b.startObject("key2").field("key3", "bar").endObject();
+                    b.field("key4", "baz");
+                }
+                b.endObject();
+                b.field("key5", "qux");
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":"foo","key2.key3":"bar","key4":"baz"},"key5":"qux"}}"""));
+    }
+
+    public void testSyntheticSourceWithScalarObjectMismatchArray() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.array("key1.key2", "qux", "foo");
+                b.startObject("key1");
+                {
+                    b.field("key2.key3", "baz");
+                    b.field("key2", "bar");
                 }
                 b.endObject();
             }
             b.endObject();
         });
         assertThat(syntheticSource, equalTo("""
-            {"field":{"key1":{"key2":"foo","key2.key3":"bar"}}}"""));
+            {"field":{"key1":{"key2":["bar","foo","qux"],"key2.key3":"baz"}}}"""));
     }
 
     public void testSyntheticSourceWithEmptyObject() throws IOException {

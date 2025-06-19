@@ -125,6 +125,10 @@ public class FlattenedFieldSyntheticWriterHelper {
             this(value, new Prefix(key), key[key.length - 1]);
         }
 
+        private static KeyValue fromBytesRef(final BytesRef keyValue) {
+            return keyValue == null ? EMPTY : new KeyValue(keyValue);
+        }
+
         public String leaf() {
             return this.leaf;
         }
@@ -185,30 +189,36 @@ public class FlattenedFieldSyntheticWriterHelper {
         KeyValue next;
 
         while (curr.equals(KeyValue.EMPTY) == false) {
+            next = KeyValue.fromBytesRef(sortedKeyedValues.next());
             values.add(curr.value());
-            BytesRef nextValue = sortedKeyedValues.next();
-            next = nextValue == null ? KeyValue.EMPTY : new KeyValue(nextValue);
 
+            // Gather all values with the same path into a list so they can be written to a field together.
+            while (curr.pathEquals(next)) {
+                curr = next;
+                next = KeyValue.fromBytesRef(sortedKeyedValues.next());
+                values.add(curr.value());
+            }
+
+            // startPrefix is the suffix of the path that is within the currently open object, not including the leaf.
+            // For example, if the path is foo.bar.baz.qux, and openObjects is [foo], then startPrefix is bar.baz, and leaf is qux.
             var startPrefix = curr.prefix.diff(openObjects);
             if (startPrefix.parts.isEmpty() == false && startPrefix.parts.getFirst().equals(lastScalarSingleLeaf)) {
-                // In the currently open object, a previous key with a scalar value is a prefix of the current path. Instead of traversing
-                // the path and building nested objects, we concatenate the path into a single key and add it as a field. For example:
+                // We have encountered a key with an object value, which already has a scalar value. Instead of creating an object for the
+                // key, we concatenate the key and all child keys going down to the current leaf into a single field name. For example:
                 // Assume the current object contains "foo": 10 and "foo.bar": 20. Since key-value pairs are sorted, "foo" is processed
                 // first. When writing the field "foo", `lastScalarSingleLeaf` is set to "foo" because it has a scalar value. Next, when
                 // processing "foo.bar", we check if `lastScalarSingleLeaf` ("foo") is a prefix of "foo.bar". Since it is, this indicates a
-                // conflict: a scalar value and an object share the same key ("foo"). To disambiguate, we create a flat key "foo.bar"
-                // with the value 20 in the current object, rather than creating a nested object as usual.
-                if (curr.pathEquals(next) == false) {
-                    String combinedPath = concatPath(startPrefix, curr.leaf());
-                    writeField(b, values, combinedPath);
-                }
+                // conflict: a scalar value and an object share the same key ("foo"). To disambiguate, we create a concatenated key
+                // "foo.bar" with the value 20 in the current object, rather than creating a nested object as usual.
+                writeField(b, values, concatPath(startPrefix, curr.leaf()));
             } else {
-                // Traverse down into path, writing object keys to output, and adding to the openObject context.
+                // Since there is not an existing key in the object that is a prefix of the path, we can traverse down into the path
+                // and open objects. After opening all objects in the path, write out the field with only the current leaf as the key.
+                // Finally, save the current leaf in `lastScalarSingleLeaf`, in case there is a future object within the recently opened
+                // object which has the same key as the current leaf.
                 startObject(b, startPrefix.parts, openObjects.parts);
-                if (curr.pathEquals(next) == false) {
-                    lastScalarSingleLeaf = curr.leaf();
-                    writeField(b, values, curr.leaf());
-                }
+                writeField(b, values, curr.leaf());
+                lastScalarSingleLeaf = curr.leaf();
             }
 
             int numObjectsToEnd = Prefix.numObjectsToEnd(openObjects.parts, next.prefix.parts);

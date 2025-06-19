@@ -365,7 +365,7 @@ Will become (note the nested objects instead of the "flattened" array):
 }
 ```
 
-Flattened fields allow for a duplicate key to contain both an object and a scalar value.
+Flattened fields allow for a key to contain both an object and a scalar value.
 For example, consider the following flattened field `flattened`:
 
 ```console-result
@@ -384,9 +384,8 @@ For example, consider the following flattened field `flattened`:
 Because `"foo.bar": "10"` is implicitly equivalent to `"foo": { "bar": "10" }`,
 `"bar"` has both a scalar value `"10"`, and an object value of `{ "baz": "20" }`.
 
-With synthetic source, objects with such duplicate fields will appear
-differently in `_source`. For example, if the above field has synthetic
-source enabled, the value of `_source` would be:
+With synthetic source, to produce a valid JSON output, objects with such fields will appear differently in `_source`.
+For example, if the field is defined in an index configured with synthetic source, the value of `_source` would be:
 
 ```console-result
 {
@@ -398,8 +397,3 @@ source enabled, the value of `_source` would be:
   }
 }
 ```
-
-This is because, when constructing the source, the key `"foo.bar"` is eagerly expanding into the key `"foo"` with an object value.
-Then `"bar"` is added to the object with the scalar value of `"10"`. Then, because another
-`"bar"` cannot be added with an object value, `"bar"` and `"baz"` are collapsed
-in the flat key `"bar.baz"` with a scalar value of `"20"`

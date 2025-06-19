@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -104,7 +105,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private volatile boolean eagerDownload;
 
     private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<ProjectId, Boolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
@@ -133,24 +134,22 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
     private void setEnabled(boolean enabled) {
-        assert projectResolver.getProjectId() != null : "projectId must be set before enabling download";
         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
             // we should only start/stop task from single node, master is the best as it will go through it anyway
             return;
         }
         if (enabled) {
-            startTask(projectResolver.getProjectId(), () -> {});
+            startTask(ProjectId.DEFAULT, () -> {});
         } else {
-            stopTask(projectResolver.getProjectId(), () -> {});
+            stopTask(ProjectId.DEFAULT, () -> {});
         }
     }
 
     @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
     private void setEagerDownload(Boolean eagerDownload) {
-        assert projectResolver.getProjectId() != null : "projectId must be set before setting eager download";
         if (Objects.equals(this.eagerDownload, eagerDownload) == false) {
             this.eagerDownload = eagerDownload;
-            GeoIpDownloader currentDownloader = getTask(projectResolver.getProjectId());
+            GeoIpDownloader currentDownloader = getTask(ProjectId.DEFAULT);
             if (currentDownloader != null && Objects.equals(eagerDownload, Boolean.TRUE)) {
                 currentDownloader.requestReschedule();
             }
@@ -159,10 +158,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
     private void setPollInterval(TimeValue pollInterval) {
-        assert projectResolver.getProjectId() != null : "projectId must be set before setting poll interval";
         if (Objects.equals(this.pollInterval, pollInterval) == false) {
             this.pollInterval = pollInterval;
-            GeoIpDownloader currentDownloader = getTask(projectResolver.getProjectId());
+            GeoIpDownloader currentDownloader = getTask(ProjectId.DEFAULT);
             if (currentDownloader != null) {
                 currentDownloader.requestReschedule();
             }
@@ -209,6 +207,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         );
     }
 
+    @FixForMultiProject(description = "Make sure removed project tasks are cancelled: https://elasticco.atlassian.net/browse/ES-12054")
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -226,21 +225,20 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
-        for (var projectMetadataEntry : event.state().metadata().projects().entrySet()) {
-            ProjectId projectId = projectMetadataEntry.getKey();
-            ProjectMetadata projectMetadata = projectMetadataEntry.getValue();
+        for (var projectMetadata : event.state().metadata().projects().values()) {
+            ProjectId projectId = projectMetadata.id();
 
             // bootstrap task once iff it is not already bootstrapped
-            boolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> false);
-            if (taskIsBootstrapped != true) {
-                taskIsBootstrappedByProject.put(projectId, true);
-                this.taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
+            AtomicBoolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> new AtomicBoolean(false));
+            if (taskIsBootstrapped.getAndSet(true) == false) {
+                this.taskIsBootstrappedByProject.computeIfAbsent(projectId,
+                    k -> new AtomicBoolean(hasAtLeastOneGeoipProcessor(projectMetadata)));
                 if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                     logger.debug("Bootstrapping geoip downloader task for project [{}]", projectId);
-                    startTask(projectId, () -> taskIsBootstrappedByProject.put(projectId, false));
+                    startTask(projectId, () -> taskIsBootstrapped.set(false));
                 } else {
                     logger.debug("Stopping geoip downloader task for project [{}]", projectId);
-                    stopTask(projectId, () -> taskIsBootstrappedByProject.put(projectId, false));
+                    stopTask(projectId, () -> taskIsBootstrapped.set(false));
                 }
             }
 
@@ -430,8 +428,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.runAfter(listener, () -> {
                 IndexAbstraction databasesAbstraction = clusterService.state()
-                    .projectState(projectId)
                     .metadata()
+                    .getProject(projectId)
                     .getIndicesLookup()
                     .get(DATABASES_INDEX);
                 if (databasesAbstraction != null) {

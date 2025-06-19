@@ -271,17 +271,6 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         }
     }
 
-    private ClusterState clusterStateWithIndex(Consumer<Settings.Builder> consumer, IngestMetadata ingestMetadata) {
-        var builder = indexSettings(IndexVersion.current(), 1, 1);
-        consumer.accept(builder);
-        var indexMetadata = new IndexMetadata.Builder("index").settings(builder.build()).build();
-        var project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
-            .putCustom(IngestMetadata.TYPE, ingestMetadata)
-            .put(indexMetadata, false)
-            .build();
-        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
-    }
-
     private ProjectMetadata projectMetadataWithIndex(Consumer<Settings.Builder> consumer, IngestMetadata ingestMetadata) {
         var builder = indexSettings(IndexVersion.current(), 1, 1);
         consumer.accept(builder);

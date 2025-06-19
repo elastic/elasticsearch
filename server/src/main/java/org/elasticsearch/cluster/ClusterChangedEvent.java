@@ -169,17 +169,11 @@ public class ClusterChangedEvent {
      * updated or removed between the previous and the current state
      */
     public boolean customMetadataChanged(ProjectId projectId, String customMetadataType) {
-        Set<String> changed = new HashSet<>();
-        ProjectMetadata project = state.metadata().projects().get(projectId);
         ProjectMetadata previousProject = previousState.metadata().projects().get(projectId);
-        if (previousProject != null && project != null) {
-            changed.addAll(changedCustoms(project.customs(), previousProject.customs()));
-        } else if (previousProject != null) {
-            changed.addAll(previousProject.customs().keySet());
-        } else if (project != null) {
-            changed.addAll(project.customs().keySet());
-        }
-        return changed.contains(customMetadataType);
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        Object previousValue = previousProject == null ? null : previousProject.customs().get(customMetadataType);
+        Object value = project == null ? null : project.customs().get(customMetadataType);
+        return Objects.equals(previousValue, value) == false;
     }
 
     private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(

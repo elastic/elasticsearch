@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -52,8 +53,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
 
 public class CustomServiceSettings extends FilteredXContentObject implements ServiceSettings, CustomRateLimitServiceSettings {
+
     public static final String NAME = "custom_service_settings";
     public static final String URL = "url";
+    public static final String BATCH_SIZE = "batch_size";
     public static final String HEADERS = "headers";
     public static final String REQUEST = "request";
     public static final String RESPONSE = "response";
@@ -61,6 +64,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
+    private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
 
     public static CustomServiceSettings fromMap(
         Map<String, Object> map,
@@ -106,6 +110,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
+        var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
         if (responseParserMap == null || jsonParserMap == null) {
             throw validationException;
         }
@@ -124,7 +130,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             queryParams,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings
+            rateLimitSettings,
+            batchSize
         );
     }
 
@@ -142,7 +149,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             null,
             DenseVectorFieldMapper.ElementType.FLOAT
         );
-
         // This refers to settings that are not related to the text embedding task type (all the settings should be null)
         public static final TextEmbeddingSettings NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS = new TextEmbeddingSettings(null, null, null, null);
 
@@ -196,6 +202,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final String requestContentString;
     private final CustomResponseParser responseJsonParser;
     private final RateLimitSettings rateLimitSettings;
+    private final int batchSize;
 
     public CustomServiceSettings(
         TextEmbeddingSettings textEmbeddingSettings,
@@ -206,6 +213,19 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         CustomResponseParser responseJsonParser,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
+        this(textEmbeddingSettings, url, headers, queryParameters, requestContentString, responseJsonParser, rateLimitSettings, null);
+    }
+
+    public CustomServiceSettings(
+        TextEmbeddingSettings textEmbeddingSettings,
+        String url,
+        @Nullable Map<String, String> headers,
+        @Nullable QueryParameters queryParameters,
+        String requestContentString,
+        CustomResponseParser responseJsonParser,
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable Integer batchSize
+    ) {
         this.textEmbeddingSettings = Objects.requireNonNull(textEmbeddingSettings);
         this.url = Objects.requireNonNull(url);
         this.headers = Collections.unmodifiableMap(Objects.requireNonNullElse(headers, Map.of()));
@@ -213,6 +233,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.requestContentString = Objects.requireNonNull(requestContentString);
         this.responseJsonParser = Objects.requireNonNull(responseJsonParser);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.batchSize = Objects.requireNonNullElse(batchSize, DEFAULT_EMBEDDING_BATCH_SIZE);
     }
 
     public CustomServiceSettings(StreamInput in) throws IOException {
@@ -223,11 +244,19 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         requestContentString = in.readString();
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
+
         if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
             && in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
             // Read the error parsing fields for backwards compatibility
             in.readString();
             in.readString();
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+            batchSize = in.readVInt();
+        } else {
+            batchSize = DEFAULT_EMBEDDING_BATCH_SIZE;
         }
     }
 
@@ -276,6 +305,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return responseJsonParser;
     }
 
+    public int getBatchSize() {
+        return batchSize;
+    }
+
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
@@ -321,6 +354,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         rateLimitSettings.toXContent(builder, params);
 
+        builder.field(BATCH_SIZE, batchSize);
+
         return builder;
     }
 
@@ -343,11 +378,17 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeString(requestContentString);
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
+
         if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
             && out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
             // Write empty strings for backwards compatibility for the error parsing fields
             out.writeString("");
             out.writeString("");
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+            out.writeVInt(batchSize);
         }
     }
 
@@ -362,7 +403,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(queryParameters, that.queryParameters)
             && Objects.equals(requestContentString, that.requestContentString)
             && Objects.equals(responseJsonParser, that.responseJsonParser)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(batchSize, that.batchSize);
     }
 
     @Override
@@ -374,7 +416,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             queryParameters,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings
+            rateLimitSettings,
+            batchSize
         );
     }
 

@@ -5647,7 +5647,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION CONCAT(some text, x) INTO y OPTIONS inferenceId=inferenceID
+        // | COMPLETION CONCAT(some text, x) INTO y OPTIONS { "inferenceId" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,
@@ -5658,7 +5658,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ),
             new PushDownInferencePlan()
         ),
-        // | RERANK "some text" ON x INTO y OPTIONS inferenceId=inferenceID=inferenceID
+        // | RERANK "some text" ON x INTO y OPTIONS { "inferenceId" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Rerank(
                 EMPTY,

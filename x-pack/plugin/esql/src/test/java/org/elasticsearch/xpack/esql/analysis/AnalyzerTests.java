@@ -3546,23 +3546,20 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
 
         {
-            LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title OPTIONS inferenceId=`reranking-inference-id`",
-                "mapping-books.json"
-            );
+            LogicalPlan plan = analyze("""
+                FROM books METADATA _score
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "reranking-inference-id" }
+                """, "mapping-books.json");
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title OPTIONS inferenceId=`completion-inference-id`",
-                    "mapping-books.json"
-                )
+            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
+                FROM books METADATA _score
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "completion-inference-id" }
+                """, "mapping-books.json"));
 
-            );
             assertThat(
                 ve.getMessage(),
                 containsString(
@@ -3573,26 +3570,19 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title OPTIONS inferenceId=`error-inference-id`",
-                    "mapping-books.json"
-                )
+            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
+                FROM books METADATA _score
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "error-inference-id" }
+                """, "mapping-books.json"));
 
-            );
             assertThat(ve.getMessage(), containsString("error with inference resolution"));
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze(
-                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title OPTIONS inferenceId=`unknown-inference-id`",
-                    "mapping-books.json"
-                )
-
-            );
+            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
+                FROM books  METADATA _score
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "unknown-inference-id" }
+                """, "mapping-books.json"));
             assertThat(ve.getMessage(), containsString("unresolved inference [unknown-inference-id]"));
         }
     }
@@ -3607,7 +3597,7 @@ public class AnalyzerTests extends ESTestCase {
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | KEEP description, title, year, _score
                 | DROP description
-                | RERANK "italian food recipe" ON title OPTIONS inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3632,7 +3622,7 @@ public class AnalyzerTests extends ESTestCase {
                 FROM books METADATA _score
                 | WHERE title:"food"
                 | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year
-                  OPTIONS inferenceId=`reranking-inference-id`
+                  OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3669,9 +3659,8 @@ public class AnalyzerTests extends ESTestCase {
                 VerificationException.class,
                 () -> analyze("""
                     FROM books METADATA _score
-                    | RERANK \"italian food recipe\" ON missingField OPTIONS inferenceId=`reranking-inference-id`
-                    """, "mapping-books.json"
-                )
+                    | RERANK \"italian food recipe\" ON missingField OPTIONS { "inferenceId" : "reranking-inference-id" }
+                    """, "mapping-books.json")
 
             );
             assertThat(ve.getMessage(), containsString("Unknown column [missingField]"));
@@ -3686,7 +3675,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title OPTIONS inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3704,7 +3693,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title OPTIONS inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3722,7 +3711,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title INTO rerank_score OPTIONS inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title INTO rerank_score OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3740,7 +3729,7 @@ public class AnalyzerTests extends ESTestCase {
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | EVAL rerank_score = _score
-                | RERANK "italian food recipe" ON title INTO rerank_score OPTIONS inferenceId=`reranking-inference-id`
+                | RERANK "italian food recipe" ON title INTO rerank_score OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3757,8 +3746,9 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionInferenceId() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS inferenceId=`completion-inference-id`
+            | COMPLETION CONCAT("Translate this text in French\\n", description) OPTIONS { "inferenceId" : "completion-inference-id" }
             """, "mapping-books.json");
+
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.inferenceId(), equalTo(string("completion-inference-id")));
     }
@@ -3767,7 +3757,7 @@ public class AnalyzerTests extends ESTestCase {
         assertError(
             """
                 FROM books METADATA _score
-                | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS inferenceId=`reranking-inference-id`
+                | COMPLETION CONCAT("Translate this text in French\\n", description) OPTIONS { "inferenceId" : "reranking-inference-id" }
                 """,
             "mapping-books.json",
             new QueryParams(),
@@ -3779,14 +3769,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionInferenceMissingInferenceId() {
         assertError("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS inferenceId=`unknown-inference-id`
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS { "inferenceId" : "unknown-inference-id" }
             """, "mapping-books.json", new QueryParams(), "unresolved inference [unknown-inference-id]");
     }
 
     public void testResolveCompletionInferenceIdResolutionError() {
         assertError("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS inferenceId=`error-inference-id`
+            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS { "inferenceId" : "error-inference-id" }
             """, "mapping-books.json", new QueryParams(), "error with inference resolution");
     }
 
@@ -3794,9 +3784,8 @@ public class AnalyzerTests extends ESTestCase {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) INTO translation
-              OPTIONS inferenceId=`completion-inference-id`
-            ""","mapping-books.json"
-        );
+              OPTIONS { "inferenceId" : "completion-inference-id" }
+            """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.targetField(), equalTo(referenceAttribute("translation", DataType.KEYWORD)));
@@ -3805,7 +3794,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionDefaultTargetField() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS inferenceId=`completion-inference-id`
+            | COMPLETION CONCAT("Translate this text in French\\n", description) OPTIONS { "inferenceId" : "completion-inference-id" }
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3815,7 +3804,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveCompletionPrompt() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) OPTIONS inferenceId=`completion-inference-id`
+            | COMPLETION CONCAT("Translate this text in French\\n", description) OPTIONS { "inferenceId" : "completion-inference-id" }
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
@@ -3823,14 +3812,14 @@ public class AnalyzerTests extends ESTestCase {
 
         assertThat(
             as(completion.prompt(), Concat.class).children(),
-            equalTo(List.of(string("Translate the following text in French\n"), getAttributeByName(esRelation.output(), "description")))
+            equalTo(List.of(string("Translate this text in French\n"), getAttributeByName(esRelation.output(), "description")))
         );
     }
 
     public void testResolveCompletionPromptInvalidType() {
         assertError("""
             FROM books METADATA _score
-            | COMPLETION LENGTH(description) OPTIONS inferenceId=`completion-inference-id`
+            | COMPLETION LENGTH(description) OPTIONS { "inferenceId" : "completion-inference-id" }
             """, "mapping-books.json", new QueryParams(), "prompt must be of type [text] but is [integer]");
     }
 
@@ -3838,9 +3827,8 @@ public class AnalyzerTests extends ESTestCase {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate the following text in French\\n", description) INTO description
-              OPTIONS inferenceId=`completion-inference-id`
-            """, "mapping-books.json"
-        );
+              OPTIONS { "inferenceId" : "completion-inference-id" }
+            """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.targetField(), equalTo(referenceAttribute("description", DataType.KEYWORD)));

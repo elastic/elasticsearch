@@ -681,12 +681,18 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
-            Tuple.tuple(FLOAT, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
-                null : ((ESKnnFloatVectorQuery) q).getStrategy()),
-            Tuple.tuple(BYTE, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
-                null : ((ESKnnByteVectorQuery) q).getStrategy()),
-            Tuple.tuple(BIT, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
-                null : ((ESKnnByteVectorQuery) q).getStrategy())
+            Tuple.tuple(
+                FLOAT,
+                q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ? null : ((ESKnnFloatVectorQuery) q).getStrategy()
+            ),
+            Tuple.tuple(
+                BYTE,
+                q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ? null : ((ESKnnByteVectorQuery) q).getStrategy()
+            ),
+            Tuple.tuple(
+                BIT,
+                q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ? null : ((ESKnnByteVectorQuery) q).getStrategy()
+            )
         );
         for (var tuple : cases) {
             DenseVectorFieldType fieldType = new DenseVectorFieldType(
@@ -718,7 +724,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(0));
 
                 query = fieldType.createKnnQuery(
-                    VectorData.fromFloats(new float[]{1, 4, 10}),
+                    VectorData.fromFloats(new float[] { 1, 4, 10 }),
                     10,
                     100,
                     0f,

@@ -48,6 +48,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
@@ -176,6 +179,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     || type == DOC_DATA_TYPE
                     || type == TSID_DATA_TYPE
                     || type == AGGREGATE_METRIC_DOUBLE
+                    || type == GEOHASH
+                    || type == GEOTILE
+                    || type == GEOHEX
                     || type.esType() == null
                     || type.isCounter()
                     || DataType.isRepresentable(type) == false) {

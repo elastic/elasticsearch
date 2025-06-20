@@ -689,6 +689,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
+        shouldBeSupported.remove(DataType.GEOHASH);
+        shouldBeSupported.remove(DataType.GEOTILE);
+        shouldBeSupported.remove(DataType.GEOHEX);
         shouldBeSupported.remove(DataType.NULL);
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
@@ -697,7 +700,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
         for (DataType type : shouldBeSupported) {
-            assertTrue(typesAndValues.containsKey(type));
+            assertTrue(type.typeName(), typesAndValues.containsKey(type));
         }
         assertThat(typesAndValues.size(), equalTo(shouldBeSupported.size()));
 

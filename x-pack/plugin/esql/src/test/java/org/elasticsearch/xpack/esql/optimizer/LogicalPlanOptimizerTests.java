@@ -98,15 +98,16 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -119,9 +120,11 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -5042,7 +5045,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.names(agg.aggregates()), contains("$$COUNT$s$0", "w"));
         var countAggLiteral = as(as(Alias.unwrap(agg.aggregates().get(0)), Count.class).field(), Literal.class);
-        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, StringUtils.WILDCARD, DataType.KEYWORD)));
+        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, BytesRefs.toBytesRef(StringUtils.WILDCARD), DataType.KEYWORD)));
 
         var exprs = eval.fields();
         // s == mv_count([1,2]) * count(*)
@@ -5566,7 +5569,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 EMPTY,
                 plan,
                 Enrich.Mode.ANY,
-                new Literal(EMPTY, "some_policy", KEYWORD),
+                Literal.keyword(EMPTY, "some_policy"),
                 attr,
                 null,
                 Map.of(),
@@ -5586,8 +5589,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)
             ),
-            new PushDownCompletion()
-        ) };
+            new PushDownInferencePlan()
+        ),
+        // | RERANK "some text" ON x WITH inferenceID=inferenceID, scoreColumn=y
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Rerank(
+                EMPTY,
+                plan,
+                randomLiteral(TEXT),
+                randomLiteral(TEXT),
+                List.of(new Alias(EMPTY, attr.name(), attr)),
+                new ReferenceAttribute(EMPTY, "y", KEYWORD)
+            ),
+            new PushDownInferencePlan()
+        ), };
 
     /**
      * Consider
@@ -5605,8 +5620,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastProject() {
-        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, "1", KEYWORD));
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, "2", KEYWORD));
+        Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), x.toAttribute()));
 
@@ -5652,8 +5667,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastRenamingProject() {
-        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, "1", KEYWORD));
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, "2", KEYWORD));
+        Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(
             EMPTY,
@@ -5710,7 +5725,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastRenamingProjectWithResolution() {
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, "2", KEYWORD));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         Alias yAliased = new Alias(EMPTY, "x", y.toAttribute());
         LogicalPlan initialRow = new Row(EMPTY, List.of(y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), yAliased));
@@ -7708,5 +7723,150 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
         as(mvExpand2.child(), Row.class);
+    }
+
+    /**
+     * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
+     *    \_Limit[1000[INTEGER],false]
+     *      \_Sample[0.015[DOUBLE],15[INTEGER]]
+     *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testSampleMerged() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        var query = """
+            FROM TEST
+            | SAMPLE .3
+            | EVAL irrelevant1 = 1
+            | SAMPLE .5
+            | EVAL irrelevant2 = 2
+            | SAMPLE .1
+            """;
+        var optimized = optimizedPlan(query);
+
+        var eval = as(optimized, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
+
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.015));
+    }
+
+    public void testSamplePushDown() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        for (var command : List.of(
+            "ENRICH languages_idx on first_name",
+            "EVAL x = 1",
+            // "INSIST emp_no", // TODO
+            "KEEP emp_no",
+            "DROP emp_no",
+            "RENAME emp_no AS x",
+            "GROK first_name \"%{WORD:bar}\"",
+            "DISSECT first_name \"%{z}\""
+        )) {
+            var query = "FROM TEST | " + command + " | SAMPLE .5";
+            var optimized = optimizedPlan(query);
+
+            var unary = as(optimized, UnaryPlan.class);
+            var limit = as(unary.child(), Limit.class);
+            var sample = as(limit.child(), Sample.class);
+            var source = as(sample.child(), EsRelation.class);
+
+            assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        }
+    }
+
+    public void testSamplePushDown_sort() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        var query = "FROM TEST | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var sample = as(filter.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
+
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+    }
+
+    public void testSamplePushDown_where() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        var query = "FROM TEST | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
+        var optimized = optimizedPlan(query);
+
+        var topN = as(optimized, TopN.class);
+        var sample = as(topN.child(), Sample.class);
+        var source = as(sample.child(), EsRelation.class);
+
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+    }
+
+    public void testSampleNoPushDown() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
+            var query = "FROM TEST | " + command + " | SAMPLE .5";
+            var optimized = optimizedPlan(query);
+
+            var limit = as(optimized, Limit.class);
+            var sample = as(limit.child(), Sample.class);
+            var unary = as(sample.child(), UnaryPlan.class);
+            var source = as(unary.child(), EsRelation.class);
+        }
+    }
+
+    /**
+     *    Limit[1000[INTEGER],false]
+     *    \_Sample[0.5[DOUBLE],null]
+     *      \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
+     *        |_Eval[[emp_no{f}#6 AS language_code]]
+     *        | \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *        \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     */
+    public void testSampleNoPushDownLookupJoin() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        var query = """
+            FROM TEST
+            | EVAL language_code = emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SAMPLE .5
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        var join = as(sample.child(), Join.class);
+        var eval = as(join.left(), Eval.class);
+        var source = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     *    Limit[1000[INTEGER],false]
+     *    \_Sample[0.5[DOUBLE],null]
+     *      \_Limit[1000[INTEGER],false]
+     *        \_ChangePoint[emp_no{f}#6,hire_date{f}#13,type{r}#4,pvalue{r}#5]
+     *          \_TopN[[Order[hire_date{f}#13,ASC,ANY]],1001[INTEGER]]
+     *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testSampleNoPushDownChangePoint() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        var query = """
+            FROM TEST
+            | CHANGE_POINT emp_no ON hire_date
+            | SAMPLE .5
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        limit = as(sample.child(), Limit.class);
+        var changePoint = as(limit.child(), ChangePoint.class);
+        var topN = as(changePoint.child(), TopN.class);
+        var source = as(topN.child(), EsRelation.class);
     }
 }

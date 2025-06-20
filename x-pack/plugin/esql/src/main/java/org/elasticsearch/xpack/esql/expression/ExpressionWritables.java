@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -207,7 +209,9 @@ public class ExpressionWritables {
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
         entries.add(ToGeoPoint.ENTRY);
-        entries.add(ToIP.ENTRY);
+        entries.add(ToIpLeadingZerosDecimal.ENTRY);
+        entries.add(ToIpLeadingZerosOctal.ENTRY);
+        entries.add(ToIpLeadingZerosRejected.ENTRY);
         entries.add(ToInteger.ENTRY);
         entries.add(ToLong.ENTRY);
         entries.add(ToRadians.ENTRY);

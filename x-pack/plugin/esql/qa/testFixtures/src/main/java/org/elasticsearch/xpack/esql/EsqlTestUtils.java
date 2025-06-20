@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -226,7 +227,11 @@ public final class EsqlTestUtils {
         if (value instanceof Literal) {
             return (Literal) value;
         }
-        return new Literal(source, value, DataType.fromJava(value));
+        var dataType = DataType.fromJava(value);
+        if (value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
+        }
+        return new Literal(source, value, dataType);
     }
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {

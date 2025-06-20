@@ -40,10 +40,10 @@ public class DateTruncRoundingTests extends ESTestCase {
         assertEquals(10, rounding.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), 0d);
 
         rounding = createRounding(Duration.ofMinutes(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
+        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MINUTE_OF_HOUR), 0d);
 
         rounding = createRounding(Duration.ofMinutes(100));
-        assertEquals(100, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
+        assertEquals(100, rounding.roundingSize(Rounding.DateTimeUnit.MINUTE_OF_HOUR), 0d);
 
         rounding = createRounding(Duration.ofSeconds(1));
         assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), 0d);
@@ -52,7 +52,7 @@ public class DateTruncRoundingTests extends ESTestCase {
         assertEquals(120, rounding.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), 0d);
 
         rounding = createRounding(Duration.ofSeconds(60).plusMinutes(5).plusHours(1));
-        assertEquals(1 + 5 + 60, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
+        assertEquals(1 + 5 + 60, rounding.roundingSize(Rounding.DateTimeUnit.MINUTE_OF_HOUR), 0d);
     }
 
     public void testCreateRoundingPeriod() {
@@ -82,11 +82,14 @@ public class DateTruncRoundingTests extends ESTestCase {
         rounding = createRounding(Period.ofMonths(3));
         assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), 0d);
 
+        rounding = createRounding(Period.ofMonths(5));
+        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), 0d);
+
         rounding = createRounding(Period.ofYears(1));
         assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 0d);
 
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofYears(3)));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
+        rounding = createRounding(Period.ofYears(3));
+        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 0d);
     }
 
     public void testCreateRoundingNullInterval() {

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -104,6 +106,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends AbstractStatementParserTests {
@@ -221,7 +224,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(
                     new Alias(EMPTY, "a.b.c", integer(1)),
                     new Alias(EMPTY, "b", integer(2)),
-                    new Alias(EMPTY, "@timestamp", new Literal(EMPTY, "2022-26-08T00:00:00", KEYWORD))
+                    new Alias(EMPTY, "@timestamp", Literal.keyword(EMPTY, "2022-26-08T00:00:00"))
                 )
             ),
             statement("row a.b.c = 1, `b` = 2, `@timestamp`=\"2022-26-08T00:00:00\"")
@@ -1275,7 +1278,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 null,
-                new Literal(EMPTY, "countries", KEYWORD),
+                Literal.keyword(EMPTY, "countries"),
                 new EmptyAttribute(EMPTY),
                 null,
                 Map.of(),
@@ -1289,7 +1292,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 null,
-                new Literal(EMPTY, "index-policy", KEYWORD),
+                Literal.keyword(EMPTY, "index-policy"),
                 new UnresolvedAttribute(EMPTY, "field_underscore"),
                 null,
                 Map.of(),
@@ -1304,7 +1307,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 mode,
-                new Literal(EMPTY, "countries", KEYWORD),
+                Literal.keyword(EMPTY, "countries"),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
                 Map.of(),
@@ -1395,33 +1398,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is("2"));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2")));
 
         field = row.fields().get(2);
         assertThat(field.name(), is("a"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is("2 days"));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("2 days")));
 
         field = row.fields().get(3);
         assertThat(field.name(), is("b"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()), is("4 hours"));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("4 hours")));
 
         field = row.fields().get(4);
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(String.class));
-        assertThat(alias.child().fold(FoldContext.small()).toString(), is("1.2.3"));
+        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("1.2.3")));
 
         field = row.fields().get(5);
         assertThat(field.name(), is("d"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(String.class));
-        assertThat(alias.child().fold(FoldContext.small()).toString(), is("127.0.0.1"));
+        assertThat(alias.child().fold(FoldContext.small()).getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold(FoldContext.small()), is(BytesRefs.toBytesRef("127.0.0.1")));
 
         field = row.fields().get(6);
         assertThat(field.name(), is("e"));
@@ -1709,7 +1712,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         Aggregate agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1729,7 +1732,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1749,7 +1752,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1767,7 +1770,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1785,7 +1788,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
+        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo(BytesRefs.toBytesRef("*")));
         assertThat(agg.child(), instanceOf(Eval.class));
         assertThat(agg.children().size(), equalTo(1));
         assertThat(agg.children().get(0), instanceOf(Eval.class));
@@ -1846,8 +1849,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         NamedExpression field = eval.fields().get(0);
         assertThat(field.name(), is("y"));
         assertThat(field, instanceOf(Alias.class));
-        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
-        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+        assertThat(
+            ((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(),
+            equalTo(BytesRefs.toBytesRef("2024-01-01"))
+        );
+        assertThat(
+            ((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(),
+            equalTo(BytesRefs.toBytesRef("3 days"))
+        );
     }
 
     public void testParamForIdentifier() {
@@ -2069,7 +2078,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 relation("idx1"),
                 null,
-                new Literal(EMPTY, "idx2", KEYWORD),
+                Literal.keyword(EMPTY, "idx2"),
                 attribute("f.1.*"),
                 null,
                 Map.of(),
@@ -2086,7 +2095,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 relation("idx1"),
                 null,
-                new Literal(EMPTY, "idx2", KEYWORD),
+                Literal.keyword(EMPTY, "idx2"),
                 attribute("f.1.*.f.2"),
                 null,
                 Map.of(),
@@ -2325,7 +2334,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo(string));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
     }
 
     public void testIdPatternUnquoted() {
@@ -2396,7 +2405,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
-        assertThat(tableName.fold(FoldContext.small()), equalTo("t"));
+        assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
@@ -2573,7 +2582,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
     }
 
     public void testInvalidMatchOperator() {
@@ -2608,7 +2617,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo("value"));
+        assertThat(function.children().get(1).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -2618,7 +2627,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("value")));
     }
 
     public void testNamedFunctionArgumentInMap() {
@@ -2652,17 +2661,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement("""
@@ -2755,17 +2761,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement(
@@ -2895,17 +2898,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Alias(
                             EMPTY,
                             "x",
-                            function(
-                                "fn1",
-                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
-                            )
+                            function("fn1", List.of(attribute("f1"), Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap1)))
                         )
                     )
                 ),
                 new Equals(
                     EMPTY,
                     attribute("y"),
-                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                    function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
             statement("""
@@ -3314,13 +3314,74 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testRerankDefaultInferenceId() {
+    public void testRerankDefaultInferenceIdAndScoreAttribute() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
         var plan = processingCommand("RERANK \"query text\" ON title");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
+    public void testRerankInferenceId() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+    }
+
+    public void testRerankQuotedInferenceId() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=\"inferenceId\"");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+    }
+
+    public void testRerankScoreAttribute() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=rerank_score");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
+    public void testRerankQuotedScoreAttribute() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=\"rerank_score\"");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
+    public void testRerankInferenceIdAnddScoreAttribute() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId, scoreColumn=rerank_score");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
@@ -3328,18 +3389,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankSingleField() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
     public void testRerankMultipleFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceId=inferenceID");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3354,12 +3416,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
     public void testRerankComputedFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceID");
+        var plan = processingCommand(
+            "RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceId=inferenceID"
+        );
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3373,24 +3438,43 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
     public void testRerankWithPositionalParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
-        var rerank = as(parser.createStatement("row a = 1 | RERANK ? ON title WITH ?", queryParams), Rerank.class);
+        var queryParams = new QueryParams(
+            List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
+        );
+        var rerank = as(
+            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams),
+            Rerank.class
+        );
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
     }
 
     public void testRerankWithNamedParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
-        var rerank = as(parser.createStatement("row a = 1 | RERANK ?queryText ON title WITH ?inferenceId", queryParams), Rerank.class);
+        var queryParams = new QueryParams(
+            List.of(
+                paramAsConstant("queryText", "query text"),
+                paramAsConstant("inferenceId", "reranker"),
+                paramAsConstant("scoreColumnName", "rerank_score")
+            )
+        );
+        var rerank = as(
+            parser.createStatement(
+                "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
+                queryParams
+            ),
+            Rerank.class
+        );
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
@@ -3401,6 +3485,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
+
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        expectError(
+            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH inferenceId=inferenceId",
+            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
+        );
     }
 
     public void testCompletionUsingFieldAsPrompt() {
@@ -3451,6 +3541,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | COMPLETION completion=prompt WITH", "line 1:46: mismatched input '<EOF>' expecting {");
 
         expectError("FROM foo* | COMPLETION completion=prompt", "line 1:41: mismatched input '<EOF>' expecting {");
+    }
+
+    public void testSample() {
+        assumeTrue("SAMPLE requires corresponding capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+        expectError("FROM test | SAMPLE .1 2", "line 1:23: extraneous input '2' expecting <EOF>");
+        expectError("FROM test | SAMPLE .1 \"2\"", "line 1:23: extraneous input '\"2\"' expecting <EOF>");
+        expectError(
+            "FROM test | SAMPLE 1",
+            "line 1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
+        );
+        expectThrows(
+            ParsingException.class,
+            startsWith("line 1:19: mismatched input '<EOF>' expecting {"),
+            () -> statement("FROM test | SAMPLE")
+        );
     }
 
     static Alias alias(String name, Expression value) {
@@ -3867,7 +3972,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     relation("idx1"),
                     null,
-                    new Literal(EMPTY, "idx2", KEYWORD),
+                    Literal.keyword(EMPTY, "idx2"),
                     attribute("f.1.*"),
                     null,
                     Map.of(),
@@ -3903,7 +4008,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     relation("idx1"),
                     null,
-                    new Literal(EMPTY, "idx2", KEYWORD),
+                    Literal.keyword(EMPTY, "idx2"),
                     attribute("f.1.*.f.2"),
                     null,
                     Map.of(),
@@ -3955,7 +4060,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new Eval(
                             EMPTY,
                             relation("test"),
-                            List.of(new Alias(EMPTY, "x", function("toString", List.of(new Literal(EMPTY, "constant_value", KEYWORD)))))
+                            List.of(new Alias(EMPTY, "x", function("toString", List.of(Literal.keyword(EMPTY, "constant_value")))))
                         ),
                         new Equals(EMPTY, attribute("f.2"), new Literal(EMPTY, 100, INTEGER))
                     )
@@ -3999,7 +4104,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                             relation("test"),
                             Aggregate.AggregateType.STANDARD,
                             List.of(attribute("f.4.")),
-                            List.of(new Alias(EMPTY, "y", function("count", List.of(new Literal(EMPTY, "*", KEYWORD)))), attribute("f.4."))
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(Literal.keyword(EMPTY, "*")))), attribute("f.4."))
                         ),
                         List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                     ),

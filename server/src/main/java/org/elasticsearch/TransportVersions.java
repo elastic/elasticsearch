@@ -310,6 +310,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = def(9_103_0_00);
     public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_104_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = def(9_105_0_00);
+    public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_106_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

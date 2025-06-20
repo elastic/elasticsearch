@@ -568,9 +568,9 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnSearchRescore
   issue: https://github.com/elastic/elasticsearch/issues/129713
-- class: org.elasticsearch.snapshots.GetSnapshotsIT
-  method: testFilterByState
-  issue: https://github.com/elastic/elasticsearch/issues/129740
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/129752
 
 # Examples:
 #

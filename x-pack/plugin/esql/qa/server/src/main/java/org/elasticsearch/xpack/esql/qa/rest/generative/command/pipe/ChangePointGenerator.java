@@ -50,6 +50,6 @@ public class ChangePointGenerator implements CommandGenerator {
         List<EsqlQueryGenerator.Column> columns,
         List<List<Object>> output
     ) {
-        return CommandGenerator.expectAtLeastSameColumnNumber(previousColumns, columns);
+        return CommandGenerator.expectAtLeastSameNumberOfColumns(previousColumns, columns);
     }
 }

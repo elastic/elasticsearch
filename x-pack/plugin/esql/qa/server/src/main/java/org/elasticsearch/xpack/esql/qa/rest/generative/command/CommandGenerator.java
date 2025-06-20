@@ -140,7 +140,7 @@ public interface CommandGenerator {
         return VALIDATION_OK;
     }
 
-    static ValidationResult expectAtLeastSameColumnNumber(
+    static ValidationResult expectAtLeastSameNumberOfColumns(
         List<EsqlQueryGenerator.Column> previousColumns,
         List<EsqlQueryGenerator.Column> columns
     ) {

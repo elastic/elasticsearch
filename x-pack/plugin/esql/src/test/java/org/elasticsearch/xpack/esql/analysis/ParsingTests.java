@@ -162,6 +162,25 @@ public class ParsingTests extends ESTestCase {
         assertEquals("1:13: Invalid value for LIMIT [-1], expecting a non negative integer", error("row a = 1 | limit -1"));
     }
 
+    public void testInvalidSample() {
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [foo], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample \"foo\"")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [-1.0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample -1.0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 1")
+        );
+    }
+
     private String error(String query) {
         ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query)));
         String message = e.getMessage();

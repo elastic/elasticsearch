@@ -1236,7 +1236,7 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3], 10)");
         }
     }
 
@@ -1369,7 +1369,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2], 10)", "function");
         }
     }
 
@@ -1408,7 +1408,7 @@ public class VerifierTests extends ESTestCase {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
+            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3], 10)");
         }
     }
 
@@ -1473,7 +1473,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3], 10)", "function");
         }
     }
 
@@ -1544,7 +1544,7 @@ public class VerifierTests extends ESTestCase {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2])");
+            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         }
     }
 
@@ -2072,7 +2072,7 @@ public class VerifierTests extends ESTestCase {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
+            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], 10, {\"%s\": %s})");
         }
     }
 
@@ -2160,8 +2160,9 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
-            checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2], 10)", "first");
+            checkFullTextFunctionNullArgs("knn(vector, null, 10)", "second");
+            checkFullTextFunctionNullArgs("knn(vector, [0, 1, 2], null)", "third");
         }
     }
 
@@ -2185,7 +2186,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
+            checkFullTextFunctionsConstantQuery("knn(vector, vector, 10)", "second");
         }
     }
 
@@ -2215,7 +2216,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
+            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2], 10)");
         }
     }
 

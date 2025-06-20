@@ -686,9 +686,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
-        var segmentInfos = segmentInfosAndCommit.segmentInfos();
-        var commitInfo = getSequenceNumbersCommitInfo(segmentInfos);
-        return new SeqNoStats(commitInfo.maxSeqNo(), commitInfo.localCheckpoint(), config().getGlobalCheckpointSupplier().getAsLong());
+        return buildSeqNoStats(config(), segmentInfosAndCommit.segmentInfos());
     }
 
     @Override

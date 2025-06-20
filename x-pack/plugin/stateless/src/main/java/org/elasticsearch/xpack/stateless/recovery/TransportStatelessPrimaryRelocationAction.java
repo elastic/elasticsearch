@@ -449,7 +449,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 Strings.toString(indexShard.translogStats()),
                 Strings.toString(indexShard.mergeStats()),
                 Strings.toString(engine.commitStats()),
-                engine.segments()
+                engine instanceof HollowIndexEngine ? "(empty due to hollow engine)" : engine.segments()
             );
         }
     }

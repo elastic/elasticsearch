@@ -123,7 +123,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
-        assertEquals("1234", fields.get(0).stringValue());
+
+        var reader = fields.get(0).readerValue();
+        char[] buff = new char[20];
+        assertEquals(4, reader.read(buff));
+        assertEquals("1234", new String(buff, 0, 4));
+
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertTrue(fieldType.tokenized());

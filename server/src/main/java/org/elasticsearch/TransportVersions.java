@@ -187,6 +187,20 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED_8_19 = def(8_841_0_39);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19 = def(8_841_0_40);
     public static final TransportVersion DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_8_19 = def(8_841_0_41);
+    public static final TransportVersion JOIN_ON_ALIASES_8_19 = def(8_841_0_42);
+    public static final TransportVersion ILM_ADD_SKIP_SETTING_8_19 = def(8_841_0_43);
+    public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19 = def(8_841_0_44);
+    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION_8_19 = def(8_841_0_45);
+    public static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19 = def(8_841_0_46);
+    public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED_8_19 = def(8_841_0_47);
+    public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19 = def(8_841_0_48);
+    public static final TransportVersion NONE_CHUNKING_STRATEGY_8_19 = def(8_841_0_49);
+    public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19 = def(8_841_0_50);
+    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19 = def(8_841_0_52);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
+    public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
+
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -232,7 +246,6 @@ public class TransportVersions {
     public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = def(9_039_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOT = def(9_040_0_00);
     public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
-    public static final TransportVersion REPOSITORIES_METADATA_AS_PROJECT_CUSTOM = def(9_042_0_00);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION = def(9_043_0_00);
     public static final TransportVersion REMOTE_EXCEPTION = def(9_044_0_00);
     public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
@@ -279,6 +292,22 @@ public class TransportVersions {
     public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY = def(9_086_0_00);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = def(9_087_0_00);
     public static final TransportVersion JOIN_ON_ALIASES = def(9_088_0_00);
+    public static final TransportVersion ILM_ADD_SKIP_SETTING = def(9_089_0_00);
+    public static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED = def(9_090_0_00);
+    public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = def(9_091_0_00);
+    public static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM = def(9_092_0_00);
+    public static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = def(9_093_0_00);
+    public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = def(9_094_0_00);
+    public static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = def(9_095_0_00);
+    public static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = def(9_096_0_00);
+    public static final TransportVersion NONE_CHUNKING_STRATEGY = def(9_097_0_00);
+    public static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = def(9_098_0_00);
+    public static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = def(9_099_0_00);
+    public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
+    public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = def(9_102_0_00);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = def(9_103_0_00);
+    public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_104_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

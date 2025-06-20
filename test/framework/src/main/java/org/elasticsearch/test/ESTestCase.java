@@ -57,15 +57,20 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -94,6 +99,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -992,6 +998,13 @@ public abstract class ESTestCase extends LuceneTestCase {
             remaining -= sliceLen;
         }
         return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
+    }
+
+    public ReleasableBytesReference randomReleasableBytesReference(int length) {
+        return new ReleasableBytesReference(randomBytesReference(length), LeakTracker.wrap(new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {}
+        }));
     }
 
     public static short randomShort() {
@@ -2739,7 +2752,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 future.run();
             } else {
                 threads[i] = new Thread(future);
-                threads[i].setName("runInParallel-T#" + i);
+                threads[i].setName("TEST-runInParallel-T#" + i);
                 threads[i].start();
             }
         }
@@ -2817,5 +2830,19 @@ public abstract class ESTestCase extends LuceneTestCase {
             return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
         }
         return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
+    }
+
+    /**
+     * Constructs a {@link ProjectState} for the given {@link ProjectMetadata.Builder}.
+     */
+    public static ProjectState projectStateFromProject(ProjectMetadata.Builder project) {
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.getId());
+    }
+
+    /**
+     * Constructs an empty {@link ProjectState} with one (empty) project.
+     */
+    public static ProjectState projectStateWithEmptyProject() {
+        return projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
     }
 }

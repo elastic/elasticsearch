@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingModelTests;
+import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
 
 import java.io.IOException;
 import java.util.List;

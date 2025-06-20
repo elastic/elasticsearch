@@ -14,12 +14,18 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.junit.BeforeClass;
 
 public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+        assumeTrue("cuvs not supported", GPUVectorsFormat.supported());
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new GPUVectorsFormat());

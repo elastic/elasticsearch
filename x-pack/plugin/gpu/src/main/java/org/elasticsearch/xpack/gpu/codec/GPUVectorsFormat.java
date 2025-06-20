@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
+import com.nvidia.cuvs.CuVSResources;
+
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
@@ -16,6 +18,8 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 
@@ -24,6 +28,8 @@ import java.io.IOException;
  * leverage GPU processing capabilities for vector search operations.
  */
 public class GPUVectorsFormat extends KnnVectorsFormat {
+
+    private static final Logger LOG = LogManager.getLogger(GPUVectorsFormat.class);
 
     public static final String NAME = "GPUVectorsFormat";
     public static final String GPU_IDX_EXTENSION = "gpuidx";
@@ -68,5 +74,21 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
             return reader;
         }
         return null;
+    }
+
+    /** Tells whether the platform supports cuvs. */
+    public static boolean supported() {
+        try (var resources = CuVSResources.create()) {
+            return true;
+        } catch (UnsupportedOperationException uoe) {
+            var msg = uoe.getMessage() == null ? "" : ": " + uoe.getMessage();
+            LOG.warn("cuvs is not supported on this platform or java version" + msg);
+        } catch (Throwable t) {
+            if (t instanceof ExceptionInInitializerError ex) {
+                t = ex.getCause();
+            }
+            LOG.warn("Exception occurred during creation of cuvs resources. " + t);
+        }
+        return false;
     }
 }

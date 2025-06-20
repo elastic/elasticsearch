@@ -7,6 +7,7 @@
 
 /** Provides GPU-accelerated support for vector search. */
 module org.elasticsearch.gpu {
+    requires org.elasticsearch.logging;
     requires org.apache.lucene.core;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.server;

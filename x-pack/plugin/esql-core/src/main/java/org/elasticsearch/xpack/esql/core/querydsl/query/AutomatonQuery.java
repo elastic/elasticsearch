@@ -20,11 +20,13 @@ public class AutomatonQuery extends Query {
 
     private final String field;
     private final Automaton automaton;
+    private final String automatonDescription;
 
-    public AutomatonQuery(Source source, String field, Automaton automaton) {
+    public AutomatonQuery(Source source, String field, Automaton automaton, String automatonDescription) {
         super(source);
         this.field = field;
         this.automaton = automaton;
+        this.automatonDescription = automatonDescription;
     }
 
     public String field() {
@@ -33,7 +35,7 @@ public class AutomatonQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        return new AutomatonQueryBuilder(field, automaton);
+        return new AutomatonQueryBuilder(field, automaton, automatonDescription);
     }
 
     @Override

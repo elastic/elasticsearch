@@ -266,7 +266,7 @@ public class PushQueriesIT extends ESRestTestCase {
         String luceneQuery = switch (type) {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
-            case KEYWORD -> "test:AutomatonQuery";
+            case KEYWORD -> "Automaton for test LIKE (\"%value*\", \"abc*\"), caseInsensitive=false";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
@@ -325,17 +325,12 @@ public class PushQueriesIT extends ESRestTestCase {
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
 
-        Matcher<String> luceneQueryMatcher;
-        if (luceneQueryOptions.size() == 1 && luceneQueryOptions.get(0).equals("test:AutomatonQuery")) {
-            luceneQueryMatcher = anyOf(startsWith("test:AutomatonQuery"));
-        } else {
-            luceneQueryMatcher = anyOf(
-                () -> Iterators.map(
-                    luceneQueryOptions.iterator(),
-                    (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
-                )
-            );
-        }
+        Matcher<String> luceneQueryMatcher = anyOf(
+            () -> Iterators.map(
+                luceneQueryOptions.iterator(),
+                (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
+            )
+        );
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");

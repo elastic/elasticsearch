@@ -325,7 +325,7 @@ COUNT(*):long | ip:ip
             1 | 1.1.1.1
 ;
 
-toIpInSort
+toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
 ROW s = "1.1.1.1" | SORT TO_IP(s)
 ;
 

@@ -448,9 +448,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/128418
-- class: org.elasticsearch.xpack.esql.action.ForkIT
-  method: testProfile
-  issue: https://github.com/elastic/elasticsearch/issues/128377
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
   method: testTimestampFilterFromQuery
   issue: https://github.com/elastic/elasticsearch/issues/127332
@@ -505,24 +502,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.MultipleBatches*
   issue: https://github.com/elastic/elasticsearch/issues/129210
-- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
-  method: testScaleDuringSplitOrClone
-  issue: https://github.com/elastic/elasticsearch/issues/129335
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsAbsolutPathAccess
   issue: https://github.com/elastic/elasticsearch/issues/129168
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testCaseInsensitiveEquality {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129422
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129447
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/129453
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
@@ -568,9 +556,18 @@ tests:
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/129534
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testEqualityOrTooBig {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129545
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/129517
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/129651
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnSearchRescore
+  issue: https://github.com/elastic/elasticsearch/issues/129713
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/129752
 
 # Examples:
 #

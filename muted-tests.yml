@@ -2,9 +2,6 @@ tests:
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
-- class: org.elasticsearch.smoketest.WatcherYamlRestIT
-  method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
-  issue: https://github.com/elastic/elasticsearch/issues/112189
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -448,9 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/128418
-- class: org.elasticsearch.xpack.esql.action.ForkIT
-  method: testProfile
-  issue: https://github.com/elastic/elasticsearch/issues/128377
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
   method: testTimestampFilterFromQuery
   issue: https://github.com/elastic/elasticsearch/issues/127332
@@ -571,6 +565,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testSnapshotShutdownProgressTracker
   issue: https://github.com/elastic/elasticsearch/issues/129752
+- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
+  method: testUpdatingFileBasedRoleAffectsAllProjects
+  issue: https://github.com/elastic/elasticsearch/issues/129775
 
 # Examples:
 #

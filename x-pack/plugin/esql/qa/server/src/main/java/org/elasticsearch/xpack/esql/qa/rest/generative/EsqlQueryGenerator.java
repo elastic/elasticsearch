@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DropGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EnrichGenerator;
@@ -49,6 +50,7 @@ public class EsqlQueryGenerator {
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
     static List<CommandGenerator> PIPE_COMMANDS = List.of(
+        ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
@@ -197,6 +199,10 @@ public class EsqlQueryGenerator {
         return randomName(previousOutput, Set.of("long", "integer", "double", "date"));
     }
 
+    public static String randomDateField(List<Column> previousOutput) {
+        return randomName(previousOutput, Set.of("date"));
+    }
+
     public static String randomNumericField(List<Column> previousOutput) {
         return randomName(previousOutput, Set.of("long", "integer", "double"));
     }
@@ -253,6 +259,22 @@ public class EsqlQueryGenerator {
             default -> "null";
         };
 
+    }
+
+    /**
+     * returns a random identifier or one of the existing names
+     */
+    public static String randomAttributeOrIdentifier(List<EsqlQueryGenerator.Column> previousOutput) {
+        String name;
+        if (randomBoolean()) {
+            name = EsqlQueryGenerator.randomIdentifier();
+        } else {
+            name = EsqlQueryGenerator.randomName(previousOutput);
+            if (name == null) {
+                name = EsqlQueryGenerator.randomIdentifier();
+            }
+        }
+        return name;
     }
 
     public static String randomIdentifier() {

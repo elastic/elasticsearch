@@ -103,7 +103,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             // and the merge executor says they're blocked due to insufficient disk space if (nodesStatsResponse.getNodes()
             NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setThreadPool(true).get();
             if (nodesStatsResponse.getNodes()
-                .getFirst()
+                .get(0)
                 .getThreadPool()
                 .stats()
                 .stream()
@@ -131,7 +131,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         assertBusy(() -> {
             expectThrows(
                 IndexNotFoundException.class,
-                () -> indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(indexName).get()
+                () -> indicesAdmin().prepareGetIndex().setIndices(indexName).get()
             );
         });
         assertBusy(() -> {
@@ -139,7 +139,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setThreadPool(true).get();
             assertThat(
                 nodesStatsResponse.getNodes()
-                    .getFirst()
+                    .get(0)
                     .getThreadPool()
                     .stats()
                     .stream()

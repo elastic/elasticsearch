@@ -449,3 +449,36 @@ Will become (note the nested objects instead of the "flattened" array):
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
+
+Flattened fields allow for a key to contain both an object and a scalar value.
+For example, consider the following flattened field `flattened`:
+[source,console-result]
+----
+{
+  "flattened": {
+    "foo.bar": "10",
+    "foo": {
+      "bar": {
+        "baz": "20"
+      }
+    }
+  }
+}
+----
+
+Because `"foo.bar": "10"` is implicitly equivalent to `"foo": { "bar": "10" }`,
+`"bar"` has both a scalar value `"10"`, and an object value of `{ "baz": "20" }`.
+
+With synthetic source, to produce a valid JSON output, objects with such fields will appear differently in `_source`.
+For example, if the field is defined in an index configured with synthetic source, the value of `_source` would be:
+[source,console-result]
+----
+{
+  "flattened": {
+    "foo": {
+      "bar": "10",
+      "bar.baz": "20"
+    }
+  }
+}
+----

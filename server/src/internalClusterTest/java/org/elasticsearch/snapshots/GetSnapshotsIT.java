@@ -655,6 +655,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshots, hasSize(1));
         assertThat(snapshots.getFirst().state(), is(SnapshotState.SUCCESS));
 
+        // Add some more state (so the next snapshot has some work to do)
+        indexRandomDocs(randomIdentifier(), 100);
+
         // Create a snapshot in progress
         blockAllDataNodes(repoName);
         startFullSnapshot(repoName, "snapshot-in-progress");

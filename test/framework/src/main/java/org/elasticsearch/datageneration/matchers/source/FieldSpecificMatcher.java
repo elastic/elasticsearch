@@ -12,6 +12,7 @@ package org.elasticsearch.datageneration.matchers.source;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -389,7 +390,7 @@ interface FieldSpecificMatcher {
         Object convert(Object value, Object nullValue) {
             Boolean nullValueBool = null;
             if (nullValue != null) {
-                nullValueBool = nullValue instanceof Boolean b ? b : Boolean.parseBoolean((String) nullValue);
+                nullValueBool = nullValue instanceof Boolean b ? b : Booleans.parseBoolean((String) nullValue);
             }
 
             if (value == null) {
@@ -401,7 +402,7 @@ interface FieldSpecificMatcher {
             }
             if (value instanceof String s) {
                 try {
-                    return Boolean.parseBoolean(s);
+                    return Booleans.parseBoolean(s);
                 } catch (Exception e) {
                     // malformed
                     return value;

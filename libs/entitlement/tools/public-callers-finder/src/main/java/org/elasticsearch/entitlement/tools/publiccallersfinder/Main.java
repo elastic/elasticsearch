@@ -189,6 +189,9 @@ public class Main {
         }
     }
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     public static void main(String[] args) throws IOException {
         var csvFilePath = Path.of(args[0]);
         boolean bubbleUpFromPublic = args.length >= 2 && Boolean.parseBoolean(args[1]);

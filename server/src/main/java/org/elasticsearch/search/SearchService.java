@@ -55,6 +55,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -589,6 +590,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param threadPool     with context where to write the new header
      * @return the wrapped action listener
      */
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     static <T> ActionListener<T> wrapListenerForErrorHandling(
         ActionListener<T> listener,
         TransportVersion version,

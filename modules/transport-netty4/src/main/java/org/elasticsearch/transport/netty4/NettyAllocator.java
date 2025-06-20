@@ -26,11 +26,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@SuppressForbidden(
+    reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+)
 public class NettyAllocator {
 
     private static final Logger logger = LogManager.getLogger(NettyAllocator.class);

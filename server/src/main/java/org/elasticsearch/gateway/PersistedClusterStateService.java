@@ -677,6 +677,9 @@ public class PersistedClusterStateService {
         );
     }
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     public OnDiskStateMetadata loadOnDiskStateMetadataFromUserData(Map<String, String> userData) {
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;

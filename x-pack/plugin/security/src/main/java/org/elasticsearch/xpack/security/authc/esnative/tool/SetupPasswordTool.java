@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -416,6 +417,9 @@ class SetupPasswordTool extends MultiCommand {
         }
 
         @SuppressWarnings("unchecked")
+        @SuppressForbidden(
+            reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+        )
         private XPackSecurityFeatureConfig getXPackSecurityConfig(Terminal terminal) throws Exception {
             // Get x-pack security info.
             URL route = createURL(url, "/_xpack", "?categories=features&human=false&pretty");

@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
@@ -85,8 +86,10 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
+@SuppressForbidden(
+    reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+)
 public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
-
     static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";

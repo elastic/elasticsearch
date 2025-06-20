@@ -9,6 +9,8 @@
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -465,6 +467,9 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new CodeSource(new URL(baseURL, jarName), (CodeSigner[]) null /*signers*/);
     }
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     private static boolean isMultiRelease(ClassLoader parent, String jarPrefix) throws IOException {
         try (InputStream is = parent.getResourceAsStream(jarPrefix + "/META-INF/MANIFEST.MF")) {
             if (is != null) {

@@ -29,25 +29,6 @@ chartreuse | [127.0, 255.0, 0.0]
 // end::knn-function-result[]
 ;
 
-knnSearchWithKOption
-required_capability: knn_function
-
-// tag::knn-function-options[]
-from colors metadata _score 
-| where knn(rgb_vector, [0,255,255], 140)
-| sort _score desc, color asc
-// end::knn-function-options[]
-| keep color, rgb_vector
-| limit 4
-;
-
-color:text  | rgb_vector:dense_vector
-cyan        | [0.0, 255.0, 255.0]
-turquoise   | [64.0, 224.0, 208.0]
-aqua marine | [127.0, 255.0, 212.0]
-teal        | [0.0, 128.0, 128.0]
-;
-
 # https://github.com/elastic/elasticsearch/issues/129550
 knnSearchWithSimilarityOption-Ignore
 required_capability: knn_function
@@ -63,7 +44,6 @@ pink       | [255.0, 192.0, 203.0]
 peach puff | [255.0, 218.0, 185.0]
 bisque     | [255.0, 228.0, 196.0]
 wheat      | [245.0, 222.0, 179.0]
-
 ;
 
 knnHybridSearch

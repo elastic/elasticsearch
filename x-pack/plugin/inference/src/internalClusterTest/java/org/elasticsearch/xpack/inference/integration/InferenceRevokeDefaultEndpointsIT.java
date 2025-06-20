@@ -293,8 +293,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         )
                     )
                 );
-                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
-                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.RERANK)));
+                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.RERANK)));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);

@@ -83,14 +83,17 @@ toc:
             - file: rest-apis/collapse-search-results.md
             - file: rest-apis/create-index-from-source.md
             - file: rest-apis/filter-search-results.md
+            - file: rest-apis/find-text-structure-examples.md
             - file: rest-apis/highlighting.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md
             - file: rest-apis/reciprocal-rank-fusion.md
             - file: rest-apis/refresh-parameter.md
             - file: rest-apis/reindex-data-stream.md
+            - file: rest-apis/reindex-indices.md
             - file: rest-apis/retrieve-inner-hits.md
             - file: rest-apis/retrieve-selected-fields.md
+            - file: rest-apis/retrieve-stored-fields.md
             - file: rest-apis/retrievers.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md

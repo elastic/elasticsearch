@@ -60,6 +60,11 @@ public abstract class DependenciesInfoTask extends ConventionTask {
     @Inject
     public abstract ProviderFactory getProviderFactory();
 
+    /**
+     * We have to use ArtifactCollection instead of ResolvedArtifactResult here as we're running
+     * into a an issue in Gradle: https://github.com/gradle/gradle/issues/27582
+     */
+
     @Internal
     abstract Property<ArtifactCollection> getRuntimeArtifacts();
 
@@ -76,6 +81,11 @@ public abstract class DependenciesInfoTask extends ConventionTask {
         return mapToModuleComponentIdentifiers(getCompileOnlyArtifacts().get());
     }
 
+    /**
+     * We need to track file inputs here from the configurations we inspect to ensure we dont miss any
+     * artifact transforms that might be applied and fail due to missing task dependency to jar
+     * generating tasks.
+     * */
     @InputFiles
     abstract ConfigurableFileCollection getClasspath();
 

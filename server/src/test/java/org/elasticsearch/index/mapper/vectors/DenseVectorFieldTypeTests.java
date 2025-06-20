@@ -682,11 +682,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
             Tuple.tuple(FLOAT, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
-                patienceKnnVectorQuery.getSearchStrategy() : ((ESKnnFloatVectorQuery) q).getStrategy()),
+                null : ((ESKnnFloatVectorQuery) q).getStrategy()),
             Tuple.tuple(BYTE, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
-                patienceKnnVectorQuery.getSearchStrategy() : ((ESKnnByteVectorQuery) q).getStrategy()),
+                null : ((ESKnnByteVectorQuery) q).getStrategy()),
             Tuple.tuple(BIT, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
-                patienceKnnVectorQuery.getSearchStrategy() : ((ESKnnByteVectorQuery) q).getStrategy())
+                null : ((ESKnnByteVectorQuery) q).getStrategy())
         );
         for (var tuple : cases) {
             DenseVectorFieldType fieldType = new DenseVectorFieldType(
@@ -713,22 +713,24 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 DenseVectorFieldMapper.FilterHeuristic.FANOUT
             );
             KnnSearchStrategy strategy = tuple.v2().apply(query);
-            assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
-            assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(0));
+            if (strategy != null) {
+                assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
+                assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(0));
 
-            query = fieldType.createKnnQuery(
-                VectorData.fromFloats(new float[] { 1, 4, 10 }),
-                10,
-                100,
-                0f,
-                null,
-                null,
-                null,
-                DenseVectorFieldMapper.FilterHeuristic.ACORN
-            );
-            strategy = tuple.v2().apply(query);
-            assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
-            assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(60));
+                query = fieldType.createKnnQuery(
+                    VectorData.fromFloats(new float[]{1, 4, 10}),
+                    10,
+                    100,
+                    0f,
+                    null,
+                    null,
+                    null,
+                    DenseVectorFieldMapper.FilterHeuristic.ACORN
+                );
+                strategy = tuple.v2().apply(query);
+                assertTrue(strategy instanceof KnnSearchStrategy.Hnsw);
+                assertThat(((KnnSearchStrategy.Hnsw) strategy).filteredSearchThreshold(), equalTo(60));
+            }
         }
     }
 

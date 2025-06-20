@@ -90,7 +90,6 @@ setup:
               type: dense_vector
               dims: 5
               index: false
-              early_termination: false
 ---
 "Not indexed vector - vector similarity":
   - do:
@@ -177,4 +176,3 @@ setup:
   - match: { test_default_index_options.mappings.properties.vector.index: true }
   - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
   - is_false: test_default_index_options.mappings.properties.vector.index_options.type
-  - match: { test_default_index_options.mappings.properties.vector.index_options.early_termination: false }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -128,7 +130,11 @@ public class UpdateBranchesJsonTask extends DefaultTask {
             updatedBranches.add(objectNode);
         }
         ((ObjectNode) jsonNode).replace("branches", updatedBranches);
-        objectMapper.writeValue(branchesFile, jsonNode);
+
+        DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
+        prettyPrinter.indentArraysWith(new DefaultIndenter("  ", DefaultIndenter.SYS_LF));
+        prettyPrinter.withoutSpacesInObjectEntries();
+        objectMapper.writer(prettyPrinter).writeValue(branchesFile, jsonNode);
     }
 
     private List<DevelopmentBranch> readBranches(File branchesFile) {

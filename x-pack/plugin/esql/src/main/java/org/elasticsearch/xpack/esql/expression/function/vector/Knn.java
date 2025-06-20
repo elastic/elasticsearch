@@ -50,6 +50,7 @@ import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMI
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
@@ -180,8 +181,9 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private TypeResolution resolveK() {
-        return isNotNull(k(), sourceText(), TypeResolutions.ParamOrdinal.THIRD)
-            .and(isType(k(), dt -> dt == INTEGER, sourceText(), TypeResolutions.ParamOrdinal.THIRD, "integer"));
+        return isType(k(), dt -> dt == INTEGER, sourceText(), THIRD, "integer")
+            .and(isFoldable(k(), sourceText(), THIRD))
+            .and(isNotNull(k(), sourceText(), THIRD));
     }
 
     private TypeResolution resolveOptions() {

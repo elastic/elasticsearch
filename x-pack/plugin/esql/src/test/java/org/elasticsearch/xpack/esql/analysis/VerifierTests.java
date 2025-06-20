@@ -2173,24 +2173,25 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testFullTextFunctionsConstantQuery() throws Exception {
-        checkFullTextFunctionsConstantQuery("match(title, category)", "second");
-        checkFullTextFunctionsConstantQuery("qstr(title)", "");
-        checkFullTextFunctionsConstantQuery("kql(title)", "");
-        checkFullTextFunctionsConstantQuery("match_phrase(title, tags)", "second");
+    public void testFullTextFunctionsConstantArg() throws Exception {
+        checkFullTextFunctionsConstantArg("match(title, category)", "second");
+        checkFullTextFunctionsConstantArg("qstr(title)", "");
+        checkFullTextFunctionsConstantArg("kql(title)", "");
+        checkFullTextFunctionsConstantArg("match_phrase(title, tags)", "second");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
+            checkFullTextFunctionsConstantArg("multi_match(category, body)", "first");
+            checkFullTextFunctionsConstantArg("multi_match(concat(title, \"world\"), title)", "first");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
+            checkFullTextFunctionsConstantArg("term(title, tags)", "second");
         }
         if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("knn(vector, vector, 10)", "second");
+            checkFullTextFunctionsConstantArg("knn(vector, vector, 10)", "second");
+            checkFullTextFunctionsConstantArg("knn(vector, [0, 1, 2], category)", "third");
         }
     }
 
-    private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
+    private void checkFullTextFunctionsConstantArg(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")

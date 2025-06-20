@@ -47,6 +47,6 @@
     "FROM books\n| WHERE QSTR(\"author: Faulkner\")",
     "FROM books\n| WHERE QSTR(\"title: Hobbjt~\", {\"fuzziness\": 2})"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

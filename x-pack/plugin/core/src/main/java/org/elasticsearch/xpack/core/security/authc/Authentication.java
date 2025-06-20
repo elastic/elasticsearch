@@ -949,7 +949,6 @@ public final class Authentication implements ToXContentObject {
         }
         if (authenticatingSubject.getType() == Subject.Type.CLOUD_API_KEY) {
             checkConsistencyForCloudApiKeyAuthenticatingSubject("Cloud API key");
-            checkNoRunAs(this, "Cloud API key");
             return;
         }
 
@@ -1050,6 +1049,7 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
         checkNoDomain(authenticatingRealm, prefixMessage);
         checkNoInternalUser(authenticatingSubject, prefixMessage);
+        checkNoRunAs(this, prefixMessage);
         if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY) != null
             || authenticatingSubject.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY) != null
             || authenticatingSubject.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY) != null) {

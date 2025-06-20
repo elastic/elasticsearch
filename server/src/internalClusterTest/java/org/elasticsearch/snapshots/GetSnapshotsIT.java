@@ -661,38 +661,42 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         // Create a snapshot in progress
         blockAllDataNodes(repoName);
-        startFullSnapshot(repoName, "snapshot-in-progress");
-        awaitNumberOfSnapshotsInProgress(1);
+        try {
+            startFullSnapshot(repoName, "snapshot-in-progress");
+            awaitNumberOfSnapshotsInProgress(1);
 
-        // Fetch snapshots with state=IN_PROGRESS
-        snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.IN_PROGRESS));
-        assertThat(snapshots, hasSize(1));
-        assertThat(snapshots.getFirst().state(), is(SnapshotState.IN_PROGRESS));
+            // Fetch snapshots with state=IN_PROGRESS
+            snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.IN_PROGRESS));
+            assertThat(snapshots, hasSize(1));
+            assertThat(snapshots.getFirst().state(), is(SnapshotState.IN_PROGRESS));
 
-        // Fetch snapshots with multiple states (SUCCESS, IN_PROGRESS)
-        snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.SUCCESS, SnapshotState.IN_PROGRESS));
-        assertThat(snapshots, hasSize(2));
-        var states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
-        assertThat(states, hasItem(SnapshotState.SUCCESS));
-        assertThat(states, hasItem(SnapshotState.IN_PROGRESS));
+            // Fetch snapshots with multiple states (SUCCESS, IN_PROGRESS)
+            snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.SUCCESS, SnapshotState.IN_PROGRESS));
+            assertThat(snapshots, hasSize(2));
+            var states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
+            assertThat(states, hasItem(SnapshotState.SUCCESS));
+            assertThat(states, hasItem(SnapshotState.IN_PROGRESS));
 
-        // Fetch all snapshots (without state)
-        snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
-        assertThat(snapshots, hasSize(2));
+            // Fetch all snapshots (without state)
+            snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
+            assertThat(snapshots, hasSize(2));
 
-        // Fetch snapshots with an invalid state
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> getSnapshotsForStates.apply(EnumSet.of(SnapshotState.valueOf("FOO")))
-        );
-        assertThat(e.getMessage(), is("No enum constant org.elasticsearch.snapshots.SnapshotState.FOO"));
+            // Fetch snapshots with an invalid state
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getSnapshotsForStates.apply(EnumSet.of(SnapshotState.valueOf("FOO")))
+            );
+            assertThat(e.getMessage(), is("No enum constant org.elasticsearch.snapshots.SnapshotState.FOO"));
+        } finally {
+            // Allow the IN_PROGRESS snapshot to finish, then verify GET using SUCCESS has results and IN_PROGRESS does not.
+            // Do this in a finally, so the block doesn't interfere with teardown in the event of a failure
+            unblockAllDataNodes(repoName);
+        }
 
-        // Allow the IN_PROGRESS snapshot to finish, then verify GET using SUCCESS has results and IN_PROGRESS does not.
-        unblockAllDataNodes(repoName);
         awaitNumberOfSnapshotsInProgress(0);
         snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
         assertThat(snapshots, hasSize(2));
-        states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
+        var states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
         assertThat(states, hasSize(1));
         assertTrue(states.contains(SnapshotState.SUCCESS));
         snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.IN_PROGRESS));

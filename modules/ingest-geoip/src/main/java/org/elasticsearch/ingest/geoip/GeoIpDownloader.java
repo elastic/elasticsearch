@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -95,6 +96,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
      */
     private final Supplier<Boolean> atLeastOneGeoipProcessorSupplier;
 
+    private final ProjectId projectId;
+
     GeoIpDownloader(
         Client client,
         HttpClient httpClient,
@@ -109,10 +112,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Map<String, String> headers,
         Supplier<TimeValue> pollIntervalSupplier,
         Supplier<Boolean> eagerDownloadSupplier,
-        Supplier<Boolean> atLeastOneGeoipProcessorSupplier
+        Supplier<Boolean> atLeastOneGeoipProcessorSupplier,
+        ProjectId projectId
     ) {
         super(id, type, action, description, parentTask, headers);
-        this.client = client;
+        this.client = client.projectClient(projectId);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -120,6 +124,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
+        this.projectId = projectId;
     }
 
     void setState(GeoIpTaskState state) {
@@ -134,16 +139,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().getProject().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata().getProject(projectId).getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
-            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+            if (clusterState.routingTable(projectId).index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 logger.debug(
                     "Not updating geoip database because not all primary shards of the [" + DATABASES_INDEX + "] index are active."
                 );
                 return;
             }
-            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            var blockException = clusterState.blocks()
+                .indexBlockedException(projectId, ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
                 logger.debug(
                     "Not updating geoip database because there is a write block on the " + geoipIndex.getWriteIndex().getName() + " index",
@@ -196,7 +202,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             updateTimestamp(name, metadata);
             return;
         }
-        logger.debug("downloading geoip database [{}]", name);
+        logger.debug("downloading geoip database [{}] for project [{}]", name, projectId);
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = metadata.lastChunk() + 1; // if there is no metadata, then Metadata.EMPTY.lastChunk() + 1 = 0
@@ -205,12 +211,12 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.getDatabases().size());
-                logger.info("successfully downloaded geoip database [{}]", name);
+                logger.info("successfully downloaded geoip database [{}] for project [{}]", name, projectId);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error(() -> "error downloading geoip database [" + name + "]", e);
+            logger.error(() -> "error downloading geoip database [" + name + "] for project [" + projectId + "]", e);
         }
     }
 
@@ -230,7 +236,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     protected void updateTimestamp(String name, Metadata old) {
-        logger.debug("geoip database [{}] is up to date, updated timestamp", name);
+        logger.debug("geoip database [{}] is up to date for project [{}], updated timestamp", name, projectId);
         state = state.put(name, new Metadata(old.lastUpdate(), old.firstChunk(), old.lastChunk(), old.md5(), System.currentTimeMillis()));
         stats = stats.skippedDownload();
         updateTaskState();
@@ -238,7 +244,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     void updateTaskState() {
         PlainActionFuture<PersistentTask<?>> future = new PlainActionFuture<>();
-        updatePersistentTaskState(state, future);
+        updateProjectPersistentTaskState(projectId, state, future);
         state = ((GeoIpTaskState) future.actionGet().getState());
     }
 
@@ -360,5 +366,4 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
         }
     }
-
 }

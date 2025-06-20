@@ -40,7 +40,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     );
 
     @FunctionInfo(
-        description = "Is *not* this null?",
+        description = "Checks if a value *not* is `NULL`.",
         note = "If a field is only in some documents it will be `NULL` in the documents that did not contain it.",
         operator = "IS NOT NULL",
         returnType = {

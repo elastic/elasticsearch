@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "IS NOT NULL",
   "name" : "is_not_null",
-  "description" : "Is *not* this null?",
+  "description" : "Checks if a value *not* is `NULL`.",
   "note" : "If a field is only in some documents it will be `NULL` in the documents that did not contain it.",
   "signatures" : [
     {

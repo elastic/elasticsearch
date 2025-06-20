@@ -37,7 +37,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IsNull", IsNull::new);
 
     @FunctionInfo(
-        description = "Is this `NULL`?",
+        description = "Checks if a value is `NULL`.",
         note = "If a field is only in some documents it will be `NULL` in the documents that did not contain it.",
         operator = "IS NULL",
         returnType = {

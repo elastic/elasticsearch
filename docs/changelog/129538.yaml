@@ -1,5 +1,0 @@
-pr: 129538
-summary: Force niofs for fdt tmp file read access when flushing stored fields
-area: Logs
-type: enhancement
-issues: []

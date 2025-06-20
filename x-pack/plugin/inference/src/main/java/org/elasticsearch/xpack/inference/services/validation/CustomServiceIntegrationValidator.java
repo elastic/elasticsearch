@@ -1,4 +1,3 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -22,7 +21,12 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.List;
 import java.util.Map;
 
-public class SimpleServiceIntegrationValidator implements ServiceIntegrationValidator {
+/**
+ * This class is slightly different from the SimpleServiceIntegrationValidator in that in sends the topN and return documents in the
+ * request. This is necessary because the custom service may require those template to be replaced when building the request. Otherwise,
+ * the request will fail to be constructed because it'll have a template that wasn't replaced.
+ */
+public class CustomServiceIntegrationValidator implements ServiceIntegrationValidator {
     private static final List<String> TEST_INPUT = List.of("how big");
     private static final String QUERY = "test query";
 
@@ -31,8 +35,8 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
         service.infer(
             model,
             model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
-            null,
-            null,
+            true,
+            1,
             TEST_INPUT,
             false,
             Map.of(),
@@ -44,20 +48,21 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(
-                            "Could not complete inference endpoint creation as validation call to service returned null response.",
+                            "Could not complete custom service inference endpoint creation as"
+                                + " validation call to service returned null response.",
                             RestStatus.BAD_REQUEST
                         )
                     );
                 }
-            }, e -> {
-                listener.onFailure(
+            },
+                e -> listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Could not complete inference endpoint creation as validation call to service threw an exception.",
+                        "Could not complete custom service inference endpoint creation as validation call to service threw an exception.",
                         RestStatus.BAD_REQUEST,
                         e
                     )
-                );
-            })
+                )
+            )
         );
     }
 }

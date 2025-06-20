@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.CodeSource;
@@ -35,7 +36,7 @@ public class TestPolicyManager extends PolicyManager {
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
 
-    final Collection<String> testOnlyClasspath;
+    final Collection<URI> testOnlyClasspath;
 
     public TestPolicyManager(
         Policy serverPolicy,
@@ -44,7 +45,7 @@ public class TestPolicyManager extends PolicyManager {
         Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup,
-        Collection<String> testOnlyClasspath
+        Collection<URI> testOnlyClasspath
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
         this.testOnlyClasspath = testOnlyClasspath;
@@ -135,14 +136,11 @@ public class TestPolicyManager extends PolicyManager {
             // This can happen for JDK classes
             return false;
         }
-        String needle;
+        URI needle;
         try {
-            needle = codeSource.getLocation().toURI().getPath();
+            needle = codeSource.getLocation().toURI();
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
-        }
-        if (needle.endsWith("/")) {
-            needle = needle.substring(0, needle.length() - 1);
         }
         boolean result = testOnlyClasspath.contains(needle);
         return result;

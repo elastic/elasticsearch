@@ -29,8 +29,11 @@ import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -128,11 +131,11 @@ public class TestEntitlementBootstrap {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathString = System.getenv("es.entitlement.testOnlyPath");
-        Set<String> testOnlyClassPath;
+        Set<URI> testOnlyClassPath;
         if (testOnlyPathString == null) {
             testOnlyClassPath = Set.of();
         } else {
-            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(separator)).collect(toCollection(TreeSet::new));
+            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(separator)).map(Paths::get).map(Path::toUri).collect(toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

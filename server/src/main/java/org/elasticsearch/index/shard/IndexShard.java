@@ -1386,7 +1386,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws AlreadyClosedException if shard is closed
      */
     public SeqNoStats seqNoStats() {
-        return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        return withEngine(engine -> engine.getSeqNoStats(getLastKnownGlobalCheckpoint()));
     }
 
     public IndexingStats indexingStats() {

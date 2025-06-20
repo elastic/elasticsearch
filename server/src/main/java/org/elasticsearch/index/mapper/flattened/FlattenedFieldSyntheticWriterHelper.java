@@ -202,7 +202,7 @@ public class FlattenedFieldSyntheticWriterHelper {
             // startPrefix is the suffix of the path that is within the currently open object, not including the leaf.
             // For example, if the path is foo.bar.baz.qux, and openObjects is [foo], then startPrefix is bar.baz, and leaf is qux.
             var startPrefix = curr.prefix.diff(openObjects);
-            if (startPrefix.parts.isEmpty() == false && startPrefix.parts.getFirst().equals(lastScalarSingleLeaf)) {
+            if (startPrefix.parts.isEmpty() == false && startPrefix.parts.get(0).equals(lastScalarSingleLeaf)) {
                 // We have encountered a key with an object value, which already has a scalar value. Instead of creating an object for the
                 // key, we concatenate the key and all child keys going down to the current leaf into a single field name. For example:
                 // Assume the current object contains "foo": 10 and "foo.bar": 20. Since key-value pairs are sorted, "foo" is processed
@@ -231,7 +231,7 @@ public class FlattenedFieldSyntheticWriterHelper {
     private static void endObject(final XContentBuilder b, int numObjectsToClose, List<String> openObjects) throws IOException {
         for (int i = 0; i < numObjectsToClose; i++) {
             b.endObject();
-            openObjects.removeLast();
+            openObjects.remove(openObjects.size() - 1);
         }
     }
 
@@ -252,7 +252,7 @@ public class FlattenedFieldSyntheticWriterHelper {
             // As a result, there is no way to know, after reading a single value, if that value
             // is the value for a single-valued field or a multi-valued field (array) with just
             // one value (array of size 1).
-            b.field(leaf, values.getFirst());
+            b.field(leaf, values.get(0));
         }
         values.clear();
     }

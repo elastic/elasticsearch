@@ -56,8 +56,7 @@ public class Sample extends AggregateFunction implements ToAggregator {
             "keyword",
             "long",
             "version" },
-        description = "Collects sample values for a field.",
-        examples = @Example(file = "stats_sample", tag = "doc")
+        description = "Collects sample values for a field."
     )
     public Sample(
         Source source,

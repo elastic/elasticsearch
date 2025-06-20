@@ -61,6 +61,7 @@ setup:
                 type: hnsw
                 m: 32
                 ef_construction: 200
+                early_termination: false
 
 ---
 "Not indexed vector":
@@ -147,6 +148,7 @@ setup:
   - match: { test_default_index_options.mappings.properties.vector.index: true }
   - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
   - match: { test_default_index_options.mappings.properties.vector.index_options.type: int8_hnsw }
+  - match: { test_default_index_options.mappings.properties.vector.index_options.early_termination: false }
 ---
 "Default index options for dense_vector element type byte":
   - requires:

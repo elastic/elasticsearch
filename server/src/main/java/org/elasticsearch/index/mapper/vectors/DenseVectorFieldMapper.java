@@ -31,6 +31,9 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.KnnByteVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -120,6 +123,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
 
+    private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
     public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
 
     public static boolean isNotUnitVector(float magnitude) {
@@ -208,7 +212,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
     public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
-                                                                        // vector
+    // vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
@@ -1390,16 +1394,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object earlyTerminationObject = indexOptionsMap.remove("early_termination");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
+                if (earlyTerminationObject == null) {
+                    earlyTerminationObject = DEFAULT_HNSW_EARLY_TERMINATION;
+                }
+                boolean earlyTermination = XContentMapValues.nodeBooleanValue(earlyTerminationObject);
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new HnswIndexOptions(m, efConstruction);
+                return new HnswIndexOptions(m, efConstruction, earlyTermination);
             }
 
             @Override
@@ -1418,11 +1427,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                Object earlyTerminationNode = indexOptionsMap.remove("early_termination");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                if (earlyTerminationNode == null) {
+                    earlyTerminationNode = DEFAULT_HNSW_EARLY_TERMINATION;
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
@@ -1434,8 +1447,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
+                boolean earlyTermination = XContentMapValues.nodeBooleanValue(earlyTerminationNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector);
+                return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector, earlyTermination);
             }
 
             @Override
@@ -1453,11 +1467,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                Object earlyTerminationNode = indexOptionsMap.remove("early_termination");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                if (earlyTerminationNode == null) {
+                    earlyTerminationNode = DEFAULT_HNSW_EARLY_TERMINATION;
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
@@ -1469,8 +1487,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
+                boolean earlyTermination = XContentMapValues.nodeBooleanValue(earlyTerminationNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector);
+                return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector, earlyTermination);
             }
 
             @Override
@@ -1557,11 +1576,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object earlyTerminationNode = indexOptionsMap.remove("early_termination");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                if (earlyTerminationNode == null) {
+                    earlyTerminationNode = DEFAULT_HNSW_EARLY_TERMINATION;
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
@@ -1572,8 +1595,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
                 }
+                boolean earlyTermination = XContentMapValues.nodeBooleanValue(earlyTerminationNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, earlyTermination);
             }
 
             @Override
@@ -1789,14 +1813,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int m;
         private final int efConstruction;
         private final float confidenceInterval;
+        private final boolean earlyTermination;
 
         public Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
+            this(m, efConstruction, confidenceInterval, rescoreVector, DEFAULT_HNSW_EARLY_TERMINATION);
+        }
+
+        public Int4HnswIndexOptions(
+            int m,
+            int efConstruction,
+            Float confidenceInterval,
+            RescoreVector rescoreVector,
+            boolean earlyTermination
+        ) {
             super(VectorIndexType.INT4_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
+            this.earlyTermination = earlyTermination;
         }
 
         @Override
@@ -1815,6 +1851,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
+            builder.field("early_termination", earlyTermination);
             builder.endObject();
             return builder;
         }
@@ -1824,13 +1861,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Int4HnswIndexOptions that = (Int4HnswIndexOptions) o;
             return m == that.m
                 && efConstruction == that.efConstruction
+                && earlyTermination == that.earlyTermination
                 && Objects.equals(confidenceInterval, that.confidenceInterval)
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, confidenceInterval, rescoreVector);
+            return Objects.hash(m, efConstruction, confidenceInterval, rescoreVector, earlyTermination);
         }
 
         @Override
@@ -1845,6 +1883,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + confidenceInterval
                 + ", rescore_vector="
                 + (rescoreVector == null ? "none" : rescoreVector)
+                + ", early_termination="
+                + earlyTermination
                 + "}";
         }
 
@@ -1926,12 +1966,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int m;
         private final int efConstruction;
         private final Float confidenceInterval;
+        private final boolean earlyTermination;
 
         public Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval, RescoreVector rescoreVector) {
+            this(m, efConstruction, confidenceInterval, rescoreVector, DEFAULT_HNSW_EARLY_TERMINATION);
+        }
+
+        public Int8HnswIndexOptions(
+            int m,
+            int efConstruction,
+            Float confidenceInterval,
+            RescoreVector rescoreVector,
+            boolean earlyTermination
+        ) {
             super(VectorIndexType.INT8_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
             this.confidenceInterval = confidenceInterval;
+            this.earlyTermination = earlyTermination;
         }
 
         @Override
@@ -1952,6 +2004,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
+            builder.field("early_termination", earlyTermination);
             builder.endObject();
             return builder;
         }
@@ -1963,13 +2016,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Int8HnswIndexOptions that = (Int8HnswIndexOptions) o;
             return m == that.m
                 && efConstruction == that.efConstruction
+                && earlyTermination == that.earlyTermination
                 && Objects.equals(confidenceInterval, that.confidenceInterval)
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, confidenceInterval, rescoreVector);
+            return Objects.hash(m, efConstruction, confidenceInterval, rescoreVector, earlyTermination);
         }
 
         @Override
@@ -1984,6 +2038,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + confidenceInterval
                 + ", rescore_vector="
                 + (rescoreVector == null ? "none" : rescoreVector)
+                + ", early_termination="
+                + earlyTermination
                 + "}";
         }
 
@@ -2009,11 +2065,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class HnswIndexOptions extends DenseVectorIndexOptions {
         private final int m;
         private final int efConstruction;
+        private final boolean earlyTermination;
 
         HnswIndexOptions(int m, int efConstruction) {
+            this(m, efConstruction, DEFAULT_HNSW_EARLY_TERMINATION);
+        }
+
+        HnswIndexOptions(int m, int efConstruction, boolean earlyTermination) {
             super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
+            this.earlyTermination = earlyTermination;
         }
 
         @Override
@@ -2044,6 +2106,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
+            builder.field("early_termination", earlyTermination);
             builder.endObject();
             return builder;
         }
@@ -2053,28 +2116,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction;
+            return m == that.m && efConstruction == that.efConstruction && earlyTermination == that.earlyTermination;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction);
+            return Objects.hash(m, efConstruction, earlyTermination);
         }
 
         @Override
         public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + ", early_termination=" + earlyTermination + "}";
         }
     }
 
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
+        private final boolean earlyTermination;
 
         public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
+            this(m, efConstruction, rescoreVector, DEFAULT_HNSW_EARLY_TERMINATION);
+        }
+
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean earlyTermination) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
+            this.earlyTermination = earlyTermination;
         }
 
         @Override
@@ -2091,12 +2160,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
-            return m == that.m && efConstruction == that.efConstruction && Objects.equals(rescoreVector, that.rescoreVector);
+            return m == that.m
+                && efConstruction == that.efConstruction
+                && Objects.equals(rescoreVector, that.rescoreVector)
+                && earlyTermination == that.earlyTermination;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector);
+            return Objects.hash(m, efConstruction, rescoreVector, earlyTermination);
         }
 
         @Override
@@ -2108,6 +2180,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
+            builder.field("early_termination", earlyTermination);
             builder.endObject();
             return builder;
         }
@@ -2461,6 +2534,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
+            knnQuery = maybeWrapPatience(knnQuery);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2489,6 +2563,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                 : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
+            knnQuery = maybeWrapPatience(knnQuery);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -2497,6 +2572,44 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return knnQuery;
+        }
+
+        private Query maybeWrapPatience(Query knnQuery) {
+            Query finalQuery = knnQuery;
+            if (knnQuery instanceof KnnByteVectorQuery knnByteVectorQuery) {
+                finalQuery = maybeWrapPatienceByte(knnByteVectorQuery, Math.max(7, (int) (knnByteVectorQuery.getK() * 0.3)));
+            } else if (knnQuery instanceof KnnFloatVectorQuery knnFloatVectorQuery) {
+                finalQuery = maybeWrapPatienceFloat(knnFloatVectorQuery, Math.max(7, (int) (knnFloatVectorQuery.getK() * 0.3)));
+            }
+            return finalQuery;
+        }
+
+        private Query maybeWrapPatienceByte(KnnByteVectorQuery knnQuery, int patience) {
+            Query returnedQuery = knnQuery;
+            if (indexOptions instanceof HnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery, 0.995, patience);
+            } else if (indexOptions instanceof Int8HnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery, 0.995, patience);
+            } else if (indexOptions instanceof Int4HnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery, 0.995, patience);
+            } else if (indexOptions instanceof BBQHnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery, 0.995, patience);
+            }
+            return returnedQuery;
+        }
+
+        private Query maybeWrapPatienceFloat(KnnFloatVectorQuery knnQuery, int patience) {
+            Query returnedQuery = knnQuery;
+            if (indexOptions instanceof HnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery, 0.995, patience);
+            } else if (indexOptions instanceof Int8HnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery, 0.995, patience);
+            } else if (indexOptions instanceof Int4HnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery, 0.995, patience);
+            } else if (indexOptions instanceof BBQHnswIndexOptions hnswIndexOptions && hnswIndexOptions.earlyTermination) {
+                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery, 0.995, patience);
+            }
+            return returnedQuery;
         }
 
         private Query createKnnFloatQuery(
@@ -2565,6 +2678,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         knnSearchStrategy
                     )
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
+                knnQuery = maybeWrapPatience(knnQuery);
             }
             if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(

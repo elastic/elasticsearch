@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -181,8 +180,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private TypeResolution resolveK() {
-        return isType(k(), dt -> dt == INTEGER, sourceText(), THIRD, "integer")
-            .and(isFoldable(k(), sourceText(), THIRD))
+        return isType(k(), dt -> dt == INTEGER, sourceText(), THIRD, "integer").and(isFoldable(k(), sourceText(), THIRD))
             .and(isNotNull(k(), sourceText(), THIRD));
     }
 

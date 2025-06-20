@@ -681,9 +681,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
-            Tuple.tuple(FLOAT, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
-            Tuple.tuple(BYTE, q -> ((ESKnnByteVectorQuery) q).getStrategy()),
-            Tuple.tuple(BIT, q -> ((ESKnnByteVectorQuery) q).getStrategy())
+            Tuple.tuple(FLOAT, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
+                patienceKnnVectorQuery.getSearchStrategy() : ((ESKnnFloatVectorQuery) q).getStrategy()),
+            Tuple.tuple(BYTE, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
+                patienceKnnVectorQuery.getSearchStrategy() : ((ESKnnByteVectorQuery) q).getStrategy()),
+            Tuple.tuple(BIT, q -> q instanceof PatienceKnnVectorQuery patienceKnnVectorQuery ?
+                patienceKnnVectorQuery.getSearchStrategy() : ((ESKnnByteVectorQuery) q).getStrategy())
         );
         for (var tuple : cases) {
             DenseVectorFieldType fieldType = new DenseVectorFieldType(

@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static EsqlParser parser;
     protected static LogicalOptimizerContext logicalOptimizerCtx;

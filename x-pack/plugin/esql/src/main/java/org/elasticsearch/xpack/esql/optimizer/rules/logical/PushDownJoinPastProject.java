@@ -28,12 +28,14 @@ import java.util.Set;
 
 /**
  * If a {@link Project} is found in the left child of a left {@link Join}, perform it after. Due to requiring the projected attributes
- * later, field extractions can also happen later, making joins cheapter to execute on data nodes.
+ * later, field extractions can also happen later, making joins cheaper to execute on data nodes.
  * E.g. {@code ... | RENAME field AS otherfield | LOOKUP JOIN lu_idx ON key}
  * becomes {@code ... | LOOKUP JOIN lu_idx ON key | RENAME field AS otherfield }.
- * When a {@code LOOKUP JOIN}'s lookup fields shadow the previous fields, we may need to leave an {@link Eval} in place to assign a
- * temporary name. Assume that {@code field} is a lookup field, then {@code ... | RENAME field AS otherfield | LOOKUP JOIN lu_idx ON key}
- * becomes something like {@code ... | EVAL $$field = field | LOOKUP JOIN lu_idx ON key | RENAME $$field AS otherfield}.
+ * When a {@code LOOKUP JOIN}'s lookup fields shadow the previous fields, we need to leave an {@link Eval} in place of the {@link Project}
+ * to assign a temporary name. Assume that {@code field} is a lookup-added field, then
+ * {@code ... | RENAME field AS otherfield | LOOKUP JOIN lu_idx ON key}
+ * becomes something like
+ * {@code ... | EVAL $$field = field | LOOKUP JOIN lu_idx ON key | RENAME $$field AS otherfield}.
  * Leaving {@code EVAL $$field = field} in place of the original projection, rather than a Project, avoids infinite loops.
  */
 public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<Join> {
@@ -43,6 +45,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
             // Do not apply to INLINESTATS; this rule could be expanded to include INLINESTATS, but the StubRelation refers to the left
             // child - so pulling out a Project from the left child would require us to also update the StubRelation (and the Aggregate
             // on top of it)
+            // TODO: figure out how to push down in case of INLINESTATS
             return join;
         }
 
@@ -77,12 +80,11 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
             AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
             AttributeSet leftOutput = project.child().outputSet();
 
-            for (NamedExpression proj : newProjections) {
-                // TODO: add assert to Project that ensures Alias to attr or pure attr.
-                Attribute coreAttr = (Attribute) (proj instanceof Alias as ? as.child() : proj);
+            for (NamedExpression newProj : newProjections) {
+                Attribute coreAttr = (Attribute) Alias.unwrap(newProj);
                 // Only fields from the left need to be protected from conflicts - because fields from the right shadow them.
                 if (leftOutput.contains(coreAttr) == false || lookupFieldNames.contains(coreAttr.name()) == false) {
-                    finalProjections.add(proj);
+                    finalProjections.add(newProj);
                 } else {
                     // Conflict - the core attribute will be shadowed by the `LOOKUP JOIN` and we need to alias it in an upstream Eval.
                     Alias renaming = aliasesForReplacedAttributesBuilder.computeIfAbsent(coreAttr, a -> {
@@ -92,7 +94,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
 
                     Attribute renamedAttribute = renaming.toAttribute();
                     Alias renamedBack;
-                    if (proj instanceof Alias as) {
+                    if (newProj instanceof Alias as) {
                         renamedBack = new Alias(as.source(), as.name(), renamedAttribute, as.id(), as.synthetic());
                     } else {
                         // no alias - that means proj == coreAttr

@@ -143,7 +143,7 @@ class PushDownUtils {
      * Returns the rewritten expressions and a map with an alias for each replaced attribute; the rewritten expressions reference
      * these aliases.
      */
-    public static AttributeReplacement renameAttributesInExpressions(
+    private static AttributeReplacement renameAttributesInExpressions(
         Set<String> attributeNamesToRename,
         List<? extends Expression> expressions
     ) {
@@ -186,7 +186,7 @@ class PushDownUtils {
         return renameAttributeTo;
     }
 
-    public static Project pushDownPastProject(UnaryPlan parent) {
+    private static Project pushDownPastProject(UnaryPlan parent) {
         if (parent.child() instanceof Project project) {
             UnaryPlan expressionsWithResolvedAliases = resolveRenamesFromProject(parent, project);
 
@@ -196,7 +196,7 @@ class PushDownUtils {
         }
     }
 
-    public static <P extends LogicalPlan> P resolveRenamesFromProject(P plan, Project project) {
+    private static <P extends LogicalPlan> P resolveRenamesFromProject(P plan, Project project) {
         AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
         project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
         var aliases = aliasBuilder.build();
@@ -209,5 +209,5 @@ class PushDownUtils {
         return (P) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> map.resolve(r, r));
     }
 
-    public record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}
+    private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}
 }

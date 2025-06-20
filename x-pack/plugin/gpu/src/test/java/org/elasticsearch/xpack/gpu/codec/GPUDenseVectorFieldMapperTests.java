@@ -62,6 +62,7 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
     }
 
     public void testGPUParsingFailureInRelease() {
+        assumeTrue("feature flag [gpu_format] must be enabled", GPU_FORMAT.isEnabled() == false);
         Exception e = expectThrows(
             MapperParsingException.class,
             () -> createDocumentMapper(

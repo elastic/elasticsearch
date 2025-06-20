@@ -1,0 +1,51 @@
+
+
+For local development on mac, where cuVS is not easily built one can
+minimally get an IDEA environment with compile-time support by building
+a minimal cuvs-java "api" jar. Test cannot be run.
+
+1. Clone cuvs
+   git clone https://github.com/rapidsai/cuvs/; cd cuvs
+   git checkout branch-25.08
+   cd java/cuvs-java
+
+2. Remove the implementation compile target from the pom.xml, e.g.
+
+$ git diff
+diff --git a/java/cuvs-java/pom.xml b/java/cuvs-java/pom.xml
+index 15e0193a..446f2b61 100644
+--- a/java/cuvs-java/pom.xml
++++ b/java/cuvs-java/pom.xml
+@@ -123,20 +123,6 @@
+                             </compileSourceRoots>
+                         </configuration>
+                     </execution>
+-                    <execution>
+-                        <id>compile-java-22</id>
+-                        <phase>compile</phase>
+-                        <goals>
+-                            <goal>compile</goal>
+-                        </goals>
+-                        <configuration>
+-                            <release>22</release>
+-                            <compileSourceRoots>
+-                                <compileSourceRoot>${project.basedir}/src/main/java22</compileSourceRoot>
+-                            </compileSourceRoots>
+-                            <multiReleaseOutput>true</multiReleaseOutput>
+-                        </configuration>
+-                    </execution>
+                 </executions>
+             </plugin>
+             <plugin>
+
+3. Build and install into local maven repository
+
+  export JAVA_HOME=/Users/chegar/binaries/jdk-22.0.2.jdk/Contents/Home/
+  cd java/cuvs-java
+  mv install
+  Installs into maven local repository, e.g:
+    /Users/chegar/.m2/repository/com/nvidia/cuvs/cuvs-java/25.08.0/
+
+  Might need to modify gradle metadata sha in gradle/verification-metadata.xml
+
+

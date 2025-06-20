@@ -200,13 +200,6 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Cloud API key authentication requires metadata to contain a non-null API key ID",
-                encodeAuthentication(
-                    new Subject(new User("username", "role1"), Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
-                    Authentication.AuthenticationType.API_KEY
-                )
-            ),
-            entry(
                 "Cross cluster access authentication requires metadata to contain "
                     + "a non-null serialized cross cluster access authentication field",
                 encodeAuthentication(
@@ -271,6 +264,33 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                             List.of()
                         )
                     ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication cannot contain a role descriptors metadata field",
+                encodeAuthentication(
+                    new Subject(
+                        new User("api_key_id", "role1"),
+                        Authentication.RealmRef.newCloudApiKeyRealmRef("node"),
+                        TransportVersion.current(),
+                        Map.of(
+                            randomFrom(
+                                AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
+                                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
+                            ),
+                            List.of()
+                        )
+                    ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication cannot run-as other user",
+                encodeAuthentication(
+                    new Subject(userBar, realm2),
+                    new Subject(userFoo, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     Authentication.AuthenticationType.API_KEY
                 )
             ),

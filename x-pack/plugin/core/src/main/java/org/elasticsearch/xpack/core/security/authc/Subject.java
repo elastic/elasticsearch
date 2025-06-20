@@ -140,7 +140,7 @@ public class Subject {
             }
         } else if (eitherIsACloudApiKey(resourceCreatorSubject)) {
             if (bothAreCloudApiKeys(resourceCreatorSubject)) {
-                return isTheSameApiKey(resourceCreatorSubject);
+                return getUser().principal().equals(resourceCreatorSubject.getUser().principal());
             } else {
                 // a cloud API Key cannot access resources created by non-Cloud API Keys or vice versa
                 return false;

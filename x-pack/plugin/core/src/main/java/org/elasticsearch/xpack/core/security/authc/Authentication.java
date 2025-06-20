@@ -68,8 +68,10 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRe
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_NAME;
@@ -792,7 +794,7 @@ public final class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
 
-        if (isApiKey() || isCrossClusterAccess() || isCloudApiKey()) {
+        if (isApiKey() || isCrossClusterAccess()) {
             final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) metadata.get(AuthenticationField.API_KEY_NAME_KEY);
             final Map<String, Object> apiKeyField = new HashMap<>();
@@ -800,19 +802,20 @@ public final class Authentication implements ToXContentObject {
             if (apiKeyName != null) {
                 apiKeyField.put("name", apiKeyName);
             }
-            if (isCloudApiKey()) {
-                final boolean internal = (boolean) metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY);
-                apiKeyField.put("internal", internal);
+            apiKeyField.put("managed_by", CredentialManagedBy.ELASTICSEARCH.getDisplayName());
+            builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
+
+        } else if (isCloudApiKey()) {
+            final String apiKeyId = user.principal();
+            final String apiKeyName = (String) user.metadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            final boolean internal = (boolean) user.metadata().get(AuthenticationField.API_KEY_INTERNAL_KEY);
+            final Map<String, Object> apiKeyField = new HashMap<>();
+            apiKeyField.put("id", apiKeyId);
+            if (apiKeyName != null) {
+                apiKeyField.put("name", apiKeyName);
             }
-            final String managedBy = (String) metadata.get(AuthenticationField.API_KEY_MANAGED_BY_KEY);
-            if (managedBy != null) {
-                apiKeyField.put("managed_by", managedBy);
-            } else {
-                apiKeyField.put(
-                    "managed_by",
-                    isCloudApiKey() ? ManagedBy.CLOUD.getDisplayName() : ManagedBy.ELASTICSEARCH.getDisplayName()
-                );
-            }
+            apiKeyField.put("internal", internal);
+            apiKeyField.put("managed_by", CredentialManagedBy.CLOUD.getDisplayName());
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
     }
@@ -939,8 +942,13 @@ public final class Authentication implements ToXContentObject {
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        final String prefixMessage = authenticatingRealm.isCloudApiKeyRealm() ? "Cloud API key" : "API key";
-        checkConsistencyForApiKeyAuthenticatingSubject(prefixMessage);
+        if (authenticatingSubject.getType() == Subject.Type.CLOUD_API_KEY) {
+            checkConsistencyForCloudApiKeyAuthenticatingSubject("Cloud API key");
+            checkNoRunAs(this, "Cloud API key");
+            return;
+        }
+
+        checkConsistencyForApiKeyAuthenticatingSubject("API key");
         if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
@@ -1027,11 +1035,20 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
         checkNoDomain(authenticatingRealm, prefixMessage);
         checkNoInternalUser(authenticatingSubject, prefixMessage);
-        if (Subject.Type.CLOUD_API_KEY != authenticatingSubject.getType()) {
-            checkNoRole(authenticatingSubject, prefixMessage);
-        }
+        checkNoRole(authenticatingSubject, prefixMessage);
         if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
             throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
+        }
+    }
+
+    private void checkConsistencyForCloudApiKeyAuthenticatingSubject(String prefixMessage) {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        checkNoDomain(authenticatingRealm, prefixMessage);
+        checkNoInternalUser(authenticatingSubject, prefixMessage);
+        if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY) != null
+            || authenticatingSubject.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY) != null
+            || authenticatingSubject.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY) != null) {
+            throw new IllegalArgumentException(prefixMessage + " authentication cannot contain a role descriptors metadata field");
         }
     }
 
@@ -1668,7 +1685,7 @@ public final class Authentication implements ToXContentObject {
     /**
      *  Indicates if credentials are managed by Elasticsearch or by the Cloud.
      */
-    public enum ManagedBy {
+    public enum CredentialManagedBy {
 
         CLOUD,
 

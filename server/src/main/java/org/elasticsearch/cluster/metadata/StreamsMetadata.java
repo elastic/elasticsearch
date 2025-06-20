@@ -59,7 +59,7 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        throw new IllegalStateException("not used");
+        return null;
     }
 
     @Override

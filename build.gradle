@@ -366,9 +366,9 @@ allprojects {
         }
       }
     }
-
+    
     proj.tasks.register("bcUpgradeTest$partString") {
-      dependsOn 'bcUpgradeTest'
+      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
       withReleaseBuild {
         dependsOn 'assemble'
       }

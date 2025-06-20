@@ -53,6 +53,8 @@ public class EsqlQueryGenerator {
         DropGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
         EvalGenerator.INSTANCE,
+        // Awaits fix: https://github.com/elastic/elasticsearch/issues/129715
+        // ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         LimitGenerator.INSTANCE,

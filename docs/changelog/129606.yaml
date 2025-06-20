@@ -1,0 +1,35 @@
+pr: 129606
+summary: Release FORK in tech preview
+area: ES|QL
+type: feature
+issues: []
+highlight:
+  title: Release FORK in tech preview
+  body: |-
+    Fork is a foundational building block that allows multiple branches of execution.
+    Conceptually, fork is:
+    - a bifurcation of the stream, with all data going to each fork branch, followed by
+    - a merge of the branches, enhanced with a discriminator column called FORK:
+
+    Example:
+
+    [source,yaml]
+    ----------------------------
+    FROM test
+    | FORK
+    ( WHERE content:"fox" )
+    ( WHERE content:"dog" )
+    | SORT _fork
+    ----------------------------
+
+    The FORK command add a discriminator column called `_fork`:
+
+    [source,yaml]
+    ----------------------------
+    | id  | content   | _fork |
+    |-----|-----------|-------|
+    | 3   | brown fox | fork1 |
+    | 4   | white dog | fork2 |
+    ----------------------------
+
+  notable: true

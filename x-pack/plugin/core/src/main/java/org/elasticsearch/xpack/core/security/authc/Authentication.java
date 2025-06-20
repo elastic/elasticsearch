@@ -571,6 +571,11 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
 
+        // We may allow cloud API keys to run-as in the future, but for now there is no requirement
+        if (isCloudApiKey()) {
+            return false;
+        }
+
         // There is no reason for internal users to run-as. This check prevents either internal user itself
         // or a token created for it (though no such thing in current code) to run-as.
         if (getEffectiveSubject().getUser() instanceof InternalUser) {

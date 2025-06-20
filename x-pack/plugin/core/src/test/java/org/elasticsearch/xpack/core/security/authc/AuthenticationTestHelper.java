@@ -244,6 +244,10 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static Authentication randomCloudApiKeyAuthentication() {
+        return randomCloudApiKeyAuthentication(null, null);
+    }
+
     public static Authentication randomCloudApiKeyAuthentication(String apiKeyId) {
         return randomCloudApiKeyAuthentication(null, apiKeyId);
     }

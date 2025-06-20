@@ -768,6 +768,9 @@ public class AuthenticationTests extends ESTestCase {
 
         // Remote access cannot run-as
         assertThat(AuthenticationTestHelper.builder().crossClusterAccess().build().supportsRunAs(anonymousUser), is(false));
+
+        // Cloud API key cannot run-as
+        assertThat(AuthenticationTestHelper.randomCloudApiKeyAuthentication().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {

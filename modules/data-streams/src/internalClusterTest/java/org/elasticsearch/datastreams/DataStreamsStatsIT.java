@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
@@ -49,10 +49,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-public class DataStreamsStatsTests extends ESSingleNodeTestCase {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class DataStreamsStatsIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, MapperExtrasPlugin.class);
     }
 
@@ -92,7 +93,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         String dataStreamName = createDataStream();
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
-        assertEquals(1, stats.getSuccessfulShards());
+        assertEquals(2, stats.getTotalShards());
+        assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(1, stats.getBackingIndices());
@@ -111,7 +113,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         long timestamp = createDocument(dataStreamName);
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
-        assertEquals(1, stats.getSuccessfulShards());
+        assertEquals(2, stats.getTotalShards());
+        assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(1, stats.getBackingIndices());
@@ -131,7 +134,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
 
-        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(4, stats.getTotalShards());
+        assertEquals(4, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(2, stats.getBackingIndices());
@@ -153,7 +157,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         long timestamp = createDocument(dataStreamName);
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats(true);
-        assertEquals(1, stats.getSuccessfulShards());
+        assertEquals(2, stats.getTotalShards());
+        assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(1, stats.getBackingIndices());
@@ -181,7 +186,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         );
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
-        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(4, stats.getTotalShards());
+        assertEquals(4, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(2, stats.getBackingIndices());
@@ -197,7 +203,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         long timestamp = createDocument(dataStreamName);
 
         stats = getDataStreamsStats();
-        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(4, stats.getTotalShards());
+        assertEquals(4, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(2, stats.getBackingIndices());
@@ -218,7 +225,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         timestamp = max(timestamp, createDocument(dataStreamName));
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
-        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(4, stats.getTotalShards());
+        assertEquals(4, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
         assertEquals(2, stats.getBackingIndices());
@@ -249,7 +257,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         logger.error(stats.toString());
-        assertEquals(createdDataStreams.size(), stats.getSuccessfulShards());
+        assertEquals(createdDataStreams.size() * 2, stats.getTotalShards());
+        assertEquals(createdDataStreams.size() * 2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(createdDataStreams.size(), stats.getDataStreamCount());
         assertEquals(createdDataStreams.size(), stats.getBackingIndices());
@@ -273,7 +282,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamOptions.Template failureStoreOptions = failureStore == false
             ? null
             : new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate());
-        Template idxTemplate = new Template(null, new CompressedXContent("""
+        Template idxTemplate = new Template(indexSettings(2, 0).build(), new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
             """), null, null, failureStoreOptions);
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
@@ -293,6 +302,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                 new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
             )
         );
+        ensureGreen(dataStreamName);
         createdDataStreams.add(dataStreamName);
         return dataStreamName;
     }

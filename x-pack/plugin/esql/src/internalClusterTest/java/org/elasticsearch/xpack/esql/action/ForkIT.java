@@ -873,6 +873,43 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         assertTrue(e.getMessage().contains("Column [embedding] has conflicting data types"));
     }
 
+    public void testValidationsAfterFork() {
+        var firstQuery = """
+                FROM test*
+                | FORK ( WHERE true )
+                       ( WHERE true )
+                | DROP _fork
+                | STATS a = count_distinct(embedding)
+            """;
+
+        var e = expectThrows(VerificationException.class, () -> run(firstQuery));
+        assertTrue(
+            e.getMessage().contains("[count_distinct(embedding)] must be [any exact type except unsigned_long, _source, or counter types]")
+        );
+
+        var secondQuery = """
+                FROM test*
+                | FORK ( WHERE true )
+                       ( WHERE true )
+                | DROP _fork
+                | EVAL a = substring(1, 2, 3)
+            """;
+
+        e = expectThrows(VerificationException.class, () -> run(secondQuery));
+        assertTrue(e.getMessage().contains("first argument of [substring(1, 2, 3)] must be [string], found value [1] type [integer]"));
+
+        var thirdQuery = """
+                FROM test*
+                | FORK ( WHERE true )
+                       ( WHERE true )
+                | DROP _fork
+                | EVAL a = b + 2
+            """;
+
+        e = expectThrows(VerificationException.class, () -> run(thirdQuery));
+        assertTrue(e.getMessage().contains("Unknown column [b]"));
+    }
+
     public void testWithEvalWithConflictingTypes() {
         var query = """
                 FROM test

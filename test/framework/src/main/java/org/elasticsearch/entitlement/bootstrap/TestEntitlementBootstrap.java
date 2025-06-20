@@ -32,7 +32,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -135,7 +134,7 @@ public class TestEntitlementBootstrap {
             testOnlyClassPath = Set.of();
         } else {
             testOnlyClassPath = Arrays.stream(testOnlyPathString.split(separator))
-                .map(Paths::get)
+                .map(PathUtils::get)
                 .map(Path::toUri)
                 .collect(toCollection(TreeSet::new));
         }

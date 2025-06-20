@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -42,13 +44,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType.BBQ_IVF;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,11 +89,15 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws IOException {
+        Set<String> validIndexTypes = Arrays.stream(VectorIndexType.values())
+            .filter(VectorIndexType::isQuantized)
+            .map(t -> t.name().toLowerCase(Locale.ROOT))
+            .collect(Collectors.toCollection(HashSet::new));
+        if (IVF_FORMAT.isEnabled() == false) {
+            validIndexTypes.remove(BBQ_IVF.name().toLowerCase(Locale.ROOT));
+        }
         String type = randomFrom(
-            Arrays.stream(VectorIndexType.values())
-                .filter(VectorIndexType::isQuantized)
-                .map(t -> t.name().toLowerCase(Locale.ROOT))
-                .collect(Collectors.toCollection(ArrayList::new))
+            validIndexTypes
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

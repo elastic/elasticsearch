@@ -168,6 +168,78 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         assertLeftJoinConfig(join.config(), "languages", mainRel.outputSet(), "language_code", lookupRel.outputSet());
     }
 
+    // Expects
+    //
+    // Project[[$$emp_no$temp_name$48{r$}#49 AS languages#16, emp_no{f}#37,
+    // salary{f}#42, $$salary$temp_name$50{r$}#51 AS salary2#7, last_name{f}#30 AS ln#19]]
+    // \_Limit[1000[INTEGER],true]
+    // \_Join[LEFT,[emp_no{f}#26],[emp_no{f}#26],[languages{f}#40]]
+    // |_Eval[[emp_no{f}#26 AS $$emp_no$temp_name$48#49, salary{f}#31 AS $$salary$temp_name$50#51]]
+    // | \_Limit[1000[INTEGER],false]
+    // | \_EsRelation[test][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+    // \_EsRelation[test_lookup][LOOKUP][emp_no{f}#37, languages{f}#40, salary{f}#42]
+    public void testShadowingAfterPushdown2() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        String query = """
+            FROM test_lookup
+            | RENAME emp_no AS x, salary AS salary2
+            | EVAL y = x, gender = last_name
+            | RENAME y AS languages, gender AS ln
+            | LOOKUP JOIN test_lookup ON languages
+            | KEEP languages, emp_no, salary, salary2, ln
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var limit1 = asLimit(project.child(), 1000, true);
+        var join = as(limit1.child(), Join.class);
+        var lookupRel = as(join.right(), EsRelation.class);
+
+        var eval = as(join.left(), Eval.class);
+        var limit2 = asLimit(eval.child(), 1000, false);
+        var mainRel = as(limit2.child(), EsRelation.class);
+
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("languages", "emp_no", "salary", "salary2", "ln"));
+
+        var empNoTempName = unwrapAlias(projections.get(0), ReferenceAttribute.class);
+        assertThat(empNoTempName.name(), startsWith("$$emp_no$temp_name$"));
+        assertTrue(eval.outputSet().contains(empNoTempName));
+
+        var empNo = as(projections.get(1), FieldAttribute.class);
+        assertEquals("emp_no", empNo.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(empNo));
+
+        var salary = as(projections.get(2), FieldAttribute.class);
+        assertEquals("salary", salary.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(salary));
+
+        var salaryTempName = unwrapAlias(projections.get(3), ReferenceAttribute.class);
+        assertThat(salaryTempName.name(), startsWith("$$salary$temp_name$"));
+        assertTrue(eval.outputSet().contains(salaryTempName));
+
+        var lastName = unwrapAlias(projections.get(4), FieldAttribute.class);
+        assertEquals("last_name", lastName.fieldName().string());
+        assertTrue(mainRel.outputSet().contains(lastName));
+
+        var evalExprs = eval.fields();
+        assertThat(Expressions.names(evalExprs), contains(empNoTempName.name(), salaryTempName.name()));
+
+        var originalEmpNo = unwrapAlias(evalExprs.get(0), FieldAttribute.class);
+        assertTrue(evalExprs.get(0).toAttribute().semanticEquals(empNoTempName));
+        assertEquals("emp_no", originalEmpNo.fieldName().string());
+        assertTrue(mainRel.outputSet().contains(originalEmpNo));
+
+        var originalSalary = unwrapAlias(evalExprs.get(1), FieldAttribute.class);
+        assertTrue(evalExprs.get(1).toAttribute().semanticEquals(salaryTempName));
+        assertEquals("salary", originalSalary.fieldName().string());
+        assertTrue(mainRel.outputSet().contains(originalSalary));
+
+        assertLeftJoinConfig(join.config(), "emp_no", mainRel.outputSet(), "languages", lookupRel.outputSet());
+    }
+
     private static void assertLeftJoinConfig(
         JoinConfig config,
         String expectedLeftFieldName,

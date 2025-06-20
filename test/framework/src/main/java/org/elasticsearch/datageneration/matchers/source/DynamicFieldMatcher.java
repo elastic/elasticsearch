@@ -24,6 +24,7 @@ import static org.elasticsearch.datageneration.matchers.Messages.formatErrorMess
 import static org.elasticsearch.datageneration.matchers.Messages.prettyPrintCollections;
 
 class DynamicFieldMatcher {
+    private static final double FLOAT_ERROR_MARGIN = 1e-8;
     private final XContentBuilder actualMappings;
     private final Settings.Builder actualSettings;
     private final XContentBuilder expectedMappings;
@@ -77,7 +78,7 @@ class DynamicFieldMatcher {
             }
 
             for (int i = 0; i < normalizedActual.size(); i++) {
-                if (floatsEquals(normalizedActual.get(i), normalizedExpected.get(i))) {
+                if (floatEquals(normalizedActual.get(i), normalizedExpected.get(i)) == false) {
                     return noMatchSupplier.get();
                 }
             }
@@ -99,8 +100,8 @@ class DynamicFieldMatcher {
         return values.stream().filter(Objects::nonNull).map(toFloat).toList();
     }
 
-    private static boolean floatsEquals(Float actual, Float expected) {
-        return Math.abs(actual - expected) > 1e-8;
+    private static boolean floatEquals(Float actual, Float expected) {
+        return Math.abs(actual - expected) < FLOAT_ERROR_MARGIN;
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

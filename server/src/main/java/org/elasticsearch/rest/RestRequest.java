@@ -291,7 +291,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return isStreamedContent() || contentLength() > 0;
+        return httpRequest.hasContent();
     }
 
     public int contentLength() {
@@ -325,6 +325,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public HttpBody.Stream contentStream() {
+        this.contentConsumed = true;
         return httpRequest.body().asStream();
     }
 

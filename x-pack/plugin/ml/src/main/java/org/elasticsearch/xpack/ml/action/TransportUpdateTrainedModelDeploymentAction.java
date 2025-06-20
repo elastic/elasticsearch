@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -39,6 +40,7 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
 
     private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
     private final InferenceAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateTrainedModelDeploymentAction(
@@ -47,7 +49,8 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
         ThreadPool threadPool,
         ActionFilters actionFilters,
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
-        InferenceAuditor auditor
+        InferenceAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateTrainedModelDeploymentAction.NAME,
@@ -61,6 +64,7 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
         );
         this.trainedModelAssignmentClusterService = Objects.requireNonNull(trainedModelAssignmentClusterService);
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -95,6 +99,6 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
 
     @Override
     protected ClusterBlockException checkBlock(UpdateTrainedModelDeploymentAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

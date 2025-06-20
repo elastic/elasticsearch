@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -61,7 +62,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
             assertEquals(Equals.class, e.getClass());
             Equals eq = (Equals) e;
             assertEquals(fa, eq.left());
-            assertEquals(s.replace("\\", StringUtils.EMPTY), eq.right().fold(FoldContext.small()));
+            assertEquals(s.replace("\\", StringUtils.EMPTY), BytesRefs.toString(eq.right().fold(FoldContext.small())));
         }
     }
 
@@ -73,7 +74,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         assertEquals(Equals.class, e.getClass());
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
-        assertEquals("abc", eq.right().fold(FoldContext.small()));
+        assertEquals("abc", BytesRefs.toString(eq.right().fold(FoldContext.small())));
     }
 
 }

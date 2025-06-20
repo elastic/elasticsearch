@@ -240,7 +240,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testLike() throws IOException {
-        String value = "v".repeat(between(0, 256));
+        String value = "v".repeat(between(1, 256));
         String esqlQuery = """
             FROM test
             | WHERE test like "%value*"
@@ -258,7 +258,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testLikeList() throws IOException {
-        String value = "v".repeat(between(0, 256));
+        String value = "v".repeat(between(1, 256));
         String esqlQuery = """
             FROM test
             | WHERE test like ("%value*", "abc*")

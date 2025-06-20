@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
  * </p>
  */
-public abstract class AbstractConvertFunction extends UnaryScalarFunction {
+public abstract class AbstractConvertFunction extends UnaryScalarFunction implements ConvertFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
@@ -76,11 +76,12 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         return isTypeOrUnionType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(supportedTypes()));
     }
 
+    @Override
     public Set<DataType> supportedTypes() {
         return factories().keySet();
     }
 
-    private static String supportedTypesNames(Set<DataType> types) {
+    static String supportedTypesNames(Set<DataType> types) {
         List<String> supportedTypesNames = new ArrayList<>(types.size());
         HashSet<DataType> supportTypes = new HashSet<>(types);
         if (supportTypes.containsAll(NUMERIC_TYPES)) {

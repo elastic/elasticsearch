@@ -32,10 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
-    // TODO: currently this rule only works for aggregate functions (AVG)
-
-    public SubstituteSurrogates() {
+public final class SubstituteSurrogateAggregations extends OptimizerRules.OptimizerRule<Aggregate> {
+    public SubstituteSurrogateAggregations() {
         super(OptimizerRules.TransformDirection.UP);
     }
 

@@ -324,7 +324,6 @@ public class PushQueriesIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
-
         Matcher<String> luceneQueryMatcher = anyOf(
             () -> Iterators.map(
                 luceneQueryOptions.iterator(),

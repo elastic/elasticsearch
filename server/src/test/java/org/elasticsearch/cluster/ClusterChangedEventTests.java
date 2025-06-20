@@ -531,6 +531,7 @@ public class ClusterChangedEventTests extends ESTestCase {
                 .putProjectMetadata(ProjectMetadata.builder(project2).build())
                 .build();
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
+            // IndexGraveyard is always added when a new project is created, this checks that IndexGraveyard is "changed
             assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
             assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
             // No change to other project
@@ -545,6 +546,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             // project2 is removed
             ClusterState newState = originalState;
             ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, oldState);
+            // IndexGraveyard is always added when a new project is created, this checks that IndexGraveyard is "changed"
             assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
             assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
             // No change to other project
@@ -602,6 +604,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             )
             .build();
         event = new ClusterChangedEvent("_na_", originalState, newState);
+        // IndexGraveyard is always added when a new project is created, this checks that IndexGraveyard is "changed"
         assertEquals(Set.of(IndexGraveyard.TYPE, project2Custom.getWriteableName()), event.changedCustomProjectMetadataSet());
     }
 

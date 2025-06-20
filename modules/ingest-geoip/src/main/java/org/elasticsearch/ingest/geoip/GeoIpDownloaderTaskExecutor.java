@@ -231,10 +231,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             // bootstrap task once iff it is not already bootstrapped
             AtomicBoolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> new AtomicBoolean(false));
             if (taskIsBootstrapped.getAndSet(true) == false) {
-                this.taskIsBootstrappedByProject.computeIfAbsent(
-                    projectId,
-                    k -> new AtomicBoolean(hasAtLeastOneGeoipProcessor(projectMetadata))
-                );
+                atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
                 if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                     logger.debug("Bootstrapping geoip downloader task for project [{}]", projectId);
                     startTask(projectId, () -> taskIsBootstrapped.set(false));
@@ -256,9 +253,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
 
             if (hasIngestPipelineChanges || hasIndicesChanges) {
-                var atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> false);
+                boolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> false);
                 boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
-
+                // update if necessary
+                if (newAtLeastOneGeoipProcessor != atLeastOneGeoipProcessor) {
+                    atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
+                }
                 if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                     logger.trace("Scheduling runDownloader for project [{}] because a geoip processor has been added", projectId);
                     GeoIpDownloader currentDownloader = getTask(projectId);
@@ -266,7 +266,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                         currentDownloader.requestReschedule();
                     }
                 }
-                atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
             }
         }
     }

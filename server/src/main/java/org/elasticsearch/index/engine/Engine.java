@@ -2416,6 +2416,13 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
+    public static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
+        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
+        long maxSeqNo = seqNoStats.maxSeqNo();
+        long localCheckpoint = seqNoStats.localCheckpoint();
+        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
+    }
+
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
      *

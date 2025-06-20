@@ -9,7 +9,7 @@ FROM airports
     count = COUNT(*),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
-| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)
+| EVAL geotileString = TO_STRING(geotile)
 | SORT count DESC, geotileString ASC
 | KEEP count, centroid, geotileString
 ```

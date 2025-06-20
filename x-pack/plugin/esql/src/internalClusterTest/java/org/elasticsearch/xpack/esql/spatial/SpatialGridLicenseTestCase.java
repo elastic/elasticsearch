@@ -15,9 +15,12 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,7 +43,18 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
 
     protected abstract String gridFunction();
 
-    protected abstract Map<Long, Long> expectedValues();
+    protected abstract DataType gridType();
+
+    protected abstract long pointToGridId(Point point);
+
+    protected Map<String, Long> expectedValues() {
+        Map<String, Long> expected = new HashMap<>();
+        for (Point point : testData) {
+            long gridId = pointToGridId(point);
+            expected.compute(EsqlDataTypeConverter.geoGridToString(gridId, gridType()), (k, v) -> v == null ? 1 : v + 1);
+        }
+        return expected;
+    }
 
     protected int precision() {
         return 1; // Default precision for grid function tests, can be overridden in subclasses
@@ -69,11 +83,11 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
             """, index, gridFunction(), precision());
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("gridId", "count"));
-            assertColumnTypes(resp.columns(), List.of("long", "long"));
-            Map<Long, Long> values = getValuesMap(resp.values());
-            Map<Long, Long> expected = expectedValues();
+            assertColumnTypes(resp.columns(), List.of(gridType().typeName(), "long"));
+            Map<String, Long> values = getValuesMap(resp.values());
+            Map<String, Long> expected = expectedValues();
             assertThat(values.size(), equalTo(expected.size()));
-            for (Long gridId : expected.keySet()) {
+            for (String gridId : expected.keySet()) {
                 assertThat("Missing grid-id: " + gridId, values.containsKey(gridId), equalTo(true));
                 assertThat("Unexpected count for grid-id: " + gridId, values.get(gridId), equalTo(expected.get(gridId)));
             }
@@ -97,9 +111,9 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
         assertThat(e.getMessage(), containsString(expectedError));
     }
 
-    public static Map<Long, Long> getValuesMap(Iterator<Iterator<Object>> values) {
-        var valuesMap = new LinkedHashMap<Long, Long>();
-        values.forEachRemaining(row -> { valuesMap.put(((Number) row.next()).longValue(), ((Number) row.next()).longValue()); });
+    public static Map<String, Long> getValuesMap(Iterator<Iterator<Object>> values) {
+        var valuesMap = new LinkedHashMap<String, Long>();
+        values.forEachRemaining(row -> { valuesMap.put(row.next().toString(), ((Number) row.next()).longValue()); });
         return valuesMap;
     }
 

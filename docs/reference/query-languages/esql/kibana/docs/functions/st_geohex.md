@@ -2,7 +2,9 @@
 
 ### ST GEOHEX
 Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string) to convert the result to a string.
+The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
+[TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](esql-to_geoshape.md) to calculate
+the `geo_shape` bounding geometry.
 
 These functions are related to the [`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
 and the [`geohex_grid` aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation).
@@ -15,7 +17,7 @@ FROM airports
     centroid = ST_CENTROID_AGG(location)
       BY geohex
 | WHERE count >= 10
-| EVAL geohexString = ST_GEOHEX_TO_STRING(geohex)
+| EVAL geohexString = TO_STRING(geohex)
 | KEEP count, centroid, geohexString
 | SORT count DESC, geohexString ASC
 ```

@@ -322,6 +322,9 @@ public class Verifier {
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        allowed.add(DataType.GEOHASH);
+        allowed.add(DataType.GEOTILE);
+        allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }

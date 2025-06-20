@@ -664,7 +664,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         };
         if (extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType)) {
             return blockFactory.newLongBlockBuilder(estimatedSize);
-        } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
+        } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatialAndGrid(dataType)) {
             return blockFactory.newIntBlockBuilder(estimatedSize);
         } else {
             return elementType.newBlockBuilder(estimatedSize, blockFactory);
@@ -674,7 +674,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private static TestBlockCopier blockCopier(DataType dataType, FieldExtractPreference extractPreference, IntVector docIndices) {
         if (extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType)) {
             return TestSpatialPointStatsBlockCopier.create(docIndices, dataType);
-        } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
+        } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatialAndGrid(dataType)) {
             return TestSpatialShapeExtentBlockCopier.create(docIndices, dataType);
         } else {
             return new TestBlockCopier(docIndices);

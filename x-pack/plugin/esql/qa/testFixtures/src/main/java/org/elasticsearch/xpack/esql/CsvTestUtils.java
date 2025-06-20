@@ -27,7 +27,10 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -487,6 +490,11 @@ public final class CsvTestUtils {
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        GEOHASH(x -> x == null ? null : Geohash.longEncode(x), Long.class),
+        GEOTILE(x -> x == null ? null : GeoTileUtils.longEncode(x), (l, r) -> {
+            return 0;
+        }, Long.class),
+        GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
         AGGREGATE_METRIC_DOUBLE(
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class

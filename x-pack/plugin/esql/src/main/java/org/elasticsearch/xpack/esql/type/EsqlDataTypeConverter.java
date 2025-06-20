@@ -21,7 +21,10 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -46,6 +49,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -53,6 +59,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -79,6 +88,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -125,6 +137,9 @@ public class EsqlDataTypeConverter {
         entry(DOUBLE, ToDouble::new),
         entry(GEO_POINT, ToGeoPoint::new),
         entry(GEO_SHAPE, ToGeoShape::new),
+        entry(GEOHASH, ToGeohash::new),
+        entry(GEOTILE, ToGeotile::new),
+        entry(GEOHEX, ToGeohex::new),
         entry(INTEGER, ToInteger::new),
         entry(IP, ToIpLeadingZerosRejected::new),
         entry(LONG, ToLong::new),
@@ -238,7 +253,7 @@ public class EsqlDataTypeConverter {
             if (DataType.isSpatialGeo(to)) {
                 return EsqlConverter.STRING_TO_GEO;
             }
-            if (DataType.isSpatial(to)) {
+            if (DataType.isSpatialAndGrid(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
             if (to == DataType.TIME_DURATION) {
@@ -542,6 +557,24 @@ public class EsqlDataTypeConverter {
 
     public static String spatialToString(BytesRef field) {
         return UNSPECIFIED.wkbToWkt(field);
+    }
+
+    public static String geoGridToString(long field, DataType dataType) {
+        return switch (dataType) {
+            case GEOHASH -> Geohash.stringEncode(field);
+            case GEOTILE -> GeoTileUtils.stringEncode(field);
+            case GEOHEX -> H3.h3ToString(field);
+            default -> throw new IllegalArgumentException("Unsupported data type for geo grid: " + dataType);
+        };
+    }
+
+    public static BytesRef geoGridToShape(long field, DataType dataType) {
+        return switch (dataType) {
+            case GEOHASH -> StGeohash.toBounds(field);
+            case GEOTILE -> StGeotile.toBounds(field);
+            case GEOHEX -> StGeohex.toBounds(field);
+            default -> throw new IllegalArgumentException("Unsupported data type for geo grid: " + dataType);
+        };
     }
 
     public static BytesRef stringToGeo(String field) {

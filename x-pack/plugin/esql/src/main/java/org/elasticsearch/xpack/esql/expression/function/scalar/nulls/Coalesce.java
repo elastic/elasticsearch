@@ -31,20 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Function returning the first non-null value. {@code COALESCE} runs as though
@@ -205,7 +192,10 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
             case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
-            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG -> CoalesceLongEvaluator.toEvaluator(toEvaluator, children());
+            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> CoalesceLongEvaluator.toEvaluator(
+                toEvaluator,
+                children()
+            );
             case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
                 .toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;

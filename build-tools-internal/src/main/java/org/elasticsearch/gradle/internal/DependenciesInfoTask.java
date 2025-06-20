@@ -11,19 +11,22 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.internal.precommit.DependencyLicensesTask;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.DependencySet;
-import org.gradle.api.artifacts.ModuleVersionIdentifier;
+import org.gradle.api.artifacts.ArtifactCollection;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.ConventionTask;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.MapProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
@@ -34,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -51,7 +55,40 @@ import javax.inject.Inject;
  *     <li>license: <a href="https://spdx.org/licenses/">SPDX license</a> identifier, custom license or UNKNOWN.</li>
  * </ul>
  */
-public class DependenciesInfoTask extends ConventionTask {
+public abstract class DependenciesInfoTask extends ConventionTask {
+
+    @Inject
+    public abstract ProviderFactory getProviderFactory();
+
+    @Internal
+    abstract Property<ArtifactCollection> getRuntimeArtifacts();
+
+    @Input
+    public Provider<Set<ModuleComponentIdentifier>> getRuntimeModules() {
+        return mapToModuleComponentIdentifiers(getRuntimeArtifacts().get());
+    }
+
+    @Internal
+    abstract Property<ArtifactCollection> getCompileOnlyArtifacts();
+
+    @Input
+    public Provider<Set<ModuleComponentIdentifier>> getCompileOnlyModules() {
+        return mapToModuleComponentIdentifiers(getCompileOnlyArtifacts().get());
+    }
+
+    @InputFiles
+    abstract ConfigurableFileCollection getClasspath();
+
+    private Provider<Set<ModuleComponentIdentifier>> mapToModuleComponentIdentifiers(ArtifactCollection artifacts) {
+        return getProviderFactory().provider(
+            () -> artifacts.getArtifacts()
+                .stream()
+                .map(r -> r.getId())
+                .filter(id -> id instanceof ModuleComponentIdentifier)
+                .map(id -> (ModuleComponentIdentifier) id)
+                .collect(Collectors.toSet())
+        );
+    }
 
     private final DirectoryProperty licensesDir;
 
@@ -59,22 +96,6 @@ public class DependenciesInfoTask extends ConventionTask {
     private File outputFile;
 
     private LinkedHashMap<String, String> mappings;
-
-    public Configuration getRuntimeConfiguration() {
-        return runtimeConfiguration;
-    }
-
-    public void setRuntimeConfiguration(Configuration runtimeConfiguration) {
-        this.runtimeConfiguration = runtimeConfiguration;
-    }
-
-    public Configuration getCompileOnlyConfiguration() {
-        return compileOnlyConfiguration;
-    }
-
-    public void setCompileOnlyConfiguration(Configuration compileOnlyConfiguration) {
-        this.compileOnlyConfiguration = compileOnlyConfiguration;
-    }
 
     /**
      * Directory to read license files
@@ -102,17 +123,6 @@ public class DependenciesInfoTask extends ConventionTask {
         this.outputFile = outputFile;
     }
 
-    /**
-     * Dependencies to gather information from.
-     */
-    @InputFiles
-    private Configuration runtimeConfiguration;
-    /**
-     * We subtract compile-only dependencies.
-     */
-    @InputFiles
-    private Configuration compileOnlyConfiguration;
-
     @Inject
     public DependenciesInfoTask(ProjectLayout projectLayout, ObjectFactory objectFactory, ProviderFactory providerFactory) {
         this.licensesDir = objectFactory.directoryProperty();
@@ -123,22 +133,18 @@ public class DependenciesInfoTask extends ConventionTask {
 
     @TaskAction
     public void generateDependenciesInfo() throws IOException {
-        final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
-        // we have to resolve the transitive dependencies and create a group:artifactId:version map
 
-        final Set<String> compileOnlyArtifacts = compileOnlyConfiguration.getResolvedConfiguration()
-            .getResolvedArtifacts()
-            .stream()
-            .map(r -> {
-                ModuleVersionIdentifier id = r.getModuleVersion().getId();
-                return id.getGroup() + ":" + id.getName() + ":" + id.getVersion();
-            })
-            .collect(Collectors.toSet());
-
+        final Set<String> compileOnlyIds = getCompileOnlyModules().map(
+            set -> set.stream()
+                .map(id -> id.getModuleIdentifier().getGroup() + ":" + id.getModuleIdentifier().getName() + ":" + id.getVersion())
+                .collect(Collectors.toSet())
+        ).get();
         final StringBuilder output = new StringBuilder();
-        for (final Dependency dep : runtimeDependencies) {
+        Map<String, String> mappings = getMappings().get();
+        for (final ModuleComponentIdentifier dep : getRuntimeModules().get()) {
             // we do not need compile-only dependencies here
-            if (compileOnlyArtifacts.contains(dep.getGroup() + ":" + dep.getName() + ":" + dep.getVersion())) {
+            String moduleName = dep.getModuleIdentifier().getName();
+            if (compileOnlyIds.contains(dep.getGroup() + ":" + moduleName + ":" + dep.getVersion())) {
                 continue;
             }
 
@@ -147,25 +153,20 @@ public class DependenciesInfoTask extends ConventionTask {
                 continue;
             }
 
-            final String url = createURL(dep.getGroup(), dep.getName(), dep.getVersion());
-            final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dep.getName());
-            getLogger().info("mapped dependency " + dep.getGroup() + ":" + dep.getName() + " to " + dependencyName + " for license info");
+            final String url = createURL(dep.getGroup(), moduleName, dep.getVersion());
+            final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, moduleName);
+            getLogger().info("mapped dependency " + dep.getGroup() + ":" + moduleName + " to " + dependencyName + " for license info");
 
             final String licenseType = getLicenseType(dep.getGroup(), dependencyName);
-            output.append(dep.getGroup() + ":" + dep.getName() + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
+            output.append(dep.getGroup() + ":" + moduleName + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
         }
 
         Files.writeString(outputFile.toPath(), output.toString(), StandardOpenOption.CREATE);
     }
 
     @Input
-    public LinkedHashMap<String, String> getMappings() {
-        return mappings;
-    }
-
-    public void setMappings(LinkedHashMap<String, String> mappings) {
-        this.mappings = mappings;
-    }
+    @Optional
+    public abstract MapProperty<String, String> getMappings();
 
     /**
      * Create an URL on <a href="https://repo1.maven.org/maven2/">Maven Central</a>

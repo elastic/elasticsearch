@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -612,7 +613,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<Expression> args = expressions(ctx.booleanExpression());
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
-            args.add(mapArg);
+            args = Stream.concat(args.stream(), Stream.of(mapArg)).toList();
         }
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
@@ -645,30 +646,22 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.StringContext stringCtx = entry.string();
             String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
             if (key.isBlank()) {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named function argument [{}], empty key is not supported",
-                    entry.getText()
-                );
+                throw new ParsingException(source(ctx), "Invalid named argument [{}], empty key is not supported", entry.getText());
             }
             if (names.contains(key)) {
-                throw new ParsingException(source(ctx), "Duplicated function arguments with the same name [{}] is not supported", key);
+                throw new ParsingException(source(ctx), "Duplicated named arguments with the same name [{}] is not supported", key);
             }
             Expression value = expression(entry.constant());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
+                    throw new ParsingException(source(ctx), "Invalid named argument [{}], NULL is not supported", entryText);
                 }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
             } else {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named function argument [{}], only constant value is supported",
-                    entryText
-                );
+                throw new ParsingException(source(ctx), "Invalid named argument [{}], only constant value is supported", entryText);
             }
         }
         return new MapExpression(Source.EMPTY, namedArgs);

@@ -8,14 +8,17 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -40,11 +43,16 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -642,6 +650,113 @@ public class ExpressionTests extends ESTestCase {
         assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
     }
 
+    public void testMapExpressionEmptyMap() {
+        assertThat(mapExpression("{}"), equalTo(new MapExpression(null, List.of())));
+    }
+
+    public void testMapExpressionSingleValueMap() {
+        mapExpressionValidValues().stream().map(List::of).forEach(this::assertMapExpression);
+    }
+
+    public void testMapExpressionMultipleValueMap() {
+        for (int round = 0; round < 1000; round++) {
+            assertMapExpression(Stream.generate(() -> randomFrom(mapExpressionValidValues())).limit(randomInt(10)).toList());
+        }
+    }
+
+    public void testMapExpressionWithPositionalQueryParams() {
+        mapExpressionValidValues().forEach(e -> {
+            Object paramValue = DataTypeConverter.convert(e.getKey(), e.getValue().dataType());
+            if (paramValue instanceof String stringParamValue && stringParamValue.startsWith("\"")) {
+                paramValue = stringParamValue.substring(1, stringParamValue.length() - 1);
+                LogManager.getLogger(ExpressionTests.class).info("[{}]", paramValue);
+            }
+
+            assertThat(
+                mapExpression("{\"key\": ?}", new QueryParams(List.of(paramAsConstant(null, paramValue)))),
+                equalTo(new MapExpression(null, List.of(Literal.keyword(null, "key"), e.getValue())))
+            );
+        });
+    }
+
+    public void testMapExpressionWithNamedQueryParams() {
+        mapExpressionValidValues().forEach(e -> {
+            Object paramValue = DataTypeConverter.convert(e.getKey(), e.getValue().dataType());
+            if (paramValue instanceof String stringParamValue && stringParamValue.startsWith("\"")) {
+                paramValue = stringParamValue.substring(1, stringParamValue.length() - 1);
+                LogManager.getLogger(ExpressionTests.class).info("[{}]", paramValue);
+            }
+
+            assertThat(
+                mapExpression("{\"key\": ?paramName}", new QueryParams(List.of(paramAsConstant("paramName", paramValue)))),
+                equalTo(new MapExpression(null, List.of(Literal.keyword(null, "key"), e.getValue())))
+            );
+        });
+    }
+
+    private void assertMapExpression(List<Map.Entry<String, Expression>> values) {
+        StringBuilder sb = new StringBuilder("{");
+        List<Expression> mapData = new ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            String key = "key_" + i;
+            sb.append("\"").append(key).append("\":").append(values.get(i).getKey());
+            if (i < values.size() - 1) {
+                sb.append(", ");
+            }
+            mapData.add(Literal.keyword(null, key));
+            mapData.add(values.get(i).getValue());
+        }
+        sb.append("}");
+        assertThat(mapExpression(sb.toString()), equalTo(new MapExpression(null, mapData)));
+    }
+
+    public void testMapExpressionInvalidMap() {
+        Map<String, String> invalidMapDefinitions = Map.ofEntries(
+            Map.entry("{\"foo\": null}", "Invalid named argument [\"foo\":null], NULL is not supported"),
+            Map.entry("{\" \": \"foo\"}", "Invalid named argument [\" \":\"foo\"], empty key is not supported"),
+            Map.entry("{\"foo\": \"bar\", \"foo\": \"baz\"}", "Duplicated named arguments with the same name [foo] is not supported"),
+            Map.entry("{1: \"foo\"}", "no viable alternative at input 'f({1"),
+            Map.entry("{1.2: \"foo\"}", "no viable alternative at input 'f({1.2"),
+            Map.entry("{true: \"foo\"}", "no viable alternative at input 'f({true")
+        );
+
+        for (Map.Entry<String, String> invalidMapDefinition : invalidMapDefinitions.entrySet()) {
+            ParsingException exception = assertThrows(ParsingException.class, () -> mapExpression(invalidMapDefinition.getKey()));
+            assertThat(exception.getMessage(), containsString(invalidMapDefinition.getValue()));
+        }
+    }
+
+    public void testMapExpressionWithMultiValue() {
+        Map<String, Expression> validValues = Map.ofEntries(
+            Map.entry("[\"bar\", \"baz\"]", Literal.keyword(null, List.of("bar", "baz"))),
+            Map.entry("[1, 2]", l(List.of(1, 2), INTEGER)),
+            Map.entry("[1.1, 2]", l(List.of(1.1, 2d), DOUBLE)),
+            Map.entry("[true, false]", l(List.of(true, false), BOOLEAN))
+        );
+
+        for (Map.Entry<String, Expression> value : validValues.entrySet()) {
+            assertMapExpression(List.of(value));
+        }
+    }
+
+    private static Set<Map.Entry<String, Expression>> mapExpressionValidValues() {
+        return Set.of(
+            Map.entry("\"bar\"", Literal.keyword(null, "bar")),
+            Map.entry("1", l(1, INTEGER)),
+            Map.entry("+1", l(1, INTEGER)),
+            Map.entry("-1", l(-1, INTEGER)),
+            Map.entry("1.2", l(1.2, DOUBLE)),
+            Map.entry("+1.2", l(1.2, DOUBLE)),
+            Map.entry("-1.2", l(-1.2, DOUBLE)),
+            Map.entry("12E12", l(12E12, DOUBLE)),
+            Map.entry("-12E12", l(-12E12, DOUBLE)),
+            Map.entry("12E-12", l(12E-12, DOUBLE)),
+            Map.entry("-12E-12", l(-12E-12, DOUBLE)),
+            Map.entry("true", l(true, BOOLEAN)),
+            Map.entry("false", l(false, BOOLEAN))
+        );
+    }
+
     private Expression whereExpression(String e) {
         return ((Filter) parse("from a | where " + e)).condition();
     }
@@ -658,11 +773,20 @@ public class ExpressionTests extends ESTestCase {
         return (Project) parse("from a | keep " + e);
     }
 
+    private MapExpression mapExpression(String e, QueryParams queryParams) {
+        Expression f = as(parser.createStatement("from a | WHERE f(" + e + ")", queryParams), Filter.class).condition();
+        return as(as(f, UnresolvedFunction.class).arguments().get(0), MapExpression.class);
+    }
+
+    private MapExpression mapExpression(String e) {
+        return mapExpression(e, new QueryParams());
+    }
+
     private LogicalPlan parse(String s) {
         return parser.createStatement(s);
     }
 
-    private Literal l(Object value, DataType type) {
+    private static Literal l(Object value, DataType type) {
         if (value instanceof String && (type == TEXT || type == KEYWORD)) {
             value = BytesRefs.toBytesRef(value);
         }

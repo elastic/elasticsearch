@@ -49,6 +49,7 @@ primaryExpression
 
 functionExpression
     : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
+    | functionName LP mapExpression? RP
     ;
 
 functionName
@@ -56,7 +57,7 @@ functionName
     ;
 
 mapExpression
-    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    : LEFT_BRACES (entryExpression (COMMA entryExpression)*)? RIGHT_BRACES
     ;
 
 entryExpression

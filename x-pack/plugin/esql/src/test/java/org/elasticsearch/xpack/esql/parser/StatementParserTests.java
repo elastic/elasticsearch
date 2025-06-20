@@ -2593,7 +2593,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // functions can be scalar, grouping and aggregation
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
-        // In eval and where clause as function arguments
+        // In eval and where clause as function named arguments
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
         expectedMap1.put("option2", 1);
@@ -2937,7 +2937,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error1 = command.getValue()[0];
             String error2 = command.getValue()[1];
             String errorMessage1 = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "mismatched input '1' expecting QUOTED_STRING"
+                ? "mismatched input '1' expecting {QUOTED_STRING, '}'}"
                 : "no viable alternative at input 'fn(f1, { 1'";
             String errorMessage2 = cmd.startsWith("dissect") || cmd.startsWith("grok")
                 ? "mismatched input 'string' expecting {QUOTED_STRING"
@@ -2954,26 +2954,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentEmptyMap() {
-        Map<String, String> commands = Map.ofEntries(
-            Map.entry("eval x = {}", "30"),
-            Map.entry("where {}", "27"),
-            Map.entry("stats {}", "27"),
-            Map.entry("stats agg() by {}", "36"),
-            Map.entry("sort {}", "26"),
-            Map.entry("dissect {} \"%{bar}\"", "29"),
-            Map.entry("grok {} \"%{WORD:foo}\"", "26")
+        List<String> commands = List.of(
+            "eval x = {}",
+            "where {}",
+            "stats {}",
+            "stats agg() by {}",
+            "sort {}",
+            "dissect {} \"%{bar}\"",
+            "grok {} \"%{WORD:foo}\""
         );
 
-        for (Map.Entry<String, String> command : commands.entrySet()) {
-            String cmd = command.getKey();
-            String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "mismatched input '}' expecting QUOTED_STRING"
-                : "no viable alternative at input 'fn(f1, {}'";
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {}})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
-            );
+        for (String command : commands) {
+            statement(LoggerMessageFormat.format(null, "from test | " + command, "fn(f1, {})"));
         }
     }
 
@@ -2993,12 +2985,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named function argument [\"option\":null], NULL is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named argument [\"option\":null], NULL is not supported")
             );
         }
     }
@@ -3019,21 +3006,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"\":1})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named function argument [\"\":1], empty key is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named argument [\"\":1], empty key is not supported")
             );
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"  \":1})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named function argument [\"  \":1], empty key is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named argument [\"  \":1], empty key is not supported")
             );
         }
     }
@@ -3054,12 +3031,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"dup\":1,\"dup\":2})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Duplicated function arguments with the same name [dup] is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Duplicated arguments with the same name [dup] is not supported")
             );
         }
     }
@@ -3114,7 +3086,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                    "Invalid named argument [\"option1\":?n1], only constant value is supported"
                 )
             );
             expectError(
@@ -3124,7 +3096,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                    "Invalid named argument [\"option1\":?n1], only constant value is supported"
                 )
             );
         }

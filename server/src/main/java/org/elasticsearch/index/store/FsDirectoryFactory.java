@@ -233,8 +233,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         /**
-         * Force not using mmap if file is tmp fdm, fdx and fdt files.
-         * The tmp fdm, fdx, fdt file only gets created when flushing stored
+         * Force not using mmap if file is tmp fdt file.
+         * The tmp fdt file only gets created when flushing stored
          * fields to disk and index sorting is active.
          * <p>
          * In Lucene, the <code>SortingStoredFieldsConsumer</code> first
@@ -252,7 +252,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * <p>
          * As part of flushing stored disk when indexing sorting is active,
          * three tmp files are created, fdm (metadata), fdx (index) and
-         * fdt (contains stored field data). All tmp files avoid using mmmp directory.
+         * fdt (contains stored field data). The first two files are small and
+         * mmap-ing that should still be ok even is memory is scarce.
+         * The fdt file is large and tends to cause more page faults when memory is scarce.
          *
          * @param name      The name of the file in Lucene index
          * @param extension The extension of the in Lucene index
@@ -260,9 +262,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
             // NOTE, for now gated behind feature flag to observe impact of this change in benchmarks only:
-            return TMP_FDT_NO_MMAP_FEATURE_FLAG.isEnabled()
-                && extension == LuceneFilesExtensions.TMP
-                && (name.contains("fdt") || name.contains("fdx") || name.contains("fdm"));
+            return TMP_FDT_NO_MMAP_FEATURE_FLAG.isEnabled() && extension == LuceneFilesExtensions.TMP && name.contains("fdt");
         }
 
         MMapDirectory getDelegate() {

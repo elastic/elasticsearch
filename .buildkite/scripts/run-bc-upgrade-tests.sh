@@ -56,20 +56,31 @@ echo "Running BC upgrade tests on $BUILDKITE_BRANCH [$BC_VERSION] using BC (or s
 
 cat <<EOF | buildkite-agent pipeline upload
 steps:
-    - label: bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTest -Dtests.jvm.argline="-Des.serverless_transport=true"
-      timeout_in_minutes: 300
-      agents:
-        provider: gcp
-        image: family/elasticsearch-ubuntu-2004
-        machineType: n1-standard-32
-        buildDirectory: /dev/shm/bk
-        preemptible: true
-      retry:
-        automatic:
-          - exit_status: "-1"
-            limit: 3
-            signal_reason: none
-          - signal_reason: agent_stop
-            limit: 3
+    - group: "bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH"
+      steps:
+        - label: "bc-upgrade-tests-part{{matrix.part}}"
+          command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTestPart{{matrix.part}} -Dtests.jvm.argline="-Des.serverless_transport=true"
+          timeout_in_minutes: 300
+          agents:
+            provider: gcp
+            image: family/elasticsearch-ubuntu-2004
+            machineType: n1-standard-32
+            buildDirectory: /dev/shm/bk
+            preemptible: true
+          retry:
+            automatic:
+              - exit_status: "-1"
+                limit: 3
+                signal_reason: none
+              - signal_reason: agent_stop
+                limit: 3
+          matrix:
+            setup: matrix
+            variations:
+              - part: 1
+              - part: 2
+              - part: 3
+              - part: 4
+              - part: 5
+              - part: 6
 EOF

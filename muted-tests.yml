@@ -154,12 +154,6 @@ tests:
 - class: org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoaderTests
   method: testObjectAndDottedNameInParentKeptInIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/161649
-- class: org.elasticsearch.streams.StreamsYamlTestSuiteIT
-  method: test {yaml=streams/logs/10_basic/Basic toggle of logs state enable to disable and back}
-  issue: https://github.com/elastic/elasticsearch/issues/161950
-- class: org.elasticsearch.streams.StreamsYamlTestSuiteIT
-  method: test {yaml=streams/logs/10_basic/Check for repeated toggle to same state}
-  issue: https://github.com/elastic/elasticsearch/issues/161952
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161962
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT

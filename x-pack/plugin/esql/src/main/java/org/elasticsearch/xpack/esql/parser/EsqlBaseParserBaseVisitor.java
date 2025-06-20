@@ -740,6 +740,27 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitInferenceCommandOptions(EsqlBaseParser.InferenceCommandOptionsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInferenceCommandOption(EsqlBaseParser.InferenceCommandOptionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInferenceCommandOptionValue(EsqlBaseParser.InferenceCommandOptionValueContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

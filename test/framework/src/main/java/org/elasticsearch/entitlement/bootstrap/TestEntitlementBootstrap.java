@@ -30,7 +30,6 @@ import org.elasticsearch.plugins.PluginDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -135,7 +134,10 @@ public class TestEntitlementBootstrap {
         if (testOnlyPathString == null) {
             testOnlyClassPath = Set.of();
         } else {
-            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(separator)).map(Paths::get).map(Path::toUri).collect(toCollection(TreeSet::new));
+            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(separator))
+                .map(Paths::get)
+                .map(Path::toUri)
+                .collect(toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

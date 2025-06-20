@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -24,6 +26,12 @@ public class Explain extends LeafPlan implements TelemetryAware {
     }
 
     private final LogicalPlan query;
+
+    private final List<Attribute> output = List.of(
+        new ReferenceAttribute(Source.EMPTY, "role", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD)
+    );
 
     public Explain(Source source, LogicalPlan query) {
         super(source);
@@ -46,7 +54,7 @@ public class Explain extends LeafPlan implements TelemetryAware {
 
     @Override
     public List<Attribute> output() {
-        throw new UnsupportedOperationException();
+        return output;
     }
 
     @Override

@@ -1047,7 +1047,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         public Builder(ClusterName clusterName) {
             this.compatibilityVersions = new HashMap<>();
             this.nodeFeatures = new HashMap<>();
-            customs = ImmutableOpenMap.builder();
+            this.customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
 
@@ -1330,7 +1330,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
-
         private final long toVersion;
 
         private final String fromUuid;

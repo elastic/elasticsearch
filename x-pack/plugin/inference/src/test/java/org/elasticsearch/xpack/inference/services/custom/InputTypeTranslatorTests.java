@@ -110,7 +110,7 @@ public class InputTypeTranslatorTests extends AbstractBWCWireSerializationTestCa
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Input type translation value for key [CLASSIFICATION] "
-                    + "must be a String that is not null and not empty, received: [Integer].;"
+                    + "must be a String that is not null and not empty, received: [12345], type: [Integer].;"
             )
         );
     }
@@ -132,7 +132,7 @@ public class InputTypeTranslatorTests extends AbstractBWCWireSerializationTestCa
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Input type translation value for key [CLASSIFICATION] "
-                    + "must be a String that is not null and not empty, received: [String].;"
+                    + "must be a String that is not null and not empty, received: [], type: [String].;"
             )
         );
     }

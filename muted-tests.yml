@@ -568,6 +568,15 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnSearchRescore
   issue: https://github.com/elastic/elasticsearch/issues/129713
+- class: org.elasticsearch.streams.StreamsYamlTestSuiteIT
+  method: test {yaml=streams/logs/10_basic/Basic toggle of logs state enable to disable and back}
+  issue: https://github.com/elastic/elasticsearch/issues/129733
+- class: org.elasticsearch.streams.StreamsYamlTestSuiteIT
+  method: test {yaml=streams/logs/10_basic/Check for repeated toggle to same state}
+  issue: https://github.com/elastic/elasticsearch/issues/129735
+- class: org.elasticsearch.snapshots.GetSnapshotsIT
+  method: testFilterByState
+  issue: https://github.com/elastic/elasticsearch/issues/129740
 
 # Examples:
 #

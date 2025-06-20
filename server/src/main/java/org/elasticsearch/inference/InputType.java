@@ -94,9 +94,11 @@ public enum InputType {
             if (value instanceof String == false || Strings.isNullOrEmpty((String) value)) {
                 validationException.addValidationError(
                     Strings.format(
-                        "Input type translation value for key [%s] must be a String that is not null and not empty, received: [%s].",
+                        "Input type translation value for key [%s] must be a String that is "
+                            + "not null and not empty, received: [%s], type: [%s].",
                         key,
-                        value.getClass().getSimpleName()
+                        value,
+                        value == null ? "null" : value.getClass().getSimpleName()
                     )
                 );
 
@@ -104,14 +106,14 @@ public enum InputType {
             }
 
             try {
-                var inputTypeKey = InputType.fromRestString(key);
+                var inputTypeKey = InputType.fromStringValidateSupportedRequestValue(key);
                 translationMap.put(inputTypeKey, (String) value);
             } catch (Exception e) {
                 validationException.addValidationError(
                     Strings.format(
                         "Invalid input type translation for key: [%s], is not a valid value. Must be one of %s",
                         key,
-                        EnumSet.of(InputType.CLASSIFICATION, InputType.CLUSTERING, InputType.INGEST, InputType.SEARCH)
+                        SUPPORTED_REQUEST_VALUES
                     )
                 );
 
@@ -120,5 +122,16 @@ public enum InputType {
         }
 
         return translationMap;
+    }
+
+    private static InputType fromStringValidateSupportedRequestValue(String name) {
+        var inputType = fromRestString(name);
+        if (SUPPORTED_REQUEST_VALUES.contains(inputType) == false) {
+            throw new IllegalArgumentException(
+                format("Unrecognized input_type [%s], must be one of %s", inputType, SUPPORTED_REQUEST_VALUES)
+            );
+        }
+
+        return inputType;
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.TransportVersions.ESQL_KNN_K_PARAM_MANDATORY;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
@@ -62,10 +64,10 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
     private final Expression field;
+    private final Expression k;
     private final Expression options;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
-        entry(K_FIELD.getPreferredName(), INTEGER),
         entry(NUM_CANDS_FIELD.getPreferredName(), INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
@@ -90,6 +92,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             type = { "dense_vector" },
             description = "Vector value to find top nearest neighbours for."
         ) Expression query,
+        @Param(
+            name = "k",
+            type = { "integer" },
+            description = "The number of nearest neighbors to return from each shard. "
+                + "Elasticsearch collects k results from each shard, then merges them to find the global top results. "
+                + "This value must be less than or equal to num_candidates."
+        ) Expression k,
         @MapParam(
             name = "options",
             params = {
@@ -99,14 +108,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query."
                         + "Defaults to 1.0."
-                ),
-                @MapParam.MapParamEntry(
-                    name = "k",
-                    type = "integer",
-                    valueHint = { "10" },
-                    description = "The number of nearest neighbors to return from each shard. "
-                        + "Elasticsearch collects k results from each shard, then merges them to find the global top results. "
-                        + "This value must be less than or equal to num_candidates. Defaults to 10."
                 ),
                 @MapParam.MapParamEntry(
                     name = "num_candidates",
@@ -136,17 +137,22 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             optional = true
         ) Expression options
     ) {
-        this(source, field, query, options, null);
+        this(source, field, query, k, options, null);
     }
 
-    private Knn(Source source, Expression field, Expression query, Expression options, QueryBuilder queryBuilder) {
-        super(source, query, options == null ? List.of(field, query) : List.of(field, query, options), queryBuilder);
+    private Knn(Source source, Expression field, Expression query, Expression k, Expression options, QueryBuilder queryBuilder) {
+        super(source, query, options == null ? List.of(field, query, k) : List.of(field, query, k, options), queryBuilder);
         this.field = field;
+        this.k = k;
         this.options = options;
     }
 
     public Expression field() {
         return field;
+    }
+
+    public Expression k() {
+        return k;
     }
 
     public Expression options() {
@@ -160,7 +166,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions());
+        return resolveField().and(resolveQuery()).and(resolveK()).and(resolveOptions());
     }
 
     private TypeResolution resolveField() {
@@ -173,14 +179,19 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         );
     }
 
+    private TypeResolution resolveK() {
+        return isNotNull(k(), sourceText(), TypeResolutions.ParamOrdinal.THIRD)
+            .and(isType(k(), dt -> dt == INTEGER, sourceText(), TypeResolutions.ParamOrdinal.THIRD, "integer"));
+    }
+
     private TypeResolution resolveOptions() {
         if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
+            TypeResolution resolution = isNotNull(options(), sourceText(), TypeResolutions.ParamOrdinal.FOURTH);
             if (resolution.unresolved()) {
                 return resolution;
             }
             // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), THIRD);
+            resolution = isMapExpression(options(), sourceText(), TypeResolutions.ParamOrdinal.FOURTH);
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -200,7 +211,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         }
 
         Map<String, Object> matchOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchOptions, THIRD, sourceText(), ALLOWED_OPTIONS);
+        populateOptionsMap((MapExpression) options(), matchOptions, TypeResolutions.ParamOrdinal.FOURTH, sourceText(), ALLOWED_OPTIONS);
         return matchOptions;
     }
 
@@ -216,22 +227,24 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         for (int i = 0; i < queryFolded.size(); i++) {
             queryAsFloats[i] = queryFolded.get(i).floatValue();
         }
+        int kValue = ((Number) k().fold(FoldContext.small())).intValue();
 
-        return new KnnQuery(source(), fieldName, queryAsFloats, queryOptions());
+        Map<String, Object> opts = queryOptions();
+        opts.put(K_FIELD.getPreferredName(), kValue);
+
+        return new KnnQuery(source(), fieldName, queryAsFloats, opts);
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), queryBuilder);
+        return new Knn(source(), field(), query(), k(), options(), queryBuilder);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of();
-        }
-
         Map<String, Object> options = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), ALLOWED_OPTIONS);
+        if (options() != null) {
+            populateOptionsMap((MapExpression) options(), options, TypeResolutions.ParamOrdinal.FOURTH, sourceText(), ALLOWED_OPTIONS);
+        }
         return options;
     }
 
@@ -241,14 +254,15 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             source(),
             newChildren.get(0),
             newChildren.get(1),
-            newChildren.size() > 2 ? newChildren.get(2) : null,
+            newChildren.get(2),
+            newChildren.size() > 3 ? newChildren.get(3) : null,
             queryBuilder()
         );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Knn::new, field(), query(), options());
+        return NodeInfo.create(this, Knn::new, field(), query(), k(), options());
     }
 
     @Override
@@ -261,8 +275,11 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-
-        return new Knn(source, field, query, null, queryBuilder);
+        Expression k = null;
+        if (in.getTransportVersion().onOrAfter(ESQL_KNN_K_PARAM_MANDATORY)) {
+            k = in.readNamedWriteable(Expression.class);
+        }
+        return new Knn(source, field, query, k, null, queryBuilder);
     }
 
     @Override
@@ -271,6 +288,9 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().onOrAfter(ESQL_KNN_K_PARAM_MANDATORY)) {
+            out.writeNamedWriteable(k());
+        }
     }
 
     @Override
@@ -281,12 +301,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Knn knn = (Knn) o;
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
+            && Objects.equals(k(), knn.k())
             && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), k(), queryBuilder());
     }
 
 }

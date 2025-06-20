@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DissectGener
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DropGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EvalGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
@@ -54,7 +53,8 @@ public class EsqlQueryGenerator {
         DropGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
         EvalGenerator.INSTANCE,
-        ForkGenerator.INSTANCE,
+        // Awaits fix: https://github.com/elastic/elasticsearch/issues/129715
+        // ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         LimitGenerator.INSTANCE,

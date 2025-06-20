@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
@@ -34,13 +33,11 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -96,9 +93,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         if (IVF_FORMAT.isEnabled() == false) {
             validIndexTypes.remove(BBQ_IVF.name().toLowerCase(Locale.ROOT));
         }
-        String type = randomFrom(
-            validIndexTypes
-        );
+        String type = randomFrom(validIndexTypes);
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")

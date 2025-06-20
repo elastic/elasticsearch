@@ -58,6 +58,35 @@ setup:
               body:
                 type: semantic_text
                 inference_id: dense-inference-id
+              another_body:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+---
+"Highlighting empty field":
+  - do:
+        index:
+          index: test-dense-index
+          id: doc_1
+          body:
+            body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          refresh: true
+
+  - match: { result: created }
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match_all: {}
+          highlight:
+            fields:
+              another_body: {}
+
+  - match:      { hits.total.value: 1 }
+  - match:      { hits.hits.0._id: "doc_1" }
+  - not_exists:   hits.hits.0.highlight.another_body
 
 ---
 "Highlighting using a sparse embedding model":

@@ -2500,9 +2500,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar", IndexComponentSelector.DATA), is(false));
 
-        String expectedIndex = failureStore
-            ? DataStream.getDefaultFailureStoreName("logs-foobar", 1, System.currentTimeMillis())
-            : DataStream.getDefaultBackingIndexName("logs-foobar", 1);
+        String expectedIndex = projectMetadata.dataStreams()
+            .get("logs-foobar")
+            .getDataStreamIndices(failureStore)
+            .getIndices()
+            .getFirst()
+            .getName();
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), hasItem(expectedIndex));
         assertThat(authorizedIndices.check(expectedIndex, IndexComponentSelector.DATA), is(true));
 
@@ -2568,9 +2571,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // data streams should _not_ be in the authorized list but a single backing index that matched the requested pattern
         // and the authorized name should be in the list
-        String expectedIndex = failureStore
-            ? DataStream.getDefaultFailureStoreName("logs-foobar", 1, System.currentTimeMillis())
-            : DataStream.getDefaultBackingIndexName("logs-foobar", 1);
+        String expectedIndex = projectMetadata.dataStreams()
+            .get("logs-foobar")
+            .getDataStreamIndices(failureStore)
+            .getIndices()
+            .getFirst()
+            .getName();
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar", IndexComponentSelector.DATA), is(false));

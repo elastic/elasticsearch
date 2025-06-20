@@ -541,8 +541,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 // if the merge is aborted the assumption is that merging will soon stop with negligible further writing
                 return 0L;
             } else {
-              long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes;
-              return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
+                long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes;
+                return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
             }
         }
 

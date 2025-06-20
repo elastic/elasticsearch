@@ -128,12 +128,9 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         // now delete the index in this state, i.e. with merges enqueued and blocked
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
         // index should now be gone
-        assertBusy(() -> {
-            expectThrows(
-                IndexNotFoundException.class,
-                () -> indicesAdmin().prepareGetIndex().setIndices(indexName).get()
-            );
-        });
+        assertBusy(
+            () -> { expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().setIndices(indexName).get()); }
+        );
         assertBusy(() -> {
             // merge thread pool should be done with the enqueue merge tasks
             NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setThreadPool(true).get();

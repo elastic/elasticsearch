@@ -116,10 +116,7 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // realms are different, it's not the same owner
-        assertCannotAccessResources(
-            randomAuthentication(user1, realm1),
-            randomCloudApiKeyAuthentication(user1)
-        );
+        assertCannotAccessResources(randomAuthentication(user1, realm1), randomCloudApiKeyAuthentication(user1));
 
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);

@@ -13,7 +13,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-public class GPUYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -23,7 +23,7 @@ public class GPUYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .build();
 
-    public GPUYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

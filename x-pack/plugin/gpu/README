@@ -42,7 +42,7 @@ index 15e0193a..446f2b61 100644
 
   export JAVA_HOME=/Users/chegar/binaries/jdk-22.0.2.jdk/Contents/Home/
   cd java/cuvs-java
-  mv install
+  mvn install
   Installs into maven local repository, e.g:
     /Users/chegar/.m2/repository/com/nvidia/cuvs/cuvs-java/25.08.0/
 

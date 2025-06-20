@@ -47,23 +47,28 @@ public class BlockLoaderTestRunner {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
-        expected = makeReadable(expected);
-        blockLoaderResult = makeReadable(blockLoaderResult);
+        expected = attemptMakeReadable(expected);
+        blockLoaderResult = attemptMakeReadable(blockLoaderResult);
         Assert.assertEquals(expected, blockLoaderResult);
     }
 
-    // Makes assertions readable:
-    private static Object makeReadable(Object expected) {
-        if (expected instanceof BytesRef bytesRef) {
-            expected = bytesRef.utf8ToString();
-        } else if (expected instanceof List<?> list && list.getFirst() instanceof BytesRef) {
-            List<String> expectedList = new ArrayList<>(list.size());
-            for (Object e : list) {
-                expectedList.add(((BytesRef) e).utf8ToString());
+    // Attempt to make assertions readable:
+    private static Object attemptMakeReadable(Object expected) {
+        try {
+            if (expected instanceof BytesRef bytesRef) {
+                expected = bytesRef.utf8ToString();
+            } else if (expected instanceof List<?> list && list.getFirst() instanceof BytesRef) {
+                List<String> expectedList = new ArrayList<>(list.size());
+                for (Object e : list) {
+                    expectedList.add(((BytesRef) e).utf8ToString());
+                }
+                expected = expectedList;
             }
-            expected = expectedList;
+            return expected;
+        } catch (Exception | AssertionError e) {
+            // ip/geo fields can't be converted to strings:
+            return expected;
         }
-        return expected;
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {

@@ -265,7 +265,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     protected InternalMultiTerms mutateInstance(InternalMultiTerms instance) {
         String name = instance.getName();
         Map<String, Object> metadata = instance.getMetadata();
-        BucketOrder order = instance.order;
+        BucketOrder order = instance.getOrder();
         switch (between(0, 2)) {
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> order = randomValueOtherThan(order, InternalMultiTermsTests::randomBucketOrder);
@@ -282,9 +282,9 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         return new InternalMultiTerms(
             name,
             order,
-            instance.reduceOrder,
-            instance.requiredSize,
-            instance.minDocCount,
+            instance.getReduceOrder(),
+            instance.getRequiredSize(),
+            instance.getMinDocCount(),
             instance.shardSize,
             instance.showTermDocCountError,
             instance.otherDocCount,

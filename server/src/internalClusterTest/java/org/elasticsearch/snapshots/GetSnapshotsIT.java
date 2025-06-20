@@ -71,6 +71,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -672,8 +673,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.SUCCESS, SnapshotState.IN_PROGRESS));
         assertThat(snapshots, hasSize(2));
         var states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
-        assertTrue(states.contains(SnapshotState.SUCCESS));
-        assertTrue(states.contains(SnapshotState.IN_PROGRESS));
+        assertThat(states, hasItem(SnapshotState.SUCCESS));
+        assertThat(states, hasItem(SnapshotState.IN_PROGRESS));
 
         // Fetch all snapshots (without state)
         snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();

@@ -140,6 +140,9 @@ public interface CommandGenerator {
         return VALIDATION_OK;
     }
 
+    /**
+     * The command doesn't have to produce LESS columns than the previous query
+     */
     static ValidationResult expectAtLeastSameNumberOfColumns(
         List<EsqlQueryGenerator.Column> previousColumns,
         List<EsqlQueryGenerator.Column> columns

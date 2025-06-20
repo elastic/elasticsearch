@@ -93,7 +93,7 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
 
         @Override
         public String toString(String field) {
-            if(description.isEmpty()) {
+            if (description.isEmpty()) {
                 return super.toString(field);
             }
             return description;

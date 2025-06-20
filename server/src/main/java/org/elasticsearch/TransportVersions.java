@@ -244,7 +244,6 @@ public class TransportVersions {
     public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = def(9_039_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOT = def(9_040_0_00);
     public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
-    public static final TransportVersion REPOSITORIES_METADATA_AS_PROJECT_CUSTOM = def(9_042_0_00);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION = def(9_043_0_00);
     public static final TransportVersion REMOTE_EXCEPTION = def(9_044_0_00);
     public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);

@@ -750,7 +750,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (rerank.scoreAttribute() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = resolveAttribute(ua, childrenOutput);
                 if (resolved.resolved() == false || resolved.dataType() != DOUBLE) {
-                    resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                    if (ua.name().equals(MetadataAttribute.SCORE)) {
+                        resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                    } else {
+                        resolved = new ReferenceAttribute(resolved.source(), resolved.name(), DOUBLE);
+                    }
                 }
                 rerank = rerank.withScoreAttribute(resolved);
             }

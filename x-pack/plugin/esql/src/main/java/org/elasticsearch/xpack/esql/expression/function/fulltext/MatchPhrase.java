@@ -92,7 +92,6 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
             specified field.

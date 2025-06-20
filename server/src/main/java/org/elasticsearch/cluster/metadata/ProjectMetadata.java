@@ -1513,11 +1513,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return this;
         }
 
-        public Builder clearCustoms() {
-            customs.clear();
-            return this;
-        }
-
         public Builder customs(Map<String, Metadata.ProjectCustom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
@@ -2239,17 +2234,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indexMetadata.writeTo(out, true);
         }
         out.writeCollection(templates.values());
-        Collection<Metadata.ProjectCustom> filteredCustoms = customs.values();
-        if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
-            // RepositoriesMetadata is sent as part of Metadata#customs for version before RepositoriesMetadata migration
-            // So we exclude it from the project level customs
-            if (custom(RepositoriesMetadata.TYPE) != null) {
-                assert ProjectId.DEFAULT.equals(id)
-                    : "Only default project can have repositories metadata. Otherwise the code should have thrown before it reaches here";
-                filteredCustoms = filteredCustoms.stream().filter(custom -> custom instanceof RepositoriesMetadata == false).toList();
-            }
-        }
-        VersionedNamedWriteable.writeVersionedWriteables(out, filteredCustoms);
+        VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
         out.writeCollection(reservedStateMetadata.values());
 
         if (out.getTransportVersion()
@@ -2372,12 +2357,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);
-        }
-
-        ProjectMetadataDiff withCustoms(
-            DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs
-        ) {
-            return new ProjectMetadataDiff(indices, templates, customs, reservedStateMetadata);
         }
     }
 

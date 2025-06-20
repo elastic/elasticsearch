@@ -11,13 +11,18 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestContentAggregator;
 import org.elasticsearch.rest.RestRequest;
 
-public class NullDispatcher implements HttpServerTransport.Dispatcher {
+public class AggregatingDispatcher implements HttpServerTransport.Dispatcher {
+
+    public void dispatchAggregatedRequest(RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+        assert restRequest.isStreamedContent();
+    }
 
     @Override
-    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-
+    public final void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+        RestContentAggregator.aggregate(request, (r) -> dispatchAggregatedRequest(r, channel, threadContext));
     }
 
     @Override

@@ -62,10 +62,10 @@ GET _search
 `query_vector`
 :   (Optional, dictionary) A dictionary of token-weight pairs representing the precomputed query vector to search. Searching using this query vector will bypass additional inference. Only one of `inference_id` and `query_vector` is allowed.
 
-`prune`
+`prune` {applies_to}`stack: preview 9.0, ga 9.1`
 :   (Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: false.
 
-`pruning_config`
+`pruning_config` {applies_to}`stack: preview 9.0, ga 9.1`
 :   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
 
     Parameters for `pruning_config` are:

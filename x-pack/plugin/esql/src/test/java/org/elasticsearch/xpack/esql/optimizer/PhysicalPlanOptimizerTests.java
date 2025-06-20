@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -192,6 +193,7 @@ import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAt
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -3163,6 +3165,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(project.projections()), contains(nullField));
         assertThat(Expressions.names(eval.fields()), contains(nullField));
         assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER],336]
+     * \_MvExpandExec[foo_1{r}#3,foo_1{r}#20]
+     *   \_TopNExec[[Order[emp_no{f}#9,ASC,LAST]],1000[INTEGER],336]
+     *     \_ExchangeExec[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
+     * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, foo_1{r}#3, foo_2{r}#5],false]
+     *       \_ProjectExec[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
+     * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, foo_1{r}#3, foo_2{r}#5]]
+     *         \_FieldExtractExec[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]&gt;[],[]&lt;
+     *           \_EvalExec[[1[INTEGER] AS foo_1#3, 1[INTEGER] AS foo_2#5]]
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#35], limit[1000], sort[[FieldSort[field=emp_no{f}#9, direction=ASC, nulls=LAST]]] estimatedRowSize[352]
+     */
+    public void testProjectAwayMvExpandColumnOrder() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | eval foo_1 = 1, foo_2 = 1
+            | sort emp_no
+            | mv_expand foo_1
+            """));
+        var limit = as(plan, LimitExec.class);
+        var mvExpand = as(limit.child(), MvExpandExec.class);
+        var topN = as(mvExpand.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+
+        assertThat(
+            Expressions.names(project.projections()),
+            containsInRelativeOrder(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary",
+                "foo_1",
+                "foo_2"
+            )
+        );
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var eval = as(fieldExtract.child(), EvalExec.class);
+        EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
     }
 
     /**

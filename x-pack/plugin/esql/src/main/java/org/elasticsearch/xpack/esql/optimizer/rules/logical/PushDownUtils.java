@@ -186,7 +186,7 @@ class PushDownUtils {
         return renameAttributeTo;
     }
 
-    private static Project pushDownPastProject(UnaryPlan parent) {
+    public static Project pushDownPastProject(UnaryPlan parent) {
         if (parent.child() instanceof Project project) {
             UnaryPlan expressionsWithResolvedAliases = resolveRenamesFromProject(parent, project);
 

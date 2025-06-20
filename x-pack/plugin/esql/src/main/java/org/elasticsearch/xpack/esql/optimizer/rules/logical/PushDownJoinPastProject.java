@@ -83,12 +83,10 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
             for (NamedExpression newProj : newProjections) {
                 Attribute coreAttr = (Attribute) Alias.unwrap(newProj);
                 // Only fields from the left need to be protected from conflicts - because fields from the right shadow them.
-                if (leftOutput.contains(coreAttr) == false || lookupFieldNames.contains(coreAttr.name()) == false) {
-                    finalProjections.add(newProj);
-                } else {
+                if (leftOutput.contains(coreAttr) && lookupFieldNames.contains(coreAttr.name())) {
                     // Conflict - the core attribute will be shadowed by the `LOOKUP JOIN` and we need to alias it in an upstream Eval.
                     Alias renaming = aliasesForReplacedAttributesBuilder.computeIfAbsent(coreAttr, a -> {
-                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
+                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
                         return new Alias(a.source(), tempName, a, null, true);
                     });
 
@@ -101,6 +99,8 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
                         renamedBack = new Alias(coreAttr.source(), coreAttr.name(), renamedAttribute, coreAttr.id(), coreAttr.synthetic());
                     }
                     finalProjections.add(renamedBack);
+                } else {
+                    finalProjections.add(newProj);
                 }
             }
 

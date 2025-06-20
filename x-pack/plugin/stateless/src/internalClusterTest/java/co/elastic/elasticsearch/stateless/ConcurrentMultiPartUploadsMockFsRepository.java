@@ -62,6 +62,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -239,7 +240,19 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                             assert 0 == remaining : remaining;
                             assert offset == blobSize;
                         }
-                        safeGet(future);
+                        try {
+                            safeGet(future);
+                        } catch (AssertionError assertion) {
+                            // An explanation for this ugly catch block:
+                            // The executor will wrap an IOException during copy into an ExecutionException
+                            // causing safeGet to in turn wrap that in an AssertionError that won't be caught.
+                            // In order to better match the semantics of sequential copy we unwrap the ExecutionException
+                            // back into an IOException here. This allows e.g. corruption handling to be tested.
+                            if (assertion.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
+                                throw ioe;
+                            }
+                            throw assertion;
+                        }
 
                         if (bytesWritten.get() != blobSize) {
                             throw new IllegalStateException(

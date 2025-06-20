@@ -59,7 +59,13 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.STREAMS_LOGS_SUPPORT;
+        throw new IllegalStateException("not used");
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.STREAMS_LOGS_SUPPORT)
+            || version.isPatchFrom(TransportVersions.STREAMS_LOGS_SUPPORT_8_19);
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {

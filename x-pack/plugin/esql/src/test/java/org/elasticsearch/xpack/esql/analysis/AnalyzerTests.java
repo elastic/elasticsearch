@@ -2376,7 +2376,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""
-            from test | where knn(vector, [0.342, 0.164, 0.234])
+            from test | where knn(vector, [0.342, 0.164, 0.234], 10)
             """, "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);

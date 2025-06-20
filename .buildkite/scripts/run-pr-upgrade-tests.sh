@@ -44,13 +44,13 @@ steps:
                   signal_reason: none
                 - signal_reason: agent_stop
                   limit: 3
-             matrix:
-               setup: matrix
-               variations:
-                 - part: 1
-                 - part: 2
-                 - part: 3
-                 - part: 4
-                 - part: 5
-                 - part: 6
+            matrix:
+              setup: matrix
+              variations:
+                - part: 1
+                - part: 2
+                - part: 3
+                - part: 4
+                - part: 5
+                - part: 6
 EOF

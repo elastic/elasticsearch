@@ -86,7 +86,7 @@ public class BootstrapForTesting {
         if (str == null) {
             return null;
         } else {
-            return Path.of(str);
+            return PathUtils.get(str);
         }
     }
 

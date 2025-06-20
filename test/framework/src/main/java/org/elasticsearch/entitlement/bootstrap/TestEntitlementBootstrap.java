@@ -12,7 +12,9 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
@@ -25,7 +27,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginDescriptor;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -74,7 +75,7 @@ public class TestEntitlementBootstrap {
     }
 
     public static boolean isEnabledForTest() {
-        return Boolean.getBoolean("es.entitlement.enableForTests");
+        return Booleans.parseBoolean(System.getProperty("es.entitlement.enableForTests", "false"));
     }
 
     public static void setActive(boolean newValue) {
@@ -107,17 +108,20 @@ public class TestEntitlementBootstrap {
             .toList();
         Map<String, Policy> pluginPolicies = parsePluginsPolicies(pluginsData);
 
+        String separator = System.getProperty("path.separator");
+
         // In productions, plugins would have access to their respective bundle directories,
         // and so they'd be able to read from their jars. In testing, we approximate this
         // by considering the entire classpath to be "source paths" of all plugins. This
         // also has the effect of granting read access to everything on the test-only classpath,
         // which is fine, because any entitlement errors there could only be false positives.
         String classPathProperty = System.getProperty("java.class.path");
+
         Set<Path> classPathEntries;
         if (classPathProperty == null) {
             classPathEntries = Set.of();
         } else {
-            classPathEntries = Arrays.stream(classPathProperty.split(File.pathSeparator)).map(Path::of).collect(toCollection(TreeSet::new));
+            classPathEntries = Arrays.stream(classPathProperty.split(separator)).map(PathUtils::get).collect(toCollection(TreeSet::new));
         }
         Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
 
@@ -128,7 +132,7 @@ public class TestEntitlementBootstrap {
         if (testOnlyPathString == null) {
             testOnlyClassPath = Set.of();
         } else {
-            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(File.pathSeparator)).collect(toCollection(TreeSet::new));
+            testOnlyClassPath = Arrays.stream(testOnlyPathString.split(separator)).collect(toCollection(TreeSet::new));
         }
 
         return new TestPolicyManager(

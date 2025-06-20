@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
@@ -134,7 +135,12 @@ public class TestPolicyManager extends PolicyManager {
             // This can happen for JDK classes
             return false;
         }
-        String needle = codeSource.getLocation().getPath();
+        String needle;
+        try {
+            needle = codeSource.getLocation().toURI().getPath();
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(e);
+        }
         if (needle.endsWith("/")) {
             needle = needle.substring(0, needle.length() - 1);
         }

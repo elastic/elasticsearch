@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.query.AutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -110,6 +112,17 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()));
+        return new AutomatonQuery(
+            source(),
+            targetFieldName,
+            pattern().createAutomaton(caseInsensitive()),
+            getAutomatonDescription(targetFieldName)
+        );
+    }
+
+    private String getAutomatonDescription(String targetFieldName) {
+        // we use all the information used the create the automaton to describe the query here
+        String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
+        return "Automaton for " + targetFieldName + " LIKE (\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }
 }

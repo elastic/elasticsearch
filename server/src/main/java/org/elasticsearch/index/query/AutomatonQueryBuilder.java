@@ -29,8 +29,10 @@ import java.util.Objects;
 public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBuilder> implements MultiTermQueryBuilder {
     private final String fieldName;
     private final Automaton automaton;
+    private final String description;
 
-    public AutomatonQueryBuilder(String fieldName, Automaton automaton) {
+    public AutomatonQueryBuilder(String fieldName, Automaton automaton, String description) {
+        this.description = description;
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
@@ -63,7 +65,7 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return new AutomatonQuery(new Term(fieldName), automaton);
+        return new AutomatonQueryWithDescription(new Term(fieldName), automaton, description);
     }
 
     @Override
@@ -79,5 +81,22 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         throw new UnsupportedOperationException("AutomatonQueryBuilder does not support getMinimalSupportedVersion");
+    }
+
+    static class AutomatonQueryWithDescription extends AutomatonQuery {
+        private final String description;
+
+        AutomatonQueryWithDescription(Term term, Automaton automaton, String description) {
+            super(term, automaton);
+            this.description = description;
+        }
+
+        @Override
+        public String toString(String field) {
+            if(description.isEmpty()) {
+                return super.toString(field);
+            }
+            return description;
+        }
     }
 }

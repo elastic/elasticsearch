@@ -325,12 +325,14 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .put("index.setting3", "templateValue")
             .put("index.setting4", "templateValue")
             .build();
+        List<String> componentTemplates = List.of("component_template_1");
         CompressedXContent templateMappings = randomMappings(randomDataStreamTemplate());
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(templateBuilder)
+            .componentTemplates(componentTemplates)
             .build();
         Settings mergedSettings = Settings.builder()
             .put("index.setting1", "dataStreamValue")
@@ -342,6 +344,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .indexPatterns(List.of(dataStreamName))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(expectedTemplateBuilder)
+            .componentTemplates(componentTemplates)
             .build();
         assertThat(indexTemplate.mergeSettings(dataStreamSettings), equalTo(expectedEffectiveTemplate));
     }

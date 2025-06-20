@@ -587,7 +587,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 primaryTermSupplier.getAsLong(),
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays,
                 diskIoBufferPool,
                 operationListener,
                 operationAsserter,
@@ -607,9 +606,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        try {
             writeOperationWithSize(out, operation);
-            final BytesReference bytes = out.bytes();
             readLock.lock();
             try {
                 ensureOpen();
@@ -630,7 +629,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + "]"
                     );
                 }
-                return current.add(bytes, operation.seqNo());
+                var res = current.add(out, operation.seqNo());
+                out = null;
+                return res;
             } finally {
                 readLock.unlock();
             }
@@ -640,6 +641,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
+        } finally {
+            if (out != null) {
+                out.close();
+            }
         }
     }
 
@@ -1964,7 +1969,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             seqNo -> {
                 throw new UnsupportedOperationException();
             },
-            BigArrays.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
             TranslogConfig.NOOP_OPERATION_LISTENER,
             TranslogOperationAsserter.DEFAULT,

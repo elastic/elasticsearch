@@ -18,6 +18,8 @@ tasks.register("bcUpgradeTest", StandaloneRestIntegTestTask) {
   filter {
     // Mute problematic tests
     excludeTestsMatching("org.elasticsearch.upgrades.FullClusterRestartIT.testSnapshotRestore")
+    excludeTestsMatching("org.elasticsearch.upgrades.FullClusterRestartIT.testSnapshotRestore *")
     excludeTestsMatching("org.elasticsearch.xpack.restart.CoreFullClusterRestartIT.testSnapshotRestore")
+    excludeTestsMatching("org.elasticsearch.xpack.restart.CoreFullClusterRestartIT.testSnapshotRestore *")
   }
 }

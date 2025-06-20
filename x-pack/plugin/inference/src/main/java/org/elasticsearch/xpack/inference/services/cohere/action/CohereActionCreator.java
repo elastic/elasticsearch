@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.action;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -16,13 +17,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.CohereResponseHandler;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1CompletionRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1EmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.v1.CohereV1RerankRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.v2.CohereV2CompletionRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.v2.CohereV2EmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.v2.CohereV2RerankRequest;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.response.CohereCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.response.CohereEmbeddingsResponseEntity;
@@ -30,6 +36,7 @@ import org.elasticsearch.xpack.inference.services.cohere.response.CohereRankedRe
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
@@ -68,54 +75,81 @@ public class CohereActionCreator implements CohereActionVisitor {
     @Override
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
         var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings);
+
+        Function<EmbeddingsInput, Request> requestCreator = inferenceInputs -> {
+            var requestInputType = InputType.isSpecified(inferenceInputs.getInputType())
+                ? inferenceInputs.getInputType()
+                : overriddenModel.getTaskSettings().getInputType();
+
+            return switch (overriddenModel.getServiceSettings().getCommonSettings().apiVersion()) {
+                case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getStringInputs(), requestInputType, overriddenModel);
+                case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getStringInputs(), requestInputType, overriddenModel);
+            };
+        };
+
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere embeddings");
-        var requestCreator = new GenericRequestManager<>(
+        var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
             EMBEDDINGS_HANDLER,
-            (inferenceInputs -> new CohereV1EmbeddingsRequest(
-                inferenceInputs.getStringInputs(),
-                inferenceInputs.getInputType(),
-                overriddenModel
-            )),
+            requestCreator,
             EmbeddingsInput.class
         );
-        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
+        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 
     @Override
     public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = CohereRerankModel.of(model, taskSettings);
-        var requestCreator = new GenericRequestManager<>(
-            serviceComponents.threadPool(),
-            overriddenModel,
-            RERANK_HANDLER,
-            (inferenceInputs -> new CohereV1RerankRequest(
+
+        Function<QueryAndDocsInputs, Request> requestCreator = inferenceInputs -> switch (overriddenModel.getServiceSettings()
+            .apiVersion()) {
+            case V1 -> new CohereV1RerankRequest(
                 inferenceInputs.getQuery(),
                 inferenceInputs.getChunks(),
                 inferenceInputs.getReturnDocuments(),
                 inferenceInputs.getTopN(),
                 overriddenModel
-            )),
+            );
+            case V2 -> new CohereV2RerankRequest(
+                inferenceInputs.getQuery(),
+                inferenceInputs.getChunks(),
+                inferenceInputs.getReturnDocuments(),
+                inferenceInputs.getTopN(),
+                overriddenModel
+            );
+        };
+
+        var requestManager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
+            overriddenModel,
+            RERANK_HANDLER,
+            requestCreator,
             QueryAndDocsInputs.class
         );
 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere rerank");
-        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
+        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 
     @Override
     public ExecutableAction create(CohereCompletionModel model, Map<String, Object> taskSettings) {
         // no overridden model as task settings are always empty for cohere completion model
-        var requestCreator = new GenericRequestManager<>(
+
+        Function<ChatCompletionInput, Request> requestCreator = completionInput -> switch (model.getServiceSettings().apiVersion()) {
+            case V1 -> new CohereV1CompletionRequest(completionInput.getInputs(), model, completionInput.stream());
+            case V2 -> new CohereV2CompletionRequest(completionInput.getInputs(), model, completionInput.stream());
+        };
+
+        var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
             COMPLETION_HANDLER,
-            (completionInput) -> new CohereV1CompletionRequest(completionInput.getInputs(), model, completionInput.stream()),
+            requestCreator,
             ChatCompletionInput.class
         );
 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
-        return new SingleInputSenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
+        return new SingleInputSenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

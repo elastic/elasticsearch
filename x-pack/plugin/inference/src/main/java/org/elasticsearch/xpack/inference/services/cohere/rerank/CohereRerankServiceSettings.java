@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -37,7 +38,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOpti
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.MODEL_REQUIRED_FOR_V2_API;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.apiVersionFromMap;
 
 public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
@@ -62,27 +66,44 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             context
         );
 
+        var apiVersion = apiVersionFromMap(map, context, validationException);
+        if (apiVersion == CohereServiceSettings.CohereApiVersion.V2) {
+            if (modelId == null) {
+                validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
+            }
+        }
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereRerankServiceSettings(uri, modelId, rateLimitSettings);
+        return new CohereRerankServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }
 
     private final URI uri;
-
     private final String modelId;
-
     private final RateLimitSettings rateLimitSettings;
+    private final CohereServiceSettings.CohereApiVersion apiVersion;
 
-    public CohereRerankServiceSettings(@Nullable URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public CohereRerankServiceSettings(
+        @Nullable URI uri,
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereServiceSettings.CohereApiVersion apiVersion
+    ) {
         this.uri = uri;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.apiVersion = apiVersion;
     }
 
-    public CohereRerankServiceSettings(@Nullable String url, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this(createOptionalUri(url), modelId, rateLimitSettings);
+    public CohereRerankServiceSettings(
+        @Nullable String url,
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereServiceSettings.CohereApiVersion apiVersion
+    ) {
+        this(createOptionalUri(url), modelId, rateLimitSettings, apiVersion);
     }
 
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
@@ -102,6 +123,13 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         } else {
             this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
+        } else {
+            this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
+        }
     }
 
     @Override
@@ -120,6 +148,11 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     }
 
     @Override
+    public CohereServiceSettings.CohereApiVersion apiVersion() {
+        return apiVersion;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -129,6 +162,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
+        builder.field(API_VERSION, apiVersion); // API version is persisted but not exposed to the user
 
         builder.endObject();
         return builder;
@@ -172,6 +206,10 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            out.writeEnum(apiVersion);
+        }
     }
 
     @Override
@@ -181,11 +219,12 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         CohereRerankServiceSettings that = (CohereRerankServiceSettings) object;
         return Objects.equals(uri, that.uri)
             && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && apiVersion == that.apiVersion;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings);
+        return Objects.hash(uri, modelId, rateLimitSettings, apiVersion);
     }
 }

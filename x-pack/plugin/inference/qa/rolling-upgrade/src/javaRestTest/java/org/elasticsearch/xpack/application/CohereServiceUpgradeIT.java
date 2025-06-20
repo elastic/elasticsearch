@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockRequest;
@@ -25,6 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,13 +39,14 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
     // TODO: replace with proper test features
     private static final String COHERE_EMBEDDINGS_ADDED_TEST_FEATURE = "gte_v8.13.0";
     private static final String COHERE_RERANK_ADDED_TEST_FEATURE = "gte_v8.14.0";
-    private static final String V2_API = "gte_v8.19.0";
+    private static final String COHERE_V2_API_ADDED_TEST_FEATURE = "inference.cohere.v2";
 
     private static MockWebServer cohereEmbeddingsServer;
     private static MockWebServer cohereRerankServer;
 
     private enum ApiVersion {
-        V1, V2
+        V1,
+        V2
     }
 
     public CohereServiceUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -71,7 +74,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         assumeTrue("Cohere embedding service supported", embeddingsSupported);
 
         String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
-        ApiVersion oldClusterApiVersion = oldClusterHasFeature(V2_API) ? ApiVersion.V2 : ApiVersion.V1;
+        ApiVersion oldClusterApiVersion = oldClusterHasFeature(COHERE_V2_API_ADDED_TEST_FEATURE) ? ApiVersion.V2 : ApiVersion.V1;
 
         final String oldClusterIdInt8 = "old-cluster-embeddings-int8";
         final String oldClusterIdFloat = "old-cluster-embeddings-float";
@@ -186,6 +189,26 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 assertVersionInPath(cohereEmbeddingsServer.requests().getLast(), "embed", ApiVersion.V2);
                 delete(upgradedClusterIdFloat);
             }
+            {
+                // new endpoints use the V2 API which require the model to be set
+                final String upgradedClusterNoModel = "upgraded-cluster-missing-model-id";
+                var jsonBody = Strings.format("""
+                    {
+                        "service": "cohere",
+                        "service_settings": {
+                            "url": "%s",
+                            "api_key": "XXXX",
+                            "embedding_type": "int8"
+                        }
+                    }
+                    """, getUrl(cohereEmbeddingsServer));
+
+                var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, testTaskType));
+                assertThat(
+                    e.getMessage(),
+                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
+                );
+            }
 
             delete(oldClusterIdFloat);
             delete(oldClusterIdInt8);
@@ -223,7 +246,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         assumeTrue("Cohere rerank service supported", rerankSupported);
 
         String old_cluster_endpoint_identifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
-        ApiVersion oldClusterApiVersion = oldClusterHasFeature(V2_API) ? ApiVersion.V2 : ApiVersion.V1;
+        ApiVersion oldClusterApiVersion = oldClusterHasFeature(COHERE_V2_API_ADDED_TEST_FEATURE) ? ApiVersion.V2 : ApiVersion.V1;
 
         final String oldClusterId = "old-cluster-rerank";
         final String upgradedClusterId = "upgraded-cluster-rerank";
@@ -267,6 +290,26 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             assertRerank(upgradedClusterId);
             assertVersionInPath(cohereRerankServer.requests().getLast(), "rerank", ApiVersion.V2);
+
+            {
+                // new endpoints use the V2 API which require the model_id to be set
+                final String upgradedClusterNoModel = "upgraded-cluster-missing-model-id";
+                var jsonBody = Strings.format("""
+                    {
+                        "service": "cohere",
+                        "service_settings": {
+                            "url": "%s",
+                            "api_key": "XXXX"
+                        }
+                    }
+                    """, getUrl(cohereEmbeddingsServer));
+
+                var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, testTaskType));
+                assertThat(
+                    e.getMessage(),
+                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
+                );
+            }
 
             delete(oldClusterId);
             delete(upgradedClusterId);

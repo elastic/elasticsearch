@@ -314,7 +314,8 @@ public class CohereService extends SenderService {
                     embeddingSize,
                     serviceSettings.getCommonSettings().maxInputTokens(),
                     serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
+                    serviceSettings.getCommonSettings().rateLimitSettings(),
+                    serviceSettings.getCommonSettings().apiVersion()
                 ),
                 serviceSettings.getEmbeddingType()
             );

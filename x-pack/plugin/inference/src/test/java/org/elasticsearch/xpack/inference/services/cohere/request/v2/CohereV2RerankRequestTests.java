@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
@@ -123,7 +124,7 @@ public class CohereV2RerankRequestTests extends ESTestCase {
     private CohereRerankModel createModel(String modelId, String uri, CohereRerankTaskSettings taskSettings) {
         return new CohereRerankModel(
             "inference_id",
-            new CohereRerankServiceSettings(uri, modelId, null),
+            new CohereRerankServiceSettings(uri, modelId, null, CohereServiceSettings.CohereApiVersion.V2),
             taskSettings,
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );

@@ -41,6 +41,10 @@ public class QueryAndDocsInputs extends InferenceInputs {
         this.topN = topN;
     }
 
+    public QueryAndDocsInputs(String query, List<String> chunks) {
+        this(query, chunks, null, null, false);
+    }
+
     public String getQuery() {
         return query;
     }

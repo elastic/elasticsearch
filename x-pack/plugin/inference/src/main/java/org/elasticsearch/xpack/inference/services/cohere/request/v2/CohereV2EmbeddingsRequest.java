@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public class CohereV2EmbeddingsRequest extends CohereRequest {
 
@@ -37,7 +38,7 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
         );
 
         this.input = Objects.requireNonNull(input);
-        this.inputType = Objects.requireNonNull(inputType); // inputType is required in v2
+        this.inputType = Optional.ofNullable(inputType).orElse(InputType.SEARCH); // inputType is required in v2
         taskSettings = embeddingsModel.getTaskSettings();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
     }

@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -123,7 +124,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var inputType = InputTypeTests.randomWithNull();
+            InputType inputType = InputTypeTests.randomWithNull();
             action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
@@ -142,31 +143,25 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            if (inputType != null && inputType != InputType.UNSPECIFIED) {
-                var cohereInputType = CohereUtils.inputTypeToString(inputType);
-                MatcherAssert.assertThat(
-                    requestMap,
-                    is(
-                        Map.of(
-                            "texts",
-                            List.of("abc"),
-                            "model",
-                            "model",
-                            "input_type",
-                            cohereInputType,
-                            "embedding_types",
-                            List.of("float"),
-                            "truncate",
-                            "start"
-                        )
+            var expectedInputType = InputType.isSpecified(inputType) ? inputType : InputType.SEARCH;
+            var cohereInputType = CohereUtils.inputTypeToString(expectedInputType);
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "texts",
+                        List.of("abc"),
+                        "model",
+                        "model",
+                        "input_type",
+                        cohereInputType,
+                        "embedding_types",
+                        List.of("float"),
+                        "truncate",
+                        "start"
                     )
-                );
-            } else {
-                MatcherAssert.assertThat(
-                    requestMap,
-                    is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float"), "truncate", "start"))
-                );
-            }
+                )
+            );
         }
     }
 

@@ -63,7 +63,6 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
             ) },
-        preview = true,
         type = FunctionType.GROUPING
     )
     public Categorize(

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -40,7 +39,7 @@ public class Project extends UnaryPlan implements SortAgnostic {
     }
 
     private boolean validateProjections(List<? extends NamedExpression> projections) {
-        for (NamedExpression ne: projections) {
+        for (NamedExpression ne : projections) {
             if (ne instanceof Alias as) {
                 if (as.child() instanceof Attribute == false) {
                     return false;

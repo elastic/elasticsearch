@@ -37,13 +37,13 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     //
     // Project[[languages{f}#16, emp_no{f}#13, languages{f}#16 AS language_code#6, language_name{f}#27]]
     // \_Limit[1000[INTEGER],true]
-    //   \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#26]]
-    //   |_Limit[1000[INTEGER],true]
-    //   | \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#24]]
-    //   |   |_Limit[1000[INTEGER],false]
-    //   |   | \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
-    //   |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#24]
-    //   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
+    // \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#26]]
+    // |_Limit[1000[INTEGER],true]
+    // | \_Join[LEFT,[languages{f}#16],[languages{f}#16],[language_code{f}#24]]
+    // | |_Limit[1000[INTEGER],false]
+    // | | \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+    // | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#24]
+    // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
     public void testMultipleLookups() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -81,10 +81,10 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     //
     // Project[[languages{f}#14 AS language_code#4, language_name{f}#23]]
     // \_Limit[1000[INTEGER],true]
-    //   \_Join[LEFT,[languages{f}#14],[languages{f}#14],[language_code{f}#22]]
-    //   |_Limit[1000[INTEGER],false]
-    //   | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-    //   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+    // \_Join[LEFT,[languages{f}#14],[languages{f}#14],[language_code{f}#22]]
+    // |_Limit[1000[INTEGER],false]
+    // | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+    // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
     public void testShadowingBeforePushdown() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -112,11 +112,11 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     //
     // Project[[languages{f}#17 AS language_code#9, $$language_name$temp_name$27{r$}#28 AS foo#12, language_name{f}#26]]
     // \_Limit[1000[INTEGER],true]
-    //   \_Join[LEFT,[languages{f}#17],[languages{f}#17],[language_code{f}#25]]
-    //   |_Eval[[salary{f}#19 * 2[INTEGER] AS language_name#4, language_name{r}#4 AS $$language_name$temp_name$27#28]]
-    //   | \_Limit[1000[INTEGER],false]
-    //   |   \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
-    //   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#25, language_name{f}#26]
+    // \_Join[LEFT,[languages{f}#17],[languages{f}#17],[language_code{f}#25]]
+    // |_Eval[[salary{f}#19 * 2[INTEGER] AS language_name#4, language_name{r}#4 AS $$language_name$temp_name$27#28]]
+    // | \_Limit[1000[INTEGER],false]
+    // | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+    // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#25, language_name{f}#26]
     public void testShadowingAfterPushdown() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 

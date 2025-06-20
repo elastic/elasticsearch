@@ -1004,11 +1004,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
-            System.out.println("HEGO settings=" + settings);
-            var resp = createIndex(index, settings.build());
-            // Map<String, Object> snapResponse = entityAsMap(resp);
-            System.out.println("HEGO createIndex response=" + resp);
-
+            createIndex(index, settings.build());
             indexRandomDocuments(count, true, true, randomBoolean(), i -> jsonBuilder().startObject().field("field", "value").endObject());
         } else {
             count = countOfIndexedRandomDocuments();
@@ -1098,18 +1094,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             (builder, params) -> builder.field("indices", index)
         );
         createSnapshot.addParameter("wait_for_completion", "true");
-        System.out.println("HEGO createSnapshot=" + createSnapshot);
+        client().performRequest(createSnapshot);
 
-        var resp = client().performRequest(createSnapshot);
-
-        System.out.println("HEGO createSnapshot resp=" + resp);
-
-        System.out.println("HEGO Build.current().version()=" + Build.current().version());
-        System.out.println("HEGO IndexVersion.current()=" + IndexVersion.current());
-        System.out.println("HEGO getOldClusterVersion=" + getOldClusterVersion());
-        System.out.println("HEGO getOldClusterIndexVersion=" + getOldClusterIndexVersion());
-
-        checkSnapshot("old_snap", count, getOldClusterVersion(), getOldClusterIndexVersion());  // HERE
+        checkSnapshot("old_snap", count, getOldClusterVersion(), getOldClusterIndexVersion());
         if (false == isRunningAgainstOldCluster()) {
             checkSnapshot("new_snap", count, Build.current().version(), IndexVersion.current());
         }
@@ -1295,7 +1282,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
-        System.out.println("HEGO listSnapshotRequest response=" + snapResponse);
 
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
@@ -1304,7 +1290,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // which could affect the top range of the index release version
         String firstReleaseVersion = tookOnIndexVersion.toReleaseVersion().split("-")[0];
         assertThat(
-            // HERE
             (Iterable<String>) XContentMapValues.extractValue("snapshots.version", snapResponse),
             anyOf(
                 contains(tookOnVersion),

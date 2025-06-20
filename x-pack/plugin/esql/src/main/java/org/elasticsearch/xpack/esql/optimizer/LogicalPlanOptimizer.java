@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplySampleCorrections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -40,9 +38,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFi
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSample;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
@@ -130,7 +128,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
-            new ApplySampleCorrections(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
@@ -169,7 +166,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
-            new ConvertStringToByteRef(),
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
@@ -196,7 +192,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
             new PushDownAndCombineSample(),
-            new PushDownCompletion(),
+            new PushDownInferencePlan(),
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),

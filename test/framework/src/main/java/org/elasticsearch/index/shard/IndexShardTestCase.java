@@ -59,6 +59,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -154,6 +155,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
+    protected NodeEnvironment nodeEnvironment;
     protected ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     protected Executor writeExecutor;
     protected long primaryTerm;
@@ -171,7 +173,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         super.setUp();
         Settings settings = threadPoolSettings();
         threadPool = setUpThreadPool(settings);
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
+        nodeEnvironment = newNodeEnvironment(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            nodeEnvironment
+        );
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
@@ -184,7 +191,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         try {
-            tearDownThreadPool();
+            IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
         } finally {
             super.tearDown();
         }
@@ -554,7 +561,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 relativeTimeSupplier,
                 null,
                 MapperMetrics.NOOP,
-                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+                new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

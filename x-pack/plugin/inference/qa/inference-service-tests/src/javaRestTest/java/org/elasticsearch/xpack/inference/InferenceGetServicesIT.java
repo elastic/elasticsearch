@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,9 +24,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
+    @BeforeClass
+    public static void init() {
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
+
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(23));
+        assertThat(services.size(), equalTo(24));
 
         var providers = providers(services);
 
@@ -50,6 +57,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "mistral",
                     "openai",
                     "streaming_completion_test_service",
+                    "completion_test_service",
                     "test_reranking_service",
                     "test_service",
                     "text_embedding_test_service",
@@ -127,7 +135,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(13));
+        assertThat(services.size(), equalTo(14));
 
         var providers = providers(services);
 
@@ -146,8 +154,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googleaistudio",
                     "openai",
                     "streaming_completion_test_service",
+                    "completion_test_service",
                     "hugging_face",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "mistral"
                 ).toArray()
             )
         );
@@ -155,7 +165,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(7));
+        assertThat(services.size(), equalTo(8));
 
         var providers = providers(services);
 
@@ -169,7 +179,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "streaming_completion_test_service",
                     "hugging_face",
                     "amazon_sagemaker",
-                    "googlevertexai"
+                    "googlevertexai",
+                    "mistral"
                 ).toArray()
             )
         );

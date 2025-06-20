@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -293,7 +294,7 @@ public class S3ClientsManager implements ClusterStateApplier {
          * @param repositoryMetadata The metadata of the repository for which the Amazon S3 client is required.
          * @return An {@link AmazonS3Reference} instance corresponding to the repository metadata.
          * @throws IllegalArgumentException If no client settings exist for the given repository metadata.
-         * @throws IllegalStateException If the client manager is closed and a new client cannot be created.
+         * @throws AlreadyClosedException If either the clients manager or the holder is closed
          */
         final AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
             final var clientKey = clientKey(repositoryMetadata);
@@ -313,12 +314,12 @@ public class S3ClientsManager implements ClusterStateApplier {
                 }
                 if (closed.get()) {
                     // Not adding a new client once the clients holder is closed since there won't be anything to close it
-                    throw new IllegalStateException("Project [" + projectId() + "] clients holder is closed");
+                    throw new AlreadyClosedException("Project [" + projectId() + "] clients holder is closed");
                 }
                 if (managerClosed.get()) {
                     // This clients holder must be added after the manager is closed. It must have no cached clients.
                     assert clientsCache.isEmpty() : "expect empty cache, but got " + clientsCache;
-                    throw new IllegalStateException("s3 clients manager is closed");
+                    throw new AlreadyClosedException("s3 clients manager is closed");
                 }
                 // The close() method maybe called after we checked it, it is ok since we are already inside the synchronized block.
                 // The close method calls clearCache() which will clear the newly added client.

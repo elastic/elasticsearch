@@ -125,14 +125,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
                     return completionInfo;
                 }))) {
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
-                    exchangeSource.addRemoteSink(
-                        remoteSink,
-                        failFast,
-                        () -> pagesFetched.set(true),
-                        queryPragmas.concurrentExchangeClients(),
-                        computeListener.acquireAvoid()
-                    );
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
@@ -146,6 +138,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         groupTask,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                    );
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    exchangeSource.addRemoteSink(
+                        remoteSink,
+                        failFast,
+                        () -> pagesFetched.set(true),
+                        queryPragmas.concurrentExchangeClients(),
+                        computeListener.acquireAvoid()
                     );
                 }
             })

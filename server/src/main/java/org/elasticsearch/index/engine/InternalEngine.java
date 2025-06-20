@@ -94,6 +94,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -521,7 +522,7 @@ public class InternalEngine extends Engine {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
                 case "segments":
-                case "segments_stats":
+                case SEGMENTS_STATS_SOURCE:
                     break;
                 default:
                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
@@ -2828,19 +2829,27 @@ public class InternalEngine extends Engine {
 
     @Override
     public void activateThrottling() {
-        int count = throttleRequestCount.incrementAndGet();
-        assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
-        if (count == 1) {
-            throttle.activate();
+        // Synchronize on throttleRequestCount to make activateThrottling and deactivateThrottling
+        // atomic w.r.t each other
+        synchronized (throttleRequestCount) {
+            int count = throttleRequestCount.incrementAndGet();
+            assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
+            if (count == 1) {
+                throttle.activate();
+            }
         }
     }
 
     @Override
     public void deactivateThrottling() {
-        int count = throttleRequestCount.decrementAndGet();
-        assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
-        if (count == 0) {
-            throttle.deactivate();
+        // Synchronize on throttleRequestCount to make activateThrottling and deactivateThrottling
+        // atomic w.r.t each other
+        synchronized (throttleRequestCount) {
+            int count = throttleRequestCount.decrementAndGet();
+            assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
+            if (count == 0) {
+                throttle.deactivate();
+            }
         }
     }
 
@@ -2972,7 +2981,7 @@ public class InternalEngine extends Engine {
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
             int maxNumMerges = getMaxMergeCount();
-            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+            if (numMergesInFlight.decrementAndGet() <= maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
                     deactivateThrottling();
@@ -3601,5 +3610,10 @@ public class InternalEngine extends Engine {
             // Can't estimate if the searcher is closed
             return 0L;
         }
+    }
+
+    // Used to clean up unowned documents. Client-visible deletes should always be soft deletes.
+    protected void deleteByQuery(ShardSplittingQuery query) throws Exception {
+        indexWriter.deleteDocuments(query);
     }
 }

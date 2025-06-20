@@ -100,9 +100,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -5111,7 +5112,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.names(agg.aggregates()), contains("$$COUNT$s$0", "w"));
         var countAggLiteral = as(as(Alias.unwrap(agg.aggregates().get(0)), Count.class).field(), Literal.class);
-        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, StringUtils.WILDCARD, DataType.KEYWORD)));
+        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, BytesRefs.toBytesRef(StringUtils.WILDCARD), DataType.KEYWORD)));
 
         var exprs = eval.fields();
         // s == mv_count([1,2]) * count(*)
@@ -5635,7 +5636,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 EMPTY,
                 plan,
                 Enrich.Mode.ANY,
-                new Literal(EMPTY, "some_policy", KEYWORD),
+                Literal.keyword(EMPTY, "some_policy"),
                 attr,
                 null,
                 Map.of(),
@@ -5646,7 +5647,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION CONCAT(some text, x) WITH inferenceID AS y
+        // | COMPLETION y=CONCAT(some text, x) WITH inferenceID
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,
@@ -5655,8 +5656,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)
             ),
-            new PushDownCompletion()
-        ) };
+            new PushDownInferencePlan()
+        ),
+        // | RERANK "some text" ON x WITH inferenceID=inferenceID, scoreColumn=y
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Rerank(
+                EMPTY,
+                plan,
+                randomLiteral(TEXT),
+                randomLiteral(TEXT),
+                List.of(new Alias(EMPTY, attr.name(), attr)),
+                new ReferenceAttribute(EMPTY, "y", KEYWORD)
+            ),
+            new PushDownInferencePlan()
+        ), };
 
     /**
      * Consider
@@ -5674,8 +5687,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastProject() {
-        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, "1", KEYWORD));
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, "2", KEYWORD));
+        Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), x.toAttribute()));
 
@@ -5721,8 +5734,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastRenamingProject() {
-        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, "1", KEYWORD));
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, "2", KEYWORD));
+        Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(
             EMPTY,
@@ -5779,7 +5792,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * And similarly for dissect, grok and enrich.
      */
     public void testPushShadowingGeneratingPlanPastRenamingProjectWithResolution() {
-        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, "2", KEYWORD));
+        Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         Alias yAliased = new Alias(EMPTY, "x", y.toAttribute());
         LogicalPlan initialRow = new Row(EMPTY, List.of(y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), yAliased));
@@ -6341,7 +6354,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var insensitive = as(filter.condition(), InsensitiveEquals.class);
         var field = as(insensitive.left(), FieldAttribute.class);
-        assertThat(field.fieldName(), is("first_name"));
+        assertThat(field.fieldName().string(), is("first_name"));
         var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
         assertThat(bRef.utf8ToString(), is("VALÜ"));
         as(filter.child(), EsRelation.class);
@@ -7858,13 +7871,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *        \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testSampleMerged() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = """
             FROM TEST
-            | SAMPLE .3 5
+            | SAMPLE .3
             | EVAL irrelevant1 = 1
-            | SAMPLE .5 10
+            | SAMPLE .5
             | EVAL irrelevant2 = 2
             | SAMPLE .1
             """;
@@ -7876,11 +7889,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(sample.child(), EsRelation.class);
 
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.015));
-        assertThat(sample.seed().fold(FoldContext.small()), equalTo(5 ^ 10));
     }
 
     public void testSamplePushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         for (var command : List.of(
             "ENRICH languages_idx on first_name",
@@ -7901,12 +7913,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var source = as(sample.child(), EsRelation.class);
 
             assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
-            assertNull(sample.seed());
         }
     }
 
     public void testSamplePushDown_sort() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = "FROM TEST | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
@@ -7917,11 +7928,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(sample.child(), EsRelation.class);
 
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
-        assertNull(sample.seed());
     }
 
     public void testSamplePushDown_where() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = "FROM TEST | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
@@ -7931,11 +7941,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(sample.child(), EsRelation.class);
 
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
-        assertNull(sample.seed());
     }
 
     public void testSampleNoPushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
             var query = "FROM TEST | " + command + " | SAMPLE .5";
@@ -7957,7 +7966,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *        \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
      */
     public void testSampleNoPushDownLookupJoin() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = """
             FROM TEST
@@ -7983,12 +7992,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *            \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testSampleNoPushDownChangePoint() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = """
             FROM TEST
             | CHANGE_POINT emp_no ON hire_date
-            | SAMPLE .5 -55
+            | SAMPLE .5
             """;
         var optimized = optimizedPlan(query);
 

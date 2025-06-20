@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -103,6 +104,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final AnomalyDetectionAuditor auditor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -117,7 +119,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         AnomalyDetectionAuditor auditor,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDatafeedAction.NAME,
@@ -137,6 +140,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.auditor = auditor;
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.projectResolver = projectResolver;
     }
 
     static void validate(
@@ -356,7 +360,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delagating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void waitForDatafeedStarted(

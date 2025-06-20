@@ -52,11 +52,6 @@ The histogram field is "algorithm agnostic" and does not store data specific to 
 
 ## Synthetic `_source` [histogram-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 `histogram` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 
 ::::{note}

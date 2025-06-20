@@ -20,10 +20,10 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.0.2 [elasticsearch-9.0.2-release-notes]
 ```{applies_to}
 stack: coming 9.0.2
 ```
-## 9.0.2 [elasticsearch-9.0.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.2-features-enhancements]
 

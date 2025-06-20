@@ -100,9 +100,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -5655,8 +5656,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)
             ),
-            new PushDownCompletion()
-        ) };
+            new PushDownInferencePlan()
+        ),
+        // | RERANK "some text" ON x WITH inferenceID=inferenceID, scoreColumn=y
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Rerank(
+                EMPTY,
+                plan,
+                randomLiteral(TEXT),
+                randomLiteral(TEXT),
+                List.of(new Alias(EMPTY, attr.name(), attr)),
+                new ReferenceAttribute(EMPTY, "y", KEYWORD)
+            ),
+            new PushDownInferencePlan()
+        ), };
 
     /**
      * Consider

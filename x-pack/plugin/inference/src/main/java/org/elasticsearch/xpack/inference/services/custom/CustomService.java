@@ -32,13 +32,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
+import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RequestParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RerankParameters;
 import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
 
 import java.util.EnumSet;
@@ -56,6 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 public class CustomService extends SenderService {
+
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
 
@@ -102,10 +110,39 @@ public class CustomService extends SenderService {
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
+            validateConfiguration(model);
+
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
+    }
+
+    /**
+     * This does some initial validation with mock inputs to determine if any templates are missing a field to fill them.
+     */
+    private static void validateConfiguration(CustomModel model) {
+        try {
+            new CustomRequest(createParameters(model), model).createHttpRequest();
+        } catch (IllegalStateException e) {
+            var validationException = new ValidationException();
+            validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
+            throw validationException;
+        }
+    }
+
+    private static RequestParameters createParameters(CustomModel model) {
+        return switch (model.getTaskType()) {
+            case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
+            case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
+                new EmbeddingsInput(List.of("test input"), null, null),
+                model.getServiceSettings().getInputTypeTranslator()
+            );
+            default -> throw new IllegalStateException(
+                Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
+            );
+        };
     }
 
     private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {

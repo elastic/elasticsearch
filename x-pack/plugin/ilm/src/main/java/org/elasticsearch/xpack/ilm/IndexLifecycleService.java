@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -260,13 +261,13 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                stopILM();
+                stopILM(state.projectId());
             }
         }
     }
 
-    private void stopILM() {
-        submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+    private void stopILM(ProjectId projectId) {
+        submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(projectId, OperationMode.STOPPED));
     }
 
     @Override
@@ -472,7 +473,7 @@ public class IndexLifecycleService
         if (currentMetadata == null) {
             if (currentMode == OperationMode.STOPPING) {
                 // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
-                stopILM();
+                stopILM(state.projectId());
             }
             return;
         }
@@ -555,7 +556,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            stopILM();
+            stopILM(state.projectId());
         }
     }
 

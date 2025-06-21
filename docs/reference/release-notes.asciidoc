@@ -6,6 +6,7 @@
 
 This section summarizes the changes in each release.
 
+* <<release-notes-7.17.29>>
 * <<release-notes-7.17.28>>
 * <<release-notes-7.17.27>>
 * <<release-notes-7.17.26>>
@@ -89,6 +90,7 @@ This section summarizes the changes in each release.
 
 --
 
+include::release-notes/7.17.29.asciidoc[]
 include::release-notes/7.17.28.asciidoc[]
 include::release-notes/7.17.27.asciidoc[]
 include::release-notes/7.17.26.asciidoc[]

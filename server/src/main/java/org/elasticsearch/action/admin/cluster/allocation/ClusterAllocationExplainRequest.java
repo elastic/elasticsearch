@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -28,12 +29,25 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
 
+    public static final String INDEX_PARAMETER_NAME = "index";
+    public static final String SHARD_PARAMETER_NAME = "shard";
+    public static final String PRIMARY_PARAMETER_NAME = "primary";
+    public static final String CURRENT_NODE_PARAMETER_NAME = "current_node";
+    public static final String INCLUDE_YES_DECISIONS_PARAMETER_NAME = "include_yes_decisions";
+    public static final String INCLUDE_DISK_INFO_PARAMETER_NAME = "include_disk_info";
+    public static final Set<String> PATH_PARAMETERS = Set.of(
+        INDEX_PARAMETER_NAME,
+        SHARD_PARAMETER_NAME,
+        PRIMARY_PARAMETER_NAME,
+        CURRENT_NODE_PARAMETER_NAME
+    );
+
     private static final ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {
-        PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
-        PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
-        PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField("primary"));
-        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField("current_node"));
+        PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField(INDEX_PARAMETER_NAME));
+        PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField(SHARD_PARAMETER_NAME));
+        PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField(PRIMARY_PARAMETER_NAME));
+        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField(CURRENT_NODE_PARAMETER_NAME));
     }
 
     @Nullable
@@ -221,14 +235,14 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         if (this.useAnyUnassignedShard()) {
             sb.append("useAnyUnassignedShard=true");
         } else {
-            sb.append("index=").append(index);
-            sb.append(",shard=").append(shard);
-            sb.append(",primary?=").append(primary);
+            sb.append(INDEX_PARAMETER_NAME).append("=").append(index);
+            sb.append(",").append(SHARD_PARAMETER_NAME).append("=").append(shard);
+            sb.append(",").append(PRIMARY_PARAMETER_NAME).append("?=").append(primary);
             if (currentNode != null) {
-                sb.append(",currentNode=").append(currentNode);
+                sb.append(",").append(CURRENT_NODE_PARAMETER_NAME).append("=").append(currentNode);
             }
         }
-        sb.append(",includeYesDecisions?=").append(includeYesDecisions);
+        sb.append(",").append(INCLUDE_YES_DECISIONS_PARAMETER_NAME).append("?=").append(includeYesDecisions);
         return sb.toString();
     }
 

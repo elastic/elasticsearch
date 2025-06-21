@@ -1210,7 +1210,12 @@ public class EsqlCapabilities {
          *
          * https://github.com/elastic/elasticsearch/issues/129322
          */
-        NO_PLAIN_STRINGS_IN_LITERALS;
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot());
 
         private final boolean enabled;
 

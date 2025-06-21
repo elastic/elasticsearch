@@ -3385,7 +3385,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
-               ( COMPLETION a = b WITH c )
+               ( COMPLETION a INTO b OPTIONS { "inferenceId" : "c" } )
             | KEEP a
             """;
 
@@ -3414,7 +3414,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
-               ( COMPLETION a = b WITH c )
+               ( COMPLETION a INTO b OPTIONS { "inferenceId" : "c" } )
                ( SAMPLE 0.99 )
                ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
@@ -3496,19 +3496,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankInferenceId() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId");
-        var rerank = as(plan, Rerank.class);
-
-        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
-        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
-        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
-    }
-
-    public void testRerankQuotedInferenceId() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=\"inferenceId\"");
+        var plan = processingCommand("RERANK \"query text\" ON title OPTIONS { \"inferenceId\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3520,19 +3508,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankScoreAttribute() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=rerank_score");
-        var rerank = as(plan, Rerank.class);
-
-        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
-        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
-        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
-    }
-
-    public void testRerankQuotedScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=\"rerank_score\"");
+        var plan = processingCommand("RERANK \"query text\" ON title INTO rerank_score");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
@@ -3544,7 +3520,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankInferenceIdAnddScoreAttribute() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId, scoreColumn=rerank_score");
+        var plan = processingCommand("RERANK \"query text\" ON title INTO rerank_score OPTIONS { \"inferenceId\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3556,7 +3532,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankSingleField() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON title OPTIONS { \"inferenceId\" : \"inferenceID\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3568,7 +3544,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankMultipleFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceId=inferenceID");
+        var plan = processingCommand(
+            "RERANK \"query text\" ON title, description, authors_renamed=authors OPTIONS  { \"inferenceId\" : \"inferenceID\" }"
+        );
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3589,9 +3567,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankComputedFields() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var plan = processingCommand(
-            "RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceId=inferenceID"
-        );
+        var plan = processingCommand("""
+            RERANK "query text" ON title, short_description = SUBSTRING(description, 0, 100) OPTIONS  { "inferenceId" : "inferenceID" }
+            """);
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3608,14 +3586,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
+    public void testRerankComputedFieldsWithoutName() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+        // Unnamed alias are forbidden
+        expectError(
+            "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
+            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'into', 'options'}"
+        );
+    }
+
     public void testRerankWithPositionalParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var queryParams = new QueryParams(
-            List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
-        );
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams),
+            parser.createStatement("row a = 1 | RERANK ? ON title INTO rerank_score OPTIONS { \"inferenceId\" : ? } ", queryParams),
             Rerank.class
         );
 
@@ -3628,16 +3613,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankWithNamedParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
-        var queryParams = new QueryParams(
-            List.of(
-                paramAsConstant("queryText", "query text"),
-                paramAsConstant("inferenceId", "reranker"),
-                paramAsConstant("scoreColumnName", "rerank_score")
-            )
-        );
+        var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
         var rerank = as(
             parser.createStatement(
-                "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
+                "row a = 1 | RERANK ?queryText ON title INTO rerank_score OPTIONS { \"inferenceId\": ?inferenceId }",
                 queryParams
             ),
             Rerank.class
@@ -3646,22 +3625,38 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
     }
 
     public void testInvalidRerank() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-        expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
-        expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
+        expectError("FROM foo* | RERANK ON title OPTIONS inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
+        expectError("FROM foo* | RERANK \"query text\" OPTIONS inferenceId", "line 1:33: mismatched input 'OPTIONS' expecting 'on'");
 
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         expectError(
-            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH inferenceId=inferenceId",
+            "FROM " + fromPatterns + " | RERANK \"query text\" ON title OPTIONS { \"inferenceId\" : \"inferenceId\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
         );
     }
 
+    public void testCompletionMissingOptions() {
+        expectError("FROM foo* | COMPLETION prompt INTO targetField", "line 1:13: Missing mandatory OPTIONS in COMPLETION");
+    }
+
+    public void testCompletionEmptyOptions() {
+        // TODO: fix the grammar to allow empty mapExpression. Then we should have a more explicit error message.
+        expectError(
+            "FROM foo* | COMPLETION prompt INTO targetField OPTIONS { }",
+            "line 1:58: mismatched input '}' expecting QUOTED_STRING"
+        );
+    }
+
     public void testCompletionUsingFieldAsPrompt() {
-        var plan = as(processingCommand("COMPLETION targetField=prompt_field WITH inferenceID"), Completion.class);
+        var plan = as(
+            processingCommand("COMPLETION prompt_field INTO targetField OPTIONS { \"inferenceId\" : \"inferenceID\" }"),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3669,7 +3664,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
-        var plan = as(processingCommand("COMPLETION targetField=CONCAT(fieldA, fieldB) WITH inferenceID"), Completion.class);
+        var plan = as(
+            processingCommand("COMPLETION CONCAT(fieldA, fieldB) INTO targetField OPTIONS { \"inferenceId\" : \"inferenceID\" }"),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3677,7 +3675,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionDefaultFieldName() {
-        var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID"), Completion.class);
+        var plan = as(processingCommand("COMPLETION prompt_field OPTIONS{ \"inferenceId\" : \"inferenceID\" }"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3686,7 +3684,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field OPTIONS { \"inferenceId\" : ? }", queryParams),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3695,7 +3696,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field OPTIONS { \"inferenceId\" : ?inferenceId }", queryParams),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
@@ -3703,15 +3707,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCompletion() {
-        expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
+        expectError("FROM foo* | COMPLETION OPTIONS inferenceId", "line 1:24: extraneous input 'OPTIONS' expecting {");
 
-        expectError("FROM foo* | COMPLETION completion=prompt WITH", "line 1:46: mismatched input '<EOF>' expecting {");
-
-        expectError("FROM foo* | COMPLETION completion=prompt", "line 1:41: mismatched input '<EOF>' expecting {");
+        expectError("FROM foo* | COMPLETION prompt INTO conpletion OPTIONS", "line 1:54: mismatched input '<EOF>' expecting '{'");
 
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         expectError(
-            "FROM " + fromPatterns + " | COMPLETION prompt_field WITH inferenceId",
+            "FROM " + fromPatterns + " | COMPLETION prompt_field OPTIONS { \"inferenceId\" : \"inferenceId\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
         );
     }

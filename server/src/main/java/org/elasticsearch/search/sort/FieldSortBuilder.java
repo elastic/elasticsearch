@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -347,6 +348,11 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
 
         MappedFieldType fieldType = context.getFieldType(fieldName);
+
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+            throw new IllegalArgumentException("Sorting by range field [" + fieldName + "] is not supported");
+        }
+
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);

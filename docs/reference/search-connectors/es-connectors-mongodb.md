@@ -251,6 +251,21 @@ A bug introduced in **8.12.0** causes the Connectors docker image to error out i
 
 See [Known issues](/release-notes/known-issues.md) for any issues affecting all connectors.
 
+#### UUIDs are not correctly deserialized, causing problems with ingesting documents into Elasticsearch
+
+MongoDB has special handling of UUID type: there is a legacy and a modern approach. You can read [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html) about the details.
+
+With connector framework version 9.0.3, we improved how standard UUIDs are handled. Now, the MongoDB connector can correctly deserialize UUIDs into valid Elasticsearch values. However, for legacy UUIDs or older connector versions, you might need to adjust the connection string to specify the UUID representation.
+
+For example, if you are using the modern UUID representation, adding the `uuidRepresentation=standard` query parameter to the MongoDB connection URI in the `host` Rich Configurable Field will allow the connector to properly handle UUIDs. With this change, the full `host` Rich Configurable Field value could look like this:`mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority&uuidRepresentation=standard`
+
+If you’re using a legacy UUID representation, you should adjust the connection URI accordingly. For example:
+
+- C#: `uuidRepresentation=csharpLegacy`
+- Java: `uuidRepresentation=javaLegacy`
+- Python: `uuidRepresentation=pythonLegacy`
+
+You can find a full explanation in the [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html#configuring-a-uuid-representation).
 
 ### Troubleshooting [es-connectors-mongodb-client-troubleshooting]
 

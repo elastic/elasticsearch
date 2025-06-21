@@ -568,6 +568,9 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnQueryRescore
+  issue: https://github.com/elastic/elasticsearch/issues/129809
 
 # Examples:
 #

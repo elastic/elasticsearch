@@ -1,0 +1,15 @@
+[[release-notes-7.17.29]]
+== {es} version 7.17.29
+
+coming[7.17.29]
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.29]]
+[float]
+=== Bug fixes
+
+Task Management::
+* Fix race condition in `RestCancellableNodeClient` {es-pull}126686[#126686] (issue: {es-issue}88201[#88201])
+
+

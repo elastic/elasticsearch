@@ -115,6 +115,10 @@ public abstract class SearchContext implements Releasable {
         closeFuture.onResponse(null);
     }
 
+    public final boolean isClosed() {
+        return closeFuture.isDone();
+    }
+
     /**
      * Should be called before executing the main query and after all other parameters have been set.
      */

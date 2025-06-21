@@ -30,18 +30,20 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
-
+    private final List<? extends ShardContext> contexts;
     private final int maxPageSize;
     private final BlockFactory blockFactory;
     private final LuceneSliceQueue sliceQueue;
@@ -55,8 +57,16 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     private DocIdCollector docCollector;
     private long tsidsLoaded;
 
-    TimeSeriesSourceOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
+    TimeSeriesSourceOperator(
+        List<? extends ShardContext> contexts,
+        BlockFactory blockFactory,
+        LuceneSliceQueue sliceQueue,
+        int maxPageSize,
+        int limit
+    ) {
         super(blockFactory, maxPageSize, sliceQueue);
+        contexts.forEach(RefCounted::mustIncRef);
+        this.contexts = contexts;
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
         this.remainingDocs = limit;
@@ -100,7 +110,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                     throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
                 iterator = new SegmentsIterator(slice);
-                docCollector = new DocIdCollector(blockFactory, slice.shardContext());
+                docCollector = new DocIdCollector(contexts, blockFactory, slice.shardContext());
             }
             iterator.readDocsForNextPage();
             if (currentPagePos > 0) {
@@ -132,7 +142,12 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(timestampsBuilder, tsHashesBuilder, docCollector);
+        Releasables.closeExpectNoException(
+            timestampsBuilder,
+            tsHashesBuilder,
+            docCollector,
+            Releasables.wrap(contexts.stream().map(Releasables::fromRefCounted).toList())
+        );
     }
 
     class SegmentsIterator {
@@ -350,12 +365,14 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     }
 
     static final class DocIdCollector implements Releasable {
+        private final List<? extends ShardContext> contexts;
         private final BlockFactory blockFactory;
         private final ShardContext shardContext;
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
 
-        DocIdCollector(BlockFactory blockFactory, ShardContext shardContext) {
+        DocIdCollector(List<? extends ShardContext> contexts, BlockFactory blockFactory, ShardContext shardContext) {
+            this.contexts = contexts;
             this.blockFactory = blockFactory;
             this.shardContext = shardContext;
         }
@@ -382,7 +399,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                 segments = segmentsBuilder.build();
                 segmentsBuilder = null;
                 shards = blockFactory.newConstantIntVector(shardContext.index(), docs.getPositionCount());
-                docVector = new DocVector(shards, segments, docs, segments.isConstant());
+                docVector = new DocVector(ShardRefCounted.fromShardContext(shardContext), shards, segments, docs, segments.isConstant());
                 return docVector;
             } finally {
                 if (docVector == null) {

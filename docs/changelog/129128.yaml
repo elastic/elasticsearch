@@ -1,0 +1,5 @@
+pr: 129128
+summary: Add RemoveBlock API to allow `DELETE /{index}/_block/{block}`
+area: Indices APIs
+type: enhancement
+issues: []

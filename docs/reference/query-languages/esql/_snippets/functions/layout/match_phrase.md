@@ -2,7 +2,8 @@
 
 ## `MATCH_PHRASE` [esql-match_phrase]
 ```{applies_to}
-stack: ga 9.1.0
+stack: preview 9.1.0
+serverless: preview
 ```
 
 **Syntax**

@@ -34,6 +34,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('spatial'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  clusterModules project(':modules:mapper-extras')
 }
 
 tasks.named("javaRestTest").configure {

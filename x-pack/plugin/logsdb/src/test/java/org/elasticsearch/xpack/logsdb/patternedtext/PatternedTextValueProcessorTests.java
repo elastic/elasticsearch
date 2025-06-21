@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.patternedtext;
+package org.elasticsearch.xpack.logsdb.patternedtext;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;

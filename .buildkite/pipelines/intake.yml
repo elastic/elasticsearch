@@ -5,7 +5,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait
@@ -14,7 +14,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part2
@@ -22,7 +22,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part3
@@ -30,7 +30,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part4
@@ -38,7 +38,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part5
@@ -46,7 +46,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part6
@@ -57,6 +57,7 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
+
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
@@ -67,7 +68,7 @@ steps:
             BWC_VERSION: ["7.17.29", "8.17.8", "8.18.3", "8.19.0"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -77,7 +78,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait

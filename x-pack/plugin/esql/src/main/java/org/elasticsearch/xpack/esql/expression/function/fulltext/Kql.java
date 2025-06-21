@@ -37,9 +37,9 @@ public class Kql extends FullTextFunction {
 
     @FunctionInfo(
         returnType = "boolean",
-        appliesTo = {
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0") },
+        // @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
         examples = { @Example(file = "kql-function", tag = "kql-with-field") }
     )

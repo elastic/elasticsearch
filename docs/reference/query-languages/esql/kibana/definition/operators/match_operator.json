@@ -531,6 +531,6 @@
   "examples" : [
     "FROM books\n| WHERE author:\"Faulkner\""
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

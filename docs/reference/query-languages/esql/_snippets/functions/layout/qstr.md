@@ -2,7 +2,7 @@
 
 ## `QSTR` [esql-qstr]
 ```{applies_to}
-stack: ga 9.1.0
+stack: preview 9.0.0
 serverless: preview
 ```
 

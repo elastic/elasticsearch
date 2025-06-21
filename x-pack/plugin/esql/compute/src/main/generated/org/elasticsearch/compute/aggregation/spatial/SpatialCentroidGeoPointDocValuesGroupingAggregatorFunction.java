@@ -151,6 +151,49 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block xValUncast = page.getBlock(channels.get(0));
+    if (xValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
+    Block xDelUncast = page.getBlock(channels.get(1));
+    if (xDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
+    Block yValUncast = page.getBlock(channels.get(2));
+    if (yValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
+    Block yDelUncast = page.getBlock(channels.get(3));
+    if (yDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
+    Block countUncast = page.getBlock(channels.get(4));
+    if (countUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector count = ((LongBlock) countUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialCentroidGeoPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -186,6 +229,49 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block xValUncast = page.getBlock(channels.get(0));
+    if (xValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
+    Block xDelUncast = page.getBlock(channels.get(1));
+    if (xDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
+    Block yValUncast = page.getBlock(channels.get(2));
+    if (yValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
+    Block yDelUncast = page.getBlock(channels.get(3));
+    if (yDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
+    Block countUncast = page.getBlock(channels.get(4));
+    if (countUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector count = ((LongBlock) countUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialCentroidGeoPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
@@ -205,11 +291,6 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
       int groupId = groups.getInt(groupPosition);
       SpatialCentroidGeoPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -256,6 +337,11 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
     CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialCentroidGeoPointDocValuesAggregator.combineStates(state, groupId, inState, position);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

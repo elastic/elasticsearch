@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -62,6 +64,18 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         delegate.selectedMayContainUnseenGroups(seenGroupIds);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        final CompositeBlock inputBlock = page.getBlock(channels.get(0));
+        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        final CompositeBlock inputBlock = page.getBlock(channels.get(0));
+        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
     }
 
     @Override

@@ -152,6 +152,44 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block minXUncast = page.getBlock(channels.get(0));
+    if (minXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minX = ((IntBlock) minXUncast).asVector();
+    Block maxXUncast = page.getBlock(channels.get(1));
+    if (maxXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxX = ((IntBlock) maxXUncast).asVector();
+    Block maxYUncast = page.getBlock(channels.get(2));
+    if (maxYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxY = ((IntBlock) maxYUncast).asVector();
+    Block minYUncast = page.getBlock(channels.get(3));
+    if (minYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minY = ((IntBlock) minYUncast).asVector();
+    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialExtentCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -189,6 +227,44 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block minXUncast = page.getBlock(channels.get(0));
+    if (minXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minX = ((IntBlock) minXUncast).asVector();
+    Block maxXUncast = page.getBlock(channels.get(1));
+    if (maxXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxX = ((IntBlock) maxXUncast).asVector();
+    Block maxYUncast = page.getBlock(channels.get(2));
+    if (maxYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxY = ((IntBlock) maxYUncast).asVector();
+    Block minYUncast = page.getBlock(channels.get(3));
+    if (minYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minY = ((IntBlock) minYUncast).asVector();
+    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialExtentCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -210,11 +286,6 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
       int groupId = groups.getInt(groupPosition);
       SpatialExtentCartesianPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -256,6 +327,11 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
     SpatialExtentGroupingState inState = ((SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialExtentCartesianPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

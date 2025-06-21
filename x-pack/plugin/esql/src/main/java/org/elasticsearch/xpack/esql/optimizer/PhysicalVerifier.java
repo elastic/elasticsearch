@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -27,8 +31,8 @@ public final class PhysicalVerifier {
     private PhysicalVerifier() {}
 
     /** Verifies the physical plan. */
-    public Failures verify(PhysicalPlan plan) {
-        Failures failures = new Failures();
+    public Collection<Failure> verify(PhysicalPlan plan) {
+        Set<Failure> failures = new LinkedHashSet<>();
         Failures depFailures = new Failures();
 
         // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
@@ -52,17 +56,6 @@ public final class PhysicalVerifier {
                 }
             }
             PlanConsistencyChecker.checkPlan(p, depFailures);
-
-            if (failures.hasFailures() == false) {
-                if (p instanceof PostPhysicalOptimizationVerificationAware va) {
-                    va.postPhysicalOptimizationVerification(failures);
-                }
-                p.forEachExpression(ex -> {
-                    if (ex instanceof PostPhysicalOptimizationVerificationAware va) {
-                        va.postPhysicalOptimizationVerification(failures);
-                    }
-                });
-            }
         });
 
         if (depFailures.hasFailures()) {

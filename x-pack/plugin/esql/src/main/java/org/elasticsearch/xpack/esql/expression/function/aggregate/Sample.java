@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -56,8 +55,7 @@ public class Sample extends AggregateFunction implements ToAggregator {
             "keyword",
             "long",
             "version" },
-        description = "Collects sample values for a field.",
-        examples = @Example(file = "stats_sample", tag = "doc")
+        description = "Collects sample values for a field."
     )
     public Sample(
         Source source,

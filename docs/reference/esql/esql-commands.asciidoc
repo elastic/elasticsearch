@@ -46,7 +46,6 @@ endif::[]
 * experimental:[] <<esql-lookup-join>>
 * experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
-* experimental:[] <<esql-sample>>
 * <<esql-sort>>
 * <<esql-stats-by>>
 * <<esql-where>>
@@ -71,7 +70,6 @@ include::processing-commands/limit.asciidoc[]
 include::processing-commands/lookup.asciidoc[]
 include::processing-commands/mv_expand.asciidoc[]
 include::processing-commands/rename.asciidoc[]
-include::processing-commands/sample.asciidoc[]
 include::processing-commands/sort.asciidoc[]
 include::processing-commands/stats.asciidoc[]
 include::processing-commands/where.asciidoc[]

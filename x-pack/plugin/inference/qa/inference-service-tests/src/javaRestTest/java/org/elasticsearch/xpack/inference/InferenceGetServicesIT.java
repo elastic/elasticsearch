@@ -135,8 +135,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(14));
-
+        assertThat(services.size(), equalTo(16));
         var providers = providers(services);
 
         assertThat(
@@ -152,6 +151,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "custom",
                     "deepseek",
                     "googleaistudio",
+                    "googlevertexai",
                     "openai",
                     "streaming_completion_test_service",
                     "completion_test_service",

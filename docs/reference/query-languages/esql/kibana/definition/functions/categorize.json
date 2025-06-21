@@ -35,6 +35,6 @@
   "examples" : [
     "FROM sample_data\n| STATS count=COUNT() BY category=CATEGORIZE(message)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

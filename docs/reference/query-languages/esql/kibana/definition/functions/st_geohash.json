@@ -50,6 +50,6 @@
   "examples" : [
     "FROM airports\n| EVAL geohash = ST_GEOHASH(location, 1)\n| STATS\n    count = COUNT(*),\n    centroid = ST_CENTROID_AGG(location)\n      BY geohash\n| WHERE count >= 10\n| EVAL geohashString = ST_GEOHASH_TO_STRING(geohash)\n| KEEP count, centroid, geohashString\n| SORT count DESC, geohashString ASC"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

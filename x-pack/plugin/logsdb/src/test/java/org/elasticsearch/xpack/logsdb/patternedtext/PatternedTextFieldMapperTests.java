@@ -22,6 +22,7 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -54,7 +56,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return List.of(new PatternedTextMapperPlugin());
+        return List.of(new LogsDBPlugin(Settings.EMPTY));
     }
 
     @Override

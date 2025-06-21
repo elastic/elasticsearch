@@ -57,7 +57,7 @@ public class PatternedTextFieldType extends StringFieldType {
     private static final String TEMPLATE_SUFFIX = ".template";
     private static final String ARGS_SUFFIX = ".args";
 
-    static final String CONTENT_TYPE = "patterned_text";
+    public static final String CONTENT_TYPE = "patterned_text";
 
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;

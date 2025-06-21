@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.gradle.internal.info;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
@@ -51,8 +50,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -67,12 +66,14 @@ import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
+    private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/master/branches.json";
+    private static final String BRANCHES_FILE_LOCATION_PROPERTY = "org.elasticsearch.build.branches-file-location";
 
     private ObjectFactory objectFactory;
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
-    private final ObjectMapper objectMapper;
+    private final BranchesFileParser branchesFileParser;
     private JavaToolchainService toolChainService;
     private Project project;
 
@@ -87,7 +88,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
-        this.objectMapper = new ObjectMapper();
+        this.branchesFileParser = new BranchesFileParser(new ObjectMapper());
     }
 
     @Override
@@ -202,19 +203,27 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private List<String> getDevelopmentBranches() {
-        List<String> branches = new ArrayList<>();
-        File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
-        try (InputStream is = new FileInputStream(branchesFile)) {
-            JsonNode json = objectMapper.readTree(is);
-            for (JsonNode node : json.get("branches")) {
-                branches.add(node.get("branch").asText());
+    private List<DevelopmentBranch> getDevelopmentBranches() {
+        String branchesFileLocation = project.getProviders()
+            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
+            .getOrElse(DEFAULT_BRANCHES_FILE_URL);
+        LOGGER.info("Reading branches.json from {}", branchesFileLocation);
+        byte[] branchesBytes;
+        if (branchesFileLocation.startsWith("http")) {
+            try (InputStream in = URI.create(branchesFileLocation).toURL().openStream()) {
+                branchesBytes = in.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } else {
+            try {
+                branchesBytes = Files.readAllBytes(new File(branchesFileLocation).toPath());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read branches.json from: " + branchesFileLocation, e);
+            }
         }
 
-        return branches;
+        return branchesFileParser.parse(branchesBytes);
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

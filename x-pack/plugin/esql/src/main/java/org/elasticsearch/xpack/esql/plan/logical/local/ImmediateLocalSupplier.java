@@ -18,7 +18,7 @@ import java.util.Arrays;
  * A {@link LocalSupplier} that contains already filled {@link Block}s.
  */
 public class ImmediateLocalSupplier implements LocalSupplier {
-    private final Block[] blocks;
+    final Block[] blocks;
 
     public ImmediateLocalSupplier(Block[] blocks) {
         this.blocks = blocks;

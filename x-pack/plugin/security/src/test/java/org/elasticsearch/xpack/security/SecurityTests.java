@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
@@ -464,7 +465,8 @@ public class SecurityTests extends ESTestCase {
             MapperMetrics.NOOP,
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here

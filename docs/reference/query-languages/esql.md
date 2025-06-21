@@ -16,8 +16,8 @@ For overview, conceptual, and getting started information, refer to the [{{esql}
 
 This reference section provides detailed technical information about {{esql}} features, syntax, and behavior:
 
-* [Syntax reference](esql/esql-syntax-reference.md): Learn the basic syntax of commands, functions, and operators
-* [Advanced workflows](esql/esql-advanced.md): Learn how to handle more complex tasks with these guides, including how to extract, transform, and combine data from multiple indices
-* [Types and fields](esql/esql-types-and-fields.md): Learn about how {{esql}} handles different data types and special fields
-* [Limitations](esql/limitations.md): Learn about the current limitations of {{esql}}
-* [Examples](esql/esql-examples.md): Explore some example queries
+* [Syntax reference](/reference/query-languages/esql/esql-syntax-reference.md): Learn the basic syntax of commands, functions, and operators
+* [Advanced workflows](/reference/query-languages/esql/esql-advanced.md): Learn how to handle more complex tasks with these guides, including how to extract, transform, and combine data from multiple indices
+* [Types and fields](/reference/query-languages/esql/esql-types-and-fields.md): Learn about how {{esql}} handles different data types and special fields
+* [Limitations](/reference/query-languages/esql/limitations.md): Learn about the current limitations of {{esql}}
+* [Examples](/reference/query-languages/esql/esql-examples.md): Explore some example queries

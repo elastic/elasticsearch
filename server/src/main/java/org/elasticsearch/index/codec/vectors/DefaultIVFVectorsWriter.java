@@ -31,7 +31,6 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
 import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.discretize;
@@ -169,29 +168,35 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid) {
-        return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
+    CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numParentCentroids, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid) {
+        return new OffHeapCentroidSupplier(centroidsInput, numParentCentroids, numCentroids, fieldInfo);
     }
 
-    static void writeCentroids(float[][] centroids, List<CentroidPartition> centroidPartitions, FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
+    static void writeCentroidsAndPartitions(List<CentroidPartition> centroidPartitions, float[][] centroids,
+                                     FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
         throws IOException {
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         byte[] quantizedScratch = new byte[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
-        // FIXME: need to update the read side first to accommodate these new centroids
-//        for (CentroidPartition centroidPartition : centroidPartitions) {
-//            System.arraycopy(centroidPartition.centroid(), 0, centroidScratch, 0, centroidPartition.centroid().length);
-//            OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
-//                centroidScratch,
-//                quantizedScratch,
-//                (byte) 4,
-//                globalCentroid
-//            );
-//            writeQuantizedValue(centroidOutput, quantizedScratch, result);
-//            // FIXME: write the centroid partition index and size for child centroids so we can seek to the chunk of them on read
-//        }
+
+        // write the top level partition parent nodes and their pointers to the centroids within the partition
+        // a size of 1 indicates a leaf node that did not have a parent node (orphans)
+        for (CentroidPartition centroidPartition : centroidPartitions) {
+            System.arraycopy(centroidPartition.centroid(), 0, centroidScratch, 0, centroidPartition.centroid().length);
+            OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
+                centroidScratch,
+                quantizedScratch,
+                (byte) 4,
+                globalCentroid
+            );
+            writeQuantizedValue(centroidOutput, quantizedScratch, result);
+            centroidOutput.writeInt(centroidPartition.childOrdinal());
+            centroidOutput.writeInt(centroidPartition.size());
+        }
+
+        // write the quantized centroids which will be duplicate for orphans
         for (float[] centroid : centroids) {
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
             OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
@@ -202,6 +207,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             );
             writeQuantizedValue(centroidOutput, quantizedScratch, result);
         }
+
+        //write the raw float vectors so we can quantize the query vector relative to the centroid on read
         final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (float[] centroid : centroids) {
             buffer.asFloatBuffer().put(centroid);
@@ -229,7 +236,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, true);
     }
 
-    record CentroidPartition(float[] centroid, int index, int size) {}
+    record CentroidPartition(float[] centroid, int childOrdinal, int size) {}
 
     /**
      * Calculate the centroids for the given field and write them to the given centroid output.
@@ -299,33 +306,88 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // FIXME: compute and write out the top level centroids as well before each of the groups of centroids
 
         // FIXME: since the layer1 has been sorted should be able to act on groups of these when computing the parent centroids
-        // the -1 centroids (that have no further partitioning) are their own centroids and we'll essentially compare them the same on search
-        // the non -1 centroids have structure and we'll respect that by computing a parent partition centroid and writing it out for comparison prior to comparing any other centroids
+        // the -1 centroids (that have no further partitioning) are their own centroids
+        // and we'll essentially compare them the same on search
+        // the non -1 centroids have structure and we'll respect that by computing a parent
+        // partition centroid and writing it out for comparison prior to comparing any other centroids
         List<CentroidPartition> centroidPartitions = new ArrayList<>();
-        for(int i = 0; i < kMeansResult.layer1.length; i++) {
-            // go past all the -1 non-subpartition centroids
-            if(kMeansResult.layer1[i] != -1) {
-                continue;
-            }
-            int label = kMeansResult.layer1[i];
-            int totalCentroids = 0;
-            float[] parentPartitionCentroid = new float[fieldInfo.getVectorDimension()];
-            for(int j = i+1; kMeansResult.layer1[j] == label; j++) {
-                for(int k = 0; k < parentPartitionCentroid.length; k++) {
-                    parentPartitionCentroid[k] += centroids[i][k];
+        for(int i = 0; i < kMeansResult.layer1.length;) {
+            // for any layer that was not partitioned we treat it as both a parent and a child node subsequently
+            if(kMeansResult.layer1[i] == -1) {
+                centroidPartitions.add(new CentroidPartition(centroids[i], i, 1));
+                i++;
+            } else {
+                int label = kMeansResult.layer1[i];
+                int totalCentroids = 0;
+                float[] parentPartitionCentroid = new float[fieldInfo.getVectorDimension()];
+                int j = i;
+                for (; j < kMeansResult.layer1.length; j++) {
+                    if(kMeansResult.layer1[j] != label) {
+                        break;
+                    }
+                    for (int k = 0; k < parentPartitionCentroid.length; k++) {
+                        parentPartitionCentroid[k] += centroids[i][k];
+                    }
+                    totalCentroids++;
                 }
-                totalCentroids++;
+                int childOrdinal = i;
+                i = j;
+                for (int d = 0; d < parentPartitionCentroid.length; d++) {
+                    parentPartitionCentroid[d] /= totalCentroids;
+                }
+                centroidPartitions.add(new CentroidPartition(parentPartitionCentroid, childOrdinal, totalCentroids));
             }
-            for(int j = 0; j < parentPartitionCentroid.length; j++) {
-                parentPartitionCentroid[j] /= totalCentroids;
-            }
-            centroidPartitions.add(new CentroidPartition(parentPartitionCentroid, i, totalCentroids));
         }
 
         // FIXME: write out parent partition centroids as well as where the child centroids begin and the total number of them
 
-        // write centroids
-        writeCentroids(centroids, centroidPartitions, fieldInfo, globalCentroid, centroidOutput);
+        // FIXME: write this as one file structured like this:
+        // node(type[parent/child]), quantized_value, partition offset, partition size)
+
+        // node_meta_pointer, quantized vectors,
+
+        // currently it's:
+        // all quantized vectors, all float vectors
+        // we want to transition to something that can be read in bulk without seeking around a lot
+
+        // move to:
+        // each quantized vector, each float vector
+
+        // in addition to this we will now also need to know if something is a leaf or not
+        // all centroids exist as a leaf
+        // some centroids have parent nodes
+        // all entries will now need to know if they are parents or children
+        // additionally all parent nodes will need a pointer to the batch of children (ordinal of centroid and total number of centroids)
+
+        // pnode(quantized_vector_values, partition_offset, partition_size) for every parent node every child that doesn't have a parent
+        // if partition size == -1 then it's a child and partition offset points to it's single float vector
+
+        // pnodes, float_vectors
+
+        // p0(pq0, 0, 5), p1(q1, 6, 1), q0, q1, q2, q3, q4, q5, f0, f1, f2, f3, f4, f5
+        // FIXME: the downside of this is it duplicates q1
+        // is it possible to encode this structure without duplicating q1
+
+        //sort p by distance to global centroid
+
+        // meta: num_parent_centroids?
+        // p0(0, 2), p1(2, 3), p2(5, 1), p3(6, 2), pq0, pq1, pq3, q0, q1, q2, q3, q4, q5, q6, q7, f0, f1, f2, f3, f4, f5, f6, f7
+        // pnodes, pquants, cquants, fvecs
+        // pnodes.len = num_parent_centroids + num_orphans
+        // pquants.len = num_parent_centroids
+        // cquants.len = num_centroids
+        // fvecs.len = num_centroids
+        // is duplicating q2 to pq2 worthwhile ... well we can make that decision once we can do bulk reads and add a FIXME for this
+        // in the future we could consider then also combining pnodes
+        // and pquants if we duplicate the cquants up to the pquants for orphans, this would remove a seek operation
+
+        // this is the right first pass:
+        // p0(pq0, 0, 5), p1(q1, 6, 1), q0, q1, q2, q3, q4, q5, f0, f1, f2, f3, f4, f5
+        // document that this is the first pass we are going to take and the alternative for future consideration
+
+        // FIXME: subseuqently sort these partition nodes by global centroid as well
+
+        writeCentroidsAndPartitions(centroidPartitions, centroids, fieldInfo, globalCentroid, centroidOutput);
 
         if (logger.isDebugEnabled()) {
             logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
@@ -359,9 +421,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         if (cacheCentroids) {
-            return new CentroidAssignments(centroids, assignmentsByCluster);
+            return new CentroidAssignments(centroidPartitions.size(), centroids, assignmentsByCluster);
         } else {
-            return new CentroidAssignments(centroids.length, assignmentsByCluster);
+            return new CentroidAssignments(centroidPartitions.size(), centroids.length, assignmentsByCluster);
         }
     }
 
@@ -424,12 +486,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private final long rawCentroidOffset;
         private int currOrd = -1;
 
-        OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
+        OffHeapCentroidSupplier(IndexInput centroidsInput, int numParentCentroids, int numCentroids, FieldInfo info) {
             this.centroidsInput = centroidsInput;
             this.numCentroids = numCentroids;
             this.dimension = info.getVectorDimension();
             this.scratch = new float[dimension];
-            this.rawCentroidOffset = (dimension + 3 * Float.BYTES + Short.BYTES) * numCentroids;
+            long quantizedVectorByteSize = dimension + 3 * Float.BYTES + Short.BYTES;
+            long parentNodeByteSize = quantizedVectorByteSize + 2 * Integer.BYTES;
+            this.rawCentroidOffset = quantizedVectorByteSize * numCentroids + parentNodeByteSize * numParentCentroids;
         }
 
         @Override

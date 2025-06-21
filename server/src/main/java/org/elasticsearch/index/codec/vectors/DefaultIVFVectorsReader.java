@@ -24,6 +24,7 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.IntPredicate;
 
@@ -49,6 +50,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     @Override
     CentroidQueryScorer getCentroidScorer(
         FieldInfo fieldInfo,
+        int numParentCentroids,
         int numCentroids,
         IndexInput centroids,
         float[] targetQuery,
@@ -72,7 +74,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             private final float[] centroid = new float[fieldInfo.getVectorDimension()];
             private final float[] centroidCorrectiveValues = new float[3];
             private int quantizedCentroidComponentSum;
-            private final long centroidByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+            private final long quantizedVectorByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+            private final long centroidByteSize = quantizedVectorByteSize;
+            private final long parentNodeByteSize = quantizedVectorByteSize + 2 * Integer.BYTES;
 
             @Override
             public int size() {
@@ -89,11 +93,100 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 if (centroidOrdinal == currentCentroid) {
                     return;
                 }
-                centroids.seek(centroidOrdinal * centroidByteSize);
+                centroids.seek(
+                    numParentCentroids * parentNodeByteSize +
+                    centroidOrdinal * centroidByteSize);
                 quantizedCentroidComponentSum = readQuantizedValue(centroids, quantizedCentroid, centroidCorrectiveValues);
-                centroids.seek(numCentroids * centroidByteSize + (long) Float.BYTES * quantizedCentroid.length * centroidOrdinal);
+                centroids.seek(
+                    numParentCentroids * parentNodeByteSize +
+                    numCentroids * centroidByteSize +
+                    (long) Float.BYTES * quantizedCentroid.length * centroidOrdinal);
                 centroids.readFloats(centroid, 0, centroid.length);
                 currentCentroid = centroidOrdinal;
+            }
+
+            @Override
+            public float score(int centroidOrdinal) throws IOException {
+                readQuantizedAndRawCentroid(centroidOrdinal);
+                return int4QuantizedScore(
+                    quantized,
+                    queryParams,
+                    fieldInfo.getVectorDimension(),
+                    quantizedCentroid,
+                    centroidCorrectiveValues,
+                    quantizedCentroidComponentSum,
+                    globalCentroidDp,
+                    fieldInfo.getVectorSimilarityFunction()
+                );
+            }
+        };
+    }
+
+    CentroidQueryScorerWChildren getCentroidScorerWChildren(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] targetQuery,
+        IndexInput clusters
+    ) throws IOException {
+        FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        float[] globalCentroid = fieldEntry.globalCentroid();
+        float globalCentroidDp = fieldEntry.globalCentroidDp();
+        OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        byte[] quantized = new byte[targetQuery.length];
+        float[] targetScratch = ArrayUtil.copyArray(targetQuery);
+        OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
+            targetScratch,
+            quantized,
+            (byte) 4,
+            globalCentroid
+        );
+        return new CentroidQueryScorerWChildren() {
+            int currentCentroid = -1;
+            private final byte[] quantizedCentroid = new byte[fieldInfo.getVectorDimension()];
+            private final float[] centroid = new float[fieldInfo.getVectorDimension()];
+            private final float[] centroidCorrectiveValues = new float[3];
+            private int quantizedCentroidComponentSum;
+            private final long quantizedVectorByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+            private final long parentNodeByteSize = quantizedVectorByteSize + 2 * Integer.BYTES;
+
+            private int childCentroidStart;
+            private int childCount;
+
+            @Override
+            public int size() {
+                return numCentroids;
+            }
+
+            @Override
+            public float[] centroid(int centroidOrdinal) throws IOException {
+                readQuantizedAndRawCentroid(centroidOrdinal);
+                return centroid;
+            }
+
+            private void readQuantizedAndRawCentroid(int centroidOrdinal) throws IOException {
+                if (centroidOrdinal == currentCentroid) {
+                    return;
+                }
+                System.out.println("reading parent");
+                System.out.println(centroidOrdinal + " :: " + numCentroids);
+                centroids.seek(centroidOrdinal * parentNodeByteSize);
+                quantizedCentroidComponentSum = readQuantizedValue(centroids, quantizedCentroid, centroidCorrectiveValues);
+                childCentroidStart = centroids.readInt();
+                childCount = centroids.readInt();
+                currentCentroid = centroidOrdinal;
+
+                System.out.println(" ==: " + childCentroidStart + " :: " + childCount);
+            }
+
+            public int getChildCentroidStart(int centroidOrdinal) throws IOException {
+                readQuantizedAndRawCentroid(centroidOrdinal);
+                return childCentroidStart;
+            }
+
+            public int getChildCount(int centroidOrdinal) throws IOException {
+                readQuantizedAndRawCentroid(centroidOrdinal);
+                return childCount;
             }
 
             @Override

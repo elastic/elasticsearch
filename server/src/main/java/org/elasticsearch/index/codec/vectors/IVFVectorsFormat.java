@@ -46,6 +46,7 @@ import java.io.IOException;
 public class IVFVectorsFormat extends KnnVectorsFormat {
 
     public static final String NAME = "IVFVectorsFormat";
+
     // centroid ordinals -> centroid values, offsets
     public static final String CENTROID_EXTENSION = "cenivf";
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized

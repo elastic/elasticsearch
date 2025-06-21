@@ -13,27 +13,32 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 
 final class CentroidAssignments {
 
+    private final int numParentCentroids;
     private final int numCentroids;
     private final float[][] cachedCentroids;
     private final IntArrayList[] assignmentsByCluster;
 
-    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, IntArrayList[] assignmentsByCluster) {
+    private CentroidAssignments(int numParentCentroids, int numCentroids, float[][] cachedCentroids, IntArrayList[] assignmentsByCluster) {
+        this.numParentCentroids = numParentCentroids;
         this.numCentroids = numCentroids;
         this.cachedCentroids = cachedCentroids;
         this.assignmentsByCluster = assignmentsByCluster;
     }
 
-    CentroidAssignments(float[][] centroids, IntArrayList[] assignmentsByCluster) {
-        this(centroids.length, centroids, assignmentsByCluster);
+    CentroidAssignments(int numParentCentroids, float[][] centroids, IntArrayList[] assignmentsByCluster) {
+        this(numParentCentroids, centroids.length, centroids, assignmentsByCluster);
     }
 
-    CentroidAssignments(int numCentroids, IntArrayList[] assignmentsByCluster) {
-        this(numCentroids, null, assignmentsByCluster);
+    CentroidAssignments(int numParentCentroids, int numCentroids, IntArrayList[] assignmentsByCluster) {
+        this(numParentCentroids, numCentroids, null, assignmentsByCluster);
     }
 
-    // Getters and setters
     public int numCentroids() {
         return numCentroids;
+    }
+
+    public int numParentCentroids() {
+        return numParentCentroids;
     }
 
     public float[][] cachedCentroids() {

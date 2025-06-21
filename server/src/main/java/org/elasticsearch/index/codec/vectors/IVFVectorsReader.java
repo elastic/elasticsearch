@@ -89,8 +89,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
+    abstract CentroidQueryScorerWChildren getCentroidScorerWChildren(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] target,
+        IndexInput clusters
+    ) throws IOException;
+
     abstract CentroidQueryScorer getCentroidScorer(
         FieldInfo fieldInfo,
+        int numParentCentroids,
         int numCentroids,
         IndexInput centroids,
         float[] target,
@@ -145,6 +154,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
+        final int parentCentroidCount = input.readInt();
         final long centroidOffset = input.readLong();
         final long centroidLength = input.readLong();
         final int numPostingLists = input.readVInt();
@@ -171,6 +181,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return new FieldEntry(
             similarityFunction,
             vectorEncoding,
+            parentCentroidCount,
             centroidOffset,
             centroidLength,
             postingListOffsets,
@@ -212,6 +223,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return rawVectorsReader.getByteVectorValues(field);
     }
 
+
+    // FIXME: impl reader updates here
+    NeighborQueue scoreParentPartitionPostingLists(CentroidQueryScorer centroidQueryScorer)
+        throws IOException {
+        NeighborQueue neighborQueue = new NeighborQueue(centroidQueryScorer.size(), true);
+        // TODO Off heap scoring for quantized centroids?
+        for (int centroid = 0; centroid < centroidQueryScorer.size(); centroid++) {
+            neighborQueue.add(centroid, centroidQueryScorer.score(centroid));
+        }
+        return neighborQueue;
+    }
+
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -245,8 +268,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
+
         CentroidQueryScorer centroidQueryScorer = getCentroidScorer(
             fieldInfo,
+            entry.parentCentroidCount,
             entry.postingListOffsets.length,
             entry.centroidSlice(ivfCentroids),
             target,
@@ -261,34 +286,103 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip to be between 1 and the number of centroids
             nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
         }
-        final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
+
         int centroidsVisited = 0;
         long expectedDocs = 0;
         long actualDocs = 0;
-        // initially we visit only the "centroids to search"
-        // Note, numCollected is doing the bare minimum here.
-        // TODO do we need to handle nested doc counts similarly to how we handle
-        // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
-            ++centroidsVisited;
-            // todo do we actually need to know the score???
-            int centroidOrdinal = centroidQueue.pop();
-            // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-            // is enough?
-            expectedDocs += scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
-            actualDocs += scorer.visit(knnCollector);
-        }
-        if (acceptDocs != null) {
-            float unfilteredRatioVisited = (float) expectedDocs / numVectors;
-            int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
-            float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                int centroidOrdinal = centroidQueue.pop();
-                scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
-                actualDocs += scorer.visit(knnCollector);
+
+//        if( centroidQueryScorer.size() > 384) {
+//            // FIXME: only do this over a certain size otherwise just loop through all the centroids
+//            // FIXME: impl reader updates here
+//            // FIXME: should be an int not a long
+            CentroidQueryScorerWChildren centroidQueryScorerWChildren = getCentroidScorerWChildren(
+                fieldInfo,
+                entry.parentCentroidCount,
+                entry.centroidSlice(ivfCentroids),
+                target,
+                ivfCentroids
+            );
+            final NeighborQueue parentCentroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorerWChildren, nProbe);
+
+            while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
+
+                int parentCentroidOrdinal = parentCentroidQueue.pop();
+
+                int childCentroidOrdinal = centroidQueryScorerWChildren.getChildCentroidStart(parentCentroidOrdinal);
+                int childCentroidCount = centroidQueryScorerWChildren.getChildCount(parentCentroidOrdinal);
+
+                NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
+                // TODO Off heap scoring for quantized centroids?
+                for (int centroid = childCentroidOrdinal; centroid < childCentroidOrdinal + childCentroidCount; centroid++) {
+                    centroidQueue.add(centroid, centroidQueryScorer.score(centroid));
+                }
+
+//                final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
+                PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
+                // initially we visit only the "centroids to search"
+                // Note, numCollected is doing the bare minimum here.
+                // TODO do we need to handle nested doc counts similarly to how we handle
+                // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
+                while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
+                    ++centroidsVisited;
+                    // todo do we actually need to know the score???
+                    int centroidOrdinal = centroidQueue.pop();
+                    // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
+                    // is enough?
+                    expectedDocs += scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
+                    actualDocs += scorer.visit(knnCollector);
+                }
+
+                // FIXME: move this out of this while loop?
+                if (acceptDocs != null) {
+                    float unfilteredRatioVisited = (float) expectedDocs / numVectors;
+                    int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
+                    float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
+                    while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                        int centroidOrdinal = centroidQueue.pop();
+                        scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
+                        actualDocs += scorer.visit(knnCollector);
+                    }
+                }
             }
-        }
+//
+//
+//            // FIXME: use the parent centroids first and cap them at a certain value like don't use them if num centroids < 384
+//            // FIXME: account for the fact that the centroids are in sorted order when reading
+//        } else {
+
+//            final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
+//            PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
+//            // initially we visit only the "centroids to search"
+//            // Note, numCollected is doing the bare minimum here.
+//            // TODO do we need to handle nested doc counts similarly to how we handle
+//            // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
+//            while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
+//                ++centroidsVisited;
+//                // todo do we actually need to know the score???
+//                int centroidOrdinal = centroidQueue.pop();
+//                // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
+//                // is enough?
+//                expectedDocs += scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
+//                actualDocs += scorer.visit(knnCollector);
+//            }
+//
+//            // FIXME: move this out of this while loop?
+//            if (acceptDocs != null) {
+//                float unfilteredRatioVisited = (float) expectedDocs / numVectors;
+//                int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
+//                float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
+//                while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+//                    int centroidOrdinal = centroidQueue.pop();
+//                    scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
+//                    actualDocs += scorer.visit(knnCollector);
+//                }
+//            }
+//        }
+
+
+
+
     }
 
     @Override
@@ -319,6 +413,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     protected record FieldEntry(
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
+        int parentCentroidCount,
         long centroidOffset,
         long centroidLength,
         long[] postingListOffsets,
@@ -332,6 +427,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, IntPredicate needsScoring)
         throws IOException;
+
+    interface CentroidQueryScorerWChildren extends CentroidQueryScorer {
+        int getChildCentroidStart(int centroidOrdinal) throws IOException;
+        int getChildCount(int centroidOrdinal) throws IOException;
+    }
 
     interface CentroidQueryScorer {
         int size();

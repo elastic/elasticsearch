@@ -1,0 +1,342 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.VerificationException;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+
+@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
+public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
+
+    public void testLookupJoinAcrossClusters() throws IOException {
+        setupClustersAndLookups();
+
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
+            int vIndex = columns.indexOf("v");
+            int lookupNameIndex = columns.indexOf("lookup_name");
+            int tagIndex = columns.indexOf("tag");
+            int lookupTagIndex = columns.indexOf("lookup_tag");
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+            for (var row : values) {
+                assertThat(row, hasSize(9));
+                Long v = (Long) row.get(vIndex);
+                assertThat(v, greaterThanOrEqualTo(0L));
+                if (v < 25) {
+                    assertThat((String) row.get(lookupNameIndex), equalTo("lookup_" + v));
+                    String tag = (String) row.get(tagIndex);
+                    if (tag.equals("local")) {
+                        assertThat(row.get(lookupTagIndex), equalTo("local"));
+                    } else {
+                        assertThat(row.get(lookupTagIndex), equalTo(REMOTE_CLUSTER_1));
+                    }
+                } else {
+                    assertNull(row.get(lookupNameIndex));
+                    assertNull(row.get(lookupTagIndex));
+                }
+            }
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup2", 5);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup2", 5);
+        // FIXME: this currently does not work
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key "
+                    + "| LOOKUP JOIN values_lookup2 ON lookup_tag",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+
+        }
+    }
+
+    public void testLookupJoinMissingRemoteIndex() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(10));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remoteCluster.getFailures(), not(empty()));
+            var failure = remoteCluster.getFailures().get(0);
+            assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+        }
+        // Without local
+        // FIXME: this is inconsistent due to how field-caps works - if there's no index at all, it fails, but if there's one but not
+        // another, it succeeds. Ideally, this would be empty result with remote1 skipped, but field-caps fails.
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:values_lookup]"));
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        // then missing index is an error
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+    }
+
+    public void testLookupJoinMissingRemoteIndexTwoRemotes() throws IOException {
+        setupClusters(3);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        // FIXME: inconsistent with the previous test, remote1:values_lookup still missing, but now it succeeds with remote1 skipped
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM *:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(10));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(2));
+
+            var remoteCluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remoteCluster1.getFailures(), not(empty()));
+            var failure = remoteCluster1.getFailures().get(0);
+            assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+            var remoteCluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
+            assertThat(remoteCluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
+    }
+
+    public void testLookupJoinMissingLocalIndex() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in local cluster"));
+
+        // Without local in the query it's ok
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(10));
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag", "remote_tag"));
+            assertThat(columns, not(hasItems("local_tag")));
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(1));
+
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
+    }
+
+    public void testLookupJoinMissingKey() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        try (
+            // Using local_tag as key which is not present in remote index
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(2));
+
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            // FIXME: verify whether we need to skip or succeed here
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
+
+        // TODO: verify whether this should be an error or not when the key field is missing
+        Exception ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
+
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("Unknown column [local_tag] in right side of join"));
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        try (
+            // Using local_tag as key which is not present in remote index
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(2));
+
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            // FIXME: verify whether we need to succeed or fail here
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
+    }
+
+    public void testLookupJoinIndexMode() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateIndex(REMOTE_CLUSTER_1, "values_lookup", randomIntBetween(1, 3), 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(10));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remoteCluster.getFailures(), not(empty()));
+            var failure = remoteCluster.getFailures().get(0);
+            assertThat(
+                failure.reason(),
+                containsString("invalid [cluster-a:values_lookup] resolution in lookup mode to an index in [standard] mode")
+            );
+        }
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        // then missing index is an error
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("invalid [cluster-a:values_lookup] resolution in lookup mode to an index in [standard] mode")
+        );
+    }
+
+    protected Map<String, Object> setupClustersAndLookups() throws IOException {
+        var setupData = setupClusters(2);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 25);
+        return setupData;
+    }
+
+    protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs) {
+        Client client = client(clusterAlias);
+        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        String field_tag = Strings.isEmpty(clusterAlias) ? "local_tag" : "remote_tag";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.mode", "lookup"))
+                .setMapping(
+                    "lookup_key",
+                    "type=long",
+                    "lookup_name",
+                    "type=keyword",
+                    "lookup_tag",
+                    "type=keyword",
+                    field_tag,
+                    "type=keyword"
+                )
+        );
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {
+        assertNotNull(executionInfo);
+        assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
+        assertTrue(executionInfo.isCrossClusterSearch());
+        List<EsqlExecutionInfo.Cluster> clusters = executionInfo.clusterAliases().stream().map(executionInfo::getCluster).toList();
+
+        for (EsqlExecutionInfo.Cluster cluster : clusters) {
+            assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(0));
+        }
+    }
+
+}

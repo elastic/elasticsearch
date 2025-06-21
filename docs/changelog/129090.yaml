@@ -1,0 +1,6 @@
+pr: 129090
+summary: Enable force inference endpoint deleting for invalid models and after stopping
+  model deployment fails
+area: Machine Learning
+type: enhancement
+issues: []

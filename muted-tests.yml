@@ -458,3 +458,6 @@ tests:
   - class: org.elasticsearch.search.CCSDuelIT
     method: testTerminateAfter
     issue: https://github.com/elastic/elasticsearch/issues/126085
+  - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+    method: testSchedulerCloseWaitsForRunningMerge
+    issue: https://github.com/elastic/elasticsearch/issues/125236

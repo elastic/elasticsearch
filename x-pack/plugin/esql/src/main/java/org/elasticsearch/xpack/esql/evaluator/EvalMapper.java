@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -28,9 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -42,11 +38,8 @@ public final class EvalMapper {
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
         new InsensitiveEqualsMapper(),
         new BooleanLogic(),
-        new Nots(),
         new Attributes(),
-        new Literals(),
-        new IsNotNulls(),
-        new IsNulls()
+        new Literals()
     );
 
     private EvalMapper() {}
@@ -174,18 +167,6 @@ public final class EvalMapper {
         }
     }
 
-    static class Nots extends ExpressionMapper<Not> {
-        @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<ShardContext> shardContexts) {
-            var expEval = toEvaluator(foldCtx, not.field(), layout, shardContexts);
-            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
-                not.source(),
-                expEval.get(dvrCtx),
-                dvrCtx
-            );
-        }
-    }
-
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
         public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
@@ -274,103 +255,6 @@ public final class EvalMapper {
                 return wrapper.builder().build();
             }
             return BlockUtils.constantBlock(blockFactory, value, positions);
-        }
-    }
-
-    static class IsNulls extends ExpressionMapper<IsNull> {
-
-        @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout, List<ShardContext> shardContexts) {
-            var field = toEvaluator(foldCtx, isNull.field(), layout, shardContexts);
-            return new IsNullEvaluatorFactory(field);
-        }
-
-        record IsNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new IsNullEvaluator(context, field.get(context));
-            }
-
-            @Override
-            public String toString() {
-                return "IsNullEvaluator[field=" + field + ']';
-            }
-        }
-
-        record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) implements ExpressionEvaluator {
-            @Override
-            public Block eval(Page page) {
-                try (Block fieldBlock = field.eval(page)) {
-                    if (fieldBlock.asVector() != null) {
-                        return driverContext.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
-                    }
-                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
-                        for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(p, fieldBlock.isNull(p));
-                        }
-                        return builder.build().asBlock();
-                    }
-                }
-            }
-
-            @Override
-            public void close() {
-                Releasables.closeExpectNoException(field);
-            }
-
-            @Override
-            public String toString() {
-                return "IsNullEvaluator[field=" + field + ']';
-            }
-        }
-    }
-
-    static class IsNotNulls extends ExpressionMapper<IsNotNull> {
-
-        @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout, List<ShardContext> shardContexts) {
-            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout, shardContexts));
-        }
-
-        record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new IsNotNullEvaluator(context, field.get(context));
-            }
-
-            @Override
-            public String toString() {
-                return "IsNotNullEvaluator[field=" + field + ']';
-            }
-        }
-
-        record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
-            implements
-                EvalOperator.ExpressionEvaluator {
-            @Override
-            public Block eval(Page page) {
-                try (Block fieldBlock = field.eval(page)) {
-                    if (fieldBlock.asVector() != null) {
-                        return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
-                    }
-                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
-                        for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(p, fieldBlock.isNull(p) == false);
-                        }
-                        return builder.build().asBlock();
-                    }
-                }
-            }
-
-            @Override
-            public void close() {
-                Releasables.closeExpectNoException(field);
-            }
-
-            @Override
-            public String toString() {
-                return "IsNotNullEvaluator[field=" + field + ']';
-            }
         }
     }
 }

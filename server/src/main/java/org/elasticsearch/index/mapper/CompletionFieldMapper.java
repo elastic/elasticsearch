@@ -34,11 +34,13 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
@@ -713,6 +715,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 return Token.START_OBJECT;
             }
             return super.currentToken();
+        }
+
+        @Override
+        public XContentString optimizedTextOrNull() throws IOException {
+            if (parsingObject == false) {
+                return new Text(textValue);
+            }
+            return super.optimizedTextOrNull();
         }
 
         @Override

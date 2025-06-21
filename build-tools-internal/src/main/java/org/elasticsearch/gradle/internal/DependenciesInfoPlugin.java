@@ -15,9 +15,13 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.plugins.JavaPlugin;
 
 public class DependenciesInfoPlugin implements Plugin<Project> {
+
+    public static String USAGE_ATTRIBUTE = "DependenciesInfo";
+
     @Override
     public void apply(final Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
@@ -43,6 +47,9 @@ public class DependenciesInfoPlugin implements Plugin<Project> {
             )
         );
 
+        dependenciesInfoFilesConfiguration.attributes(
+            attributes -> attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, USAGE_ATTRIBUTE))
+        );
         project.getArtifacts().add("dependenciesInfoFiles", depsInfo);
 
     }

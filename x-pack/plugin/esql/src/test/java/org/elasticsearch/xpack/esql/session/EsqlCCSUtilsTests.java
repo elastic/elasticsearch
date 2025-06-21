@@ -518,12 +518,10 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
         );
         executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false));
-
         assertNull(executionInfo.planningTookTime());
         assertNull(executionInfo.overallTook());
-        try {
-            Thread.sleep(1);
-        } catch (InterruptedException e) {}
+
+        safeSleep(1);
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 

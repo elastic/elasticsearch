@@ -1,0 +1,5 @@
+pr: 129548
+summary: Fix NPE in `flat_bbq` scorer when all vectors are missing
+area: Vector Search
+type: bug
+issues: []

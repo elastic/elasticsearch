@@ -99,7 +99,7 @@ public class PlannerUtils {
         final LocalMapper mapper = new LocalMapper();
         PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
         if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INITIAL); // force to emit intermediate outputs
+            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
         }
         return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
     }

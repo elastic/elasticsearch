@@ -57,8 +57,8 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         UnsupportedAttribute::readFrom
     );
 
-    private final String message;
     private final boolean hasCustomMessage; // TODO remove me and just use message != null?
+    private final String message;
 
     private static String errorMessage(String name, UnsupportedEsField field) {
         return "Cannot use field [" + name + "] with unsupported type [" + String.join(",", field.getOriginalTypes()) + "]";
@@ -123,10 +123,13 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public String fieldName() {
-        // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
-        // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
-        return name();
+    public FieldName fieldName() {
+        if (lazyFieldName == null) {
+            // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
+            // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
+            lazyFieldName = new FieldName(name());
+        }
+        return lazyFieldName;
     }
 
     @Override
@@ -163,17 +166,15 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), hasCustomMessage, message);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            var ua = (UnsupportedAttribute) obj;
-            return Objects.equals(hasCustomMessage, ua.hasCustomMessage) && Objects.equals(message, ua.message);
-        }
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (UnsupportedAttribute) o;
+        return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +30,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +56,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -61,8 +69,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
 
@@ -70,11 +76,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     private Executor executor = null;
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    private final DiscoveryNode node1 = DiscoveryNodeUtils.create("node-1");
-    private final DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2");
-    private final DiscoveryNode node3 = DiscoveryNodeUtils.create("node-3");
-    private final DiscoveryNode node4 = DiscoveryNodeUtils.create("node-4");
-    private final DiscoveryNode node5 = DiscoveryNodeUtils.create("node-5");
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node3 = DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node4 = DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node5 = DiscoveryNodeUtils.builder("node-5").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
     private final ShardId shard1 = new ShardId("index", "n/a", 1);
     private final ShardId shard2 = new ShardId("index", "n/a", 2);
     private final ShardId shard3 = new ShardId("index", "n/a", 3);
@@ -378,6 +384,37 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.failedShards, equalTo(0));
     }
 
+    public void testQueryHotShardsFirst() {
+        var targetShards = shuffledList(
+            List.of(
+                targetShard(shard1, node1),
+                targetShard(shard2, DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build()),
+                targetShard(shard3, DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_COLD_NODE_ROLE)).build()),
+                targetShard(shard4, DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_FROZEN_NODE_ROLE)).build())
+            )
+        );
+        var sent = Collections.synchronizedList(new ArrayList<String>());
+        safeGet(sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(node.getId());
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+        }));
+        assertThat(sent, equalTo(List.of("node-1", "node-2", "node-3", "node-4")));
+    }
+
+    public void testQueryHotShardsFirstWhenIlmMovesShard() {
+        var warmNode2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build();
+        var targetShards = shuffledList(
+            List.of(targetShard(shard1, node1), targetShard(shard2, shuffledList(List.of(node2, warmNode2)).toArray(DiscoveryNode[]::new)))
+        );
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        safeGet(sendRequests(randomBoolean(), -1, targetShards, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+        }));
+        assertThat(groupRequests(sent, 1), equalTo(Map.of(node1, List.of(shard1))));
+        assertThat(groupRequests(sent, 1), anyOf(equalTo(Map.of(node2, List.of(shard2))), equalTo(Map.of(warmNode2, List.of(shard2)))));
+    }
+
     public void testRetryMovedShard() {
         var attempt = new AtomicInteger(0);
         var response = safeGet(
@@ -553,8 +590,12 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Sender sender
     ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
-        TransportService transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
+        TransportService transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
         CancellableTask task = new CancellableTask(
             randomNonNegativeLong(),
             "type",

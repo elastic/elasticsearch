@@ -13,9 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -24,10 +27,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
@@ -44,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -110,7 +116,13 @@ public final class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
-        SourceLoader sourceLoader = context.newSourceLoader(null);
+        // Optionally remove sparse and dense vector fields early to:
+        // - Reduce the in-memory size of the source
+        // - Speed up retrieval of the synthetic source
+        // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
+        // but they are typically accessed through doc values instead (e.g: re-scorer).
+        SourceFilter sourceFilter = maybeExcludeNonSemanticTextVectorFields(context);
+        SourceLoader sourceLoader = context.newSourceLoader(sourceFilter);
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
@@ -420,5 +432,71 @@ public final class FetchPhase {
                 return "noop";
             }
         };
+    }
+
+    /**
+     * Determines whether vector fields should be excluded from the source based on the {@link FetchSourceContext}.
+     * Returns {@code true} if vector fields are explicitly marked to be excluded and {@code false} otherwise.
+     */
+    private static boolean shouldExcludeVectorsFromSource(SearchContext context) {
+        if (context.fetchSourceContext() == null) {
+            return false;
+        }
+        return context.fetchSourceContext().excludeVectors() != null && context.fetchSourceContext().excludeVectors();
+    }
+
+    /**
+     * Returns a {@link SourceFilter} that excludes vector fields not associated with semantic text fields,
+     * unless vectors are explicitly requested to be included in the source.
+     * Returns {@code null} when vectors should not be filtered out.
+     */
+    private static SourceFilter maybeExcludeNonSemanticTextVectorFields(SearchContext context) {
+        if (shouldExcludeVectorsFromSource(context) == false) {
+            return null;
+        }
+        var lookup = context.getSearchExecutionContext().getMappingLookup();
+        var fetchFieldsAut = context.fetchFieldsContext() != null && context.fetchFieldsContext().fields().size() > 0
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(context.fetchFieldsContext().fields().stream().map(f -> f.field).toArray(String[]::new))
+            )
+            : null;
+        var inferenceFieldsAut = lookup.inferenceFields().size() > 0
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(lookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
+            )
+            : null;
+
+        List<String> lateExcludes = new ArrayList<>();
+        var excludes = lookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+            // Exclude the field specified by the `fields` option
+            if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
+                lateExcludes.add(f.name());
+                return false;
+            }
+            // Exclude vectors from semantic text fields, as they are processed separately
+            return inferenceFieldsAut == null || inferenceFieldsAut.run(f.name()) == false;
+        }).map(f -> f.name()).collect(Collectors.toList());
+
+        if (lateExcludes.size() > 0) {
+            /**
+             * Adds the vector field specified by the `fields` option to the excludes list of the fetch source context.
+             * This ensures that vector fields are available to sub-fetch phases, but excluded during the {@link FetchSourcePhase}.
+             */
+            if (context.fetchSourceContext() != null && context.fetchSourceContext().excludes() != null) {
+                for (var exclude : context.fetchSourceContext().excludes()) {
+                    lateExcludes.add(exclude);
+                }
+            }
+            var fetchSourceContext = context.fetchSourceContext() == null
+                ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
+                : FetchSourceContext.of(
+                    context.fetchSourceContext().fetchSource(),
+                    context.fetchSourceContext().excludeVectors(),
+                    context.fetchSourceContext().includes(),
+                    lateExcludes.toArray(String[]::new)
+                );
+            context.fetchSourceContext(fetchSourceContext);
+        }
+        return excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
     }
 }

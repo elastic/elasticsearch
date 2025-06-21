@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.chunking;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -44,6 +44,22 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             testListener()
         );
         assertThat(batches, empty());
+    }
+
+    public void testEmptyInput_NoopChunker() {
+        var batches = new EmbeddingRequestChunker<>(List.of(), 10, NoneChunkingSettings.INSTANCE).batchRequestsWithListeners(
+            testListener()
+        );
+        assertThat(batches, empty());
+    }
+
+    public void testAnyInput_NoopChunker() {
+        var randomInput = randomAlphaOfLengthBetween(100, 1000);
+        var batches = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput(randomInput)), 10, NoneChunkingSettings.INSTANCE)
+            .batchRequestsWithListeners(testListener());
+        assertThat(batches, hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get(), hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get().get(0), Matchers.is(randomInput));
     }
 
     public void testWhitespaceInput_SentenceChunker() {

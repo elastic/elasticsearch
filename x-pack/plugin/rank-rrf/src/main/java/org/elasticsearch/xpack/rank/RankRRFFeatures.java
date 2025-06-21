@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.rank;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 import org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder;
 
 import java.util.Set;
 
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.INNER_RETRIEVERS_FILTER_SUPPORT;
+import static org.elasticsearch.xpack.rank.linear.L2ScoreNormalizer.LINEAR_RETRIEVER_L2_NORM;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.LINEAR_RETRIEVER_MINSCORE_FIX;
 import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX;
 import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.RRF_RETRIEVER_COMPOSITION_SUPPORTED;
 
@@ -31,6 +34,12 @@ public class RankRRFFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT, LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX);
+        return Set.of(
+            INNER_RETRIEVERS_FILTER_SUPPORT,
+            LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX,
+            LINEAR_RETRIEVER_L2_NORM,
+            LINEAR_RETRIEVER_MINSCORE_FIX,
+            LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT
+        );
     }
 }

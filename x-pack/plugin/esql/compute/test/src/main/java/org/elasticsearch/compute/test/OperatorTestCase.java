@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -188,13 +189,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         while (source.hasNext()) {
             List<Page> in = source.next();
             try (
-                Driver d = new Driver(
-                    "test",
+                Driver d = TestDriverFactory.create(
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
-                    new PageConsumerOperator(result::add),
-                    () -> {}
+                    new PageConsumerOperator(result::add)
                 )
             ) {
                 runDriver(d);
@@ -249,9 +248,20 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
             for (Page page : input) {
-                operator.addInput(page);
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
             }
             operator.finish();
+            // for async operator, we need to wait for async actions to finish.
+            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+            }
         }
     }
 
@@ -263,13 +273,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         boolean success = false;
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -291,22 +299,15 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         int dummyDrivers = between(0, 10);
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
-                new Driver(
-                    "test",
-                    "dummy-session",
-                    0,
-                    0,
+                TestDriverFactory.create(
                     new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
-                    () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
                         between(1, 100)
                     ),
                     List.of(),
-                    new PageConsumerOperator(page -> page.releaseBlocks()),
-                    Driver.DEFAULT_STATUS_INTERVAL,
-                    () -> {}
+                    new PageConsumerOperator(Page::releaseBlocks)
                 )
             );
         }

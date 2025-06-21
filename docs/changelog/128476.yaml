@@ -1,0 +1,5 @@
+pr: 128476
+summary: Support multiple inlinestats commands
+area: ES|QL
+type: bug
+issues: []

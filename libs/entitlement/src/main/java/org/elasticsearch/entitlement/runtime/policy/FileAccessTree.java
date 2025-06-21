@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
@@ -25,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -219,7 +219,7 @@ public final class FileAccessTree {
     FileAccessTree(
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
-        Path componentPath,
+        Collection<Path> componentPaths,
         String[] sortedExclusivePaths,
         FileAccessTreeComparison comparison
     ) {
@@ -267,9 +267,7 @@ public final class FileAccessTree {
         pathLookup.getBaseDirPaths(TEMP).forEach(tempPath -> addPathAndMaybeLink.accept(tempPath, READ_WRITE));
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
         pathLookup.getBaseDirPaths(CONFIG).forEach(configPath -> addPathAndMaybeLink.accept(configPath, Mode.READ));
-        if (componentPath != null) {
-            addPathAndMaybeLink.accept(componentPath, Mode.READ);
-        }
+        componentPaths.forEach(p -> addPathAndMaybeLink.accept(p, Mode.READ));
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));
@@ -314,13 +312,13 @@ public final class FileAccessTree {
         String moduleName,
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
-        @Nullable Path componentPath,
+        Collection<Path> componentPaths,
         List<ExclusivePath> exclusivePaths
     ) {
         return new FileAccessTree(
             filesEntitlement,
             pathLookup,
-            componentPath,
+            componentPaths,
             buildUpdatedAndSortedExclusivePaths(componentName, moduleName, exclusivePaths, DEFAULT_COMPARISON),
             DEFAULT_COMPARISON
         );
@@ -332,9 +330,9 @@ public final class FileAccessTree {
     public static FileAccessTree withoutExclusivePaths(
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
-        @Nullable Path componentPath
+        Collection<Path> componentPaths
     ) {
-        return new FileAccessTree(filesEntitlement, pathLookup, componentPath, new String[0], DEFAULT_COMPARISON);
+        return new FileAccessTree(filesEntitlement, pathLookup, componentPaths, new String[0], DEFAULT_COMPARISON);
     }
 
     public boolean canRead(Path path) {

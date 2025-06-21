@@ -1,0 +1,81 @@
+[[release-notes-8.18.3]]
+== {es} version 8.18.3
+
+coming[8.18.3]
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[[bug-8.18.3]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Fix significant terms not finding background docuemnts for nested fields {es-pull}128472[#128472] (issue: {es-issue}101163[#101163])
+
+Authorization::
+* Prevent invalid privileges in manage roles privilege {es-pull}128532[#128532] (issue: {es-issue}127496[#127496])
+
+CCS::
+* Handle the indices pattern `["*", "-*"]` when grouping indices by cluster name {es-pull}128610[#128610]
+
+Codec::
+* Use new source loader when lower `docId` is accessed {es-pull}128320[#128320]
+
+Data streams::
+* [apm-data] fix(8.18): update resource version {es-pull}129547[#129547]
+
+ES|QL::
+* Fix `FieldAttribute` name usage in `InferNonNullAggConstraint` {es-pull}128910[#128910]
+* Support DATE_NANOS in LOOKUP JOIN {es-pull}127962[#127962] (issue: {es-issue}127249[#127249])
+* Throw ISE instead of IAE for illegal block in page {es-pull}128960[#128960]
+
+Geo::
+* Added geometry validation for GEO types to exit early on invalid latitudes {es-pull}128259[#128259] (issue: {es-issue}128234[#128234])
+
+IdentityProvider::
+* Improve cache invalidation in IdP SP cache {es-pull}128890[#128890]
+
+Infra/Core::
+* Update AbstractXContentParser to support parsers that don't provide text characters {es-pull}129005[#129005]
+
+Infra/Plugins::
+* Add complete attribute to .fleet-agents docs {es-pull}127651[#127651]
+
+Machine Learning::
+* Account for Java direct memory on machine learning nodes to prevent out-of-memory crashes. {es-pull}128742[#128742]
+* Ensure that anomaly detection job state update retries if master node is temoporarily unavailable {es-pull}129391[#129391] (issue: {es-issue}126148[#126148])
+* Fix NPE when `date_buckets` aggregation is missing in the response {es-pull}128974[#128974]
+* Pass timeout to chat completion {es-pull}128338[#128338]
+* Prevent ML data retention logic from failing when deleting documents in read-only indices {es-pull}125408[#125408]
+
+Search::
+* Fix minmax normalizer handling of single-doc result sets {es-pull}128689[#128689]
+* Fix missing highlighting in `match_all` queries for `semantic_text` fields {es-pull}128702[#128702]
+
+Searchable Snapshots::
+* Adjust unpromotable shard refresh request validation to allow `RefreshResult.NO_REFRESH` {es-pull}129176[#129176] (issue: {es-issue}129036[#129036])
+
+Security::
+* Fix error message when changing the password for a user in the file realm {es-pull}127621[#127621]
+
+Vector Search::
+* Fix NPE in `flat_bbq` scorer when all vectors are missing {es-pull}129548[#129548]
+
+[[enhancement-8.18.3]]
+[float]
+=== Enhancements
+
+Authorization::
+* Fix unsupported privileges error message during role and API key creation {es-pull}129158[#129158] (issue: {es-issue}128132[#128132])
+
+ES|QL::
+* Support partial sort fields in TopN pushdown {es-pull}116043[#116043] (issue: {es-issue}114515[#114515])
+
+[[upgrade-8.18.3]]
+[float]
+=== Upgrades
+
+Packaging::
+* Update default docker base image to Ubuntu 24.04 {es-pull}128732[#128732]
+
+

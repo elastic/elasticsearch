@@ -131,6 +131,12 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return lazyTypeResolution;
     }
 
+    private static final Map<DataType, EvaluatorFunction> SUPPORTED_EVALUATORS = Map.of(
+        DataType.INTEGER, new IntegerEvaluator(),
+        DataType.DOUBLE, new DoubleEvaluator()
+        // Add other supported types here
+    );
+
     /**
      * The implementation of {@link #typeResolved}, which is just a caching wrapper
      * around this method. See it's javadoc for what this method should return.
@@ -142,9 +148,13 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      *     Implementations should fail if {@link #childrenResolved()} returns {@code false}.
      * </p>
      */
-    protected TypeResolution resolveType() {
-        return TypeResolution.TYPE_RESOLVED;
-    }
+    public DataType resolveType(List<DataType> inputTypes) {
+        DataType firstType = inputTypes.get(0);
+        if (!SUPPORTED_EVALUATORS.containsKey(firstType)) {
+            throw new IllegalArgumentException("Unsupported data type: " + firstType);
+        }
+        return firstType;
+    }    
 
     public final Expression canonical() {
         if (lazyCanonical == null) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
+import org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder;
 
 import java.util.Set;
 
@@ -34,7 +35,8 @@ public class RankRRFFeatures implements FeatureSpecification {
             LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX,
             LINEAR_RETRIEVER_L2_NORM,
             LINEAR_RETRIEVER_MINSCORE_FIX,
-            LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT
+            LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
+            RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT
         );
     }
 }

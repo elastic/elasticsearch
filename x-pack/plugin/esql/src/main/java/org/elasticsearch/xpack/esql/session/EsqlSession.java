@@ -105,6 +105,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
@@ -422,6 +423,7 @@ public class EsqlSession {
         }
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     private void preAnalyzeMainIndices(
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
@@ -461,11 +463,25 @@ public class EsqlSession {
                     result.fieldNames,
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
-                        if (configuration.allowPartialResults() == false && indexResolution.getUnavailableShards().isEmpty() == false) {
-                            l.onFailure(indexResolution.getUnavailableShards().iterator().next());
-                        } else {
-                            l.onResponse(result.withIndexResolution(indexResolution));
+                        if (configuration.allowPartialResults() == false) {
+                            if (indexResolution.getUnavailableShards().isEmpty() == false) {
+                                l.onFailure(indexResolution.getUnavailableShards().iterator().next());
+                                return;
+                            }
+                            if (indexResolution.getUnavailableIndices().isEmpty() == false) {
+                                l.onFailure(
+                                    new VerificationException(
+                                        "Unknown index {}",
+                                        indexResolution.getUnavailableIndices()
+                                            .stream()
+                                            .map(it -> it.getIndex().getName())
+                                            .collect(joining(", ", "[", "]"))
+                                    )
+                                );
+                                return;
+                            }
                         }
+                        l.onResponse(result.withIndexResolution(indexResolution));
                     })
                 );
             }

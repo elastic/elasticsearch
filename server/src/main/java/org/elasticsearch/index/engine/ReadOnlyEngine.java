@@ -501,6 +501,12 @@ public class ReadOnlyEngine extends Engine {
     public void deactivateThrottling() {}
 
     @Override
+    public void suspendThrottling() {}
+
+    @Override
+    public void resumeThrottling() {}
+
+    @Override
     public void trimUnreferencedTranslogFiles() {}
 
     @Override

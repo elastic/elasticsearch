@@ -2,7 +2,7 @@
 
 ## `MULTI_MATCH` [esql-multi_match]
 ```{applies_to}
-stack: preview 9.0.0
+stack: coming 9.1.0
 serverless: preview
 ```
 

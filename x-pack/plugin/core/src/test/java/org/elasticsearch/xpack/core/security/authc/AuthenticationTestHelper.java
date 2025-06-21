@@ -244,6 +244,48 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static Authentication randomCloudApiKeyAuthentication() {
+        return randomCloudApiKeyAuthentication(null, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(String apiKeyId) {
+        return randomCloudApiKeyAuthentication(null, apiKeyId);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user) {
+        return randomCloudApiKeyAuthentication(user, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId) {
+        if (apiKeyId == null) {
+            apiKeyId = user != null ? user.principal() : ESTestCase.randomAlphanumericOfLength(64);
+        }
+        final Map<String, Object> metadata = ESTestCase.randomBoolean()
+            ? null
+            : Map.ofEntries(
+                Map.entry(AuthenticationField.API_KEY_NAME_KEY, ESTestCase.randomAlphanumericOfLength(64)),
+                Map.entry(AuthenticationField.API_KEY_INTERNAL_KEY, ESTestCase.randomBoolean())
+            );
+        if (user == null) {
+            user = new User(
+                apiKeyId,
+                ESTestCase.randomArray(1, 3, String[]::new, () -> "role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+                null,
+                null,
+                metadata,
+                true
+            );
+        }
+
+        assert user.principal().equals(apiKeyId) : "user principal must match cloud API key ID";
+
+        return Authentication.newCloudApiKeyAuthentication(
+            AuthenticationResult.success(user, metadata),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8)
+        );
+
+    }
+
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {

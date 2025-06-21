@@ -61,11 +61,3 @@ org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, j
 
 @defaultMessage Use WriteLoadForecaster#getForecastedWriteLoad instead
 org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()
-
-# This is a temporary patch as there is a low level Lucene bug in certain scenarios
-# this should be fixed in the new Lucene release 10.3+
-org.apache.lucene.document.LongField#newExactQuery(java.lang.String, long) @ Use org.elasticsearch.lucene.document.NumericField#newExactLongQuery(java.lang.String, long) instead.
-org.apache.lucene.document.LongField#newRangeQuery(java.lang.String, long, long) @ Use org.elasticsearch.lucene.document.NumericField#newRangeLongQuery(java.lang.String, long, long) instead.
-org.apache.lucene.document.IntField#newExactQuery(java.lang.String, int) @ Use org.elasticsearch.lucene.document.NumericField#newExactIntQuery(java.lang.String, int) instead.
-org.apache.lucene.document.IntField#newRangeQuery(java.lang.String, int, int) @ Use org.elasticsearch.lucene.document.NumericField#newRangeIntQuery(java.lang.String, int, int) instead.
-org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery @ use org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery instead.

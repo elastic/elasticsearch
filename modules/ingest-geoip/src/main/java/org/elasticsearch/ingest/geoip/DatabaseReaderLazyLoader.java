@@ -107,8 +107,18 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
 
     @Override
     @Nullable
-    @FixForMultiProject // do not use ProjectId.DEFAULT
+    @Deprecated // use getTypedResponse instead
     public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+        throw new UnsupportedOperationException(); // TODO(pete): Write some words of wisdom in an exception message
+    }
+
+    @Override
+    @Nullable
+    @FixForMultiProject // do not use ProjectId.DEFAULT
+    public <RESPONSE extends Response> RESPONSE getTypedResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    ) {
         return cache.putIfAbsent(ProjectId.DEFAULT, ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);

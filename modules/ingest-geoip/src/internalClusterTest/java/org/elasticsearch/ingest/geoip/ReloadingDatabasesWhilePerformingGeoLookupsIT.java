@@ -195,7 +195,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
 
     private static DatabaseNodeService createRegistry(Path geoIpConfigDir, Path geoIpTmpDir, ClusterService clusterService)
         throws IOException {
-        GeoIpCache cache = new GeoIpCache(0);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(0);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
         DatabaseNodeService databaseNodeService = new DatabaseNodeService(
@@ -213,10 +213,10 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     private static void lazyLoadReaders(DatabaseNodeService databaseNodeService) throws IOException {
         if (databaseNodeService.get("GeoLite2-City.mmdb") != null) {
             databaseNodeService.get("GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get("GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
+            databaseNodeService.get("GeoLite2-City.mmdb").getTypedResponse("2.125.160.216", GeoIpTestUtils::getCity);
         }
         databaseNodeService.get("GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
+        databaseNodeService.get("GeoLite2-City-Test.mmdb").getTypedResponse("2.125.160.216", GeoIpTestUtils::getCity);
     }
 
 }

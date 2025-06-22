@@ -3,3 +3,12 @@ summary: "[8.19] Upgrade to lucene 9.12.2"
 area: Search
 type: upgrade
 issues: []
+highlight:
+  title: Upgrade to lucene 9.12.2
+  body: |-
+    * Reduce NeighborArray on-heap memory during HNSW graph building
+    * Fix IndexSortSortedNumericDocValuesRangeQuery for integer sorting
+    * ValueSource.fromDoubleValuesSource(dvs).getSortField() would throw errors when used if the DoubleValuesSource needed scores
+    * Disable connectedComponents logic in HNSW graph building.
+    ----
+notable: true

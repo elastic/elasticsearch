@@ -317,7 +317,7 @@ FROM logs
 2023-10-23T13:55:01.546Z|          java|More java stuff                    |null
 ;
 
-toIpInAgg
+toIpInAgg#[skip:-8.12.99,reason:StatsNestedExp introduced in v8.13.0]
 ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
 ;
 
@@ -325,7 +325,7 @@ COUNT(*):long | ip:ip
             1 | 1.1.1.1
 ;
 
-toIpInSort
+toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
 ROW s = "1.1.1.1" | SORT TO_IP(s)
 ;
 

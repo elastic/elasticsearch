@@ -11,4 +11,4 @@ highlight:
     * ValueSource.fromDoubleValuesSource(dvs).getSortField() would throw errors when used if the DoubleValuesSource needed scores
     * Disable connectedComponents logic in HNSW graph building.
     ----
-notable: true
+  notable: true

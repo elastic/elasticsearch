@@ -150,18 +150,21 @@ fromCommand
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
-    | indexString (CAST_OP selectorString)?
+    : clusterString COLON unquotedIndexString
+    | unquotedIndexString CAST_OP selectorString
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
     ;
 
 selectorString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -379,8 +382,21 @@ joinPredicate
     : valueExpression
     ;
 
+inferenceCommandOptions
+    : inferenceCommandOption (COMMA inferenceCommandOption)*
+    ;
+
+inferenceCommandOption
+    : identifier ASSIGN inferenceCommandOptionValue
+    ;
+
+inferenceCommandOptionValue
+    : constant
+    | identifier
+    ;
+
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceId=identifierOrParameter)?
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
     ;
 
 completionCommand

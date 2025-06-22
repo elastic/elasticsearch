@@ -1,0 +1,45 @@
+// Tests focused on the SAMPLE aggregation function
+// Note: this tests only basic behavior, because of the non-deterministic
+// behavior of SAMPLE and limitations of the CSV tests.
+
+sample size
+required_capability: agg_sample
+
+FROM employees 
+| STATS sample_boolean  = SAMPLE(still_hired,    1),
+        sample_datetime = SAMPLE(hire_date,      2),
+        sample_double   = SAMPLE(height,         3),
+        sample_integer  = SAMPLE(emp_no,         4),
+        sample_keyword  = SAMPLE(first_name,     5),
+        sample_long     = SAMPLE(languages.long, 6)
+| EVAL  count_boolean   = MV_COUNT(sample_boolean),
+        count_datetime  = MV_COUNT(sample_datetime),
+        count_double    = MV_COUNT(sample_double),
+        count_integer   = MV_COUNT(sample_integer),
+        count_keyword   = MV_COUNT(sample_keyword),
+        count_long      = MV_COUNT(sample_long)
+| KEEP count_*
+;
+        
+count_boolean:integer | count_datetime:integer | count_double:integer | count_integer:integer | count_keyword:integer | count_long:integer
+1                     | 2                      | 3                    | 4                     | 5                     | 6
+;
+
+
+sample values (boolean, datetime, double, integer, keyword, long)
+required_capability: agg_sample
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| STATS sample_boolean  = MV_SORT(SAMPLE(still_hired,    99)),
+        sample_datetime = MV_SORT(SAMPLE(hire_date,      99)),
+        sample_double   = MV_SORT(SAMPLE(height,         99)),
+        sample_integer  = MV_SORT(SAMPLE(emp_no,         99)),
+        sample_keyword  = MV_SORT(SAMPLE(first_name,     99)),
+        sample_long     = MV_SORT(SAMPLE(languages.long, 99))
+;
+        
+sample_boolean:boolean | sample_datetime:datetime                                                       | sample_double:double | sample_integer:integer | sample_keyword:keyword   | sample_long:long
+[false, true, true]    | [1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z, 1986-08-28T00:00:00.000Z] | [1.83, 2.03, 2.08]   | [10001, 10002, 10003]  | [Bezalel, Georgi, Parto] | [2, 4, 5] 
+;

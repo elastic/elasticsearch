@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
@@ -55,8 +57,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -241,6 +246,7 @@ public class EsqlFunctionRegistry {
     public EsqlFunctionRegistry() {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
+        nameSurrogates();
     }
 
     EsqlFunctionRegistry(FunctionDefinition... functions) {
@@ -297,6 +303,7 @@ public class EsqlFunctionRegistry {
                 def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
                 def(Min.class, uni(Min::new), "min"),
                 def(Percentile.class, bi(Percentile::new), "percentile"),
+                def(Sample.class, bi(Sample::new), "sample"),
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
                 def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
@@ -413,7 +420,7 @@ public class EsqlFunctionRegistry {
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
-                def(ToIP.class, ToIP::new, "to_ip"),
+                def(ToIp.class, ToIp::new, "to_ip"),
                 def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
                 def(ToLong.class, ToLong::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
@@ -806,6 +813,15 @@ public class EsqlFunctionRegistry {
                 );
             }
         }
+    }
+
+    /**
+     * Add {@link #names} entries for functions that are not registered, but we rewrite to using {@link SurrogateExpression}.
+     */
+    private void nameSurrogates() {
+        names.put(ToIpLeadingZerosRejected.class, "TO_IP");
+        names.put(ToIpLeadingZerosDecimal.class, "TO_IP");
+        names.put(ToIpLeadingZerosOctal.class, "TO_IP");
     }
 
     protected interface FunctionBuilder {

@@ -6,23 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 
 public class WildcardQuery extends Query {
 
@@ -54,34 +44,9 @@ public class WildcardQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        /*
-         * Builds WildcardQueryBuilder with simple text matching semantics for
-         * all fields, including the `_index` field which insists on implementing
-         * some fairly unexpected matching rules.
-         *
-         * Note that
-         */
-        return new WildcardQueryBuilder(field, query) {
-            @Override
-            protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-                MappedFieldType fieldType = context.getFieldType(fieldName());
-                MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite(), null, LoggingDeprecationHandler.INSTANCE);
-                LogManager.getLogger(WildcardQuery.class).error("ADSFA special query {}", fieldType);
-                if (fieldType instanceof IndexFieldMapper.IndexFieldType) {
-                    String value = value();
-                    String indexName = context.getFullyQualifiedIndex().getName();
-                    if (WildcardQuery.this.caseInsensitive) {
-                        value = value.toLowerCase(Locale.ROOT);
-                        indexName = indexName.toLowerCase(Locale.ROOT);
-                    }
-                    if (Regex.simpleMatch(value, indexName)) {
-                        return new MatchAllDocsQuery();
-                    }
-                    return new MatchNoDocsQuery();
-                }
-                return fieldType.wildcardQuery(value(), method, WildcardQuery.this.caseInsensitive, context);
-            }
-        };
+        WildcardQueryBuilder wb = wildcardQuery(field, query);
+        // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
+        return caseInsensitive == false ? wb : wb.caseInsensitive(caseInsensitive);
     }
 
     @Override

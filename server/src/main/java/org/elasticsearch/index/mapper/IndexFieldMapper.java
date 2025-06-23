@@ -10,9 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -27,6 +29,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class IndexFieldMapper extends MetadataFieldMapper {
 
@@ -100,6 +103,19 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                     return StoredFieldsSpec.NO_REQUIREMENTS;
                 }
             };
+        }
+
+        @Override
+        public Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            if (caseInsensitive) {
+                value = value.toLowerCase(Locale.ROOT);
+                indexName = indexName.toLowerCase(Locale.ROOT);
+            }
+            if (Regex.simpleMatch(value, indexName)) {
+                return new MatchAllDocsQuery();
+            }
+            return new MatchNoDocsQuery();
         }
 
     }

@@ -1,4 +1,8 @@
 ### Match operator (`:`) [esql-match-operator]
+```{applies_to}
+stack: preview 9.0.0
+serverless: preview
+```
 
 The only search operator is match (`:`).
 

@@ -105,17 +105,15 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0") },
+        // @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
-            @Example(file = "qstr-function", tag = "qstr-with-options") },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
-            ) }
+            @Example(file = "qstr-function", tag = "qstr-with-options", applies_to = "stack: ga 9.1.0") }
     )
+
     public QueryString(
         Source source,
         @Param(

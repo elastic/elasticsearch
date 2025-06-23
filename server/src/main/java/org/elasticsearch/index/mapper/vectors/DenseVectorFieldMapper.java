@@ -1673,11 +1673,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
+
+            @Override
+            public boolean isEnabled() {
+                return IVF_FORMAT.isEnabled();
+            }
         };
 
         public static Optional<VectorIndexType> fromString(String type) {
             return Stream.of(VectorIndexType.values())
-                .filter(vectorIndexType -> vectorIndexType != VectorIndexType.BBQ_IVF || IVF_FORMAT.isEnabled())
+                .filter(VectorIndexType::isEnabled)
                 .filter(vectorIndexType -> vectorIndexType.name.equals(type))
                 .findFirst();
         }
@@ -1702,6 +1707,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean isQuantized() {
             return quantized;
+        }
+
+        public boolean isEnabled() {
+            return true;
         }
 
         public String getName() {

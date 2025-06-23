@@ -41,7 +41,7 @@ After switching to {esql} mode, the query bar shows your previous KQL or Lucene 
 
 [source,esql]
 ----
-from kibana_sample_data_logs | limit 10
+FROM kibana_sample_data_logs | LIMIT 10
 ----
 
 Every query starts with a <<esql-commands,source command>>. In this query, the
@@ -223,6 +223,32 @@ minutes of data:
 FROM kibana_sample_data_logs
 | WHERE timestamp > NOW() - 15minutes
 ----
+
+
+==== Keyboard shortcuts
+
+The ES|QL editor supports several shortcuts to help you write and run your queries faster:
+
+|===
+| Mac | Windows/Linux | Description
+
+| `Cmd + Enter`
+| `Ctrl + Enter`
+| Run a query
+
+| `Cmd + /`
+| `Ctrl + /`
+| Comment or uncomment a line
+|===
+
+TIP: You can find the list of shortcuts directly from the editor. Look for the image:images/keyboard.svg[title=keyboard,width="2%"] icon.
+
+[float]
+=== LOOKUP JOINs
+
+The ES|QL editor supports {ref}/esql-commands.html#esql-lookup-join[`LOOKUP JOIN`] commands and suggests lookup mode indices and join condition fields.
+
+image::https://images.contentstack.io/v3/assets/bltefdd0b53724fa2ce/blte43a30a93241d650/67c23670045f5839e5bfd1e4/lookup-join-demo.gif[Using the LOOKUP JOIN command to autocomplete an ES|QL query]
 
 [discrete]
 [[esql-kibana-visualizations]]

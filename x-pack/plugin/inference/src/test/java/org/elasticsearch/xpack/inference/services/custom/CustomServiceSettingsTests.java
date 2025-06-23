@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -157,7 +158,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    11
+                    11,
+                    InputTypeTranslator.EMPTY_TRANSLATOR
                 )
             )
         );
@@ -580,6 +582,56 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         "text_embeddings": "$.result.embeddings[*].embedding"
                     }
                 },
+                "input_type": {
+                    "translation": {},
+                    "default": ""
+                },
+                "rate_limit": {
+                    "requests_per_minute": 10000
+                },
+                "batch_size": 10
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testXContent_WithInputTypeTranslationValues() throws IOException {
+        var entity = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            "http://www.abc.com",
+            Map.of("key", "value"),
+            null,
+            "string",
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            null,
+            null,
+            new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "url": "http://www.abc.com",
+                "headers": {
+                    "key": "value"
+                },
+                "request": "string",
+                "response": {
+                    "json_parser": {
+                        "text_embeddings": "$.result.embeddings[*].embedding"
+                    }
+                },
+                "input_type": {
+                    "translation": {
+                        "ingest": "do_ingest",
+                        "search": "do_search"
+                    },
+                    "default": "a_default"
+                },
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
@@ -599,7 +651,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
             null,
-            11
+            11,
+            InputTypeTranslator.EMPTY_TRANSLATOR
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -617,6 +670,10 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     "json_parser": {
                         "text_embeddings": "$.result.embeddings[*].embedding"
                     }
+                },
+                "input_type": {
+                    "translation": {},
+                    "default": ""
                 },
                 "rate_limit": {
                     "requests_per_minute": 10000

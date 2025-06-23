@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -68,7 +69,20 @@ public class FilterOperator extends AbstractPageMappingOperator {
             }
             positions = Arrays.copyOf(positions, rowCount);
 
-            return page.filter(positions);
+            Block[] filteredBlocks = new Block[page.getBlockCount()];
+            boolean success = false;
+            try {
+                for (int i = 0; i < page.getBlockCount(); i++) {
+                    filteredBlocks[i] = page.getBlock(i).filter(positions);
+                }
+                success = true;
+            } finally {
+                page.releaseBlocks();
+                if (success == false) {
+                    Releasables.closeExpectNoException(filteredBlocks);
+                }
+            }
+            return new Page(filteredBlocks);
         }
     }
 

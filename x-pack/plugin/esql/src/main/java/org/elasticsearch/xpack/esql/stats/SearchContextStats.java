@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -205,17 +206,19 @@ public class SearchContextStats implements SearchStats {
         }
         if (stat.min == null) {
             var min = new long[] { Long.MAX_VALUE };
+            Holder<Boolean> foundMinValue = new Holder<>(false);
             doWithContexts(r -> {
                 byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
                 if (minPackedValue != null) {
                     long minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
-                    if (minValue < min[0]) {
+                    if (minValue <= min[0]) {
                         min[0] = minValue;
+                        foundMinValue.set(true);
                     }
                 }
                 return true;
             }, true);
-            stat.min = min[0];
+            stat.min = foundMinValue.get() ? min[0] : null;
         }
         return stat.min;
     }
@@ -230,17 +233,19 @@ public class SearchContextStats implements SearchStats {
         }
         if (stat.max == null) {
             var max = new long[] { Long.MIN_VALUE };
+            Holder<Boolean> foundMaxValue = new Holder<>(false);
             doWithContexts(r -> {
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
                 if (maxPackedValue != null) {
                     long maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
-                    if (maxValue > max[0]) {
+                    if (maxValue >= max[0]) {
                         max[0] = maxValue;
+                        foundMaxValue.set(true);
                     }
                 }
                 return true;
             }, true);
-            stat.max = max[0];
+            stat.max = foundMaxValue.get() ? max[0] : null;
         }
         return stat.max;
     }

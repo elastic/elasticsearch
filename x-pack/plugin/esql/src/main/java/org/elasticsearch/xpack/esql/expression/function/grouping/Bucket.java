@@ -520,10 +520,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             var max = searchStats.max(fieldName);
             // If min/max is available create rounding with them
             if (min != null && max != null && buckets().foldable()) {
-                // System.out.println("field: " + fieldName + ", min string: " + dateWithTypeToString((Long) min, fieldType));
-                // System.out.println("field: " + fieldName + ", max string: " + dateWithTypeToString((Long) max, fieldType));
+                // System.out.println("field: " + fieldName + ", min: " + min + ", " + dateWithTypeToString((Long) min, fieldType));
+                // System.out.println("field: " + fieldName + ", max: " + max + ", " + dateWithTypeToString((Long) max, fieldType));
                 Rounding.Prepared rounding = getDateRounding(FoldContext.small(), (Long) min, (Long) max);
-                // createRounding(foldedInterval, DEFAULT_TZ, (Long) min, (Long) max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
                 // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
                 // System.out.println("roundingPoints = " + Arrays.toString(roundingPoints));

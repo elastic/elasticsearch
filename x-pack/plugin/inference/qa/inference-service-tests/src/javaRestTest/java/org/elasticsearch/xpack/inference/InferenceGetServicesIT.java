@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
@@ -107,6 +108,11 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithRerankTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.RERANK);
+        assertThat(services.size(), equalTo(10));
+
+        var providers = providers(services);
+
         assertThat(
             providersFor(TaskType.RERANK),
             containsInAnyOrder(
@@ -120,7 +126,9 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "test_reranking_service",
                     "voyageai",
                     "hugging_face",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "hugging_face",
+                    "elastic"
                 ).toArray()
             )
         );

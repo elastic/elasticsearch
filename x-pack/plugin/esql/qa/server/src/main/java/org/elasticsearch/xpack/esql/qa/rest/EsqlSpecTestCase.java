@@ -151,6 +151,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
+    @After
+    public void wipeInferenceEndpoints() throws IOException {
+        if (supportsAsync()) {
+            deleteInferenceEndpoints(adminClient());
+        }
+    }
+
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
@@ -161,9 +168,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-
-        deleteInferenceEndpoints(adminClient());
-
     }
 
     public boolean logResults() {
@@ -295,13 +299,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * not to emit duplicate warnings but for now it isn't worth fighting with. So! In
      * those environments we override this to deduplicate.
      * <p>
-     *     Note: This only applies to warnings declared as {@code warning:}. Those
-     *     declared as {@code warningRegex:} are always a list of
-     *     <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
-     *     warnings. There is no need to deduplicate because there's no expectation
-     *     of an exact match.
+     * Note: This only applies to warnings declared as {@code warning:}. Those
+     * declared as {@code warningRegex:} are always a list of
+     * <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
+     * warnings. There is no need to deduplicate because there's no expectation
+     * of an exact match.
      * </p>
-     *
      */
     protected boolean deduplicateExactWarnings() {
         return false;
@@ -339,7 +342,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     if (geometry instanceof Point point) {
                         return normalizedPoint(type, point.getX(), point.getY());
                     }
-                } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {
+                }
             }
         }
         if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {

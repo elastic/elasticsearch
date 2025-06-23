@@ -1688,7 +1688,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         pragmas = new QueryPragmas(
             Settings.builder().put(pragmas.getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
         );
-        try (var r = run("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color", pragmas)) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color");
+        request.pragmas(pragmas);
+        try (var r = run(request)) {
             var rows = getValuesList(r);
             assertThat(rows, hasSize(4));
             for (List<Object> row : rows) {

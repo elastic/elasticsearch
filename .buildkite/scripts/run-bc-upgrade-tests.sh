@@ -59,7 +59,7 @@ steps:
   - group: "bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH"
     steps:
       - label: "bc-upgrade-tests-part{{matrix.PART}}"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTestPart{{matrix.PART}} -Dtests.jvm.argline="-Des.serverless_transport=true"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTestPart{{matrix.PART}}
         timeout_in_minutes: 300
         agents:
           provider: gcp

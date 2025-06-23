@@ -132,7 +132,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     /**
      * Takes the parsed constituent strings and validates them.
      * @param clusterString Name of the remote cluster. Can be null.
-     * @param indexPattern Name of the index.
+     * @param indexPattern Name of the index or pattern; can also have multiple patterns in case of quoting, e.g. {@code FROM """index*,-index1"""}.
      * @param selectorString Selector string, i.e. "::data" or "::failures". Can be null.
      * @param ctx Index Pattern Context for generating error messages with offsets.
      * @param hasSeenStar If we've seen an asterisk so far.
@@ -189,7 +189,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     /**
      * Validates the constituent strings. Will extract the cluster string and/or selector string from the index
-     * name if clubbed together.
+     * name if clubbed together inside a quoted string.
      *
      * @param clusterString Name of the remote cluster. Can be null.
      * @param indexName Name of the index.

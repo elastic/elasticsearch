@@ -1681,7 +1681,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testGroupingStatsOnMissingFields() {
-        assertAcked(client().admin().indices().prepareCreate("test_missing_fields").setMapping("data", "type=long"));
+        assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
         long oneValue = between(1, 1000);
         indexDoc("missing_field_index", "1", "data", oneValue);
         refresh("missing_field_index");

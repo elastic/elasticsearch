@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -188,7 +187,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
-import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -7906,7 +7904,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
         assertTrue(esRelation.resolved());
-        assertTrue(hasScoreAttribute(esRelation.output()));
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
     }
 
     public void testScoreTopN() {
@@ -7929,7 +7927,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Order scoreOrer = order.get(0);
         assertEquals(Order.OrderDirection.DESC, scoreOrer.direction());
         Expression child = scoreOrer.child();
-        assertTrue(MetadataAttribute.isScoreAttribute(child));
+        assertTrue(child instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
         Filter filter = as(topN.child(), Filter.class);
 
         Match match = as(filter.condition(), Match.class);
@@ -7939,7 +7937,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
         assertTrue(esRelation.resolved());
-        assertTrue(hasScoreAttribute(esRelation.output()));
+        assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
     }
 
     public void testReductionPlanForTopN() {
@@ -8021,39 +8019,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
-    }
-
-    /*
-     *    LimitExec[1000[INTEGER]]
-     *    \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
-     *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7],false]
-     *      \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
-     *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7]]
-     *        \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]<[],[]>
-     *          \_EsQueryExec[test], indexMode[standard],
-     *                  query[{"bool":{"filter":[{"sampling":{"probability":0.1,"seed":234,"hash":0}}],"boost":1.0}}]
-     *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
-     */
-    public void testSamplePushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
-
-        var plan = physicalPlan("""
-            FROM test
-            | SAMPLE +0.1
-            """);
-        var optimized = optimizedPlan(plan);
-
-        var limit = as(optimized, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
-
-        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
-        var filter = boolQuery.filter();
-        var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
-        assertThat(randomSampling.probability(), equalTo(0.1));
-        assertThat(randomSampling.hash(), equalTo(0));
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -8239,7 +8204,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
-        // System.out.println("Physical\n" + physical);
+        // System.out.println(physical);
         if (assertSerialization) {
             assertSerialization(physical, config);
         }

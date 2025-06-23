@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,17 +73,43 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
 
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup2", 5);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup2", 5);
-        // FIXME: this currently does not work
         try (
             EsqlQueryResponse resp = runQuery(
                 "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key "
-                    + "| LOOKUP JOIN values_lookup2 ON lookup_tag",
+                    + "| LOOKUP JOIN values_lookup2 ON lookup_key",
                 randomBoolean()
             )
         ) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(20));
+        }
 
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key "
+                    + "| STATS c = count(*) BY lookup_name | SORT c",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            // 0-9 + null + 16
+            assertThat(values, hasSize(12));
+            for (var row : values) {
+                if (row.get(1) == null) {
+                    assertThat((Long) row.get(0), equalTo(5L)); // null
+                } else {
+                    assertThat((String) row.get(1), containsString("lookup_"));
+                    if (row.get(1).equals("lookup_0")
+                        || row.get(1).equals("lookup_1")
+                        || row.get(1).equals("lookup_4")
+                        || row.get(1).equals("lookup_9")) {
+                        // squares
+                        assertThat((Long) row.get(0), equalTo(2L));
+                    } else {
+                        assertThat((Long) row.get(0), equalTo(1L));
+                    }
+                }
+            }
         }
     }
 
@@ -292,6 +319,40 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         );
     }
 
+    public void testLookupJoinFieldTypes() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndexKeyword(REMOTE_CLUSTER_1, "values_lookup", 10);
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Cannot use field [lookup_key] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [cluster-a:values_lookup], [long] in [values_lookup]"
+            )
+        );
+
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_name = v::keyword | LOOKUP JOIN values_lookup ON lookup_name",
+                randomBoolean()
+            )
+        ) {
+            var columns = resp.columns();
+            assertThat(columns, hasSize(9));
+            var keyColumn = columns.stream().filter(c -> c.name().equals("lookup_key")).findFirst();
+            assertTrue(keyColumn.isPresent());
+            assertThat(keyColumn.get().type(), equalTo(DataType.UNSUPPORTED));
+            assertThat(keyColumn.get().originalTypes(), hasItems("keyword", "long"));
+        }
+
+    }
+
     protected Map<String, Object> setupClustersAndLookups() throws IOException {
         var setupData = setupClusters(2);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
@@ -311,6 +372,32 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 .setMapping(
                     "lookup_key",
                     "type=long",
+                    "lookup_name",
+                    "type=keyword",
+                    "lookup_tag",
+                    "type=keyword",
+                    field_tag,
+                    "type=keyword"
+                )
+        );
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    protected void populateLookupIndexKeyword(String clusterAlias, String indexName, int numDocs) {
+        Client client = client(clusterAlias);
+        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        String field_tag = Strings.isEmpty(clusterAlias) ? "local_tag" : "remote_tag";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.mode", "lookup"))
+                .setMapping(
+                    "lookup_key",
+                    "type=keyword",
                     "lookup_name",
                     "type=keyword",
                     "lookup_tag",

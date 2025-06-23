@@ -91,18 +91,20 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
+        String expectedResult = Strings.format(
+            """
+            {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
+            similarity,
+            dimensions,
+            maxInputTokens,
+            modelId,
+            rateLimitSettings.requestsPerTimeUnit()
+        );
+
         assertThat(
             xContentResult,
             is(
-                Strings.format(
-                    """
-                        {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
-                    similarity,
-                    dimensions,
-                    maxInputTokens,
-                    modelId,
-                    rateLimitSettings.requestsPerTimeUnit()
-                )
+                expectedResult
             )
         );
     }

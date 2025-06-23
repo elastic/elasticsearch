@@ -46,6 +46,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         TaskType.CHAT_COMPLETION,
         "embed/text/dense",
         TaskType.TEXT_EMBEDDING
+        "rerank/text/text-similarity",
+        TaskType.RERANK
     );
 
     @SuppressWarnings("unchecked")

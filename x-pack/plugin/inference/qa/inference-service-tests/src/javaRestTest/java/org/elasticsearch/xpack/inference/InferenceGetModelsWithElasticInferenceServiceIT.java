@@ -33,7 +33,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         var allModels = getAllModels();
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
 
-        assertThat(allModels, hasSize(6));
+        assertThat(allModels, hasSize(7));
         assertThat(chatCompletionModels, hasSize(1));
 
         for (var model : chatCompletionModels) {
@@ -43,6 +43,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ".elser-v2-elastic", TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, ".multilingual-embed-v1-elastic", TaskType.TEXT_EMBEDDING);
+        assertInferenceIdTaskType(allModels, ".rerank-v1-elastic", TaskType.RERANK);
     }
 
     private static void assertInferenceIdTaskType(List<Map<String, Object>> models, String inferenceId, TaskType taskType) {

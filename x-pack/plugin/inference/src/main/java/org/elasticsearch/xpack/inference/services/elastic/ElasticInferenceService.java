@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -111,6 +112,11 @@ public class ElasticInferenceService extends SenderService {
     // multilingual-text-embed
     static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
     static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+
+    // rerank-v1
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
+    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -195,16 +201,30 @@ public class ElasticInferenceService extends SenderService {
                         false,
                         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
                     ),
-                    EmptyTaskSettings.INSTANCE,
+                   EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
-                ),
-                MinimalServiceSettings.textEmbedding(
+                  ),
+              MinimalServiceSettings.textEmbedding(
                     NAME,
                     DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
                     defaultDenseTextEmbeddingsSimilarity(),
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
+              ),
+              
+            DEFAULT_RERANK_MODEL_ID_V1,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceRerankModel(
+                    DEFAULT_RERANK_ENDPOINT_ID_V1,
+                    TaskType.RERANK,
+                    NAME,
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1, null),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents
+                ),
+                MinimalServiceSettings.rerank(NAME)
             )
         );
     }

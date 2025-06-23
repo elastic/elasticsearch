@@ -202,6 +202,10 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         {
                           "model_name": "multilingual-embed-v1",
                           "task_types": ["embed/text/dense"]
+                        },
+                      {
+                          "model_name": "rerank-v1",
+                          "task_types": ["rerank/text/text-similarity"]
                         }
                     ]
                 }
@@ -235,6 +239,11 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                                     ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
                                     DenseVectorFieldMapper.ElementType.FLOAT
                                 ),
+                              service
+                              ),
+new InferenceService.DefaultConfigId(
+  ".rerank-v1-elastic",
+                                MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
                                 service
                             )
                         )
@@ -242,7 +251,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 );
                 assertThat(
                     service.supportedTaskTypes(),
-                    is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING))
+                    is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.TEXT_EMBEDDING))
                 );
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
@@ -253,6 +262,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                     listener.actionGet(TIMEOUT).get(2).getConfigurations().getInferenceEntityId(),
                     is(".multilingual-embed-v1-elastic")
                 );
+                assertThat(listener.actionGet(TIMEOUT).get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 // persists the default endpoints
@@ -270,6 +280,10 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         {
                           "model_name": "elser-v2",
                           "task_types": ["embed/text/sparse"]
+                        },
+                        {
+                          "model_name": "rerank-v1",
+                          "task_types": ["rerank/text/text-similarity"]
                         }
                     ]
                 }
@@ -298,12 +312,17 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                                     ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
                                     DenseVectorFieldMapper.ElementType.FLOAT
                                 ),
-                                service
+                              service
+                              ),
+                            new InferenceService.DefaultConfigId(
+                                ".rerank-v1-elastic",
+                                MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
+                              service
                             )
                         )
                     )
                 );
-                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.RERANK)));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);

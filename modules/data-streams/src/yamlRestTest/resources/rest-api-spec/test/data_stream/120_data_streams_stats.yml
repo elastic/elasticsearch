@@ -186,6 +186,7 @@ setup:
         refresh: true
 
   # Wait for the shards to be allocated to avoid missing results in the stats request
+  # See https://github.com/elastic/elasticsearch/issues/118217#issuecomment-2996315057 for more context
   - do:
       cluster.health:
         index: simple-data-stream1,simple-data-stream2

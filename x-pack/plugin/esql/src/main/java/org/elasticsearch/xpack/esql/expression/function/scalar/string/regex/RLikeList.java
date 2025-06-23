@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.query.AutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 public class RLikeList extends RegexMatch<RLikePatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -95,11 +97,17 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
     }
 
     private Query translateField(String targetFieldName) {
-        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()));
+        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, RLikeList::new, field(), pattern(), caseInsensitive());
+    }
+
+    private String getAutomatonDescription() {
+        // we use the information used to create the automaton to describe the query here
+        String patternDesc = pattern().patternList().stream().map(RLikePattern::pattern).collect(Collectors.joining("\", \""));
+        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }
 }

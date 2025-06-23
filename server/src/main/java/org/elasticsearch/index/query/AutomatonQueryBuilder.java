@@ -24,7 +24,7 @@ import java.util.Objects;
 
 /**
  * Implements an Automaton query, which matches documents based on a Lucene Automaton.
- * It does not support serialization or XContent representation,
+ * It does not support serialization or XContent representation.
  */
 public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBuilder> implements MultiTermQueryBuilder {
     private final String fieldName;
@@ -32,7 +32,6 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
     private final String description;
 
     public AutomatonQueryBuilder(String fieldName, Automaton automaton, String description) {
-        this.description = description;
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
@@ -41,6 +40,7 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
         }
         this.fieldName = fieldName;
         this.automaton = automaton;
+        this.description = description;
     }
 
     @Override
@@ -70,12 +70,14 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, automaton);
+        return Objects.hash(fieldName, automaton, description);
     }
 
     @Override
     protected boolean doEquals(AutomatonQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) && Objects.equals(automaton, other.automaton);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(automaton, other.automaton)
+            && Objects.equals(description, other.description);
     }
 
     @Override
@@ -93,10 +95,10 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
 
         @Override
         public String toString(String field) {
-            if (description.isEmpty()) {
-                return super.toString(field);
+            if (this.field.equals(field)) {
+                return description;
             }
-            return description;
+            return this.field + ":" + description;
         }
     }
 }

@@ -123,6 +123,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     private String getAutomatonDescription(String targetFieldName) {
         // we use all the information used the create the automaton to describe the query here
         String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
-        return "Automaton for " + targetFieldName + " LIKE (\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
+        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }
 }

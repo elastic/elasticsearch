@@ -92,7 +92,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             private float score() throws IOException {
                 final float qcDist = scorer.int4DotProduct(quantized);
-                ;
                 centroids.readFloats(centroidCorrectiveValues, 0, 3);
                 final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
                 return int4QuantizedScore(

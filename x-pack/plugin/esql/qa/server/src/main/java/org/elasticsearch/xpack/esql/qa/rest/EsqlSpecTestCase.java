@@ -342,8 +342,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     if (geometry instanceof Point point) {
                         return normalizedPoint(type, point.getX(), point.getY());
                     }
-                } catch (Throwable ignored) {
-                }
+                } catch (Throwable ignored) {}
             }
         }
         if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {

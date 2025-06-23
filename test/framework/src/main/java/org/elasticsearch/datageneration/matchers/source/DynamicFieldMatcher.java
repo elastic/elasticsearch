@@ -89,6 +89,11 @@ class DynamicFieldMatcher {
         return matchWithGenericMatcher(actual, expected);
     }
 
+    /**
+     * We make the normalisation of double values stricter than {@link SourceTransforms#normalizeValues} to facilitate the equality of the
+     * values within a margin of error. Synthetic source does support duplicate values and preserves the order, but it loses some accuracy,
+     * this is why the margin of error is very important. In the future, we can make {@link SourceTransforms#normalizeValues} also stricter.
+     */
     private static List<Float> normalizeDoubles(List<Object> values) {
         if (values == null) {
             return List.of();

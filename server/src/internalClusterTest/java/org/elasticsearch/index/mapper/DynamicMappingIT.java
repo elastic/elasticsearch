@@ -914,8 +914,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testDenseVectorDynamicMapping() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("""
             {
-            "dynamic": "true"
-            }""").get());
+                "dynamic": "true"
+            }
+            """).get());
 
         client().index(
             new IndexRequest("test").source("vector_int8", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD - 1, 0.0, 5.0).toArray())
@@ -932,6 +933,35 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertTrue(new WriteField("properties.vector_int8.index_options.type", () -> mappings).get(null).toString().equals("int8_hnsw"));
         assertTrue(new WriteField("properties.vector_bbq", () -> mappings).exists());
         assertTrue(new WriteField("properties.vector_bbq.index_options.type", () -> mappings).get(null).toString().equals("bbq_hnsw"));
+    }
 
+    public void testBBQDynamicMappingWhenFirstIngestingDoc() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("""
+            {
+                "properties": {
+                    "vector": {
+                        "type": "dense_vector"
+                    }
+                }
+            }
+            """).get());
+
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+            .get()
+            .mappings()
+            .get("test")
+            .sourceAsMap();
+        assertTrue(new WriteField("properties.vector", () -> mappings).exists());
+        assertFalse(new WriteField("properties.vector.index_options.type", () -> mappings).exists());
+
+        client().index(new IndexRequest("test").source("vector", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD, 0.0, 5.0).toArray()))
+            .get();
+        Map<String, Object> updatedMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+            .get()
+            .mappings()
+            .get("test")
+            .sourceAsMap();
+        assertTrue(new WriteField("properties.vector", () -> updatedMappings).exists());
+        assertTrue(new WriteField("properties.vector.index_options.type", () -> updatedMappings).get(null).toString().equals("bbq_hnsw"));
     }
 }

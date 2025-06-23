@@ -350,8 +350,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQHnsw) {
-            if (elementType.getValue() == ElementType.FLOAT && this.indexed.getValue()) {
-                if (defaultBBQHnsw && this.dims != null && this.dims.isConfigured() && this.dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+            if (this.dims != null && this.dims.isConfigured() && elementType.getValue() == ElementType.FLOAT && this.indexed.getValue()) {
+                if (defaultBBQHnsw && this.dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
                     return new BBQHnswIndexOptions(
                         Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                         Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
@@ -2713,8 +2713,29 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().elementType.parseDimensionCount(context);
-            if (fieldType().indexOptions != null) {
-                fieldType().indexOptions.validateDimension(dims);
+            IndexVersion indexVersionCreated = context.indexSettings().getIndexVersionCreated();
+            final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
+            final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+            DenseVectorIndexOptions denseVectorIndexOptions = fieldType().indexOptions;
+            if (denseVectorIndexOptions == null && fieldType().getElementType() == ElementType.FLOAT && fieldType().isIndexed()) {
+                if (defaultBBQ8Hnsw && dims >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+                    denseVectorIndexOptions = new BBQHnswIndexOptions(
+                        Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                        Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                        new RescoreVector(DEFAULT_OVERSAMPLE)
+                    );
+                } else if (defaultInt8Hnsw) {
+                    denseVectorIndexOptions = new Int8HnswIndexOptions(
+                        Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                        Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                        null,
+                        null
+                    );
+                }
+            }
+            ;
+            if (denseVectorIndexOptions != null) {
+                denseVectorIndexOptions.validateDimension(dims);
             }
             DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
                 fieldType().name(),
@@ -2723,7 +2744,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 dims,
                 fieldType().indexed,
                 fieldType().similarity,
-                fieldType().indexOptions,
+                denseVectorIndexOptions,
                 fieldType().meta(),
                 fieldType().isSyntheticSource
             );
@@ -2731,7 +2752,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 leafName(),
                 updatedDenseVectorFieldType,
                 builderParams,
-                indexOptions,
+                denseVectorIndexOptions,
                 indexCreatedVersion
             );
             context.addDynamicMapper(update);

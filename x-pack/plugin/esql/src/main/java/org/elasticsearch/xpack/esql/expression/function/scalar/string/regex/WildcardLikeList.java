@@ -147,6 +147,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
 
     private boolean supportsPushdown(TransportVersion version) {
         return version == null || expressionTransportSupported(version);
+        return new EsqlAutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
     }
 
     @Override

@@ -7,6 +7,8 @@ navigation_title: Update cross-cluster API examples
 
 The [update cross-cluster API key API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-security-update-cross-cluster-api-key) updates the attributes of an existing cross-cluster API key, which is used for API key based remote cluster access. This page shows you examples of using this API.
 
+## Create a cross-cluster API key
+
 If you create a cross-cluster API key as follows:
 
 ```console
@@ -40,6 +42,8 @@ A successful call returns a JSON structure that provides API key information. Fo
 % TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 % TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 % TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
+
+## Inspect the API key
 
 To retrieve key information about the API key, including the exact role descriptor, use the [Get API key API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-security-get-api-key).
 
@@ -111,6 +115,8 @@ A successful call returns a JSON structure that contains the information of the 
 1. Role descriptor corresponding to the specified `access` scope at creation time.
 In this example, it grants cross cluster search permission for the `logs*` index pattern.
 2. The `access` corresponds to the value specified at API key creation time.
+
+## Update access permissions and metadata
 
 The following example updates the API key created above, assigning it new access scope and metadata:
 

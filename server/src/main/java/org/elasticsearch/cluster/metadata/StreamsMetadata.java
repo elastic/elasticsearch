@@ -59,6 +59,10 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        // While technically the version returned here is correct, in reality this code
+        // was backported from 9.1 to 8.19 and isn't compatible with 9.0 but as we don't
+        // support migrating from 8.19 to 9.0, we can safely return this version rather than
+        // modifying many classes down stream.
         return TransportVersions.STREAMS_LOGS_SUPPORT_8_19;
     }
 

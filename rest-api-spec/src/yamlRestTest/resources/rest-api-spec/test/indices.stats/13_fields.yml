@@ -70,6 +70,8 @@ setup:
         body:
           sort: [ "bar", "baz" ]
 
+  # Wait for the shards to be allocated to avoid missing results in the stats request
+  # See https://github.com/elastic/elasticsearch/issues/96711#issuecomment-2996311920 for more context
   - do:
       cluster.health:
         index: test1

@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.inference.TaskType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,11 +23,17 @@ import static org.hamcrest.Matchers.is;
 
 public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEISAuthServerTest {
 
+    @BeforeClass
+    public static void init() {
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
+
     public void testGetDefaultEndpoints() throws IOException {
         var allModels = getAllModels();
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
 
-        assertThat(allModels, hasSize(5));
+        assertThat(allModels, hasSize(6));
         assertThat(chatCompletionModels, hasSize(1));
 
         for (var model : chatCompletionModels) {
@@ -35,6 +42,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
 
         assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ".elser-v2-elastic", TaskType.SPARSE_EMBEDDING);
+        assertInferenceIdTaskType(allModels, ".rerank-v1-elastic", TaskType.RERANK);
     }
 
     private static void assertInferenceIdTaskType(List<Map<String, Object>> models, String inferenceId, TaskType taskType) {

@@ -21,9 +21,10 @@ public class RLikePattern extends AbstractStringPattern {
     }
 
     @Override
-    public Automaton createAutomaton() {
+    public Automaton createAutomaton(boolean ignoreCase) {
+        int matchFlags = ignoreCase ? RegExp.CASE_INSENSITIVE : 0;
         return Operations.determinize(
-            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton(),
+            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, matchFlags).toAutomaton(),
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }

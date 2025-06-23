@@ -120,6 +120,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return aggregates;
     }
 
+    public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
+        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
+    }
+
     public AggregateExec withMode(AggregatorMode newMode) {
         return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
     }

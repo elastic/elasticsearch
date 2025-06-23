@@ -20,10 +20,10 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.1.0 [elasticsearch-9.1.0-release-notes]
 ```{applies_to}
 stack: coming 9.1.0
 ```
-## 9.1.0 [elasticsearch-9.1.0-release-notes]
 
 ### Highlights [elasticsearch-9.1.0-highlights]
 
@@ -47,10 +47,10 @@ Search:
 *  [#52](https://github.com/elastic/elasticsearch/pull/52)
 
 
+## 9.0.10 [elasticsearch-9.0.10-release-notes]
 ```{applies_to}
 stack: coming 9.0.10
 ```
-## 9.0.10 [elasticsearch-9.0.10-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.10-features-enhancements]
 

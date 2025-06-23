@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
@@ -78,20 +78,15 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         // generate a snapshot repository with the expected name
         RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
-                    .build()
-            )
-            .build();
-
-        ClusterState newClusterState;
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
+        );
 
         // the snapshot index name, snapshot repository, and snapshot name are generated as expected
-        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
-        LifecycleExecutionState executionState = newClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
+        ProjectState newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state);
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.snapshotIndexName(), is(indexName));
         assertThat(
             "the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name",
@@ -103,8 +98,8 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(executionState.snapshotName(), containsString(expectedPolicyName));
 
         // re-running this step results in no change to the important outputs
-        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newClusterState);
-        LifecycleExecutionState repeatedState = newClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
+        newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newState);
+        LifecycleExecutionState repeatedState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(repeatedState.snapshotIndexName(), is(executionState.snapshotIndexName()));
         assertThat(repeatedState.snapshotRepository(), is(executionState.snapshotRepository()));
         assertThat(repeatedState.snapshotName(), is(executionState.snapshotName()));
@@ -121,13 +116,15 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).build())
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+        );
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState)
+            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state)
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -163,18 +160,15 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         // generate a snapshot repository with the expected name
         RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
+        );
 
-        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
+        ProjectState newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state);
 
-        LifecycleExecutionState executionState = newClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.snapshotName(), is("snapshot-name-is-not-touched"));
         assertThat(executionState.snapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
     }

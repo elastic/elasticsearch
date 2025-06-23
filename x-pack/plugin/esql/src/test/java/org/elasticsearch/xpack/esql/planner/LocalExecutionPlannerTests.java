@@ -222,7 +222,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         var limitExec = new LimitExec(
             Source.EMPTY,
             new ParallelExec(queryExec.source(), queryExec),
-            new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER)
+            new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER),
+            randomEstimatedRowSize(estimatedRowSizeIsHuge)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), limitExec);
         assertThat(plan.driverFactories, hasSize(2));

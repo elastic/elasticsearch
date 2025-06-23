@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
@@ -18,10 +21,21 @@ import java.util.Arrays;
  * A {@link LocalSupplier} that contains already filled {@link Block}s.
  */
 public class ImmediateLocalSupplier implements LocalSupplier {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LocalSupplier.class,
+        "ImmediateSupplier",
+        ImmediateLocalSupplier::new
+    );
+
     final Block[] blocks;
 
     public ImmediateLocalSupplier(Block[] blocks) {
         this.blocks = blocks;
+    }
+
+    public ImmediateLocalSupplier(StreamInput in) throws IOException {
+        this(((PlanStreamInput) in).readCachedBlockArray());
     }
 
     @Override
@@ -51,5 +65,10 @@ public class ImmediateLocalSupplier implements LocalSupplier {
     @Override
     public int hashCode() {
         return Arrays.hashCode(blocks);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,14 +40,22 @@ public class LocalRelation extends LeafPlan {
     public LocalRelation(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.supplier = LocalSupplier.readFrom((PlanStreamInput) in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            this.supplier = in.readNamedWriteable(LocalSupplier.class);
+        } else {
+            this.supplier = LocalSupplier.readFrom((PlanStreamInput) in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(output);
-        supplier.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+            out.writeNamedWriteable(supplier);
+        } else {
+            supplier.writeTo(out);
+        }
     }
 
     @Override

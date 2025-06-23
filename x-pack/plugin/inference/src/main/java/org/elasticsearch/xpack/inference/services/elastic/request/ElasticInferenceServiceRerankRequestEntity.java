@@ -5,53 +5,55 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.elastic;
+package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
-    List<String> inputs,
+public record ElasticInferenceServiceRerankRequestEntity(
+    String query,
+    List<String> documents,
     String modelId,
-    @Nullable ElasticInferenceServiceUsageContext usageContext
+    @Nullable Integer topNDocumentsOnly
 ) implements ToXContentObject {
 
-    private static final String INPUT_FIELD = "input";
+    private static final String QUERY_FIELD = "query";
     private static final String MODEL_FIELD = "model";
-    private static final String USAGE_CONTEXT = "usage_context";
+    private static final String TOP_N_DOCUMENTS_ONLY_FIELD = "top_n";
+    private static final String DOCUMENTS_FIELD = "documents";
 
-    public ElasticInferenceServiceDenseTextEmbeddingsRequestEntity {
-        Objects.requireNonNull(inputs);
+    public ElasticInferenceServiceRerankRequestEntity {
+        Objects.requireNonNull(query);
+        Objects.requireNonNull(documents);
         Objects.requireNonNull(modelId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray(INPUT_FIELD);
 
-        for (String input : inputs) {
-            builder.value(input);
-        }
-
-        builder.endArray();
+        builder.field(QUERY_FIELD, query);
 
         builder.field(MODEL_FIELD, modelId);
 
-        // optional field
-        if ((usageContext == ElasticInferenceServiceUsageContext.UNSPECIFIED) == false) {
-            builder.field(USAGE_CONTEXT, usageContext);
+        if (Objects.nonNull(topNDocumentsOnly)) {
+            builder.field(TOP_N_DOCUMENTS_ONLY_FIELD, topNDocumentsOnly);
         }
+
+        builder.startArray(DOCUMENTS_FIELD);
+        for (String document : documents) {
+            builder.value(document);
+        }
+
+        builder.endArray();
 
         builder.endObject();
 
         return builder;
     }
-
 }

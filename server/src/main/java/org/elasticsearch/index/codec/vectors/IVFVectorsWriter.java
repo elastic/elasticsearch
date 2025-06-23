@@ -243,7 +243,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // build a float vector values with random access. In order to do that we dump the vectors to
         // a temporary file and if the segment is not dense, the docs to another file/
         try (
-            IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfVec_", IOContext.DEFAULT)
+            IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
@@ -252,7 +252,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try (
                 IndexOutput docsOut = dense
                     ? null
-                    : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfDoc_", IOContext.DEFAULT)
+                    : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
             ) {
                 if (docsOut != null) {
                     docsFileName = docsOut.getName();

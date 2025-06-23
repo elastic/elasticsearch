@@ -30,6 +30,9 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.CachePopulationReason;
+import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -56,6 +59,7 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService.SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME;
@@ -198,6 +202,59 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         assertResponse(prepareSearch(indexName), response -> assertThat(response.getHits().getTotalHits().value(), is(10_000L)));
         // we expect more bytes to have been warmed for the new segments
         assertBusy(() -> assertThat(searchDirectory.totalBytesWarmed() - bytesWarmedAfterSecondPrewarming, is(greaterThan(0L))));
+
+        logger.info("-> checking telemetry after search prewarming");
+        // clear the metrics collected so far
+        testTelemetryPlugin.resetMeter();
+
+        // evict everything from the cache
+        cacheService.forceEvict(key -> true);
+
+        // assert appropriate cache-miss metrics are published when searching
+        assertResponse(prepareSearch(indexName), response -> assertThat(response.getHits().getTotalHits().value(), is(10_000L)));
+        // There is at least one `population.throughput.histogram` measurement
+        CachePopulationReason cachePopulationReason = CachePopulationReason.OnlinePrewarming;
+        CachePopulationSource cachePopulationSource = CachePopulationSource.BlobStore;
+        assertContainsMeasurement(
+            testTelemetryPlugin.getDoubleHistogramMeasurement("es.blob_cache.population.throughput.histogram"),
+            cachePopulationReason,
+            cachePopulationSource
+        );
+
+        // There is at least one `population.bytes.total` measurement
+        assertContainsMeasurement(
+            testTelemetryPlugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total"),
+            cachePopulationReason,
+            cachePopulationSource
+        );
+
+        // There is at least one `population.time.total` measurement
+        assertContainsMeasurement(
+            testTelemetryPlugin.getLongCounterMeasurement("es.blob_cache.population.time.total"),
+            cachePopulationReason,
+            cachePopulationSource
+        );
+    }
+
+    private static void assertContainsMeasurement(
+        List<Measurement> measurements,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        CachePopulationSource cachePopulationSource
+    ) {
+        assertTrue(
+            "No " + cachePopulationReason + "/" + cachePopulationSource + " metrics found in " + measurements,
+            measurements.stream().anyMatch(m -> isMatchingMeasurement(m, cachePopulationReason, cachePopulationSource))
+        );
+    }
+
+    private static boolean isMatchingMeasurement(
+        Measurement measurement,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        CachePopulationSource cachePopulationSource
+    ) {
+        Map<String, Object> attributes = measurement.attributes();
+        return attributes.get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY) == cachePopulationReason.name()
+            && attributes.get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY) == cachePopulationSource.name();
     }
 
     public static final class TestCacheStatelessNoRecoveryPrewarming extends Stateless {

@@ -3354,7 +3354,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( EVAL xyz = ( (a/b) * (b/a)) )
                ( WHERE a < 1 )
                ( KEEP a )
-               ( DROP b )
+            | KEEP a
+            """;
+
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
@@ -3365,7 +3373,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | KEEP a
             """;
 
-        var plan = statement(query);
+        plan = statement(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
@@ -3383,7 +3391,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( EVAL xyz = ( (a/b) * (b/a)) )
                ( WHERE a < 1 )
                ( KEEP a )
-               ( DROP b )
+
+            | KEEP a
+            """;
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
@@ -3392,13 +3408,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a = b WITH c )
                ( SAMPLE 0.99 )
+            | KEEP a
+            """;
+        plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;
-
-        var plan = statement(query);
+        plan = statement(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 

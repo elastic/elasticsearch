@@ -562,7 +562,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
-        int maxCollectionLength = 10;
+        int maxCollectionLength = 8;
 
         if (hasAtLeastTwoChildren(toBuildClass)) {
             minCollectionLength = 2;

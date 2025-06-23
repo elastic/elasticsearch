@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.multiproject;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -46,7 +47,7 @@ public class ProjectGlobalBlocksIT extends AbstractStatelessIntegTestCase {
         return true;
     }
 
-    public void testProjectGlobalBlockPreventsIndexing() throws Exception {
+    public void testProjectGlobalBlock() throws Exception {
         startMasterAndIndexNode();
         startSearchNode();
         ensureStableCluster(2);
@@ -103,8 +104,12 @@ public class ProjectGlobalBlocksIT extends AbstractStatelessIntegTestCase {
     }
 
     private void assertFailedDueToDeletionBlock(Exception exception) {
-        assertThat(exception, CoreMatchers.instanceOf(ClusterBlockException.class));
-        assertTrue(((ClusterBlockException) exception).blocks().contains(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
+        ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(
+            exception,
+            ClusterBlockException.class
+        );
+        assertNotNull("expected a ClusterBlockException", clusterBlockException);
+        assertTrue(clusterBlockException.blocks().contains(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
     }
 
     private void applyProjectGlobalBlock(ProjectId projectId) {

@@ -221,18 +221,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return rawVectorsReader.getByteVectorValues(field);
     }
 
-
-    // FIXME: impl reader updates here
-    NeighborQueue scoreParentPartitionPostingLists(CentroidQueryScorer centroidQueryScorer)
-        throws IOException {
-        NeighborQueue neighborQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-        // TODO Off heap scoring for quantized centroids?
-        for (int centroid = 0; centroid < centroidQueryScorer.size(); centroid++) {
-            neighborQueue.add(centroid, centroidQueryScorer.score(centroid));
-        }
-        return neighborQueue;
-    }
-
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -309,9 +297,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
                 NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
                 // TODO Off heap scoring for quantized centroids?
-                for (int centroid = childCentroidOrdinal; centroid < childCentroidOrdinal + childCentroidCount; centroid++) {
-                    centroidQueue.add(centroid, centroidQueryScorer.score(centroid));
-                }
+//                for (int centroid = childCentroidOrdinal; centroid < childCentroidOrdinal + childCentroidCount; centroid++) {
+//                    centroidQueue.add(centroid, centroidQueryScorer.score(centroid));
+//                }
+                centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
 
 //                final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
                 PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
@@ -434,7 +423,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         float[] centroid(int centroidOrdinal) throws IOException;
 
-        float score(int centroidOrdinal) throws IOException;
+        void bulkScore(NeighborQueue queue) throws IOException;
+
+        void bulkScore(NeighborQueue queue, int start, int end) throws IOException;
     }
 
     interface PostingVisitor {

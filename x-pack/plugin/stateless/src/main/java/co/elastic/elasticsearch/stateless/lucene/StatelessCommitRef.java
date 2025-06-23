@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
@@ -30,11 +31,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
+/**
+ * StatelessCommitRef is a wrapper around a Lucene commit that contains additional information, like the new files introduced by this commit
+ * or the starting point of the translog to use to recover the commit. Closing a StatelessCommitRef may trigger the deletion of the
+ * underlying Lucene commit.
+ */
 public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     private final ShardId shardId;
     private final Engine.IndexCommitRef indexCommitRef;
-    private final Collection<String> commitFiles;
     private final Set<String> additionalFiles;
     private final AtomicBoolean released;
     private final long primaryTerm;
@@ -48,7 +53,6 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     public StatelessCommitRef(
         ShardId shardId,
         Engine.IndexCommitRef indexCommitRef,
-        Collection<String> commitFiles,
         Set<String> additionalFiles,
         long primaryTerm,
         long translogRecoveryStartFile,
@@ -57,7 +61,6 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         super(indexCommitRef.getIndexCommit());
         this.shardId = Objects.requireNonNull(shardId);
         this.indexCommitRef = indexCommitRef;
-        this.commitFiles = commitFiles;
         this.additionalFiles = Objects.requireNonNull(additionalFiles);
         this.primaryTerm = primaryTerm;
         this.translogRecoveryStartFile = translogRecoveryStartFile;
@@ -78,7 +81,12 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     }
 
     public Collection<String> getCommitFiles() {
-        return commitFiles;
+        try {
+            return getFileNames();
+        } catch (IOException e) {
+            assert false : e; // should never happen, none of the Lucene implementations throw this.
+            throw new UncheckedIOException(e);
+        }
     }
 
     public Set<String> getAdditionalFiles() {

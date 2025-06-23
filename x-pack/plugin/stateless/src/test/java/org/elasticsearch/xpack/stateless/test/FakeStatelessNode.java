@@ -428,7 +428,6 @@ public class FakeStatelessNode implements Closeable {
                     StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
                         shardId,
                         new Engine.IndexCommitRef(indexCommit, () -> {}),
-                        commitFiles,
                         additionalFiles,
                         primaryTerm,
                         0,
@@ -488,7 +487,6 @@ public class FakeStatelessNode implements Closeable {
                     StatelessCommitRef statelessCommitRef = new StatelessCommitRef(
                         shardId,
                         new Engine.IndexCommitRef(indexCommit, () -> onCommitClosed.accept(indexCommit.getGeneration())),
-                        commitFiles,
                         additionalFiles,
                         primaryTerm,
                         0,
